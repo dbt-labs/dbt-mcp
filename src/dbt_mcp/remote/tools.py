@@ -1,13 +1,11 @@
 import logging
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
 from typing import (
     Annotated,
     Any,
 )
 
-from mcp.client.session import ClientSession
-from mcp.client.sse import sse_client
+from httpx import Client
+from mcp import CallToolRequest, JSONRPCResponse, ListToolsResult
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.tools.base import Tool
 from mcp.server.fastmcp.utilities.func_metadata import (
@@ -15,30 +13,21 @@ from mcp.server.fastmcp.utilities.func_metadata import (
     FuncMetadata,
     _get_typed_annotation,
 )
-from mcp.types import EmbeddedResource, ImageContent, TextContent
+from mcp.types import (
+    CallToolRequestParams,
+    CallToolResult,
+    EmbeddedResource,
+    ImageContent,
+    TextContent,
+)
 from mcp.types import Tool as RemoteTool
-from pydantic import Field, WithJsonSchema, create_model
+from pydantic import Field, ValidationError, WithJsonSchema, create_model
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
 from dbt_mcp.config.config import Config
 
 logger = logging.getLogger(__name__)
-
-
-@asynccontextmanager
-async def sse_mcp_connection_context(
-    url: str,
-    headers: dict[str, Any] | None = None,
-    timeout: float = 5,
-    sse_read_timeout: float = 60 * 5,
-) -> AsyncGenerator[ClientSession, None]:
-    async with (
-        sse_client(url, headers, timeout, sse_read_timeout) as (read, write),
-        ClientSession(read, write) as session,
-    ):
-        await session.initialize()
-        yield session
 
 
 # Based on this: https://github.com/modelcontextprotocol/python-sdk/blob/9ae4df85fbab97bf476ddd160b766ca4c208cd13/src/mcp/server/fastmcp/utilities/func_metadata.py#L105
@@ -68,20 +57,15 @@ def get_remote_tool_fn_metadata(tool: RemoteTool) -> FuncMetadata:
     )
 
 
-async def list_remote_tools(
-    url: str,
-    headers: dict[str, Any],
-) -> list[RemoteTool]:
-    result: list[RemoteTool] = []
+def _get_remote_tools(config: Config, headers: dict[str, str]) -> list[RemoteTool]:
     try:
-        async with sse_mcp_connection_context(url, headers) as session:
-            result = (await session.list_tools()).tools
+        with Client(base_url=config.remote_mcp_base_url, headers=headers) as client:
+            list_tools_response = JSONRPCResponse.model_validate_json(
+                client.get("/tools/list").text
+            )
+            return ListToolsResult.model_validate(list_tools_response.result).tools
     except Exception:
-        # TODO: uncomment this when remote tools are available
-        # and this is actually an error.
-        # logger.error(f"Connection error while listing remote tools: {e}")
-        pass
-    return result
+        return []
 
 
 async def register_remote_tools(dbt_mcp: FastMCP, config: Config) -> None:
@@ -93,19 +77,60 @@ async def register_remote_tools(dbt_mcp: FastMCP, config: Config) -> None:
         "x-dbt-dev-environment-id": str(config.dev_environment_id),
         "x-dbt-user-id": str(config.user_id),
     }
-    remote_tools = await list_remote_tools(config.remote_mcp_url, headers)
-    for tool in remote_tools:
+    for tool in _get_remote_tools(config=config, headers=headers):
         # Create a new function using a factory to avoid closure issues
         def create_tool_function(tool_name: str):
             async def tool_function(
                 *args, **kwargs
             ) -> list[TextContent | ImageContent | EmbeddedResource]:
-                async with sse_mcp_connection_context(
-                    config.remote_mcp_url, headers
-                ) as session:
-                    return (
-                        await session.call_tool(name=tool_name, arguments=kwargs)
-                    ).content
+                with Client(
+                    base_url=config.remote_mcp_base_url, headers=headers
+                ) as client:
+                    tool_call_http_response = client.post(
+                        "/tools/call",
+                        json=CallToolRequest(
+                            method="tools/call",
+                            params=CallToolRequestParams(
+                                name=tool_name,
+                                arguments=kwargs,
+                            ),
+                        ).model_dump(),
+                    )
+                    if tool_call_http_response.status_code != 200:
+                        return [
+                            TextContent(
+                                type="text",
+                                text=f"Failed to call tool {tool_name} with "
+                                + f"status code: {tool_call_http_response.status_code} "
+                                + f"error message: {tool_call_http_response.text}",
+                            )
+                        ]
+                    try:
+                        tool_call_jsonrpc_response = (
+                            JSONRPCResponse.model_validate_json(
+                                tool_call_http_response.text
+                            )
+                        )
+                        tool_call_result = CallToolResult.model_validate(
+                            tool_call_jsonrpc_response.result
+                        )
+                    except ValidationError as e:
+                        return [
+                            TextContent(
+                                type="text",
+                                text=f"Failed to parse tool response for {tool_name}: "
+                                + f"{e}",
+                            )
+                        ]
+                    if tool_call_result.isError:
+                        return [
+                            TextContent(
+                                type="text",
+                                text=f"Tool {tool_name} reported an error: "
+                                + f"{tool_call_result.content}",
+                            )
+                        ]
+                    return tool_call_result.content
 
             return tool_function
 

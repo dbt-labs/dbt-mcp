@@ -6,14 +6,25 @@ This MCP (Model Context Protocol) server provides tools to interact with dbt. Re
 
 ![architecture diagram of the dbt MCP server](https://github.com/user-attachments/assets/89b8a24b-da7b-4e54-ba48-afceaa56f956)
 
-## Installation
+## Setup
 
-Want to get going quickly?
-
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/dbt-labs/dbt-mcp/refs/heads/main/install.sh)"
+1. Clone the repository:
+```shell
+git clone https://github.com/dbt-labs/dbt-mcp.git
+cd dbt-mcp
 ```
-The installer also serves as an updater, simply run it again and it will detect your exisiting dbt-mcp installation and offers to update it.
+
+2. [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
+
+3. [Install Task](https://taskfile.dev/installation/)
+
+4. Run `task install`
+
+5. Configure environment variables:
+```shell
+cp .env.example .env
+```
+Then edit `.env` with your specific environment variables (see the `Configuration` section of the `README.md`).
 
 ## Configuration
 
@@ -55,22 +66,15 @@ After going through [Installation](#installation), you can use your server with 
 
 This configuration will be added to the respective client's config file. Be sure to replace the sections within `<>`:
 
-If you used the installation script, the mcp server has been installed in your user directory at `~/.dbt-mcp/`.
-
 ```json
  {
   "mcpServers": {
     "dbt-mcp": {
-      "command": "/Users/<YOUR USERNAME>/.dbt-mcp/.venv/bin/mcp",
+      "command": "<path-to-mcp-executable>",
       "args": [
         "run",
-        "/Users/<YOUR USERNAME>/.dbt-mcp/.venv/lib/python3.12/site-packages/dbt_mcp/main.py"
-      ],
-      "env": {
-        // see config above
-        // "DBT_HOST": "cloud.getdbt.com"
-        // "DBT_TOKEN": "dbtu_...."
-      }
+        "<path-to-this-directory>/src/dbt_mcp/main.py"
+      ]
     }
   }
 }
@@ -101,6 +105,7 @@ Cursor MCP docs [here](https://docs.cursor.com/context/model-context-protocol) f
 1. Open the Settings menu (Command + Comma) and select the correct tab atop the page for your use case
     - `Workspace` - configures the server in the context of your workspace
     - `User` - configures the server in the context of your user
+    - **Note for WSL users**: If you're using VS Code with WSL, you'll need to configure WSL-specific settings. Run the **Preferences: Open Remote Settings** command from the Command Palette (F1) or select the **Remote** tab in the Settings editor. Local User settings are reused in WSL but can be overridden with WSL-specific settings. Configuring MCP servers in the local User settings will not work properly in a WSL environment.
 
 2. Select Features → Chat
 
