@@ -1,22 +1,38 @@
 import subprocess
+from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 from dbt_mcp.config.config import Config
 from dbt_mcp.prompts.prompts import get_prompt
 
 
 def register_dbt_cli_tools(dbt_mcp: FastMCP, config: Config) -> None:
-    def _run_dbt_command(command: list[str]) -> str:
+    def _run_dbt_command(command: list[str], selector: Optional[str] = None) -> str:
         # Commands that should always be quiet to reduce output verbosity
         verbose_commands = ["build", "compile", "docs", "parse", "run", "test"]
 
+        if selector:
+            selector_params = str(selector).split(" ")
+            command = command + selector_params
+
         full_command = command.copy()
         # Add --quiet flag to specific commands to reduce context window usage
-        if len(full_command) > 0 and full_command[0] in verbose_commands:
+
+        # should we remove quiet when people provide a selector? there could still be quite a few models selected
+        # we could maybe list all the resources selected with `ls` and set a threshold after which we don't use quiet?
+        if (
+            len(full_command) > 0
+            and full_command[0] in verbose_commands
+            and not selector
+        ):
             main_command = full_command[0]
             command_args = full_command[1:] if len(full_command) > 1 else []
             full_command = [main_command, "--quiet", *command_args]
+
+        #  would the LLM parse better the output if it is in JSON format?
+        full_command = full_command + ["--log-format", "json"]
 
         process = subprocess.Popen(
             args=[config.dbt_command, *full_command],
@@ -26,11 +42,16 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: Config) -> None:
             text=True,
         )
         output, _ = process.communicate()
-        return output
+        # trying to add an "OK" when quiet is set so that the LLM knows it was successful
+        return output or "OK"
 
     @dbt_mcp.tool(description=get_prompt("dbt_cli/build"))
-    def build() -> str:
-        return _run_dbt_command(["build"])
+    def build(
+        selector: Optional[str] = Field(
+            default=None, description=get_prompt("dbt_cli/args/selector")
+        ),
+    ) -> str:
+        return _run_dbt_command(["build"], selector)
 
     @dbt_mcp.tool(description=get_prompt("dbt_cli/compile"))
     def compile() -> str:
@@ -41,20 +62,33 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: Config) -> None:
         return _run_dbt_command(["docs", "generate"])
 
     @dbt_mcp.tool(name="list", description=get_prompt("dbt_cli/list"))
-    def ls() -> str:
-        return _run_dbt_command(["list"])
+    def ls(
+        selector: Optional[str] = Field(
+            default=None, description=get_prompt("dbt_cli/args/selector")
+        ),
+    ) -> str:
+        return _run_dbt_command(["list"], selector)
 
     @dbt_mcp.tool(description=get_prompt("dbt_cli/parse"))
     def parse() -> str:
         return _run_dbt_command(["parse"])
 
     @dbt_mcp.tool(description=get_prompt("dbt_cli/run"))
-    def run() -> str:
-        return _run_dbt_command(["run"])
+    def run(
+        selector: Optional[str] = Field(
+            default=None, description=get_prompt("dbt_cli/args/selector")
+        ),
+    ) -> str:
+        return _run_dbt_command(["run"], selector)
 
+    # TBH, I don't know if async changes anything here
     @dbt_mcp.tool(description=get_prompt("dbt_cli/test"))
-    def test() -> str:
-        return _run_dbt_command(["test"])
+    async def test(
+        selector: Optional[str] = Field(
+            default=None, description=get_prompt("dbt_cli/args/selector")
+        ),
+    ) -> str:
+        return _run_dbt_command(["test"], selector)
 
     @dbt_mcp.tool(description=get_prompt("dbt_cli/show"))
     def show(sql_query: str, limit: int | None = None) -> str:
