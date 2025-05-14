@@ -51,7 +51,9 @@ def register_discovery_tools(dbt_mcp: FastMCP, config: Config) -> None:
             return str(e)
 
     @dbt_mcp.tool(description=get_prompt("discovery/get_model_parents"))
-    def get_model_parents(model_name: str, unique_id: str | None = None) -> list[dict] | str:
+    def get_model_parents(
+        model_name: str, unique_id: str | None = None
+    ) -> list[dict] | str:
         try:
             return models_fetcher.fetch_model_parents(model_name, unique_id)
         except Exception as e:
@@ -59,7 +61,9 @@ def register_discovery_tools(dbt_mcp: FastMCP, config: Config) -> None:
             return str(e)
 
     @dbt_mcp.tool(description=get_prompt("discovery/get_model_children"))
-    def get_model_children(model_name: str, unique_id: str | None = None) -> list[dict] | str:
+    def get_model_children(
+        model_name: str, unique_id: str | None = None
+    ) -> list[dict] | str:
         try:
             return models_fetcher.fetch_model_children(model_name, unique_id)
         except Exception as e:

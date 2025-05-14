@@ -76,10 +76,10 @@ def test_fetch_model_details_with_uniqueId(models_fetcher: ModelsFetcher):
 
     # Fetch by name
     results_by_name = models_fetcher.fetch_model_details(model_name)
-    
+
     # Fetch by uniqueId
     results_by_uniqueId = models_fetcher.fetch_model_details(model_name, unique_id)
-    
+
     # Validate that both methods return the same result
     assert results_by_name["uniqueId"] == results_by_uniqueId["uniqueId"]
     assert results_by_name["name"] == results_by_uniqueId["name"]
@@ -104,10 +104,10 @@ def test_fetch_model_parents_with_uniqueId(models_fetcher: ModelsFetcher):
 
     # Fetch by name
     results_by_name = models_fetcher.fetch_model_parents(model_name)
-    
+
     # Fetch by uniqueId
     results_by_uniqueId = models_fetcher.fetch_model_parents(model_name, unique_id)
-    
+
     # Validate that both methods return the same result
     assert len(results_by_name) == len(results_by_uniqueId)
     if len(results_by_name) > 0:
@@ -134,10 +134,10 @@ def test_fetch_model_children_with_uniqueId(models_fetcher: ModelsFetcher):
 
     # Fetch by name
     results_by_name = models_fetcher.fetch_model_children(model_name)
-    
+
     # Fetch by uniqueId
     results_by_uniqueId = models_fetcher.fetch_model_children(model_name, unique_id)
-    
+
     # Validate that both methods return the same result
     assert len(results_by_name) == len(results_by_uniqueId)
     if len(results_by_name) > 0:
