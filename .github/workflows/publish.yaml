@@ -1,0 +1,36 @@
+name: Publish dbt-mcp to PyPI
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+-[a-zA-Z]*'
+
+jobs:
+
+  pypi-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - name: setup python
+        uses: ./.github/actions/setup-python
+        id: setup-python
+
+      - name: Install go-task
+        run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+
+      # TODO: Uncomment this when we have tests
+      # - name: Run tests
+      #   run: task test:unit
+      
+      - name: Build
+        run: task build
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: ./dist

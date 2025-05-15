@@ -1,11 +1,11 @@
 [project]
 name = "dbt-mcp"
-version = "0.1.3"
 description = "A MCP (Model Context Protocol) server for interacting with dbt resources."
 authors = [{ name = "dbt Labs" }]
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.12"
+dynamic = ["version"]
 classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Programming Language :: Python :: 3",
@@ -43,8 +43,12 @@ Source = "https://github.com/dbt-labs/dbt-mcp"
 dbt-mcp = "dbt_mcp.main:main"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.sdist]
 include = ["src/dbt_mcp/**/*", "README.md", "LICENSE"]
+
+[tool.hatch.version]
+source = "vcs"
+

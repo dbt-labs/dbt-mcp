@@ -1,0 +1,23 @@
+name: Create release tag
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - CHANGELOG.md
+
+jobs:
+  create-release-tag:
+    runs-on: ubuntu-latest
+    if: "startsWith(github.event.head_commit.message, 'version:')"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-python-env
+      - name: Create tag
+        run: |
+          TAG=$(hatch version)
+          git config user.name "release-bot"
+          git config user.email "release-bot@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin $TAG

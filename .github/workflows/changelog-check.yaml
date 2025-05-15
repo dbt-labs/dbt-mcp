@@ -1,0 +1,49 @@
+name: Check CHANGELOG
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check-changelog:
+    runs-on: ubuntu-latest
+    if: "!startsWith(github.event.pull_request.title, 'version:')"
+    steps:
+      - uses: actions/checkout@v4
+      - run: git fetch --depth=1 origin main
+
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-env
+
+      - name: Check for changes
+        run: |
+          ALL_CHANGES=$(git diff --name-only HEAD origin/main)
+
+          CHANGIE=$(echo "$ALL_CHANGES" | grep -E "\.changes/unreleased/.*\.yaml" || true)
+          if [ "$CHANGIE" == "" ]; then
+            echo "No files added to '.changes/unreleased/'. Make sure you run 'changie new'."
+            exit 1
+          fi
+
+          CHANGELOG=$(echo "$ALL_CHANGES" | grep -E "CHANGELOG\.md" || true)
+          if [ "$CHANGELOG" != "" ]; then
+            echo "Don't edit 'CHANGELOG.md' manually nor run 'changie merge'."
+            exit 1
+          fi
+
+
+      - name: Get latest changie version
+        id: latest
+        uses: miniscruff/changie-action@v2
+        with:
+          version: latest
+          args: latest
+
+      - name: Assert changie and hatch versions are the same
+        run: |
+          CHANGELOG_VERSION=$(echo "${{ steps.latest.outputs.output }}" | cut -c 2-)
+          PACKAGE_VERSION=$(hatch version)
+          if [ "$CHANGELOG_VERSION" != "$PACKAGE_VERSION" ]; then
+            echo "Changelog has version '$CHANGELOG_VERSION' while package has '$PACKAGE_VERSION'."
+            exit 1
+          fi

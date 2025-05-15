@@ -1,0 +1,69 @@
+name: Create release PR
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        type: choice
+        description: The version bump type. 
+        default: minor
+        options:
+          - major
+          - minor
+          - patch
+
+jobs:
+  create-release-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-python-env
+
+      - name: Batch changes
+        uses: miniscruff/changie-action@v2
+        with:
+          version: latest
+          args: batch ${{ inputs.bump }}
+
+      - name: Merge
+        uses: miniscruff/changie-action@v2
+        with:
+          version: latest
+          args: merge
+
+      - name: Get the latest version
+        id: changie-latest
+        uses: miniscruff/changie-action@v2
+        with:
+          version: latest
+          args: latest
+
+      - name: Set latest package version
+        id: package-version
+        run: |
+          VERSION="${{ steps.changie-latest.outputs.output }}"
+          VERSION_NO_V=$(echo "$VERSION" | cut -c 2-)
+          hatch version "$VERSION_NO_V"
+
+          MESSAGE=$(cat ".changes/$VERSION.md")
+
+          echo "version=$VERSION_NO_V" >> $GITHUB_OUTPUT
+
+          echo "message<<EOF" >> $GITHUB_OUTPUT
+          echo "$MESSAGE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v4
+        with:
+          title: "version: ${{ steps.package-version.outputs.version }}"
+          branch: release/${{ steps.package-version.outputs.version }}
+          commit-message: |
+            version: ${{ steps.package-version.outputs.version }}
+
+            ${{ steps.package-version.outputs.message }}
+          body: |
+            ## version: ${{ steps.package-version.outputs.version }}
+
+            ${{ steps.package-version.outputs.message }}
