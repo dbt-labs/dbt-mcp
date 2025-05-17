@@ -25,7 +25,7 @@ from pydantic import Field, ValidationError, WithJsonSchema, create_model
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
-from dbt_mcp.config.config import Config
+from dbt_mcp.config.config import RemoteConfig
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,9 @@ def get_remote_tool_fn_metadata(tool: RemoteTool) -> FuncMetadata:
     )
 
 
-def _get_remote_tools(config: Config, headers: dict[str, str]) -> list[RemoteTool]:
+def _get_remote_tools(
+    config: RemoteConfig, headers: dict[str, str]
+) -> list[RemoteTool]:
     try:
         with Client(base_url=config.remote_mcp_base_url, headers=headers) as client:
             list_tools_response = JSONRPCResponse.model_validate_json(
@@ -68,9 +70,7 @@ def _get_remote_tools(config: Config, headers: dict[str, str]) -> list[RemoteToo
         return []
 
 
-async def register_remote_tools(dbt_mcp: FastMCP, config: Config) -> None:
-    assert config.dev_environment_id is not None
-    assert config.user_id is not None
+async def register_remote_tools(dbt_mcp: FastMCP, config: RemoteConfig) -> None:
     headers = {
         "Authorization": f"Bearer {config.token}",
         "x-dbt-prod-environment-id": str(config.prod_environment_id),

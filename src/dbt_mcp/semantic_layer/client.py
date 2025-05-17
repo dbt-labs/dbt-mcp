@@ -4,7 +4,7 @@ from dbtsl.api.shared.query_params import GroupByParam, OrderByGroupBy
 from dbtsl.client.sync import SyncSemanticLayerClient
 from dbtsl.error import QueryFailedError
 
-from dbt_mcp.config.config import Config
+from dbt_mcp.config.config import SemanticLayerConfig
 from dbt_mcp.semantic_layer.gql.gql import GRAPHQL_QUERIES
 from dbt_mcp.semantic_layer.gql.gql_request import ConnAttr, submit_request
 from dbt_mcp.semantic_layer.levenshtein import get_misspellings
@@ -20,7 +20,9 @@ from dbt_mcp.semantic_layer.types import (
 
 
 class SemanticLayerFetcher:
-    def __init__(self, sl_client: SyncSemanticLayerClient, host: str, config: Config):
+    def __init__(
+        self, sl_client: SyncSemanticLayerClient, host: str, config: SemanticLayerConfig
+    ):
         self.sl_client = sl_client
         self.host = host
         self.config = config
@@ -33,7 +35,7 @@ class SemanticLayerFetcher:
             ConnAttr(
                 host=self.host,
                 params={"environmentid": self.config.prod_environment_id},
-                auth_header=f"Bearer {self.config.token}",
+                auth_header=f"Bearer {self.config.service_token}",
             ),
             {"query": GRAPHQL_QUERIES["metrics"]},
         )
@@ -54,7 +56,7 @@ class SemanticLayerFetcher:
                 ConnAttr(
                     host=self.host,
                     params={"environmentid": self.config.prod_environment_id},
-                    auth_header=f"Bearer {self.config.token}",
+                    auth_header=f"Bearer {self.config.service_token}",
                 ),
                 {
                     "query": GRAPHQL_QUERIES["dimensions"],
@@ -83,7 +85,7 @@ class SemanticLayerFetcher:
                 ConnAttr(
                     host=self.host,
                     params={"environmentid": self.config.prod_environment_id},
-                    auth_header=f"Bearer {self.config.token}",
+                    auth_header=f"Bearer {self.config.service_token}",
                 ),
                 {
                     "query": GRAPHQL_QUERIES["entities"],
@@ -214,7 +216,7 @@ class SemanticLayerFetcher:
             return self._format_query_failed_error(e)
 
 
-def get_semantic_layer_fetcher(config: Config) -> SemanticLayerFetcher:
+def get_semantic_layer_fetcher(config: SemanticLayerConfig) -> SemanticLayerFetcher:
     is_local = config.host and config.host.startswith("localhost")
     if is_local:
         host = config.host
@@ -222,15 +224,11 @@ def get_semantic_layer_fetcher(config: Config) -> SemanticLayerFetcher:
         host = f"{config.multicell_account_prefix}.semantic-layer.{config.host}"
     else:
         host = f"semantic-layer.{config.host}"
-    if config.prod_environment_id is None:
-        raise ValueError("Environment ID is required")
-    if config.token is None:
-        raise ValueError("Token is required")
     assert host is not None
 
     semantic_layer_client = SyncSemanticLayerClient(
         environment_id=config.prod_environment_id,
-        auth_token=config.token,
+        auth_token=config.service_token,
         host=host,
     )
 
