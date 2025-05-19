@@ -40,6 +40,5 @@ jobs:
         id: setup-python
       - name: Install go-task
         run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
-      # TODO: turn tests back on
-      # - name: Run tests
-      #   run: task test:unit
+      - name: Run tests
+        run: task test:unit

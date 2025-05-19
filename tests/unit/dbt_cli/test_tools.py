@@ -31,7 +31,7 @@ class TestDbtCliTools(unittest.TestCase):
             remote_enabled=True,
             dbt_command="dbt",
             multicell_account_prefix=None,
-            remote_mcp_url="http://localhost/mcp/sse",
+            remote_mcp_base_url="http://localhost/mcp/sse",
         )
 
         # Capture the registered tools
@@ -95,7 +95,7 @@ class TestDbtCliTools(unittest.TestCase):
             remote_enabled=True,
             dbt_command="dbt",
             multicell_account_prefix=None,
-            remote_mcp_url="http://localhost/mcp/sse",
+            remote_mcp_base_url="http://localhost/mcp/sse",
         )
 
         # Capture the registered tools
@@ -147,7 +147,7 @@ class TestDbtCliTools(unittest.TestCase):
             remote_enabled=True,
             dbt_command="dbt",
             multicell_account_prefix=None,
-            remote_mcp_url="http://localhost/mcp/sse",
+            remote_mcp_base_url="http://localhost/mcp/sse",
         )
 
         # Capture the registered tools

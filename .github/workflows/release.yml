@@ -32,9 +32,8 @@ jobs:
         id: setup-python
       - name: Install go-task
         run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
-      # TODO: Uncomment this when we have tests
-      # - name: Run tests
-      #   run: task test:unit
+      - name: Run tests
+        run: task test:unit
       - name: Build
         run: task build
       - name: Publish to test PyPI

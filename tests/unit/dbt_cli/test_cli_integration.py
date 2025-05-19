@@ -35,7 +35,7 @@ class TestDbtCliIntegration(unittest.TestCase):
             remote_enabled=True,
             dbt_command="/path/to/dbt",  # Custom dbt path
             multicell_account_prefix=None,
-            remote_mcp_url="http://localhost/mcp/sse",
+            remote_mcp_base_url="http://localhost/mcp/sse",
         )
 
         # Patch the tool decorator to capture functions
