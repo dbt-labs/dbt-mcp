@@ -1,8 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-
-from dbt_mcp.config.config import Config
+from tests.mocks.config import mock_config
 
 
 class TestDbtCliTools(unittest.TestCase):
@@ -18,21 +17,6 @@ class TestDbtCliTools(unittest.TestCase):
 
         # Create a mock FastMCP and Config
         mock_fastmcp = MagicMock()
-        config = Config(
-            host="localhost",
-            prod_environment_id=1,
-            dev_environment_id=1,
-            user_id=1,
-            token="token",
-            project_dir="/test/project",
-            dbt_cli_enabled=True,
-            semantic_layer_enabled=True,
-            discovery_enabled=True,
-            remote_enabled=True,
-            dbt_command="dbt",
-            multicell_account_prefix=None,
-            remote_mcp_base_url="http://localhost/mcp/sse",
-        )
 
         # Capture the registered tools
         tools = {}
@@ -48,7 +32,7 @@ class TestDbtCliTools(unittest.TestCase):
         mock_fastmcp.tool = mock_tool_decorator
 
         # Register the tools
-        register_dbt_cli_tools(mock_fastmcp, config)
+        register_dbt_cli_tools(mock_fastmcp, mock_config.dbt_cli_config)
 
         # Test each verbose command (build, compile, docs, parse, run, test)
         verbose_commands = ["build", "compile", "docs", "parse", "run", "test"]
@@ -64,11 +48,13 @@ class TestDbtCliTools(unittest.TestCase):
             if command == "docs":
                 # For docs command, check if ["docs", "generate"] gets transformed to ["docs", "--quiet", "generate"]
                 args_list = mock_popen.call_args.kwargs.get("args")
-                self.assertEqual(args_list, ["dbt", "docs", "--quiet", "generate"])
+                self.assertEqual(
+                    args_list, ["/path/to/dbt", "docs", "--quiet", "generate"]
+                )
             else:
                 # Check if the --quiet flag was added
                 args_list = mock_popen.call_args.kwargs.get("args")
-                self.assertEqual(args_list, ["dbt", command, "--quiet"])
+                self.assertEqual(args_list, ["/path/to/dbt", command, "--quiet"])
 
     @patch("subprocess.Popen")
     def test_non_verbose_commands_not_modified(self, mock_popen):
@@ -82,21 +68,6 @@ class TestDbtCliTools(unittest.TestCase):
 
         # Create a mock FastMCP and Config
         mock_fastmcp = MagicMock()
-        config = Config(
-            host="localhost",
-            prod_environment_id=1,
-            dev_environment_id=1,
-            user_id=1,
-            token="token",
-            project_dir="/test/project",
-            dbt_cli_enabled=True,
-            semantic_layer_enabled=True,
-            discovery_enabled=True,
-            remote_enabled=True,
-            dbt_command="dbt",
-            multicell_account_prefix=None,
-            remote_mcp_base_url="http://localhost/mcp/sse",
-        )
 
         # Capture the registered tools
         tools = {}
@@ -112,7 +83,7 @@ class TestDbtCliTools(unittest.TestCase):
         mock_fastmcp.tool = mock_tool_decorator
 
         # Register the tools
-        register_dbt_cli_tools(mock_fastmcp, config)
+        register_dbt_cli_tools(mock_fastmcp, mock_config.dbt_cli_config)
 
         # Test "list" (non-verbose) command
         mock_popen.reset_mock()
@@ -120,7 +91,7 @@ class TestDbtCliTools(unittest.TestCase):
 
         # Check that --quiet flag was NOT added
         args_list = mock_popen.call_args.kwargs.get("args")
-        self.assertEqual(args_list, ["dbt", "list"])
+        self.assertEqual(args_list, ["/path/to/dbt", "list"])
 
     @patch("subprocess.Popen")
     def test_show_command_correctly_formatted(self, mock_popen):
@@ -134,21 +105,6 @@ class TestDbtCliTools(unittest.TestCase):
 
         # Create a mock FastMCP and Config
         mock_fastmcp = MagicMock()
-        config = Config(
-            host="localhost",
-            prod_environment_id=1,
-            dev_environment_id=1,
-            user_id=1,
-            token="token",
-            project_dir="/test/project",
-            dbt_cli_enabled=True,
-            semantic_layer_enabled=True,
-            discovery_enabled=True,
-            remote_enabled=True,
-            dbt_command="dbt",
-            multicell_account_prefix=None,
-            remote_mcp_base_url="http://localhost/mcp/sse",
-        )
 
         # Capture the registered tools
         tools = {}
@@ -164,7 +120,7 @@ class TestDbtCliTools(unittest.TestCase):
         mock_fastmcp.tool = mock_tool_decorator
 
         # Register the tools
-        register_dbt_cli_tools(mock_fastmcp, config)
+        register_dbt_cli_tools(mock_fastmcp, mock_config.dbt_cli_config)
 
         # Test show command with and without limit
         mock_popen.reset_mock()
@@ -175,7 +131,7 @@ class TestDbtCliTools(unittest.TestCase):
         self.assertEqual(
             args_list,
             [
-                "dbt",
+                "/path/to/dbt",
                 "show",
                 "--inline",
                 "SELECT * FROM my_model",
@@ -194,7 +150,7 @@ class TestDbtCliTools(unittest.TestCase):
         self.assertEqual(
             args_list,
             [
-                "dbt",
+                "/path/to/dbt",
                 "show",
                 "--inline",
                 "SELECT * FROM my_model",

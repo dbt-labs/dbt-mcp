@@ -1,8 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-
-from dbt_mcp.config.config import Config
+from tests.mocks.config import mock_config
 
 
 class TestDbtCliIntegration(unittest.TestCase):
@@ -22,21 +21,6 @@ class TestDbtCliIntegration(unittest.TestCase):
 
         # Create a mock FastMCP and Config
         mock_fastmcp = MagicMock()
-        config = Config(
-            host="localhost",
-            prod_environment_id=1,
-            dev_environment_id=1,
-            user_id=1,
-            token="token",
-            project_dir="/test/project",
-            dbt_cli_enabled=True,
-            semantic_layer_enabled=True,
-            discovery_enabled=True,
-            remote_enabled=True,
-            dbt_command="/path/to/dbt",  # Custom dbt path
-            multicell_account_prefix=None,
-            remote_mcp_base_url="http://localhost/mcp/sse",
-        )
 
         # Patch the tool decorator to capture functions
         tools = {}
@@ -51,7 +35,7 @@ class TestDbtCliIntegration(unittest.TestCase):
         mock_fastmcp.tool = mock_tool_decorator
 
         # Register the tools
-        register_dbt_cli_tools(mock_fastmcp, config)
+        register_dbt_cli_tools(mock_fastmcp, mock_config.dbt_cli_config)
 
         # Test cases for different command types
         test_cases = [
