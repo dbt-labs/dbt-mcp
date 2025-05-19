@@ -21,7 +21,8 @@ from dbt_mcp.semantic_layer.types import OrderByParam, QueryMetricsSuccess
 LLM_MODEL = "gpt-4o-mini"
 llm_client = OpenAI()
 config = load_config()
-semantic_layer_fetcher = get_semantic_layer_fetcher(config)
+assert config.semantic_layer_config
+semantic_layer_fetcher = get_semantic_layer_fetcher(config.semantic_layer_config)
 
 
 async def expect_metadata_tool_call(

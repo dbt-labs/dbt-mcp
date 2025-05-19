@@ -2,11 +2,11 @@ import subprocess
 
 from mcp.server.fastmcp import FastMCP
 
-from dbt_mcp.config.config import Config
+from dbt_mcp.config.config import DbtCliConfig
 from dbt_mcp.prompts.prompts import get_prompt
 
 
-def register_dbt_cli_tools(dbt_mcp: FastMCP, config: Config) -> None:
+def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
     def _run_dbt_command(command: list[str]) -> str:
         # Commands that should always be quiet to reduce output verbosity
         verbose_commands = ["build", "compile", "docs", "parse", "run", "test"]
@@ -19,7 +19,7 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: Config) -> None:
             full_command = [main_command, "--quiet", *command_args]
 
         process = subprocess.Popen(
-            args=[config.dbt_command, *full_command],
+            args=[config.dbt_path, *full_command],
             cwd=config.project_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,

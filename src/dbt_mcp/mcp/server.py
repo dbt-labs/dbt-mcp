@@ -29,14 +29,14 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[None]:
 
 dbt_mcp = FastMCP("dbt", lifespan=app_lifespan)
 
-if config.semantic_layer_enabled:
-    register_sl_tools(dbt_mcp, config)
+if config.semantic_layer_config:
+    register_sl_tools(dbt_mcp, config.semantic_layer_config)
 
-if config.discovery_enabled:
-    register_discovery_tools(dbt_mcp, config)
+if config.discovery_config:
+    register_discovery_tools(dbt_mcp, config.discovery_config)
 
-if config.dbt_cli_enabled:
-    register_dbt_cli_tools(dbt_mcp, config)
+if config.dbt_cli_config:
+    register_dbt_cli_tools(dbt_mcp, config.dbt_cli_config)
 
-if config.remote_enabled:
-    asyncio.run(register_remote_tools(dbt_mcp, config))
+if config.remote_config:
+    asyncio.run(register_remote_tools(dbt_mcp, config.remote_config))

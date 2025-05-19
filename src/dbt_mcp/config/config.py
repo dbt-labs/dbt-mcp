@@ -5,20 +5,42 @@ from dotenv import load_dotenv
 
 
 @dataclass
-class Config:
-    host: str | None
-    prod_environment_id: int | None
-    dev_environment_id: int | None
-    user_id: int | None
-    token: str | None
-    project_dir: str | None
-    dbt_cli_enabled: bool
-    semantic_layer_enabled: bool
-    discovery_enabled: bool
-    remote_enabled: bool
-    dbt_command: str
+class SemanticLayerConfig:
     multicell_account_prefix: str | None
+    host: str
+    prod_environment_id: int
+    service_token: str
+
+
+@dataclass
+class DiscoveryConfig:
+    multicell_account_prefix: str | None
+    host: str
+    environment_id: int
+    token: str
+
+
+@dataclass
+class DbtCliConfig:
+    project_dir: str
+    dbt_path: str
+
+
+@dataclass
+class RemoteConfig:
+    user_id: int
+    dev_environment_id: int
+    prod_environment_id: int
+    token: str
     remote_mcp_base_url: str
+
+
+@dataclass
+class Config:
+    remote_config: RemoteConfig | None
+    dbt_cli_config: DbtCliConfig | None
+    discovery_config: DiscoveryConfig | None
+    semantic_layer_config: SemanticLayerConfig | None
 
 
 def load_config() -> Config:
@@ -87,21 +109,54 @@ def load_config() -> Config:
         else None
     )
 
-    return Config(
-        host=host,
-        prod_environment_id=actual_prod_environment_id,
-        dev_environment_id=int(dev_environment_id) if dev_environment_id else None,
-        user_id=int(user_id) if user_id else None,
-        token=token,
-        project_dir=project_dir,
-        dbt_cli_enabled=not disable_dbt_cli,
-        semantic_layer_enabled=not disable_semantic_layer,
-        discovery_enabled=not disable_discovery,
-        remote_enabled=not disable_remote,
-        dbt_command=dbt_path,
-        multicell_account_prefix=multicell_account_prefix,
-        remote_mcp_base_url=(
-            "http://" if host and host.startswith("localhost") else "https://"
+    remote_config = None
+    if (
+        not disable_remote
+        and user_id
+        and token
+        and dev_environment_id
+        and actual_prod_environment_id
+        and host
+    ):
+        remote_config = RemoteConfig(
+            user_id=int(user_id),
+            token=token,
+            dev_environment_id=int(dev_environment_id),
+            prod_environment_id=actual_prod_environment_id,
+            remote_mcp_base_url=(
+                "http://" if host and host.startswith("localhost") else "https://"
+            )
+            + f"{host}/mcp",
         )
-        + f"{host}/mcp",
+
+    dbt_cli_config = None
+    if not disable_dbt_cli and project_dir and dbt_path:
+        dbt_cli_config = DbtCliConfig(
+            project_dir=project_dir,
+            dbt_path=dbt_path,
+        )
+
+    discovery_config = None
+    if not disable_dbt_cli and host and actual_prod_environment_id and token:
+        discovery_config = DiscoveryConfig(
+            multicell_account_prefix=multicell_account_prefix,
+            host=host,
+            environment_id=actual_prod_environment_id,
+            token=token,
+        )
+
+    semantic_layer_config = None
+    if not disable_semantic_layer and host and actual_prod_environment_id and token:
+        semantic_layer_config = SemanticLayerConfig(
+            multicell_account_prefix=multicell_account_prefix,
+            host=host,
+            prod_environment_id=actual_prod_environment_id,
+            service_token=token,
+        )
+
+    return Config(
+        remote_config=remote_config,
+        dbt_cli_config=dbt_cli_config,
+        discovery_config=discovery_config,
+        semantic_layer_config=semantic_layer_config,
     )
