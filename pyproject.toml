@@ -21,6 +21,7 @@ dependencies = [
   "pandas==2.2.3",
   "python-dotenv==1.0.1",
   "requests==2.32.3",
+  "snowplow-tracker>=1.1.0",
 ]
 [dependency-groups]
 dev = [
