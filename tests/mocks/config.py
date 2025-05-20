@@ -8,11 +8,12 @@ from dbt_mcp.config.config import (
 
 mock_config = Config(
     remote_config=RemoteConfig(
+        multicell_account_prefix=None,
         prod_environment_id=1,
         dev_environment_id=1,
         user_id=1,
         token="token",
-        remote_mcp_base_url="http://localhost/mcp/sse",
+        host="http://localhost/mcp",
     ),
     dbt_cli_config=DbtCliConfig(
         project_dir="/test/project",

@@ -57,35 +57,43 @@ def get_remote_tool_fn_metadata(tool: RemoteTool) -> FuncMetadata:
     )
 
 
-def _get_remote_tools(
-    config: RemoteConfig, headers: dict[str, str]
-) -> list[RemoteTool]:
+def _get_remote_tools(base_url: str, headers: dict[str, str]) -> list[RemoteTool]:
     try:
-        with Client(base_url=config.remote_mcp_base_url, headers=headers) as client:
+        with Client(base_url=base_url, headers=headers) as client:
             list_tools_response = JSONRPCResponse.model_validate_json(
                 client.get("/tools/list").text
             )
             return ListToolsResult.model_validate(list_tools_response.result).tools
-    except Exception:
+    except Exception as e:
+        print(f"Error getting remote tools: {e}")
         return []
 
 
 async def register_remote_tools(dbt_mcp: FastMCP, config: RemoteConfig) -> None:
+    is_local = config.host and config.host.startswith("localhost")
+    path = "/mcp" if is_local else "/api/ai/mcp"
+    scheme = "http://" if is_local else "https://"
+    multicell_account_prefix = (
+        f"{config.multicell_account_prefix}." if config.multicell_account_prefix else ""
+    )
+    base_url = f"{scheme}{multicell_account_prefix}{config.host}{path}"
     headers = {
         "Authorization": f"Bearer {config.token}",
         "x-dbt-prod-environment-id": str(config.prod_environment_id),
         "x-dbt-dev-environment-id": str(config.dev_environment_id),
         "x-dbt-user-id": str(config.user_id),
     }
-    for tool in _get_remote_tools(config=config, headers=headers):
+    remote_tools = _get_remote_tools(base_url=base_url, headers=headers)
+    logger.info(
+        f"Loaded remote tools: {', '.join([tool.name for tool in remote_tools])}",
+    )
+    for tool in remote_tools:
         # Create a new function using a factory to avoid closure issues
         def create_tool_function(tool_name: str):
             async def tool_function(
                 *args, **kwargs
             ) -> list[TextContent | ImageContent | EmbeddedResource]:
-                with Client(
-                    base_url=config.remote_mcp_base_url, headers=headers
-                ) as client:
+                with Client(base_url=base_url, headers=headers) as client:
                     tool_call_http_response = client.post(
                         "/tools/call",
                         json=CallToolRequest(
@@ -95,6 +103,7 @@ async def register_remote_tools(dbt_mcp: FastMCP, config: RemoteConfig) -> None:
                                 arguments=kwargs,
                             ),
                         ).model_dump(),
+                        timeout=10,
                     )
                     if tool_call_http_response.status_code != 200:
                         return [

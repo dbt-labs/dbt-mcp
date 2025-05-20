@@ -28,11 +28,12 @@ class DbtCliConfig:
 
 @dataclass
 class RemoteConfig:
+    multicell_account_prefix: str | None
+    host: str
     user_id: int
     dev_environment_id: int
     prod_environment_id: int
     token: str
-    remote_mcp_base_url: str
 
 
 @dataclass
@@ -119,14 +120,12 @@ def load_config() -> Config:
         and host
     ):
         remote_config = RemoteConfig(
+            multicell_account_prefix=multicell_account_prefix,
             user_id=int(user_id),
             token=token,
             dev_environment_id=int(dev_environment_id),
             prod_environment_id=actual_prod_environment_id,
-            remote_mcp_base_url=(
-                "http://" if host and host.startswith("localhost") else "https://"
-            )
-            + f"{host}/mcp",
+            host=host,
         )
 
     dbt_cli_config = None
