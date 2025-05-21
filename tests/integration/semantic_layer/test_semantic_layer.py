@@ -8,20 +8,20 @@ config = load_config()
 
 
 def test_semantic_layer_list_metrics():
-    semantic_layer_fetcher = get_semantic_layer_fetcher(config)
+    semantic_layer_fetcher = get_semantic_layer_fetcher(config.semantic_layer_config)
     metrics = semantic_layer_fetcher.list_metrics()
     assert len(metrics) > 0
 
 
 def test_semantic_layer_list_dimensions():
-    semantic_layer_fetcher = get_semantic_layer_fetcher(config)
+    semantic_layer_fetcher = get_semantic_layer_fetcher(config.semantic_layer_config)
     metrics = semantic_layer_fetcher.list_metrics()
     dimensions = semantic_layer_fetcher.get_dimensions(metrics=[metrics[0].name])
     assert len(dimensions) > 0
 
 
 def test_semantic_layer_query_metrics():
-    semantic_layer_fetcher = get_semantic_layer_fetcher(config)
+    semantic_layer_fetcher = get_semantic_layer_fetcher(config.semantic_layer_config)
     result = semantic_layer_fetcher.query_metrics(
         metrics=["revenue"],
         group_by=[
@@ -36,7 +36,7 @@ def test_semantic_layer_query_metrics():
 
 
 def test_semantic_layer_query_metrics_invalid_query():
-    semantic_layer_fetcher = get_semantic_layer_fetcher(config)
+    semantic_layer_fetcher = get_semantic_layer_fetcher(config.semantic_layer_config)
     result = semantic_layer_fetcher.query_metrics(
         metrics=["food_revenue"],
         group_by=[
@@ -67,7 +67,7 @@ def test_semantic_layer_query_metrics_invalid_query():
 
 
 def test_semantic_layer_query_metrics_with_group_by_grain():
-    semantic_layer_fetcher = get_semantic_layer_fetcher(config)
+    semantic_layer_fetcher = get_semantic_layer_fetcher(config.semantic_layer_config)
     result = semantic_layer_fetcher.query_metrics(
         metrics=["revenue"],
         group_by=[
@@ -82,7 +82,7 @@ def test_semantic_layer_query_metrics_with_group_by_grain():
 
 
 def test_semantic_layer_query_metrics_with_order_by():
-    semantic_layer_fetcher = get_semantic_layer_fetcher(config)
+    semantic_layer_fetcher = get_semantic_layer_fetcher(config.semantic_layer_config)
     result = semantic_layer_fetcher.query_metrics(
         metrics=["revenue"],
         group_by=[
@@ -98,14 +98,14 @@ def test_semantic_layer_query_metrics_with_order_by():
 
 
 def test_semantic_layer_query_metrics_with_misspellings():
-    semantic_layer_fetcher = get_semantic_layer_fetcher(config)
+    semantic_layer_fetcher = get_semantic_layer_fetcher(config.semantic_layer_config)
     result = semantic_layer_fetcher.query_metrics(["revehue"])
     assert result is not None
     assert "revenue" in result
 
 
 def test_semantic_layer_get_entities():
-    semantic_layer_fetcher = get_semantic_layer_fetcher(config)
+    semantic_layer_fetcher = get_semantic_layer_fetcher(config.semantic_layer_config)
     entities = semantic_layer_fetcher.get_entities(
         metrics=["count_dbt_copilot_requests"]
     )

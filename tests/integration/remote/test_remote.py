@@ -1,11 +1,9 @@
-import pytest
 from mcp.server.fastmcp import FastMCP
 
 from dbt_mcp.config.config import load_config
 from dbt_mcp.remote.tools import register_remote_tools
 
 
-@pytest.mark.asyncio
 async def test_remote_tool_execute_sql():
     config = load_config()
     dbt_mcp = FastMCP("Test")
@@ -17,7 +15,6 @@ async def test_remote_tool_execute_sql():
     assert "1" in result[0].text
 
 
-@pytest.mark.asyncio
 async def test_remote_tool_text_to_sql():
     config = load_config()
     dbt_mcp = FastMCP("Test")

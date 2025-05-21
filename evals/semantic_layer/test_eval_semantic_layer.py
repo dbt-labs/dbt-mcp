@@ -153,7 +153,6 @@ def initial_messages(content: str) -> ResponseInputParam:
         ),
     ],
 )
-@pytest.mark.asyncio
 async def test_explicit_tool_request(content: str, expected_tool: str):
     response = llm_client.responses.create(
         model=LLM_MODEL,
@@ -166,7 +165,6 @@ async def test_explicit_tool_request(content: str, expected_tool: str):
     assert response.output[0].name == expected_tool
 
 
-@pytest.mark.asyncio
 async def test_semantic_layer_fulfillment_query():
     tools = await get_tools()
     messages = initial_messages(
@@ -190,7 +188,6 @@ async def test_semantic_layer_fulfillment_query():
     )
 
 
-@pytest.mark.asyncio
 async def test_semantic_layer_food_revenue_per_month():
     tools = await get_tools()
     messages = initial_messages(
@@ -239,7 +236,6 @@ async def test_semantic_layer_food_revenue_per_month():
     )
 
 
-@pytest.mark.asyncio
 async def test_semantic_layer_what_percentage_of_orders_were_large():
     tools = await get_tools()
     messages = initial_messages(
