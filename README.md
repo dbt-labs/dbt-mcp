@@ -28,8 +28,7 @@ Then edit `.env` with your specific environment variables (see the `Configuratio
 
 ## Configuration
 
-The MCP server takes the following configuration:
-
+The MCP server takes the following environment variable configuration:
 
 ### Tool Groups
 | Name | Default | Description |
