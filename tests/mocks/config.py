@@ -4,9 +4,16 @@ from dbt_mcp.config.config import (
     DiscoveryConfig,
     RemoteConfig,
     SemanticLayerConfig,
+    TrackingConfig,
 )
 
 mock_config = Config(
+    tracking_config=TrackingConfig(
+        prod_environment_id=1,
+        dev_environment_id=1,
+        dbt_cloud_user_id=1,
+        local_user_id="1",
+    ),
     remote_config=RemoteConfig(
         multicell_account_prefix=None,
         prod_environment_id=1,

@@ -124,21 +124,14 @@ async def register_remote_tools(dbt_mcp: FastMCP, config: RemoteConfig) -> None:
                             tool_call_jsonrpc_response.result
                         )
                     except ValidationError as e:
-                        return [
-                            TextContent(
-                                type="text",
-                                text=f"Failed to parse tool response for {tool_name}: "
-                                + f"{e}",
-                            )
-                        ]
+                        raise ValueError(
+                            f"Failed to parse tool response for {tool_name}: {e}"
+                        ) from e
                     if tool_call_result.isError:
-                        return [
-                            TextContent(
-                                type="text",
-                                text=f"Tool {tool_name} reported an error: "
-                                + f"{tool_call_result.content}",
-                            )
-                        ]
+                        raise ValueError(
+                            f"Tool {tool_name} reported an error: "
+                            + f"{tool_call_result.content}"
+                        )
                     return tool_call_result.content
 
             return tool_function
