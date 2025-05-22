@@ -103,7 +103,7 @@ async def register_remote_tools(dbt_mcp: FastMCP, config: RemoteConfig) -> None:
                                 arguments=kwargs,
                             ),
                         ).model_dump(),
-                        timeout=10,
+                        timeout=30,
                     )
                     if tool_call_http_response.status_code != 200:
                         return [
