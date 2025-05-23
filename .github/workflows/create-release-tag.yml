@@ -1,5 +1,8 @@
 name: Create release tag
 
+permissions:
+  contents: write
+
 on:
   push:
     branches:
