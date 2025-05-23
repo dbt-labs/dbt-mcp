@@ -13,7 +13,7 @@ jobs:
     if: "startsWith(github.event.head_commit.message, 'version:')"
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup-python-env
+      - uses: ./.github/actions/setup-python
       - name: Create tag
         run: |
           TAG=$(hatch version)

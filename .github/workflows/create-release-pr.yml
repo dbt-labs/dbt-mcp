@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: ./.github/actions/setup-python-env
+      - uses: ./.github/actions/setup-python
 
       - name: Batch changes
         uses: miniscruff/changie-action@v2
