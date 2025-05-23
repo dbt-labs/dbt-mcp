@@ -1,24 +1,58 @@
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
+import yaml
 from dotenv import load_dotenv
 
 
 @dataclass
-class Config:
-    host: str | None
+class TrackingConfig:
     prod_environment_id: int | None
     dev_environment_id: int | None
-    user_id: int | None
-    token: str | None
-    project_dir: str | None
-    dbt_cli_enabled: bool
-    semantic_layer_enabled: bool
-    discovery_enabled: bool
-    remote_enabled: bool
-    dbt_command: str
+    dbt_cloud_user_id: int | None
+    local_user_id: str | None
+
+
+@dataclass
+class SemanticLayerConfig:
     multicell_account_prefix: str | None
-    remote_mcp_base_url: str
+    host: str
+    prod_environment_id: int
+    service_token: str
+
+
+@dataclass
+class DiscoveryConfig:
+    multicell_account_prefix: str | None
+    host: str
+    environment_id: int
+    token: str
+
+
+@dataclass
+class DbtCliConfig:
+    project_dir: str
+    dbt_path: str
+
+
+@dataclass
+class RemoteConfig:
+    multicell_account_prefix: str | None
+    host: str
+    user_id: int
+    dev_environment_id: int
+    prod_environment_id: int
+    token: str
+
+
+@dataclass
+class Config:
+    tracking_config: TrackingConfig
+    remote_config: RemoteConfig | None
+    dbt_cli_config: DbtCliConfig | None
+    discovery_config: DiscoveryConfig | None
+    semantic_layer_config: SemanticLayerConfig | None
 
 
 def load_config() -> Config:
@@ -39,18 +73,18 @@ def load_config() -> Config:
     multicell_account_prefix = os.environ.get("MULTICELL_ACCOUNT_PREFIX", None)
 
     errors = []
-    if not disable_semantic_layer or not disable_discovery:
+    if not disable_semantic_layer or not disable_discovery or not disable_remote:
         if not host:
             errors.append(
-                "DBT_HOST environment variable is required when semantic layer or discovery is enabled."
+                "DBT_HOST environment variable is required when semantic layer, discovery, or remote tools are enabled."
             )
         if not prod_environment_id and not legacy_prod_environment_id:
             errors.append(
-                "DBT_PROD_ENV_ID environment variable is required when semantic layer or discovery is enabled."
+                "DBT_PROD_ENV_ID environment variable is required when semantic layer, discovery, or remote tools are enabled."
             )
         if not token:
             errors.append(
-                "DBT_TOKEN environment variable is required when semantic layer or discovery is enabled."
+                "DBT_TOKEN environment variable is required when semantic layer, discovery, or remote tools are enabled."
             )
         if host and (host.startswith("metadata") or host.startswith("semantic-layer")):
             errors.append(
@@ -59,20 +93,20 @@ def load_config() -> Config:
     if not disable_remote:
         if not dev_environment_id:
             errors.append(
-                "DBT_DEV_ENV_ID environment variable is required when remote MCP is enabled."
+                "DBT_DEV_ENV_ID environment variable is required when remote tools are enabled."
             )
         if not user_id:
             errors.append(
-                "DBT_USER_ID environment variable is required when remote MCP is enabled."
+                "DBT_USER_ID environment variable is required when remote tools are enabled."
             )
     if not disable_dbt_cli:
         if not project_dir:
             errors.append(
-                "DBT_PROJECT_DIR environment variable is required when dbt CLI MCP is enabled."
+                "DBT_PROJECT_DIR environment variable is required when dbt CLI tools are enabled."
             )
         if not dbt_path:
             errors.append(
-                "DBT_PATH environment variable is required when dbt CLI MCP is enabled."
+                "DBT_PATH environment variable is required when dbt CLI tools are enabled."
             )
 
     if errors:
@@ -87,21 +121,68 @@ def load_config() -> Config:
         else None
     )
 
-    return Config(
-        host=host,
-        prod_environment_id=actual_prod_environment_id,
-        dev_environment_id=int(dev_environment_id) if dev_environment_id else None,
-        user_id=int(user_id) if user_id else None,
-        token=token,
-        project_dir=project_dir,
-        dbt_cli_enabled=not disable_dbt_cli,
-        semantic_layer_enabled=not disable_semantic_layer,
-        discovery_enabled=not disable_discovery,
-        remote_enabled=not disable_remote,
-        dbt_command=dbt_path,
-        multicell_account_prefix=multicell_account_prefix,
-        remote_mcp_base_url=(
-            "http://" if host and host.startswith("localhost") else "https://"
+    remote_config = None
+    if (
+        not disable_remote
+        and user_id
+        and token
+        and dev_environment_id
+        and actual_prod_environment_id
+        and host
+    ):
+        remote_config = RemoteConfig(
+            multicell_account_prefix=multicell_account_prefix,
+            user_id=int(user_id),
+            token=token,
+            dev_environment_id=int(dev_environment_id),
+            prod_environment_id=actual_prod_environment_id,
+            host=host,
         )
-        + f"{host}/mcp",
+
+    dbt_cli_config = None
+    if not disable_dbt_cli and project_dir and dbt_path:
+        dbt_cli_config = DbtCliConfig(
+            project_dir=project_dir,
+            dbt_path=dbt_path,
+        )
+
+    discovery_config = None
+    if not disable_dbt_cli and host and actual_prod_environment_id and token:
+        discovery_config = DiscoveryConfig(
+            multicell_account_prefix=multicell_account_prefix,
+            host=host,
+            environment_id=actual_prod_environment_id,
+            token=token,
+        )
+
+    semantic_layer_config = None
+    if not disable_semantic_layer and host and actual_prod_environment_id and token:
+        semantic_layer_config = SemanticLayerConfig(
+            multicell_account_prefix=multicell_account_prefix,
+            host=host,
+            prod_environment_id=actual_prod_environment_id,
+            service_token=token,
+        )
+
+    local_user_id = None
+    try:
+        home = os.environ.get("HOME")
+        user_path = Path(f"{home}/.dbt/.user.yml")
+        if home and user_path.exists():
+            with open(user_path) as f:
+                local_user_id = yaml.safe_load(f).get("id")
+    except Exception:
+        pass
+
+    return Config(
+        tracking_config=TrackingConfig(
+            prod_environment_id=actual_prod_environment_id,
+            dev_environment_id=int(dev_environment_id) if dev_environment_id else None,
+            dbt_cloud_user_id=int(user_id) if user_id else None,
+            local_user_id=local_user_id,
+        ),
+        remote_config=remote_config,
+        dbt_cli_config=dbt_cli_config,
+        discovery_config=discovery_config,
+        semantic_layer_config=semantic_layer_config,
     )

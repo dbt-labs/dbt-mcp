@@ -28,8 +28,7 @@ Then edit `.env` with your specific environment variables (see the `Configuratio
 
 ## Configuration
 
-The MCP server takes the following configuration:
-
+The MCP server takes the following environment variable configuration:
 
 ### Tool Groups
 | Name | Default | Description |
@@ -57,7 +56,7 @@ The MCP server takes the following configuration:
 ### Configuration for dbt CLI
 | Name | Description |
 |------|-------------|
-| `DBT_PROJECT_DIR` | The path to your dbt Project |
+| `DBT_PROJECT_DIR` | The path to where the repository of your dbt Project is hosted locally. This should look something like `/Users/firstnamelastname/reponame` |
 | `DBT_PATH` | The path to your dbt Core or dbt Cloud CLI executable. You can find your dbt executable by running `which dbt` |
 
 ## Using with MCP Clients
@@ -170,8 +169,12 @@ VS Code MCP docs [here](https://code.visualstudio.com/docs/copilot/chat/mcp-serv
 * `get_mart_models` - Gets all mart models
 * `get_all_models` - Gets all models
 * `get_model_details` - Gets details for a specific model
-* `get_model_parents` - Gets parent models of a specific model
+* `get_model_parents` - Gets parent nodes of a specific model
+* `get_model_children` - Gets children modes of a specific model
 
+### Remote
+* `text_to_sql` - Generate SQL from natural language requests
+* `execute_sql` - Execute SQL on dbt Cloud's backend infrastructure with support for Semantic Layer SQL syntax.
 
 ## Contributing
 

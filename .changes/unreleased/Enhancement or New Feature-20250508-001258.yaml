@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Added optional uniqueId parameter to model lookup methods for more precise model identification
+time: 2025-05-08T00:12:58.551298503-04:00
