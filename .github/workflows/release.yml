@@ -1,49 +1,65 @@
-name: Publish to PyPI
-run-name: Publish to ${{ inputs.pypi-server == 'pypi' && 'production' || 'test' }} PyPI
-
+name: Publish dbt-mcp to PyPI
 on:
-  workflow_dispatch:
-    inputs:
-      pypi-server:
-        description: "The PyPI server to publish to"
-        type: choice
-        options:
-          - pypi
-          - test-pypi
-
-permissions:
-  contents: read
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+-[a-zA-Z]*'
 
 jobs:
-  publish:
-    runs-on: ubuntu-24.04
+
+  pypi-publish:
+    runs-on: ubuntu-latest
     environment:
-      name: ${{ inputs.pypi-server == 'pypi' && 'pypi' || 'pypiTest' }}
+      name: pypi
     permissions:
-      # this permission is required for trusted publishing
-      # see https://github.com/marketplace/actions/pypi-publish
       id-token: write
-      contents: read
+
     steps:
       - name: checkout code
         uses: actions/checkout@v4
+
       - name: setup python
         uses: ./.github/actions/setup-python
         id: setup-python
+
       - name: Install go-task
         run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+
       - name: Run tests
         run: task test:unit
+      
       - name: Build
         run: task build
-      - name: Publish to test PyPI
-        if: inputs.pypi-server == 'test-pypi'
-        uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc
+
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: ./dist
-          repository-url: https://test.pypi.org/legacy/
-      - name: Publish to PyPI
-        if: inputs.pypi-server == 'pypi'
-        uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc
+
+  create-github-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # required to create a releas
+
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          packages-dir: ./dist
+          fetch-depth: 0 # Fetches all history for changie to work correctly
+
+      - name: Get the latest version
+        id: changie-latest
+        uses: miniscruff/changie-action@v2
+        with:
+          version: latest
+          args: latest
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.changie-latest.outputs.version }}
+        run: |
+          echo "Creating release for version: $VERSION"
+          gh release create "$VERSION" \
+            --notes-file ".changes/$VERSION.md" \
+            --title "$VERSION"
