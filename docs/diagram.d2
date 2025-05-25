@@ -30,6 +30,7 @@ tools: Tools {
     parse
     run
     test
+    show
   }
 
   discovery: Discovery\nMetadata API {
@@ -49,6 +50,13 @@ tools: Tools {
     get_dimensions
     get_entities
     query_metrics
+  }
+
+  remote: Remote tools {
+    label.near: outside-right-center
+    class: container
+    text_to_sql
+    execute_sql
   }
 }
 
