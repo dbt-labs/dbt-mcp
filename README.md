@@ -39,12 +39,12 @@ The MCP server takes the following environment variable configuration:
 | `DISABLE_REMOTE` | `true` | Set this to `false` to enable remote MCP objects |
 
 
-### Configuration for Discovery and Semantic Layer
+### Configuration for Discovery, Semantic Layer, and Remote Tools
 | Name | Default | Description |
 |------|---------|-------------|
 | `DBT_HOST` | `cloud.getdbt.com` | Your dbt Cloud instance hostname. This will look like an `Access URL` found [here](https://docs.getdbt.com/docs/cloud/about-cloud/access-regions-ip-addresses). If you are using Multi-cell, do not include the `ACCOUNT_PREFIX` here |
 | `MULTICELL_ACCOUNT_PREFIX` | - | If you are using Multi-cell, set this to your `ACCOUNT_PREFIX`. If you are not using Multi-cell, do not set this environment variable. You can learn more [here](https://docs.getdbt.com/docs/cloud/about-cloud/access-regions-ip-addresses) |
-| `DBT_TOKEN` | - | Your personal access token or service token. **Note** Service token is required when using the Semantic Layer |
+| `DBT_TOKEN` | - | Your personal access token or service token. Note: a service token is required when using the Semantic Layer and this service token should have at least `Semantic Layer Only`, `Metadata Only`, and `Developer` permissions. |
 | `DBT_PROD_ENV_ID` | - | Your dbt Cloud production environment ID |
 
 ### Configuration for Remote Tools
