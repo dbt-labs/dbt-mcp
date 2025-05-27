@@ -40,13 +40,13 @@ class TestDbtCliIntegration(unittest.TestCase):
         # Test cases for different command types
         test_cases = [
             # Command name, args, expected command list
-            ("build", [], ["/path/to/dbt", "build", "--quiet"]),
-            ("compile", [], ["/path/to/dbt", "compile", "--quiet"]),
-            ("docs", [], ["/path/to/dbt", "docs", "--quiet", "generate"]),
-            ("ls", [], ["/path/to/dbt", "list"]),  # Non-verbose command
-            ("parse", [], ["/path/to/dbt", "parse", "--quiet"]),
-            ("run", [], ["/path/to/dbt", "run", "--quiet"]),
-            ("test", [], ["/path/to/dbt", "test", "--quiet"]),
+            ("build", [], ["/path/to/dbt", "build", "--quiet", "--log-format", "json"]),
+            ("compile", [], ["/path/to/dbt", "compile", "--quiet", "--log-format", "json"]),
+            ("docs", [], ["/path/to/dbt", "docs", "--quiet", "generate", "--log-format", "json"]),
+            ("ls", [], ["/path/to/dbt", "list", "--log-format", "json"]),  # Non-verbose command
+            ("parse", [], ["/path/to/dbt", "parse", "--quiet", "--log-format", "json"]),
+            ("run", [], ["/path/to/dbt", "run", "--quiet", "--log-format", "json"]),
+            ("test", [], ["/path/to/dbt", "test", "--quiet", "--log-format", "json"]),
             (
                 "show",
                 ["SELECT * FROM model"],
@@ -57,6 +57,8 @@ class TestDbtCliIntegration(unittest.TestCase):
                     "SELECT * FROM model",
                     "--favor-state",
                     "--output",
+                    "json",
+                    "--log-format",
                     "json",
                 ],
             ),
@@ -72,6 +74,8 @@ class TestDbtCliIntegration(unittest.TestCase):
                     "--limit",
                     "10",
                     "--output",
+                    "json",
+                    "--log-format",
                     "json",
                 ],
             ),
