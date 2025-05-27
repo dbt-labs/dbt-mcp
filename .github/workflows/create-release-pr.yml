@@ -50,15 +50,16 @@ jobs:
 
           MESSAGE=$(cat ".changes/$VERSION.md")
 
-          echo "version=$VERSION_NO_V" >> $GITHUB_OUTPUT
-
-          echo "message<<EOF" >> $GITHUB_OUTPUT
-          echo "$MESSAGE" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          {
+          echo "version=$VERSION_NO_V"
+          echo "message<<EOF"
+          echo "$MESSAGE"
+          echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v4
+        uses: peter-evans/create-pull-request@v7
         with:
           title: "version: ${{ steps.package-version.outputs.version }}"
           branch: release/${{ steps.package-version.outputs.version }}

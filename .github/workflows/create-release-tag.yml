@@ -19,8 +19,8 @@ jobs:
       - uses: ./.github/actions/setup-python
       - name: Create tag
         run: |
-          TAG=$(hatch version)
+          TAG="$(hatch version)"
           git config user.name "release-bot"
           git config user.email "release-bot@users.noreply.github.com"
           git tag "$TAG"
-          git push origin $TAG
+          git push origin "$TAG"
