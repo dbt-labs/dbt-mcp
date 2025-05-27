@@ -49,12 +49,23 @@ class TestDbtCliTools(unittest.TestCase):
                 # For docs command, check if ["docs", "generate"] gets transformed to ["docs", "--quiet", "generate"]
                 args_list = mock_popen.call_args.kwargs.get("args")
                 self.assertEqual(
-                    args_list, ["/path/to/dbt", "docs", "--quiet", "generate", "--log-format", "json"]
+                    args_list,
+                    [
+                        "/path/to/dbt",
+                        "docs",
+                        "--quiet",
+                        "generate",
+                        "--log-format",
+                        "json",
+                    ],
                 )
             else:
                 # Check if the --quiet flag was added
                 args_list = mock_popen.call_args.kwargs.get("args")
-                self.assertEqual(args_list, ["/path/to/dbt", command, "--quiet", "--log-format", "json"])
+                self.assertEqual(
+                    args_list,
+                    ["/path/to/dbt", command, "--quiet", "--log-format", "json"],
+                )
 
     @patch("subprocess.Popen")
     def test_non_verbose_commands_not_modified(self, mock_popen):

@@ -41,9 +41,21 @@ class TestDbtCliIntegration(unittest.TestCase):
         test_cases = [
             # Command name, args, expected command list
             ("build", [], ["/path/to/dbt", "build", "--quiet", "--log-format", "json"]),
-            ("compile", [], ["/path/to/dbt", "compile", "--quiet", "--log-format", "json"]),
-            ("docs", [], ["/path/to/dbt", "docs", "--quiet", "generate", "--log-format", "json"]),
-            ("ls", [], ["/path/to/dbt", "list", "--log-format", "json"]),  # Non-verbose command
+            (
+                "compile",
+                [],
+                ["/path/to/dbt", "compile", "--quiet", "--log-format", "json"],
+            ),
+            (
+                "docs",
+                [],
+                ["/path/to/dbt", "docs", "--quiet", "generate", "--log-format", "json"],
+            ),
+            (
+                "ls",
+                [],
+                ["/path/to/dbt", "list", "--log-format", "json"],
+            ),  # Non-verbose command
             ("parse", [], ["/path/to/dbt", "parse", "--quiet", "--log-format", "json"]),
             ("run", [], ["/path/to/dbt", "run", "--quiet", "--log-format", "json"]),
             ("test", [], ["/path/to/dbt", "test", "--quiet", "--log-format", "json"]),
