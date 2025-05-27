@@ -38,7 +38,7 @@ jobs:
   create-github-release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # required to create a releas
+      contents: write # required to create a release
 
     steps:
 
