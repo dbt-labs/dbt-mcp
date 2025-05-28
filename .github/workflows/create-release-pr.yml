@@ -7,7 +7,7 @@ on:
     inputs:
       bump:
         type: choice
-        description: The version bump type. 
+        description: The version bump type.
         default: minor
         options:
           - major
@@ -46,6 +46,7 @@ jobs:
         run: |
           VERSION="${{ steps.changie-latest.outputs.output }}"
           VERSION_NO_V=$(echo "$VERSION" | cut -c 2-)
+          pip install hatch
           hatch version "$VERSION_NO_V"
 
           MESSAGE=$(cat ".changes/$VERSION.md")
@@ -56,7 +57,6 @@ jobs:
           echo "$MESSAGE"
           echo "EOF"
           } >> "$GITHUB_OUTPUT"
-
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
