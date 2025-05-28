@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 
 @dataclass
 class TrackingConfig:
+    host: str | None
+    multicell_account_prefix: str | None
     prod_environment_id: int | None
     dev_environment_id: int | None
     dbt_cloud_user_id: int | None
@@ -176,6 +178,8 @@ def load_config() -> Config:
 
     return Config(
         tracking_config=TrackingConfig(
+            host=host,
+            multicell_account_prefix=multicell_account_prefix,
             prod_environment_id=actual_prod_environment_id,
             dev_environment_id=int(dev_environment_id) if dev_environment_id else None,
             dbt_cloud_user_id=int(user_id) if user_id else None,

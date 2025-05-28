@@ -154,7 +154,9 @@ wheels = [
 name = "dbt-mcp"
 source = { editable = "." }
 dependencies = [
+    { name = "dbt-protos" },
     { name = "dbt-sl-sdk", extra = ["sync"] },
+    { name = "dbtlabs-vortex" },
     { name = "mcp", extra = ["cli"] },
     { name = "pandas" },
     { name = "python-dotenv" },
@@ -177,11 +179,13 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "dbt-protos", specifier = "==1.0.317" },
     { name = "dbt-sl-sdk", extras = ["sync"], specifier = "==0.11.0" },
+    { name = "dbtlabs-vortex", specifier = "==0.2.0" },
     { name = "mcp", extras = ["cli"], specifier = "==1.6.0" },
     { name = "pandas", specifier = "==2.2.3" },
     { name = "python-dotenv", specifier = "==1.0.1" },
-    { name = "pyyaml", specifier = ">=6.0.2" },
+    { name = "pyyaml", specifier = "==6.0.2" },
     { name = "requests", specifier = "==2.32.3" },
 ]
 
@@ -196,6 +200,18 @@ dev = [
     { name = "ruff", specifier = ">=0.11.2" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20250516" },
     { name = "types-requests", specifier = ">=2.32.0.20250328" },
+]
+
+[[package]]
+name = "dbt-protos"
+version = "1.0.317"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/de/2b/39420f023db831afc0cd89c53d023b62c78b41717aa7fcd3cc5f4c3f5b3e/dbt_protos-1.0.317.tar.gz", hash = "sha256:52fcc17859b2b190d7a0a62b7c84b19c34ab108bfcf8caa5fb0f137fd76b8c0a", size = 73592, upload_time = "2025-05-27T17:37:16.574Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bc/b3/599ca7d46647021a3a7c189687f4c6fbca364cbc5da3ab96cc363ee45f46/dbt_protos-1.0.317-py3-none-any.whl", hash = "sha256:7492941d0e1b7f22f8afb336d127d8379ac0ccb382a2ec2ea40d37862a579acc", size = 91077, upload_time = "2025-05-27T17:37:14.791Z" },
 ]
 
 [[package]]
@@ -217,6 +233,21 @@ wheels = [
 [package.optional-dependencies]
 sync = [
     { name = "gql", extra = ["requests"] },
+]
+
+[[package]]
+name = "dbtlabs-vortex"
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "dbt-protos" },
+    { name = "pydantic" },
+    { name = "requests" },
+    { name = "uuid" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8f/aa/7c7c307ac3125d3541263f0a14e147de5eb307487774db9e81fb9bfcf3bd/dbtlabs_vortex-0.2.0.tar.gz", hash = "sha256:44cf955d7a9dbad045888d123250c00dce266e7b8bee24f0e106f5cf866dc950", size = 13042, upload_time = "2025-05-27T01:34:11.755Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/45/05/4abb2a2826fce9610a6225a00770cce5bb3fe4b5e0fb10e158f17a312776/dbtlabs_vortex-0.2.0-py3-none-any.whl", hash = "sha256:8c5314d39cbc3d354bd55f49db6977face3da63ce7e2cdd13eb9facbfb0f0f61", size = 15349, upload_time = "2025-05-27T01:34:10.565Z" },
 ]
 
 [[package]]
@@ -746,6 +777,20 @@ wheels = [
 ]
 
 [[package]]
+name = "protobuf"
+version = "6.31.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/13/48/718c1e104a2e89970a8ff3b06d87e152834b576c570a6908f8c17ba88d65/protobuf-6.31.0.tar.gz", hash = "sha256:314fab1a6a316469dc2dd46f993cbbe95c861ea6807da910becfe7475bc26ffe", size = 441644, upload_time = "2025-05-14T17:58:27.862Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b6/77/8671682038b08237c927215fa3296bc1c54e4086fe542c87017c1b626663/protobuf-6.31.0-cp310-abi3-win32.whl", hash = "sha256:10bd62802dfa0588649740a59354090eaf54b8322f772fbdcca19bc78d27f0d6", size = 423437, upload_time = "2025-05-14T17:58:16.116Z" },
+    { url = "https://files.pythonhosted.org/packages/e4/07/cc9b0cbf7593f6ef8cf87fa9b0e55cd74c5cb526dd89ad84aa7d6547ef8d/protobuf-6.31.0-cp310-abi3-win_amd64.whl", hash = "sha256:3e987c99fd634be8347246a02123250f394ba20573c953de133dc8b2c107dd71", size = 435118, upload_time = "2025-05-14T17:58:18.591Z" },
+    { url = "https://files.pythonhosted.org/packages/21/46/33f884aa8bc59114dc97e0d954ca4618c556483670236008c88fbb7e834f/protobuf-6.31.0-cp39-abi3-macosx_10_9_universal2.whl", hash = "sha256:2c812f0f96ceb6b514448cefeb1df54ec06dde456783f5099c0e2f8a0f2caa89", size = 425439, upload_time = "2025-05-14T17:58:19.709Z" },
+    { url = "https://files.pythonhosted.org/packages/9b/f2/9a676b50229ce37b12777d7b21de90ae7bc0f9505d07e72e2e8d47b8d165/protobuf-6.31.0-cp39-abi3-manylinux2014_aarch64.whl", hash = "sha256:67ce50195e4e584275623b8e6bc6d3d3dfd93924bf6116b86b3b8975ab9e4571", size = 321950, upload_time = "2025-05-14T17:58:22.04Z" },
+    { url = "https://files.pythonhosted.org/packages/a1/a7/243fa2d3c1b7675d54744b32dacf30356f4c27c0d3ad940ca8745a1c6b2c/protobuf-6.31.0-cp39-abi3-manylinux2014_x86_64.whl", hash = "sha256:5353e38844168a327acd2b2aa440044411cd8d1b6774d5701008bd1dba067c79", size = 320904, upload_time = "2025-05-14T17:58:23.438Z" },
+    { url = "https://files.pythonhosted.org/packages/ee/01/1ed1d482960a5718fd99c82f6d79120181947cfd4667ec3944d448ed44a3/protobuf-6.31.0-py3-none-any.whl", hash = "sha256:6ac2e82556e822c17a8d23aa1190bbc1d06efb9c261981da95c71c9da09e9e23", size = 168558, upload_time = "2025-05-14T17:58:26.923Z" },
+]
+
+[[package]]
 name = "pyarrow"
 version = "19.0.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1150,6 +1195,12 @@ sdist = { url = "https://files.pythonhosted.org/packages/8a/78/16493d9c386d8e60e
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6b/11/cc635220681e93a0183390e26485430ca2c7b5f9d33b15c74c2861cb8091/urllib3-2.4.0-py3-none-any.whl", hash = "sha256:4e16665048960a0900c702d4a66415956a584919c03361cac9f1df5c5dd7e813", size = 128680, upload_time = "2025-04-10T15:23:37.377Z" },
 ]
+
+[[package]]
+name = "uuid"
+version = "1.30"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ce/63/f42f5aa951ebf2c8dac81f77a8edcc1c218640a2a35a03b9ff2d4aa64c3d/uuid-1.30.tar.gz", hash = "sha256:1f87cc004ac5120466f36c5beae48b4c48cc411968eed0eaecd3da82aa96193f", size = 5811, upload_time = "2007-05-26T11:13:24Z" }
 
 [[package]]
 name = "uvicorn"

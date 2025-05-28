@@ -68,17 +68,17 @@ tasks:
   test:
     desc: "Run the tests"
     cmds:
-      - uv run pytest tests
+      - uv run pytest tests {{.CLI_ARGS}}
 
   test:integration:
     desc: "Run the integration tests"
     cmds:
-      - uv run pytest tests/integration
+      - uv run pytest tests/integration {{.CLI_ARGS}}
 
   test:unit:
     desc: "Run the unit tests"
     cmds:
-      - uv run pytest tests/unit
+      - uv run pytest tests/unit {{.CLI_ARGS}}
 
   eval:
     desc: "Run the evals"

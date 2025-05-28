@@ -1,5 +1,4 @@
 import logging
-from time import time
 
 from dbtsl.api.shared.query_params import GroupByParam
 from mcp.server.fastmcp import FastMCP
@@ -23,27 +22,15 @@ def register_sl_tools(dbt_mcp: FastMCP, config: SemanticLayerConfig) -> None:
 
     @dbt_mcp.tool(description=get_prompt("semantic_layer/list_metrics"))
     def list_metrics() -> list[MetricToolResponse] | str:
-        start_time = time()
-        result = semantic_layer_fetcher.list_metrics()
-        end_time = time()
-        logger.info(f"list_metrics took {end_time - start_time} seconds")
-        return result
+        return semantic_layer_fetcher.list_metrics()
 
     @dbt_mcp.tool(description=get_prompt("semantic_layer/get_dimensions"))
     def get_dimensions(metrics: list[str]) -> list[DimensionToolResponse] | str:
-        start_time = time()
-        result = semantic_layer_fetcher.get_dimensions(metrics=metrics)
-        end_time = time()
-        logger.info(f"get_dimensions took {end_time - start_time} seconds")
-        return result
+        return semantic_layer_fetcher.get_dimensions(metrics=metrics)
 
     @dbt_mcp.tool(description=get_prompt("semantic_layer/get_entities"))
     def get_entities(metrics: list[str]) -> list[EntityToolResponse] | str:
-        start_time = time()
-        result = semantic_layer_fetcher.get_entities(metrics=metrics)
-        end_time = time()
-        logger.info(f"get_entities took {end_time - start_time} seconds")
-        return result
+        return semantic_layer_fetcher.get_entities(metrics=metrics)
 
     @dbt_mcp.tool(description=get_prompt("semantic_layer/query_metrics"))
     def query_metrics(
@@ -53,7 +40,6 @@ def register_sl_tools(dbt_mcp: FastMCP, config: SemanticLayerConfig) -> None:
         where: str | None = None,
         limit: int | None = None,
     ) -> str:
-        start_time = time()
         result = semantic_layer_fetcher.query_metrics(
             metrics=metrics,
             group_by=group_by,
@@ -61,8 +47,6 @@ def register_sl_tools(dbt_mcp: FastMCP, config: SemanticLayerConfig) -> None:
             where=where,
             limit=limit,
         )
-        end_time = time()
-        logger.info(f"query_metrics took {end_time - start_time} seconds")
         if isinstance(result, QueryMetricsSuccess):
             return result.result
         else:

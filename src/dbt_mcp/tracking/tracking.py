@@ -1,5 +1,9 @@
+import uuid
 from dataclasses import dataclass
 from typing import Any
+
+from dbtlabs.proto.public.v1.events.mcp_pb2 import ToolCalled
+from dbtlabs_vortex.producer import log_proto
 
 from dbt_mcp.config.config import TrackingConfig
 
@@ -21,6 +25,29 @@ class UsageTracker:
         config: TrackingConfig,
         tool_name: str,
         arguments: dict[str, Any],
+        start_time_ms: int,
+        end_time_ms: int,
         error_message: str | None = None,
     ):
-        pass  # TODO
+        log_proto(
+            ToolCalled(
+                event_id=str(uuid.uuid4()),
+                start_time_ms=start_time_ms,
+                end_time_ms=end_time_ms,
+                tool_name=tool_name,
+                arguments=arguments,
+                error_message=error_message or "",
+                dbt_cloud_environment_id_dev=str(config.dev_environment_id)
+                if config.dev_environment_id
+                else "",
+                dbt_cloud_environment_id_prod=str(config.prod_environment_id)
+                if config.prod_environment_id
+                else "",
+                dbt_cloud_user_id=str(config.dbt_cloud_user_id)
+                if config.dbt_cloud_user_id
+                else "",
+                local_user_id=config.local_user_id or "",
+                host=config.host or "",
+                multicell_account_prefix=config.multicell_account_prefix or "",
+            )
+        )

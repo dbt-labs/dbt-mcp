@@ -5,3 +5,4 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 .idea/
+vortex_dev_mode_output.jsonl

@@ -1,11 +1,13 @@
 import asyncio
 import logging
+import time
 from collections.abc import AsyncIterator, Sequence
 from contextlib import (
     asynccontextmanager,
 )
 from typing import Any
 
+from dbtlabs_vortex.producer import shutdown
 from mcp.server.fastmcp import FastMCP
 from mcp.types import (
     EmbeddedResource,
@@ -34,6 +36,7 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[None]:
         raise e
     finally:
         logger.info("Shutting down MCP server")
+        shutdown()
 
 
 class DbtMCP(FastMCP):
@@ -46,17 +49,24 @@ class DbtMCP(FastMCP):
     ) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
         logger.info(f"Calling tool: {name}")
         result = None
+        start_time = int(time.time() * 1000)
         try:
             result = await super().call_tool(
                 name,
                 arguments,
             )
         except Exception as e:
-            logger.error(f"Error calling tool: {name} with arguments: {arguments}: {e}")
+            end_time = int(time.time() * 1000)
+            logger.error(
+                f"Error calling tool: {name} with arguments: {arguments} "
+                + f"in {end_time - start_time}ms: {e}"
+            )
             self.usage_tracker.emit_tool_called_event(
                 config=config.tracking_config,
                 tool_name=name,
                 arguments=arguments,
+                start_time_ms=start_time,
+                end_time_ms=end_time,
                 error_message=str(e),
             )
             return [
@@ -65,10 +75,14 @@ class DbtMCP(FastMCP):
                     text=str(e),
                 )
             ]
+        end_time = int(time.time() * 1000)
+        logger.info(f"Tool {name} called successfully in {end_time - start_time}ms")
         self.usage_tracker.emit_tool_called_event(
             config=config.tracking_config,
             tool_name=name,
             arguments=arguments,
+            start_time_ms=start_time,
+            end_time_ms=end_time,
             error_message=None,
         )
         return result

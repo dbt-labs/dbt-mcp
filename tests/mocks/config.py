@@ -9,6 +9,8 @@ from dbt_mcp.config.config import (
 
 mock_config = Config(
     tracking_config=TrackingConfig(
+        host="http://localhost:8000",
+        multicell_account_prefix="test",
         prod_environment_id=1,
         dev_environment_id=1,
         dbt_cloud_user_id=1,
