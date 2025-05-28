@@ -17,9 +17,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-python
+      - name: Get the latest version
+        id: changie-latest
+        uses: miniscruff/changie-action@v2
+        with:
+          version: latest
+          args: latest
       - name: Create tag
         run: |
-          TAG="$(hatch version)"
+          TAG="${{ steps.changie-latest.outputs.output }}"
           git config user.name "release-bot"
           git config user.email "release-bot@users.noreply.github.com"
           git tag "$TAG"
