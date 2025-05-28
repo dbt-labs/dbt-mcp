@@ -2,10 +2,9 @@ name: Publish dbt-mcp to PyPI
 on:
   push:
     tags:
-      - '[0-9]+.[0-9]+.[0-9]+-[a-zA-Z]*'
+      - "v*"
 
 jobs:
-
   pypi-publish:
     runs-on: ubuntu-latest
     environment:
@@ -26,7 +25,7 @@ jobs:
 
       - name: Run tests
         run: task test:unit
-      
+
       - name: Build
         run: task build
 
@@ -41,7 +40,6 @@ jobs:
       contents: write # required to create a release
 
     steps:
-
       - name: Checkout code
         uses: actions/checkout@v4
         with:
