@@ -8,23 +8,8 @@ This MCP (Model Context Protocol) server provides tools to interact with dbt. Re
 
 ## Setup
 
-1. Clone the repository:
-```shell
-git clone https://github.com/dbt-labs/dbt-mcp.git
-cd dbt-mcp
-```
-
-2. [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
-
-3. [Install Task](https://taskfile.dev/installation/)
-
-4. Run `task install`
-
-5. Configure environment variables:
-```shell
-cp .env.example .env
-```
-Then edit `.env` with your specific environment variables (see the `Configuration` section of the `README.md`).
+1. [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
+2. Copy the [`.env.example` file](https://github.com/dbt-labs/dbt-mcp/blob/main/.env.example) locally under a file called `.env` and  set it with your specific environment variables (see the `Configuration` section of the `README.md`)
 
 ## Configuration
 
@@ -69,19 +54,18 @@ This configuration will be added to the respective client's config file. Be sure
  {
   "mcpServers": {
     "dbt-mcp": {
-      "command": "<path-to-mcp-executable>",
+      "command": "uvx",
       "args": [
-        "run",
-        "<path-to-this-directory>/src/dbt_mcp/main.py"
+        "--env-file",
+        "<path-to-.env-file>",
+        "dbt-mcp"
       ]
-    }
+    },
   }
 }
 ```
 
-`<path-to-mcp-executable>` depends on your OS:
-- Linux & Mac: `<path-to-this-directory>/.venv/bin/mcp`
-- PC: `<path-to-this-directory>/.venv/Scripts/mcp`
+`<path-to-.env-file>` is where you saved the `.env` file from the Setup step
 
 
 ## Claude Desktop
@@ -121,17 +105,19 @@ Cursor MCP docs [here](https://docs.cursor.com/context/model-context-protocol) f
         "inputs": [],
         "servers": {
           "dbt": {
-            "command": "<path-to-mcp-executable>",
-            "args": ["run", "<path-to-this-directory>/src/dbt_mcp/main.py"]
-          }
+            "command": "uvx",
+            "args": [
+              "--env-file",
+              "<path-to-.env-file>",
+              "dbt-mcp"
+            ]
+          },
         }
     }
 }
 ```
 
-`<path-to-mcp-executable>` depends on your OS:
-- Linux & Mac: `<path-to-this-directory>/.venv/bin/mcp`
-- PC: `<path-to-this-directory>/.venv/Scripts/mcp`
+`<path-to-.env-file>` is where you saved the `.env` file from the Setup step
 
 6. You can start, stop, and configure your MCP servers by:
 - Running the `MCP: List Servers` command from the Command Palette (Control + Command + P) and selecting the server
