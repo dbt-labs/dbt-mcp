@@ -46,8 +46,6 @@ jobs:
         run: |
           VERSION="${{ steps.changie-latest.outputs.output }}"
           VERSION_NO_V=$(echo "$VERSION" | cut -c 2-)
-          pip install hatch
-          hatch version "$VERSION_NO_V"
 
           MESSAGE=$(cat ".changes/$VERSION.md")
 
