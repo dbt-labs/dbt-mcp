@@ -4,7 +4,7 @@ This MCP (Model Context Protocol) server provides tools to interact with dbt. Re
 
 ## Architecture
 
-![architecture diagram of the dbt MCP server](https://github.com/user-attachments/assets/89b8a24b-da7b-4e54-ba48-afceaa56f956)
+![architecture diagram of the dbt MCP server](./docs/d2.png)
 
 ## Setup
 
