@@ -9,7 +9,7 @@ This MCP (Model Context Protocol) server provides tools to interact with dbt. Re
 ## Setup
 
 1. [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
-2. Copy the [`.env.example` file](https://github.com/dbt-labs/dbt-mcp/blob/main/.env.example) locally under a file called `.env` and  set it with your specific environment variables (see the `Configuration` section of the `README.md`)
+2. Copy the [`.env.example` file](https://github.com/dbt-labs/dbt-mcp/blob/main/.env.example) locally under a file called `.env` and set it with your specific environment variables (see the `Configuration` section of the `README.md`)
 
 ## Configuration
 
