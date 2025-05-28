@@ -1,5 +1,6 @@
 name: Publish dbt-mcp to PyPI
 on:
+  workflow_dispatch:
   push:
     tags:
       - "v*"
