@@ -23,20 +23,20 @@ jobs:
       - uses: ./.github/actions/setup-python
 
       - name: Batch changes
-        uses: miniscruff/changie-action@v2
+        uses: miniscruff/changie-action@6dcc2533cac0495148ed4046c438487e4dceaa23
         with:
           version: latest
           args: batch ${{ inputs.bump }}
 
       - name: Merge
-        uses: miniscruff/changie-action@v2
+        uses: miniscruff/changie-action@6dcc2533cac0495148ed4046c438487e4dceaa23
         with:
           version: latest
           args: merge
 
       - name: Get the latest version
         id: changie-latest
-        uses: miniscruff/changie-action@v2
+        uses: miniscruff/changie-action@6dcc2533cac0495148ed4046c438487e4dceaa23
         with:
           version: latest
           args: latest
@@ -57,7 +57,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e
         with:
           title: "version: ${{ steps.package-version.outputs.version }}"
           branch: release/${{ steps.package-version.outputs.version }}

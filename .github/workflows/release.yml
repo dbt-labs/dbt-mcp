@@ -31,7 +31,7 @@ jobs:
         run: task build
 
       - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc
         with:
           packages-dir: ./dist
 
@@ -48,7 +48,7 @@ jobs:
 
       - name: Get the latest version
         id: changie-latest
-        uses: miniscruff/changie-action@v2
+        uses: miniscruff/changie-action@6dcc2533cac0495148ed4046c438487e4dceaa23
         with:
           version: latest
           args: latest
