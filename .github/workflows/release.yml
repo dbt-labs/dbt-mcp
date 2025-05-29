@@ -56,7 +56,7 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.changie-latest.outputs.version }}
+          VERSION: ${{ steps.changie-latest.outputs.output }}
         run: |
           echo "Creating release for version: $VERSION"
           gh release create "$VERSION" \
