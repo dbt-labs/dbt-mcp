@@ -32,9 +32,8 @@ If you encounter any problems. You can try running `task run` to see errors in y
 
 ## Release
 
-To release a new version:
+Only people in the `CODEOWNERS` file should trigger a new release with these steps:
 
-1. Increment `version` in `pyproject.toml` by following semantic versioning best practices.
-2. Run `uv sync`.
-3. Open a PR with these changes.
-4. Once the PR is merged, run the `Publish to PyPi` GitHub action [here](https://github.com/dbt-labs/dbt-mcp/actions/workflows/release.yml). Anyone on the dbt Labs AI team can approve this workflow.
+1. Trigger the [Create release PR Action](https://github.com/dbt-labs/dbt-mcp/actions/workflows/create-release-pr.yml).
+2. Get this PR approved & merged in.
+3. This will trigger the `Release dbt-mcp` Action. On the `Summary` page of this Action a member of the `CODEOWNERS` file will have to manually approve the release. The rest of the release process is automated.
