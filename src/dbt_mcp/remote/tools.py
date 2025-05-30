@@ -65,7 +65,7 @@ def _get_remote_tools(base_url: str, headers: dict[str, str]) -> list[RemoteTool
             )
             return ListToolsResult.model_validate(list_tools_response.result).tools
     except Exception as e:
-        print(f"Error getting remote tools: {e}")
+        logger.error(f"Error getting remote tools: {e}")
         return []
 
 
