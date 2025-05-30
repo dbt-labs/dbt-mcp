@@ -1,13 +1,39 @@
-name: Publish dbt-mcp to PyPI
+name: Release dbt-mcp
+
+permissions:
+  contents: write
+
 on:
-  workflow_dispatch:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+    paths:
+      - CHANGELOG.md
 
 jobs:
+  create-release-tag:
+    runs-on: ubuntu-latest
+    if: "startsWith(github.event.head_commit.message, 'version:')"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-python
+      - name: Get the latest version
+        id: changie-latest
+        uses: miniscruff/changie-action@6dcc2533cac0495148ed4046c438487e4dceaa23
+        with:
+          version: latest
+          args: latest
+      - name: Create tag
+        run: |
+          TAG="${{ steps.changie-latest.outputs.output }}"
+          git config user.name "release-bot"
+          git config user.email "release-bot@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
+
   pypi-publish:
     runs-on: ubuntu-latest
+    needs: create-release-tag
     environment:
       name: pypi
     permissions:
@@ -37,6 +63,7 @@ jobs:
 
   create-github-release:
     runs-on: ubuntu-latest
+    needs: create-release-tag
     permissions:
       contents: write # required to create a release
 
