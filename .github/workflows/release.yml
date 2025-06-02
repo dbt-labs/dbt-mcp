@@ -13,6 +13,8 @@ on:
 jobs:
   create-release-tag:
     runs-on: ubuntu-latest
+    outputs:
+      changie-latest: ${{ steps.changie-latest.outputs.output }}
     if: "startsWith(github.event.head_commit.message, 'version:')"
     steps:
       - uses: actions/checkout@v4
@@ -40,8 +42,12 @@ jobs:
       id-token: write
 
     steps:
+
       - name: checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.create-release-tag.outputs.changie-latest }}
+          fetch-tags: true
 
       - name: setup python
         uses: ./.github/actions/setup-python
