@@ -42,6 +42,7 @@ dev = [
 Documentation = "https://github.com/dbt-labs/dbt-mcp#readme"
 Issues = "https://github.com/dbt-labs/dbt-mcp/issues"
 Source = "https://github.com/dbt-labs/dbt-mcp"
+Changelog = "https://github.com/dbt-labs/dbt-mcp/blob/main/CHANGELOG.md"
 
 [project.scripts]
 dbt-mcp = "dbt_mcp.main:main"
