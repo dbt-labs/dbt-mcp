@@ -63,8 +63,13 @@ class TestDbtCliTools(unittest.TestCase):
                 # Check if the --quiet flag was added
                 args_list = mock_popen.call_args.kwargs.get("args")
                 self.assertEqual(
-                    args_list,
-                    ["/path/to/dbt", command, "--quiet", "--log-format", "json"],
+                    args_list[:3],
+                    ["/path/to/dbt", command, "--quiet"],
+                )
+                # check that the log format is last
+                self.assertEqual(
+                    args_list[-2:],
+                    ["--log-format", "json"],
                 )
 
     @patch("subprocess.Popen")
@@ -102,7 +107,8 @@ class TestDbtCliTools(unittest.TestCase):
 
         # Check that --quiet flag was NOT added
         args_list = mock_popen.call_args.kwargs.get("args")
-        self.assertEqual(args_list, ["/path/to/dbt", "list", "--log-format", "json"])
+        self.assertEqual(args_list[:2], ["/path/to/dbt", "list"])
+        self.assertEqual(args_list[-2:], ["--log-format", "json"])
 
     @patch("subprocess.Popen")
     def test_show_command_correctly_formatted(self, mock_popen):

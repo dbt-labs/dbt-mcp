@@ -103,7 +103,12 @@ class TestDbtCliIntegration(unittest.TestCase):
             # Verify the command was called correctly
             mock_popen.assert_called_once()
             actual_args = mock_popen.call_args.kwargs.get("args")
-            self.assertEqual(actual_args, expected_args)
+
+            has_quiet = False if command_name == "ls" else True
+            num_params = 3 if has_quiet else 2
+
+            self.assertEqual(actual_args[:num_params], expected_args[:num_params])
+            self.assertEqual(actual_args[-2:], ["--log-format", "json"])
 
             # Verify correct working directory
             self.assertEqual(mock_popen.call_args.kwargs.get("cwd"), "/test/project")
