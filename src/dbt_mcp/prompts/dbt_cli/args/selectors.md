@@ -1,4 +1,5 @@
-It is important to add the `--select` before the selector if any selector needs to be provided
+It is important to add the `--select` before the selector if any selector needs to be provided.
+If you provide a selector, DO NOT forget adding `--select` in front!
 
 - to select all models, just do not provide a selector.
 - to select a particular model, use the selector `--select <model_name>`

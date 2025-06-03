@@ -43,7 +43,7 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
     ) -> str:
-        return _run_dbt_command(["build"])
+        return _run_dbt_command(["build"], selector)
 
     @dbt_mcp.tool(description=get_prompt("dbt_cli/compile"))
     def compile() -> str:
@@ -59,7 +59,7 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
     ) -> str:
-        return _run_dbt_command(["list"])
+        return _run_dbt_command(["list"], selector)
 
     @dbt_mcp.tool(description=get_prompt("dbt_cli/parse"))
     def parse() -> str:
@@ -71,7 +71,7 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
     ) -> str:
-        return _run_dbt_command(["run"])
+        return _run_dbt_command(["run"], selector)
 
     @dbt_mcp.tool(description=get_prompt("dbt_cli/test"))
     def test(
@@ -79,7 +79,7 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
     ) -> str:
-        return _run_dbt_command(["test"])
+        return _run_dbt_command(["test"], selector)
 
     @dbt_mcp.tool(description=get_prompt("dbt_cli/show"))
     def show(sql_query: str, limit: int | None = None) -> str:
