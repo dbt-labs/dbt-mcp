@@ -21,7 +21,6 @@ from dbt_mcp.remote.tools import register_remote_tools
 from dbt_mcp.semantic_layer.tools import register_sl_tools
 from dbt_mcp.tracking.tracking import UsageTracker
 
-config = load_config()
 logger = logging.getLogger(__name__)
 
 
@@ -39,9 +38,10 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[None]:
 
 
 class DbtMCP(FastMCP):
-    def __init__(self, usage_tracker: UsageTracker, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, usage_tracker: UsageTracker, config, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.usage_tracker = usage_tracker
+        self.config = config
 
     async def call_tool(
         self, name: str, arguments: dict[str, Any]
@@ -61,7 +61,7 @@ class DbtMCP(FastMCP):
                 + f"in {end_time - start_time}ms: {e}"
             )
             self.usage_tracker.emit_tool_called_event(
-                config=config.tracking_config,
+                config=self.config.tracking_config,
                 tool_name=name,
                 arguments=arguments,
                 start_time_ms=start_time,
@@ -77,7 +77,7 @@ class DbtMCP(FastMCP):
         end_time = int(time.time() * 1000)
         logger.info(f"Tool {name} called successfully in {end_time - start_time}ms")
         self.usage_tracker.emit_tool_called_event(
-            config=config.tracking_config,
+            config=self.config.tracking_config,
             tool_name=name,
             arguments=arguments,
             start_time_ms=start_time,
@@ -87,8 +87,9 @@ class DbtMCP(FastMCP):
         return result
 
 
-async def create_dbt_mcp():
-    dbt_mcp = DbtMCP(usage_tracker=UsageTracker(), name="dbt", lifespan=app_lifespan)
+async def create_dbt_mcp(env_file: str | None = None):
+    config = load_config(env_file=env_file)
+    dbt_mcp = DbtMCP(usage_tracker=UsageTracker(), config=config, name="dbt", lifespan=app_lifespan)
 
     if config.semantic_layer_config:
         logger.info("Registering semantic layer tools")

@@ -57,8 +57,8 @@ class Config:
     semantic_layer_config: SemanticLayerConfig | None
 
 
-def load_config() -> Config:
-    load_dotenv()
+def load_config(env_file: str | None = None) -> Config:
+    load_dotenv(dotenv_path=env_file)
 
     host = os.environ.get("DBT_HOST")
     prod_environment_id = os.environ.get("DBT_PROD_ENV_ID")
