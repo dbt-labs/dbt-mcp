@@ -1,8 +1,10 @@
-from dbt_mcp.mcp.server import dbt_mcp
+import asyncio
+
+from dbt_mcp.mcp.server import create_dbt_mcp
 
 
 def main() -> None:
-    dbt_mcp.run()
+    asyncio.run(create_dbt_mcp()).run()
 
 
 main()

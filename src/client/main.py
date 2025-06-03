@@ -8,7 +8,7 @@ from openai.types.responses.response_output_message import ResponseOutputMessage
 
 from client.tools import get_tools
 from dbt_mcp.config.config import load_config
-from dbt_mcp.mcp.server import dbt_mcp
+from dbt_mcp.mcp.server import create_dbt_mcp
 
 LLM_MODEL = "gpt-4o-mini"
 TOOL_RESPONSE_TRUNCATION = 100  # set to None for no truncation
@@ -19,10 +19,14 @@ messages = []
 
 
 async def main():
+    dbt_mcp = await create_dbt_mcp()
     user_role = "user"
-    available_tools = await get_tools()
+    available_tools = await get_tools(dbt_mcp)
     tools_str = "\n".join(
-        [f"- {t['name']}({t['parameters']})" for t in available_tools]
+        [
+            f"- {t['name']}({', '.join(t['parameters']['properties'].keys())})"
+            for t in available_tools
+        ]
     )
     print(f"Available tools:\n{tools_str}")
     while True:

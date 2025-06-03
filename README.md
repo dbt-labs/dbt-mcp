@@ -51,7 +51,7 @@ After going through [Installation](#installation), you can use your server with 
 This configuration will be added to the respective client's config file. Be sure to replace the sections within `<>`:
 
 ```json
- {
+{
   "mcpServers": {
     "dbt-mcp": {
       "command": "uvx",
@@ -72,7 +72,7 @@ This configuration will be added to the respective client's config file. Be sure
 
 Follow [these](https://modelcontextprotocol.io/quickstart/user) instructions to create the `claude_desktop_config.json` file and connect.
 
-On Mac, you can find the Claude Desktop logs at `~/Library/Logs/Claude`.
+You can find the Claude Desktop logs at `~/Library/Logs/Claude` for Mac or `%APPDATA%\Claude\logs` for Windows.
 
 ## Cursor
 

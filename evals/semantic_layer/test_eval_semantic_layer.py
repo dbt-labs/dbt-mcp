@@ -14,7 +14,7 @@ from openai.types.responses.response_input_param import FunctionCallOutput
 
 from client.tools import get_tools
 from dbt_mcp.config.config import load_config
-from dbt_mcp.mcp.server import dbt_mcp
+from dbt_mcp.mcp.server import create_dbt_mcp
 from dbt_mcp.semantic_layer.client import get_semantic_layer_fetcher
 from dbt_mcp.semantic_layer.types import OrderByParam, QueryMetricsSuccess
 
@@ -45,7 +45,7 @@ async def expect_metadata_tool_call(
     assert tool_call.type == "function_call"
     assert function_name == expected_tool
     assert expected_arguments is None or function_arguments == expected_arguments
-    tool_response = await dbt_mcp.call_tool(
+    tool_response = await (await create_dbt_mcp()).call_tool(
         function_name,
         json.loads(function_arguments),
     )

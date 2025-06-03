@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator, Sequence
@@ -88,16 +87,23 @@ class DbtMCP(FastMCP):
         return result
 
 
-dbt_mcp = DbtMCP(usage_tracker=UsageTracker(), name="dbt", lifespan=app_lifespan)
+async def create_dbt_mcp():
+    dbt_mcp = DbtMCP(usage_tracker=UsageTracker(), name="dbt", lifespan=app_lifespan)
 
-if config.semantic_layer_config:
-    register_sl_tools(dbt_mcp, config.semantic_layer_config)
+    if config.semantic_layer_config:
+        logger.info("Registering semantic layer tools")
+        register_sl_tools(dbt_mcp, config.semantic_layer_config)
 
-if config.discovery_config:
-    register_discovery_tools(dbt_mcp, config.discovery_config)
+    if config.discovery_config:
+        logger.info("Registering discovery tools")
+        register_discovery_tools(dbt_mcp, config.discovery_config)
 
-if config.dbt_cli_config:
-    register_dbt_cli_tools(dbt_mcp, config.dbt_cli_config)
+    if config.dbt_cli_config:
+        logger.info("Registering dbt cli tools")
+        register_dbt_cli_tools(dbt_mcp, config.dbt_cli_config)
 
-if config.remote_config:
-    asyncio.run(register_remote_tools(dbt_mcp, config.remote_config))
+    if config.remote_config:
+        logger.info("Registering remote tools")
+        await register_remote_tools(dbt_mcp, config.remote_config)
+
+    return dbt_mcp
