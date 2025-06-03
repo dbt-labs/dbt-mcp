@@ -154,10 +154,11 @@ def initial_messages(content: str) -> ResponseInputParam:
     ],
 )
 async def test_explicit_tool_request(content: str, expected_tool: str):
+    dbt_mcp = await create_dbt_mcp()
     response = llm_client.responses.create(
         model=LLM_MODEL,
         input=initial_messages(content),
-        tools=await get_tools(),
+        tools=await get_tools(dbt_mcp),
         parallel_tool_calls=False,
     )
     assert len(response.output) == 1
