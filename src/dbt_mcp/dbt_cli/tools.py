@@ -15,7 +15,7 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
 
         if selector:
             selector_params = str(selector).split(" ")
-            command = command + selector_params
+            command = command + ["--select"] + selector_params
 
         full_command = command.copy()
         # Add --quiet flag to specific commands to reduce context window usage
