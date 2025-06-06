@@ -61,6 +61,7 @@ def load_config() -> Config:
     load_dotenv()
 
     host = os.environ.get("DBT_HOST")
+    cursor_host = os.environ.get("DBT_MCP_HOST")
     prod_environment_id = os.environ.get("DBT_PROD_ENV_ID")
     legacy_prod_environment_id = os.environ.get("DBT_ENV_ID")
     dev_environment_id = os.environ.get("DBT_DEV_ENV_ID")
@@ -74,9 +75,14 @@ def load_config() -> Config:
     disable_remote = os.environ.get("DISABLE_REMOTE", "true") == "true"
     multicell_account_prefix = os.environ.get("MULTICELL_ACCOUNT_PREFIX", None)
 
+    # Devon: I messed up and uploaded the wrong
+    # env var here https://docs.cursor.com/tools.
+    # So, we are supporting this alias now.
+    actual_host = host or cursor_host
+
     errors = []
     if not disable_semantic_layer or not disable_discovery or not disable_remote:
-        if not host:
+        if not actual_host:
             errors.append(
                 "DBT_HOST environment variable is required when semantic layer, discovery, or remote tools are enabled."
             )
@@ -88,7 +94,10 @@ def load_config() -> Config:
             errors.append(
                 "DBT_TOKEN environment variable is required when semantic layer, discovery, or remote tools are enabled."
             )
-        if host and (host.startswith("metadata") or host.startswith("semantic-layer")):
+        if actual_host and (
+            actual_host.startswith("metadata")
+            or actual_host.startswith("semantic-layer")
+        ):
             errors.append(
                 "DBT_HOST must not start with 'metadata' or 'semantic-layer'."
             )
@@ -130,7 +139,7 @@ def load_config() -> Config:
         and token
         and dev_environment_id
         and actual_prod_environment_id
-        and host
+        and actual_host
     ):
         remote_config = RemoteConfig(
             multicell_account_prefix=multicell_account_prefix,
@@ -138,7 +147,7 @@ def load_config() -> Config:
             token=token,
             dev_environment_id=int(dev_environment_id),
             prod_environment_id=actual_prod_environment_id,
-            host=host,
+            host=actual_host,
         )
 
     dbt_cli_config = None
@@ -149,19 +158,24 @@ def load_config() -> Config:
         )
 
     discovery_config = None
-    if not disable_dbt_cli and host and actual_prod_environment_id and token:
+    if not disable_dbt_cli and actual_host and actual_prod_environment_id and token:
         discovery_config = DiscoveryConfig(
             multicell_account_prefix=multicell_account_prefix,
-            host=host,
+            host=actual_host,
             environment_id=actual_prod_environment_id,
             token=token,
         )
 
     semantic_layer_config = None
-    if not disable_semantic_layer and host and actual_prod_environment_id and token:
+    if (
+        not disable_semantic_layer
+        and actual_host
+        and actual_prod_environment_id
+        and token
+    ):
         semantic_layer_config = SemanticLayerConfig(
             multicell_account_prefix=multicell_account_prefix,
-            host=host,
+            host=actual_host,
             prod_environment_id=actual_prod_environment_id,
             service_token=token,
         )
@@ -178,7 +192,7 @@ def load_config() -> Config:
 
     return Config(
         tracking_config=TrackingConfig(
-            host=host,
+            host=actual_host,
             multicell_account_prefix=multicell_account_prefix,
             prod_environment_id=actual_prod_environment_id,
             dev_environment_id=int(dev_environment_id) if dev_environment_id else None,
