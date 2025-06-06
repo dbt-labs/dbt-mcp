@@ -158,7 +158,7 @@ def load_config() -> Config:
         )
 
     discovery_config = None
-    if not disable_dbt_cli and actual_host and actual_prod_environment_id and token:
+    if not disable_discovery and actual_host and actual_prod_environment_id and token:
         discovery_config = DiscoveryConfig(
             multicell_account_prefix=multicell_account_prefix,
             host=actual_host,
