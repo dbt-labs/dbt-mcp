@@ -1,5 +1,4 @@
-A selector needs be used when we need to select specific nodes or are asking to do actions on specific nodes.
-A node can be a model, a test, a seed or a snapshot
+A selector needs be used when we need to select specific nodes or are asking to do actions on specific nodes. A node can be a model, a test, a seed or a snapshot. It is strongly preferred to provide a selector, especially on large projects. Always provide a selector initially.
 
 - to select all models, just do not provide a selector
 - to select a particular model, use the selector `<model_name>`
