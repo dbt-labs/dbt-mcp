@@ -141,7 +141,7 @@ class TestDbtCliTools(unittest.TestCase):
 
         # Test show command with and without limit
         mock_popen.reset_mock()
-        tools["show"]("SELECT * FROM my_model")
+        tools["show"]("SELECT * FROM my_model", limit=5)
 
         # Check command formatting without limit
         args_list = mock_popen.call_args.kwargs.get("args")
@@ -153,6 +153,8 @@ class TestDbtCliTools(unittest.TestCase):
                 "--inline",
                 "SELECT * FROM my_model",
                 "--favor-state",
+                "--limit",
+                "5",
                 "--output",
                 "json",
                 "--log-format",
