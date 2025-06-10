@@ -1,5 +1,4 @@
 import subprocess
-from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -9,7 +8,7 @@ from dbt_mcp.prompts.prompts import get_prompt
 
 
 def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
-    def _run_dbt_command(command: list[str], selector: Optional[str] = None) -> str:
+    def _run_dbt_command(command: list[str], selector: str | None = None) -> str:
         # Commands that should always be quiet to reduce output verbosity
         verbose_commands = ["build", "compile", "docs", "parse", "run", "test"]
 
@@ -39,7 +38,7 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
 
     @dbt_mcp.tool(description=get_prompt("dbt_cli/build"))
     def build(
-        selector: Optional[str] = Field(
+        selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
     ) -> str:
@@ -55,7 +54,7 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
 
     @dbt_mcp.tool(name="list", description=get_prompt("dbt_cli/list"))
     def ls(
-        selector: Optional[str] = Field(
+        selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
     ) -> str:
@@ -67,7 +66,7 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
 
     @dbt_mcp.tool(description=get_prompt("dbt_cli/run"))
     def run(
-        selector: Optional[str] = Field(
+        selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
     ) -> str:
@@ -75,14 +74,19 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
 
     @dbt_mcp.tool(description=get_prompt("dbt_cli/test"))
     def test(
-        selector: Optional[str] = Field(
+        selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
     ) -> str:
         return _run_dbt_command(["test"], selector)
 
     @dbt_mcp.tool(description=get_prompt("dbt_cli/show"))
-    def show(sql_query: str, limit: int | None = None) -> str:
+    def show(
+        sql_query: str = Field(description=get_prompt("dbt_cli/args/sql_query")),
+        limit: int | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/limit")
+        ),
+    ) -> str:
         args = ["show", "--inline", sql_query, "--favor-state"]
         if limit:
             args.extend(["--limit", str(limit)])

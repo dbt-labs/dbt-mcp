@@ -1,0 +1,1 @@
+Limit the number of rows that the data platform will return. Use this in place of a `LIMIT` clause in the SQL query.

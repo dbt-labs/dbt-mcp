@@ -1,0 +1,1 @@
+This is the SQL query to run against the data platform. Do not add a limit to this query. Use the `limit` argument instead.
