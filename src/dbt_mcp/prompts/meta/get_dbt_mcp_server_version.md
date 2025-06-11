@@ -1,0 +1,1 @@
+this tool returns the current version of the dbt MCP server
