@@ -210,8 +210,31 @@ class SemanticLayerFetcher:
                     query_error = e
             if query_error:
                 return self._format_query_failed_error(query_error)
+            with self.sl_client.session():
+                # Catching any exception within the session
+                # to ensure it is closed properly
+                try:
+                    query_sql = self.sl_client.compile_sql(
+                        metrics=metrics,
+                        # TODO: remove this type ignore once this PR is merged: https://github.com/dbt-labs/semantic-layer-sdk-python/pull/80
+                        group_by=group_by,  # type: ignore
+                        order_by=[
+                            OrderByGroupBy(
+                                name=o.name,
+                                descending=o.descending,
+                                grain=None,
+                            )
+                            for o in order_by or []
+                        ],
+                        where=[where] if where else None,
+                        limit=limit,
+                    )
+                except Exception as e:
+                    query_sql=""
+                    print(e)
             json_result = query_result.to_pandas().to_json(orient="records", indent=2)
-            return QueryMetricsSuccess(result=json_result)
+            final_result = QueryMetricsSuccess(result=json_result, sql=query_sql)
+            return final_result
         except Exception as e:
             return self._format_query_failed_error(e)
 

@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def app_lifespan(server: FastMCP) -> AsyncIterator[None]:
     logger.info("Starting MCP server")
+    logger.info("Starting MCP server - flaunt mods")
     try:
         yield
     except Exception as e:
@@ -76,14 +77,14 @@ class DbtMCP(FastMCP):
             ]
         end_time = int(time.time() * 1000)
         logger.info(f"Tool {name} called successfully in {end_time - start_time}ms")
-        self.usage_tracker.emit_tool_called_event(
-            config=config.tracking_config,
-            tool_name=name,
-            arguments=arguments,
-            start_time_ms=start_time,
-            end_time_ms=end_time,
-            error_message=None,
-        )
+        # self.usage_tracker.emit_tool_called_event(
+        #     config=config.tracking_config,
+        #     tool_name=name,
+        #     arguments=arguments,
+        #     start_time_ms=start_time,
+        #     end_time_ms=end_time,
+        #     error_message=None,
+        # )
         return result
 
 

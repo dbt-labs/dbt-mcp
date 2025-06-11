@@ -38,6 +38,7 @@ class EntityToolResponse:
 @dataclass
 class QueryMetricsSuccess:
     result: str
+    sql: str
     error: None = None
 
 

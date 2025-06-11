@@ -39,7 +39,7 @@ def register_sl_tools(dbt_mcp: FastMCP, config: SemanticLayerConfig) -> None:
         order_by: list[OrderByParam] | None = None,
         where: str | None = None,
         limit: int | None = None,
-    ) -> str:
+    ) -> dict[str, str | None]:
         result = semantic_layer_fetcher.query_metrics(
             metrics=metrics,
             group_by=group_by,
@@ -48,6 +48,6 @@ def register_sl_tools(dbt_mcp: FastMCP, config: SemanticLayerConfig) -> None:
             limit=limit,
         )
         if isinstance(result, QueryMetricsSuccess):
-            return result.result
+            return {"result": result.result, "sql": result.sql}
         else:
-            return result.error
+            return {"error": result.error, "result": None, "sql": None}
