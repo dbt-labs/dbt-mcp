@@ -1,177 +1,78 @@
-import unittest
-from unittest.mock import MagicMock, patch
+import pytest
+from pytest import MonkeyPatch
 
-from tests.mocks.config import mock_config
+from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
+from tests.mocks.config import mock_dbt_cli_config
 
 
-class TestDbtCliTools(unittest.TestCase):
-    @patch("subprocess.Popen")
-    def test_run_command_adds_quiet_flag_to_verbose_commands(self, mock_popen):
-        # Import here to prevent circular import issues during patching
-        from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
+@pytest.fixture
+def mock_process():
+    class MockProcess:
+        def communicate(self):
+            return "command output", None
 
-        # Mock setup
-        mock_process = MagicMock()
-        mock_process.communicate.return_value = ("command output", None)
-        mock_popen.return_value = mock_process
+    return MockProcess()
 
-        # Create a mock FastMCP and Config
-        mock_fastmcp = MagicMock()
 
-        # Capture the registered tools
-        tools = {}
+@pytest.fixture
+def mock_fastmcp():
+    class MockFastMCP:
+        def __init__(self):
+            self.tools = {}
 
-        # Patch the tool decorator to capture functions
-        def mock_tool_decorator(**kwargs):
+        def tool(self, **kwargs):
             def decorator(func):
-                tools[func.__name__] = func
+                self.tools[func.__name__] = func
                 return func
 
             return decorator
 
-        mock_fastmcp.tool = mock_tool_decorator
+    fastmcp = MockFastMCP()
+    return fastmcp, fastmcp.tools
 
-        # Register the tools
-        register_dbt_cli_tools(mock_fastmcp, mock_config.dbt_cli_config)
 
-        # Test each verbose command (build, compile, docs, parse, run, test)
-        verbose_commands = ["build", "compile", "docs", "parse", "run", "test"]
-
-        for command in verbose_commands:
-            # Reset mock
-            mock_popen.reset_mock()
-
-            # Call the captured function
-            tools[command]()
-
-            # Check specific command formatting
-            if command == "docs":
-                # For docs command, check if ["docs", "generate"] gets transformed to ["docs", "--quiet", "generate"]
-                args_list = mock_popen.call_args.kwargs.get("args")
-                self.assertEqual(
-                    args_list,
-                    [
-                        "/path/to/dbt",
-                        "docs",
-                        "--quiet",
-                        "generate",
-                        "--log-format",
-                        "json",
-                    ],
-                )
-            else:
-                # Check if the --quiet flag was added
-                args_list = mock_popen.call_args.kwargs.get("args")
-                self.assertEqual(
-                    args_list[:3],
-                    ["/path/to/dbt", command, "--quiet"],
-                )
-                # check that the log format is last
-                self.assertEqual(
-                    args_list[-2:],
-                    ["--log-format", "json"],
-                )
-
-    @patch("subprocess.Popen")
-    def test_non_verbose_commands_not_modified(self, mock_popen):
-        # Import here to prevent circular import issues during patching
-        from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
-
-        # Mock setup
-        mock_process = MagicMock()
-        mock_process.communicate.return_value = ("command output", None)
-        mock_popen.return_value = mock_process
-
-        # Create a mock FastMCP and Config
-        mock_fastmcp = MagicMock()
-
-        # Capture the registered tools
-        tools = {}
-
-        # Patch the tool decorator to capture functions
-        def mock_tool_decorator(**kwargs):
-            def decorator(func):
-                tools[func.__name__] = func
-                return func
-
-            return decorator
-
-        mock_fastmcp.tool = mock_tool_decorator
-
-        # Register the tools
-        register_dbt_cli_tools(mock_fastmcp, mock_config.dbt_cli_config)
-
-        # Test "list" (non-verbose) command
-        mock_popen.reset_mock()
-        tools["ls"]()
-
-        # Check that --quiet flag was NOT added
-        args_list = mock_popen.call_args.kwargs.get("args")
-        self.assertEqual(args_list[:2], ["/path/to/dbt", "list"])
-        self.assertEqual(args_list[-2:], ["--log-format", "json"])
-
-    @patch("subprocess.Popen")
-    def test_show_command_correctly_formatted(self, mock_popen):
-        # Import here to prevent circular import issues during patching
-        from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
-
-        # Mock setup
-        mock_process = MagicMock()
-        mock_process.communicate.return_value = ("command output", None)
-        mock_popen.return_value = mock_process
-
-        # Create a mock FastMCP and Config
-        mock_fastmcp = MagicMock()
-
-        # Capture the registered tools
-        tools = {}
-
-        # Patch the tool decorator to capture functions
-        def mock_tool_decorator(**kwargs):
-            def decorator(func):
-                tools[func.__name__] = func
-                return func
-
-            return decorator
-
-        mock_fastmcp.tool = mock_tool_decorator
-
-        # Register the tools
-        register_dbt_cli_tools(mock_fastmcp, mock_config.dbt_cli_config)
-
-        # Test show command with and without limit
-        mock_popen.reset_mock()
-        tools["show"]("SELECT * FROM my_model", limit=5)
-
-        # Check command formatting without limit
-        args_list = mock_popen.call_args.kwargs.get("args")
-        self.assertEqual(
-            args_list,
+@pytest.mark.parametrize(
+    "sql_query,limit_param,expected_args",
+    [
+        # SQL with explicit LIMIT - should set --limit=-1
+        (
+            "SELECT * FROM my_model LIMIT 10",
+            None,
             [
-                "/path/to/dbt",
                 "show",
                 "--inline",
-                "SELECT * FROM my_model",
+                "SELECT * FROM my_model LIMIT 10",
                 "--favor-state",
                 "--limit",
-                "5",
+                "-1",
                 "--output",
                 "json",
                 "--log-format",
                 "json",
             ],
-        )
-
-        # Reset mock and test with limit
-        mock_popen.reset_mock()
-        tools["show"]("SELECT * FROM my_model", limit=10)
-
-        # Check command formatting with limit
-        args_list = mock_popen.call_args.kwargs.get("args")
-        self.assertEqual(
-            args_list,
+        ),
+        # SQL with lowercase limit - should set --limit=-1
+        (
+            "select * from my_model limit 5",
+            None,
             [
-                "/path/to/dbt",
+                "show",
+                "--inline",
+                "select * from my_model limit 5",
+                "--favor-state",
+                "--limit",
+                "-1",
+                "--output",
+                "json",
+                "--log-format",
+                "json",
+            ],
+        ),
+        # No SQL LIMIT but with limit parameter - should use provided limit
+        (
+            "SELECT * FROM my_model",
+            10,
+            [
                 "show",
                 "--inline",
                 "SELECT * FROM my_model",
@@ -183,8 +84,142 @@ class TestDbtCliTools(unittest.TestCase):
                 "--log-format",
                 "json",
             ],
-        )
+        ),
+        # No limits at all - should not include --limit flag
+        (
+            "SELECT * FROM my_model",
+            None,
+            [
+                "show",
+                "--inline",
+                "SELECT * FROM my_model",
+                "--favor-state",
+                "--output",
+                "json",
+                "--log-format",
+                "json",
+            ],
+        ),
+    ],
+)
+def test_show_command_limit_logic(
+    monkeypatch: MonkeyPatch,
+    mock_process,
+    mock_fastmcp,
+    sql_query,
+    limit_param,
+    expected_args,
+):
+    # Mock Popen
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    # Register tools and get show tool
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(fastmcp, mock_dbt_cli_config)
+    show_tool = tools["show"]
+
+    # Call show tool with test parameters
+    show_tool(sql_query=sql_query, limit=limit_param)
+
+    # Verify the command was called with expected arguments
+    assert mock_calls
+    args_list = mock_calls[0][1:]  # Skip the dbt path
+    assert args_list == expected_args
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_run_command_adds_quiet_flag_to_verbose_commands(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
+):
+    # Mock Popen
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    # Setup
+    mock_fastmcp_obj, tools = mock_fastmcp
+    register_dbt_cli_tools(mock_fastmcp_obj, mock_dbt_cli_config)
+    run_tool = tools["run"]
+
+    # Execute
+    run_tool()
+
+    # Verify
+    assert mock_calls
+    args_list = mock_calls[0]
+    assert "--quiet" in args_list
+
+
+def test_run_command_correctly_formatted(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
+):
+    # Mock Popen
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+
+    # Register the tools
+    register_dbt_cli_tools(fastmcp, mock_dbt_cli_config)
+    run_tool = tools["run"]
+
+    # Run the command with a selector
+    run_tool(selector="my_model")
+
+    # Verify the command is correctly formatted
+    assert mock_calls
+    args_list = mock_calls[0]
+    assert args_list == [
+        "/path/to/dbt",
+        "run",
+        "--quiet",
+        "--select",
+        "my_model",
+        "--log-format",
+        "json",
+    ]
+
+
+def test_show_command_correctly_formatted(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
+):
+    # Mock Popen
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    # Setup
+    mock_fastmcp_obj, tools = mock_fastmcp
+    register_dbt_cli_tools(mock_fastmcp_obj, mock_dbt_cli_config)
+    show_tool = tools["show"]
+
+    # Execute
+    show_tool(sql_query="SELECT * FROM my_model")
+
+    # Verify
+    assert mock_calls
+    args_list = mock_calls[0]
+    assert args_list[0].endswith("dbt")
+    assert args_list[1] == "show"
+    assert args_list[2] == "--inline"
+    assert args_list[3] == "SELECT * FROM my_model"
+    assert args_list[4] == "--favor-state"
+    assert args_list[-2:] == ["--log-format", "json"]

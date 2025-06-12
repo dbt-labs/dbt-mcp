@@ -88,7 +88,19 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
         ),
     ) -> str:
         args = ["show", "--inline", sql_query, "--favor-state"]
-        if limit:
-            args.extend(["--limit", str(limit)])
+        # This is quite crude, but it should be okay for now
+        # until we have a dbt Fusion integration.
+        cli_limit = None
+        if "limit" in sql_query.lower():
+            # When --limit=-1, dbt won't apply a separate limit.
+            cli_limit = -1
+        elif limit:
+            # This can be problematic if the LLM provides
+            # a SQL limit and a `limit` argument. However, preferencing the limit
+            # in the SQL query leads to a better experience when the LLM
+            # makes that mistake.
+            cli_limit = limit
+        if cli_limit is not None:
+            args.extend(["--limit", str(cli_limit)])
         args.extend(["--output", "json"])
         return _run_dbt_command(args)

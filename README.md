@@ -42,7 +42,7 @@ The MCP server takes the following environment variable configuration:
 | Name | Description |
 |------|-------------|
 | `DBT_PROJECT_DIR` | The path to where the repository of your dbt Project is hosted locally. This should look something like `/Users/firstnamelastname/reponame` |
-| `DBT_PATH` | The path to your dbt Core or dbt Cloud CLI executable. You can find your dbt executable by running `which dbt` |
+| `DBT_PATH` | The path to your dbt Core, dbt Cloud CLI, or dbt Fusion executable. You can find your dbt executable by running `which dbt` |
 
 ## Using with MCP Clients
 

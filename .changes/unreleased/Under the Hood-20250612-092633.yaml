@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: Fix use of limit in dbt show
+time: 2025-06-12T09:26:33.510755-05:00
