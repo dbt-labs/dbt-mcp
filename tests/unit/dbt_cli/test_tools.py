@@ -185,6 +185,69 @@ class TestDbtCliTools(unittest.TestCase):
             ],
         )
 
+    @patch("builtins.open")
+    @patch("dbt_mcp.dbt_cli.tools.Path")
+    def test_get_profiles_function(self, mock_path, mock_open):
+        # Import here to prevent circular import issues during patching
+        from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
+
+        # Create a mock FastMCP and Config
+        mock_fastmcp = MagicMock()
+
+        # Capture the registered tools
+        tools = {}
+
+        # Patch the tool decorator to capture functions
+        def mock_tool_decorator(**kwargs):
+            def decorator(func):
+                tools[func.__name__] = func
+                return func
+
+            return decorator
+
+        mock_fastmcp.tool = mock_tool_decorator
+
+        # Register the tools
+        register_dbt_cli_tools(mock_fastmcp, mock_config.dbt_cli_config)
+
+        # Mock profiles.yml content
+        mock_profiles_content = """
+test_project:
+  outputs:
+    dev:
+      type: postgres
+      host: localhost
+      port: 5432
+      user: dev_user
+      dbname: dev_db
+    prod:
+      type: postgres
+      host: prod.example.com
+      port: 5432
+      user: prod_user
+      dbname: prod_db
+  target: dev
+"""
+
+        # Mock Path behavior
+        mock_path_instance = MagicMock()
+        mock_path_instance.exists.return_value = True
+        mock_path.return_value = mock_path_instance
+
+        # Mock file reading
+        mock_file = MagicMock()
+        mock_file.read.return_value = mock_profiles_content
+        mock_open.return_value.__enter__.return_value = mock_file
+
+        # Test get_profiles command
+        result = tools["get_profiles"]()
+
+        # Verify the result contains expected structure
+        self.assertIn("profiles_file", result)
+        self.assertIn("test_project", result)
+        self.assertIn("dev", result)
+        self.assertIn("prod", result)
+
 
 if __name__ == "__main__":
     unittest.main()
