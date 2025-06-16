@@ -36,15 +36,15 @@ class EntityToolResponse:
 
 
 @dataclass
-class QueryMetricsSuccess:
-    result: str
+class CreateQueryResult:
+    sql: str
     error: None = None
 
 
 @dataclass
-class QueryMetricsError:
+class CreateQueryError:
     error: str
-    result: None = None
+    sql: None = None
 
 
-QueryMetricsResult = QueryMetricsSuccess | QueryMetricsError
+CreateQueryResult= CreateQueryResult | CreateQueryError 

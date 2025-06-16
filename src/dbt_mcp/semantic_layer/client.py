@@ -9,13 +9,12 @@ from dbt_mcp.semantic_layer.gql.gql import GRAPHQL_QUERIES
 from dbt_mcp.semantic_layer.gql.gql_request import ConnAttr, submit_request
 from dbt_mcp.semantic_layer.levenshtein import get_misspellings
 from dbt_mcp.semantic_layer.types import (
+    CreateQueryError,
+    CreateQueryResult,
     DimensionToolResponse,
     EntityToolResponse,
     MetricToolResponse,
     OrderByParam,
-    QueryMetricsError,
-    QueryMetricsResult,
-    QueryMetricsSuccess,
 )
 
 
@@ -103,7 +102,7 @@ class SemanticLayerFetcher:
             self.entities_cache[metrics_key] = entities
         return self.entities_cache[metrics_key]
 
-    def validate_query_metrics_params(
+    def validate_create_query_params(
         self, metrics: list[str], group_by: list[GroupByParam] | None
     ) -> str | None:
         errors = []
@@ -147,9 +146,9 @@ class SemanticLayerFetcher:
         return None
 
     # TODO: move this to the SDK
-    def _format_query_failed_error(self, query_error: Exception) -> QueryMetricsError:
-        if isinstance(query_error, QueryFailedError):
-            return QueryMetricsError(
+    def _format_query_failed_error(self, query_error: Exception) -> CreateQueryError:
+        if isinstance(query_error, CreateQueryError):
+            return CreateQueryError(
                 error=str(query_error)
                 .replace("QueryFailedError(", "")
                 .rstrip(")")
@@ -168,30 +167,31 @@ class SemanticLayerFetcher:
                 .strip()
             )
         else:
-            return QueryMetricsError(error=str(query_error))
+            return CreateQueryError(error=str(query_error))
 
-    def query_metrics(
+    def create_query(
         self,
         metrics: list[str],
         group_by: list[GroupByParam] | None = None,
         order_by: list[OrderByParam] | None = None,
         where: str | None = None,
         limit: int | None = None,
-    ) -> QueryMetricsResult:
-        validation_error = self.validate_query_metrics_params(
+    ) -> CreateQueryResult:
+        validation_error = self.validate_create_query_params(
             metrics=metrics,
             group_by=group_by,
         )
         if validation_error:
-            return QueryMetricsError(error=validation_error)
+            return CreateQueryError(error=validation_error)
 
         try:
             query_error = None
+            created_query = None
             with self.sl_client.session():
                 # Catching any exception within the session
                 # to ensure it is closed properly
                 try:
-                    query_result = self.sl_client.query(
+                    created_query = self.sl_client.compile_sql(
                         metrics=metrics,
                         # TODO: remove this type ignore once this PR is merged: https://github.com/dbt-labs/semantic-layer-sdk-python/pull/80
                         group_by=group_by,  # type: ignore
@@ -210,8 +210,7 @@ class SemanticLayerFetcher:
                     query_error = e
             if query_error:
                 return self._format_query_failed_error(query_error)
-            json_result = query_result.to_pandas().to_json(orient="records", indent=2)
-            return QueryMetricsSuccess(result=json_result)
+            return { "sql": created_query, "error": None }
         except Exception as e:
             return self._format_query_failed_error(e)
 

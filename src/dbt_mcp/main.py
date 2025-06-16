@@ -4,7 +4,7 @@ from dbt_mcp.mcp.server import create_dbt_mcp
 
 
 def main() -> None:
-    asyncio.run(create_dbt_mcp()).run()
-
+    mcp = asyncio.run(create_dbt_mcp())
+    mcp.run(transport="sse")
 
 main()

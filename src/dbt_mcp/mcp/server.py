@@ -88,7 +88,7 @@ class DbtMCP(FastMCP):
 
 
 async def create_dbt_mcp():
-    dbt_mcp = DbtMCP(usage_tracker=UsageTracker(), name="dbt", lifespan=app_lifespan)
+    dbt_mcp = DbtMCP(usage_tracker=UsageTracker(), name="dbt", lifespan=app_lifespan,)
 
     if config.semantic_layer_config:
         logger.info("Registering semantic layer tools")
