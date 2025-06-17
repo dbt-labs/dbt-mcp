@@ -8,7 +8,11 @@ from dbt_mcp.prompts.prompts import get_prompt
 
 
 def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
-    def _run_dbt_command(command: list[str], selector: str | None = None) -> str:
+    def _run_dbt_command(
+        command: list[str],
+        selector: str | None = None,
+        timeout: int | None = None,
+    ) -> str:
         # Commands that should always be quiet to reduce output verbosity
         verbose_commands = ["build", "compile", "docs", "parse", "run", "test"]
 
@@ -33,7 +37,7 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
             stderr=subprocess.STDOUT,
             text=True,
         )
-        output, _ = process.communicate()
+        output, _ = process.communicate(timeout=timeout)
         return output or "OK"
 
     @dbt_mcp.tool(description=get_prompt("dbt_cli/build"))
@@ -58,7 +62,13 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
     ) -> str:
-        return _run_dbt_command(["list"], selector)
+        try:
+            return _run_dbt_command(["list"], selector, timeout=10)
+        except subprocess.TimeoutExpired:
+            return (
+                "Timeout: dbt list command took too long to complete. "
+                + "Try using a more specific selector to narrow down the list of models."
+            )
 
     @dbt_mcp.tool(description=get_prompt("dbt_cli/parse"))
     def parse() -> str:

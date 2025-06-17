@@ -1,3 +1,5 @@
+import subprocess
+
 import pytest
 from pytest import MonkeyPatch
 
@@ -8,7 +10,7 @@ from tests.mocks.config import mock_dbt_cli_config
 @pytest.fixture
 def mock_process():
     class MockProcess:
-        def communicate(self):
+        def communicate(self, timeout=None):
             return "command output", None
 
     return MockProcess()
@@ -223,3 +225,30 @@ def test_show_command_correctly_formatted(
     assert args_list[3] == "SELECT * FROM my_model"
     assert args_list[4] == "--favor-state"
     assert args_list[-2:] == ["--log-format", "json"]
+
+
+def test_list_command_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
+    # Mock Popen
+    class MockProcessWithTimeout:
+        def communicate(self, timeout=None):
+            raise subprocess.TimeoutExpired(cmd=["dbt", "list"], timeout=10)
+
+    def mock_popen(*args, **kwargs):
+        return MockProcessWithTimeout()
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    # Setup
+    mock_fastmcp_obj, tools = mock_fastmcp
+    register_dbt_cli_tools(mock_fastmcp_obj, mock_dbt_cli_config)
+    list_tool = tools["ls"]
+
+    # Test timeout case
+    result = list_tool()
+    assert "Timeout: dbt list command took too long to complete" in result
+    assert "Try using a more specific selector" in result
+
+    # Test with selector - should still timeout
+    result = list_tool(selector="my_model")
+    assert "Timeout: dbt list command took too long to complete" in result
+    assert "Try using a more specific selector" in result
