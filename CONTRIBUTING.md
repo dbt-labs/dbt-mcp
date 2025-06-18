@@ -22,6 +22,24 @@ cp .env.example .env
 ```
 Then edit `.env` with your specific environment variables (see the `Configuration` section of the `README.md`).
 
+## Testing
+
+This repo has automated tests which can be run with `task test:unit`. Additionally, there is a simple CLI tool which can be used to test by running `task client`. If you would like to test in a client like Cursor or Claude. Use a configuration file like this:
+
+```
+{
+  "mcpServers": {
+    "dbt": {
+      "command": "<path-to-this-directory>/.venv/bin/mcp",
+      "args": [
+        "run",
+        "<path-to-this-directory>/src/dbt_mcp/main.py"
+      ]
+    }
+  }
+}
+```
+
 ## Changelog
 
 Every PR requires a changelog entry. [Install changie](https://changie.dev/) and run `changie new` to create a new changelog entry.
