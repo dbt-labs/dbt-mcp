@@ -17,6 +17,7 @@ from mcp.types import (
 from dbt_mcp.config.config import load_config
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.discovery.tools import register_discovery_tools
+from dbt_mcp.meta.tools import register_meta_tools
 from dbt_mcp.remote.tools import register_remote_tools
 from dbt_mcp.semantic_layer.tools import register_sl_tools
 from dbt_mcp.tracking.tracking import UsageTracker
@@ -89,6 +90,9 @@ class DbtMCP(FastMCP):
 
 async def create_dbt_mcp():
     dbt_mcp = DbtMCP(usage_tracker=UsageTracker(), name="dbt", lifespan=app_lifespan)
+
+    logger.info("Registering meta tools")
+    register_meta_tools(dbt_mcp)
 
     if config.semantic_layer_config:
         logger.info("Registering semantic layer tools")
