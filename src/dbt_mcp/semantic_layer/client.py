@@ -1,6 +1,11 @@
 from functools import cache
 
-from dbtsl.api.shared.query_params import GroupByParam, OrderByGroupBy
+from dbtsl.api.shared.query_params import (
+    GroupByParam,
+    OrderByGroupBy,
+    OrderBySpec,
+    OrderByMetric,
+)
 from dbtsl.client.sync import SyncSemanticLayerClient
 from dbtsl.error import QueryFailedError
 
@@ -170,6 +175,33 @@ class SemanticLayerFetcher:
         else:
             return QueryMetricsError(error=str(query_error))
 
+    def get_order_bys(
+        self,
+        order_by: list[OrderByParam],
+        metrics: list[str],
+        group_by: list[GroupByParam] | None = None,
+    ) -> list[OrderBySpec]:
+        result: list[OrderBySpec] = []
+        queried_group_by = {g.name: g for g in group_by} if group_by else {}
+        queried_metrics = set(metrics)
+        for o in order_by:
+            if o.name in queried_metrics:
+                result.append(OrderByMetric(name=o.name, descending=o.descending))
+            elif o.name in queried_group_by:
+                selected_group_by = queried_group_by[o.name]
+                result.append(
+                    OrderByGroupBy(
+                        name=selected_group_by.name,
+                        descending=o.descending,
+                        grain=selected_group_by.grain,
+                    )
+                )
+            else:
+                raise ValueError(
+                    f"Order by `{o.name}` not found in metrics or group by"
+                )
+        return result
+
     def query_metrics(
         self,
         metrics: list[str],
@@ -191,18 +223,18 @@ class SemanticLayerFetcher:
                 # Catching any exception within the session
                 # to ensure it is closed properly
                 try:
+                    parsed_order_by: list[OrderBySpec] | None = (
+                        self.get_order_bys(
+                            order_by=order_by, metrics=metrics, group_by=group_by
+                        )
+                        if order_by is not None
+                        else None
+                    )
                     query_result = self.sl_client.query(
                         metrics=metrics,
                         # TODO: remove this type ignore once this PR is merged: https://github.com/dbt-labs/semantic-layer-sdk-python/pull/80
                         group_by=group_by,  # type: ignore
-                        order_by=[
-                            OrderByGroupBy(
-                                name=o.name,
-                                descending=o.descending,
-                                grain=None,
-                            )
-                            for o in order_by or []
-                        ],
+                        order_by=parsed_order_by,  # type: ignore
                         where=[where] if where else None,
                         limit=limit,
                     )
