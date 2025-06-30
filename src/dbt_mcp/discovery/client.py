@@ -143,7 +143,7 @@ class GraphQLQueries:
                         }
                         edges {
                             node {
-                                parents 
+                                parents
     """)
         + COMMON_FIELDS_PARENTS_CHILDREN
         + textwrap.dedent("""
@@ -172,7 +172,7 @@ class GraphQLQueries:
                         }
                         edges {
                             node {
-                                children 
+                                children
     """)
         + COMMON_FIELDS_PARENTS_CHILDREN
         + textwrap.dedent("""
@@ -188,13 +188,8 @@ class GraphQLQueries:
 
 
 class MetadataAPIClient:
-    def __init__(
-        self, *, host: str, token: str, multicell_account_prefix: str | None = None
-    ):
-        if multicell_account_prefix:
-            self.url = f"https://{multicell_account_prefix}.metadata.{host}/graphql"
-        else:
-            self.url = f"https://metadata.{host}/graphql"
+    def __init__(self, *, url: str, token: str):
+        self.url = url
         self.headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",

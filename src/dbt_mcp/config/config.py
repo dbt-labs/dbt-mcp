@@ -26,8 +26,7 @@ class SemanticLayerConfig:
 
 @dataclass
 class DiscoveryConfig:
-    multicell_account_prefix: str | None
-    host: str
+    url: str
     environment_id: int
     token: str
 
@@ -159,9 +158,12 @@ def load_config() -> Config:
 
     discovery_config = None
     if not disable_discovery and actual_host and actual_prod_environment_id and token:
+        if multicell_account_prefix:
+            url = f"https://{multicell_account_prefix}.metadata.{actual_host}/graphql"
+        else:
+            url = f"https://metadata.{actual_host}/graphql"
         discovery_config = DiscoveryConfig(
-            multicell_account_prefix=multicell_account_prefix,
-            host=actual_host,
+            url=url,
             environment_id=actual_prod_environment_id,
             token=token,
         )

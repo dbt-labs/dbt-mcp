@@ -31,9 +31,8 @@ mock_dbt_cli_config = DbtCliConfig(
 )
 
 mock_discovery_config = DiscoveryConfig(
-    host="http://localhost:8000",
+    url="http://localhost:8000",
     token="token",
-    multicell_account_prefix=None,
     environment_id=1,
 )
 
