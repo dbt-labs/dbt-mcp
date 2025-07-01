@@ -68,7 +68,9 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
         ),
     ) -> str:
         try:
-            return _run_dbt_command(["list"], selector, timeout=10, resource_type=resource_type)
+            return _run_dbt_command(
+                ["list"], selector, timeout=10, resource_type=resource_type
+            )
         except subprocess.TimeoutExpired:
             return (
                 "Timeout: dbt list command took too long to complete. "
