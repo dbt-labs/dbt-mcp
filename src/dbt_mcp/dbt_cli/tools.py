@@ -15,7 +15,7 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
         resource_type: list[str] | None = None,
     ) -> str:
         # Commands that should always be quiet to reduce output verbosity
-        verbose_commands = ["build", "compile", "docs", "parse", "run", "test"]
+        verbose_commands = ["build", "compile", "docs", "parse", "run", "test", "list"]
 
         if selector:
             selector_params = str(selector).split(" ")
@@ -30,9 +30,6 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
             main_command = full_command[0]
             command_args = full_command[1:] if len(full_command) > 1 else []
             full_command = [main_command, "--quiet", *command_args]
-
-        # Make the format json to make it easier to parse for the LLM
-        full_command = full_command + ["--log-format", "json"]
 
         process = subprocess.Popen(
             args=[config.dbt_path, *full_command],
