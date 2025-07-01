@@ -1,3 +1,4 @@
+import os
 import subprocess
 
 from mcp.server.fastmcp import FastMCP
@@ -30,9 +31,14 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
         # Make the format json to make it easier to parse for the LLM
         full_command = full_command + ["--log-format", "json"]
 
+        # We change the path only if this is an absolute path, otherwise we can have
+        # problems with relative paths applied multiple times as DBT_PROJECT_DIR
+        # is applied to dbt Core and Fusion as well (but not the dbt Cloud CLI)
+        cwd_path = config.project_dir if os.path.isabs(config.project_dir) else None
+
         process = subprocess.Popen(
             args=[config.dbt_path, *full_command],
-            cwd=config.project_dir,
+            cwd=cwd_path,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
