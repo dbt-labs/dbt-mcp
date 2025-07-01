@@ -75,7 +75,7 @@ def load_config() -> Config:
     multicell_account_prefix = os.environ.get("MULTICELL_ACCOUNT_PREFIX", None)
 
     # set default warn error options if not provided
-    if not os.environ.get("DBT_WARN_ERROR_OPTIONS"):
+    if os.environ.get("DBT_WARN_ERROR_OPTIONS") is None:
         warn_error_options = '{"error": ["NoNodesForSelectionCriteria"]}'
         os.environ["DBT_WARN_ERROR_OPTIONS"] = warn_error_options
 
