@@ -1,3 +1,4 @@
+import os
 import subprocess
 from collections.abc import Iterable
 
@@ -32,9 +33,14 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
             command_args = full_command[1:] if len(full_command) > 1 else []
             full_command = [main_command, "--quiet", *command_args]
 
+        # We change the path only if this is an absolute path, otherwise we can have
+        # problems with relative paths applied multiple times as DBT_PROJECT_DIR
+        # is applied to dbt Core and Fusion as well (but not the dbt Cloud CLI)
+        cwd_path = config.project_dir if os.path.isabs(config.project_dir) else None
+
         process = subprocess.Popen(
             args=[config.dbt_path, *full_command],
-            cwd=config.project_dir,
+            cwd=cwd_path,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,

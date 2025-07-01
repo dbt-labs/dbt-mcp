@@ -39,14 +39,19 @@ The MCP server takes the following environment variable configuration:
 | `DBT_USER_ID` | Your dbt Cloud user ID |
 
 ### Configuration for dbt CLI
-| Name | Description |
-|------|-------------|
+| Name              | Description                                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `DBT_PROJECT_DIR` | The path to where the repository of your dbt Project is hosted locally. This should look something like `/Users/firstnamelastname/reponame` |
-| `DBT_PATH` | The path to your dbt Core, dbt Cloud CLI, or dbt Fusion executable. You can find your dbt executable by running `which dbt` |
+| `DBT_PATH`        | The path to your dbt Core, dbt Cloud CLI, or dbt Fusion executable. You can find your dbt executable by running `which dbt`                 |
+
+It is also possible to set any environment variable supported by your dbt executable (see [here](https://docs.getdbt.com/reference/global-configs/about-global-configs#available-flags) for the ones supported in dbt Core).
+
+We automatically set `DBT_WARN_ERROR_OPTIONS='{"error": ["NoNodesForSelectionCriteria"]}'` so that the MCP server knows if no node is selected when running a dbt command.
+You can overwrite it if needed but we believe that it provides a better experience when calling dbt from the MCP server, making sure that the tool is selecting valid nodes.
 
 ## Using with MCP Clients
 
-After going through [Installation](#installation), you can use your server with an MCP client.
+After going through the [Setup](#setup), you can use your server with an MCP client.
 
 This configuration will be added to the respective client's config file. Be sure to replace the sections within `<>`:
 
