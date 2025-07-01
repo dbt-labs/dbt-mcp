@@ -1,4 +1,5 @@
 import subprocess
+from collections.abc import Iterable
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -21,7 +22,7 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
             selector_params = str(selector).split(" ")
             command = command + ["--select"] + selector_params
 
-        if resource_type:
+        if isinstance(resource_type, Iterable):
             command = command + ["--resource-type"] + resource_type
 
         full_command = command.copy()
@@ -63,7 +64,7 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
         resource_type: list[str] | None = Field(
-            default=["model", "snapshot"],
+            default=None,
             description=get_prompt("dbt_cli/args/resource_type"),
         ),
     ) -> str:

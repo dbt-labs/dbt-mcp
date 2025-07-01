@@ -40,25 +40,25 @@ class TestDbtCliIntegration(unittest.TestCase):
         # Test cases for different command types
         test_cases = [
             # Command name, args, expected command list
-            ("build", [], ["/path/to/dbt", "build", "--quiet", "--log-format", "json"]),
+            ("build", [], ["/path/to/dbt", "build", "--quiet"]),
             (
                 "compile",
                 [],
-                ["/path/to/dbt", "compile", "--quiet", "--log-format", "json"],
+                ["/path/to/dbt", "compile", "--quiet"],
             ),
             (
                 "docs",
                 [],
-                ["/path/to/dbt", "docs", "--quiet", "generate", "--log-format", "json"],
+                ["/path/to/dbt", "docs", "--quiet", "generate"],
             ),
             (
                 "ls",
                 [],
-                ["/path/to/dbt", "list", "--log-format", "json"],
-            ),  # Non-verbose command
-            ("parse", [], ["/path/to/dbt", "parse", "--quiet", "--log-format", "json"]),
-            ("run", [], ["/path/to/dbt", "run", "--quiet", "--log-format", "json"]),
-            ("test", [], ["/path/to/dbt", "test", "--quiet", "--log-format", "json"]),
+                ["/path/to/dbt", "list", "--quiet"],
+            ),
+            ("parse", [], ["/path/to/dbt", "parse", "--quiet"]),
+            ("run", [], ["/path/to/dbt", "run", "--quiet"]),
+            ("test", [], ["/path/to/dbt", "test", "--quiet"]),
             (
                 "show",
                 ["SELECT * FROM model"],
@@ -69,8 +69,6 @@ class TestDbtCliIntegration(unittest.TestCase):
                     "SELECT * FROM model",
                     "--favor-state",
                     "--output",
-                    "json",
-                    "--log-format",
                     "json",
                 ],
             ),
@@ -87,8 +85,6 @@ class TestDbtCliIntegration(unittest.TestCase):
                     "10",
                     "--output",
                     "json",
-                    "--log-format",
-                    "json",
                 ],
             ),
         ]
@@ -104,11 +100,9 @@ class TestDbtCliIntegration(unittest.TestCase):
             mock_popen.assert_called_once()
             actual_args = mock_popen.call_args.kwargs.get("args")
 
-            has_quiet = False if command_name == "ls" else True
-            num_params = 3 if has_quiet else 2
+            num_params = 3
 
             self.assertEqual(actual_args[:num_params], expected_args[:num_params])
-            self.assertEqual(actual_args[-2:], ["--log-format", "json"])
 
             # Verify correct working directory
             self.assertEqual(mock_popen.call_args.kwargs.get("cwd"), "/test/project")

@@ -49,8 +49,6 @@ def mock_fastmcp():
                 "-1",
                 "--output",
                 "json",
-                "--log-format",
-                "json",
             ],
         ),
         # SQL with lowercase limit - should set --limit=-1
@@ -65,8 +63,6 @@ def mock_fastmcp():
                 "--limit",
                 "-1",
                 "--output",
-                "json",
-                "--log-format",
                 "json",
             ],
         ),
@@ -83,8 +79,6 @@ def mock_fastmcp():
                 "10",
                 "--output",
                 "json",
-                "--log-format",
-                "json",
             ],
         ),
         # No limits at all - should not include --limit flag
@@ -97,8 +91,6 @@ def mock_fastmcp():
                 "SELECT * FROM my_model",
                 "--favor-state",
                 "--output",
-                "json",
-                "--log-format",
                 "json",
             ],
         ),
@@ -191,8 +183,6 @@ def test_run_command_correctly_formatted(
         "--quiet",
         "--select",
         "my_model",
-        "--log-format",
-        "json",
     ]
 
 
@@ -224,7 +214,6 @@ def test_show_command_correctly_formatted(
     assert args_list[2] == "--inline"
     assert args_list[3] == "SELECT * FROM my_model"
     assert args_list[4] == "--favor-state"
-    assert args_list[-2:] == ["--log-format", "json"]
 
 
 def test_list_command_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
@@ -244,11 +233,11 @@ def test_list_command_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
     list_tool = tools["ls"]
 
     # Test timeout case
-    result = list_tool()
+    result = list_tool(resource_type=["model", "snapshot"])
     assert "Timeout: dbt list command took too long to complete" in result
     assert "Try using a more specific selector" in result
 
     # Test with selector - should still timeout
-    result = list_tool(selector="my_model")
+    result = list_tool(selector="my_model", resource_type=["model"])
     assert "Timeout: dbt list command took too long to complete" in result
     assert "Try using a more specific selector" in result
