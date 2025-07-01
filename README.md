@@ -46,7 +46,7 @@ The MCP server takes the following environment variable configuration:
 
 ## Using with MCP Clients
 
-After going through [Installation](#installation), you can use your server with an MCP client.
+After going through the [Setup](#setup), you can use your server with an MCP client.
 
 This configuration will be added to the respective client's config file. Be sure to replace the sections within `<>`:
 
