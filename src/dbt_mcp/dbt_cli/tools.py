@@ -12,6 +12,7 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
         command: list[str],
         selector: str | None = None,
         timeout: int | None = None,
+        resource_type: list[str] | None = None,
     ) -> str:
         # Commands that should always be quiet to reduce output verbosity
         verbose_commands = ["build", "compile", "docs", "parse", "run", "test"]
@@ -19,6 +20,9 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
         if selector:
             selector_params = str(selector).split(" ")
             command = command + ["--select"] + selector_params
+
+        if resource_type:
+            command = command + ["--resource-type"] + resource_type
 
         full_command = command.copy()
         # Add --quiet flag to specific commands to reduce context window usage
@@ -61,9 +65,13 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
+        resource_type: list[str] | None = Field(
+            default=["model", "snapshot"],
+            description=get_prompt("dbt_cli/args/resource_type"),
+        ),
     ) -> str:
         try:
-            return _run_dbt_command(["list"], selector, timeout=10)
+            return _run_dbt_command(["list"], selector, timeout=10, resource_type=resource_type)
         except subprocess.TimeoutExpired:
             return (
                 "Timeout: dbt list command took too long to complete. "
