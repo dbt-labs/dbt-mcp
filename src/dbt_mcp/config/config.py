@@ -74,6 +74,11 @@ def load_config() -> Config:
     disable_remote = os.environ.get("DISABLE_REMOTE", "true") == "true"
     multicell_account_prefix = os.environ.get("MULTICELL_ACCOUNT_PREFIX", None)
 
+    # set default warn error options if not provided
+    if not os.environ.get("DBT_WARN_ERROR_OPTIONS"):
+        warn_error_options = '{"error": ["NoNodesForSelectionCriteria"]}'
+        os.environ["DBT_WARN_ERROR_OPTIONS"] = warn_error_options
+
     # Devon: I messed up and uploaded the wrong
     # env var here https://docs.cursor.com/tools.
     # So, we are supporting this alias now.

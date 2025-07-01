@@ -39,10 +39,11 @@ The MCP server takes the following environment variable configuration:
 | `DBT_USER_ID` | Your dbt Cloud user ID |
 
 ### Configuration for dbt CLI
-| Name | Description |
-|------|-------------|
-| `DBT_PROJECT_DIR` | The path to where the repository of your dbt Project is hosted locally. This should look something like `/Users/firstnamelastname/reponame` |
-| `DBT_PATH` | The path to your dbt Core, dbt Cloud CLI, or dbt Fusion executable. You can find your dbt executable by running `which dbt` |
+| Name                     | Default                                        | Description                                                                                                                                                                                               |
+| ------------------------ | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DBT_PROJECT_DIR`        | -                                              | The path to where the repository of your dbt Project is hosted locally. This should look something like `/Users/firstnamelastname/reponame`                                                               |
+| `DBT_PATH`               | -                                              | The path to your dbt Core, dbt Cloud CLI, or dbt Fusion executable. You can find your dbt executable by running `which dbt`                                                                               |
+| `DBT_WARN_ERROR_OPTIONS` | `'{"error": ["NoNodesForSelectionCriteria"]}'` | The dbt warnings that should return errors. When using LLMs we likely want to return an error if the dbt command didn't select any mode [docs](https://docs.getdbt.com/reference/global-configs/warnings) |
 
 ## Using with MCP Clients
 
