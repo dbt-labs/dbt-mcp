@@ -1,5 +1,7 @@
+import json
 import logging
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -33,13 +35,17 @@ class UsageTracker:
         error_message: str | None = None,
     ):
         try:
+            arguments_mapping: Mapping[str, str] = {
+                k: json.dumps(v) for k, v in arguments.items()
+            }
+
             log_proto(
                 ToolCalled(
                     event_id=str(uuid.uuid4()),
                     start_time_ms=start_time_ms,
                     end_time_ms=end_time_ms,
                     tool_name=tool_name,
-                    arguments=arguments,
+                    arguments=arguments_mapping,
                     error_message=error_message or "",
                     dbt_cloud_environment_id_dev=str(config.dev_environment_id)
                     if config.dev_environment_id
