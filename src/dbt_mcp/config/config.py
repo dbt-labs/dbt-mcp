@@ -27,8 +27,8 @@ class SemanticLayerConfig:
 @dataclass
 class DiscoveryConfig:
     url: str
+    headers: dict[str, str]
     environment_id: int
-    token: str
 
 
 @dataclass
@@ -169,8 +169,11 @@ def load_config() -> Config:
             url = f"https://metadata.{actual_host}/graphql"
         discovery_config = DiscoveryConfig(
             url=url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
             environment_id=actual_prod_environment_id,
-            token=token,
         )
 
     semantic_layer_config = None

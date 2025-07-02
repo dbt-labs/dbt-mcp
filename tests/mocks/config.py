@@ -32,7 +32,10 @@ mock_dbt_cli_config = DbtCliConfig(
 
 mock_discovery_config = DiscoveryConfig(
     url="http://localhost:8000",
-    token="token",
+    headers={
+        "Authorization": "Bearer token",
+        "Content-Type": "application/json",
+    },
     environment_id=1,
 )
 

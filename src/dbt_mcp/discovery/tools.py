@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 def register_discovery_tools(dbt_mcp: FastMCP, config: DiscoveryConfig) -> None:
     api_client = MetadataAPIClient(
         url=config.url,
-        token=config.token,
+        headers=config.headers,
     )
     models_fetcher = ModelsFetcher(
         api_client=api_client, environment_id=config.environment_id
