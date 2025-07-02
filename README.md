@@ -1,6 +1,6 @@
 # dbt MCP Server
 
-This MCP (Model Context Protocol) server provides tools to interact with dbt. Read [this](https://docs.getdbt.com/blog/introducing-dbt-mcp-server) blog to learn more.
+This MCP (Model Context Protocol) server provides tools to interact with dbt. Read [this](https://docs.getdbt.com/blog/introducing-dbt-mcp-server) blog to learn more. Add comments or questions to GitHub Issues or join us in [the community Slack](https://www.getdbt.com/community/join-the-community) in the `#tools-dbt-mcp` channel.
 
 ## Architecture
 
@@ -51,9 +51,9 @@ You can overwrite it if needed but we believe that it provides a better experien
 
 ## Using with MCP Clients
 
-After going through the [Setup](#setup), you can use your server with an MCP client.
+After going through the [Setup](#setup), you can use dbt-mcp with an MCP client.
 
-This configuration will be added to the respective client's config file. Be sure to replace the sections within `<>`:
+Add this configuration to the respective client's config file. Be sure to replace the sections within `<>`:
 
 ```json
 {
@@ -77,7 +77,7 @@ This configuration will be added to the respective client's config file. Be sure
 
 Follow [these](https://modelcontextprotocol.io/quickstart/user) instructions to create the `claude_desktop_config.json` file and connect.
 
-You can find the Claude Desktop logs at `~/Library/Logs/Claude` for Mac or `%APPDATA%\Claude\logs` for Windows.
+For debugging, you can find the Claude Desktop logs at `~/Library/Logs/Claude` for Mac or `%APPDATA%\Claude\logs` for Windows.
 
 ## Cursor
 
@@ -168,7 +168,7 @@ VS Code MCP docs [here](https://code.visualstudio.com/docs/copilot/chat/mcp-serv
 
 ### Remote
 * `text_to_sql` - Generate SQL from natural language requests
-* `execute_sql` - Execute SQL on dbt Cloud's backend infrastructure with support for Semantic Layer SQL syntax.
+* `execute_sql` - Execute SQL on dbt Cloud's backend infrastructure with support for Semantic Layer SQL syntax. Note: using a PAT instead of a service token for `DBT_TOKEN` is required for this tool.
 
 ## Contributing
 
