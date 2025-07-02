@@ -1,8 +1,10 @@
+# mypy: ignore-errors
+
 import asyncio
 from pathlib import Path
 
 from agents import Agent, Runner, trace
-from agents.mcp import create_static_tool_filter  # type: ignore
+from agents.mcp import create_static_tool_filter
 from agents.mcp.server import MCPServerStdio
 
 
