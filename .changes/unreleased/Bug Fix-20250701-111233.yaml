@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Fix when people provide `DBT_PROJECT_DIR` as  a relative path
-time: 2025-07-01T11:12:33.111527+02:00
