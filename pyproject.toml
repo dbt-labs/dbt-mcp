@@ -14,12 +14,12 @@ classifiers = [
   "Intended Audience :: Developers",
 ]
 dependencies = [
-  # Pinning all dependencies because this app is installed with pip
+  # Pinning all dependencies because this app is installed with uvx
   # and we want to have a consistent install as much as possible.
   "dbt-protos==1.0.317",
   "dbt-sl-sdk[sync]==0.11.0",
   "dbtlabs-vortex==0.2.0",
-  "mcp[cli]==1.6.0",
+  "mcp[cli]==1.10.1",
   "pandas==2.2.3",
   "python-dotenv==1.0.1",
   "pyyaml==6.0.2",
