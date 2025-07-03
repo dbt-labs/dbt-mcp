@@ -223,12 +223,12 @@ class SemanticLayerFetcher:
                 # Catching any exception within the session
                 # to ensure it is closed properly
                 try:
-                    parsed_order_by: list[OrderBySpec] | None = (
+                    parsed_order_by: list[OrderBySpec] = (
                         self.get_order_bys(
                             order_by=order_by, metrics=metrics, group_by=group_by
                         )
                         if order_by is not None
-                        else None
+                        else []
                     )
                     query_result = self.sl_client.query(
                         metrics=metrics,
