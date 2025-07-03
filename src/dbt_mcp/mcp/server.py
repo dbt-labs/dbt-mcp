@@ -9,8 +9,7 @@ from typing import Any
 from dbtlabs_vortex.producer import shutdown
 from mcp.server.fastmcp import FastMCP
 from mcp.types import (
-    EmbeddedResource,
-    ImageContent,
+    ContentBlock,
     TextContent,
 )
 
@@ -45,7 +44,7 @@ class DbtMCP(FastMCP):
 
     async def call_tool(
         self, name: str, arguments: dict[str, Any]
-    ) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
+    ) -> Sequence[ContentBlock] | dict[str, Any]:
         logger.info(f"Calling tool: {name}")
         result = None
         start_time = int(time.time() * 1000)

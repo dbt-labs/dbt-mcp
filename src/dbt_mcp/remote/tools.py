@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Sequence
 from typing import (
     Annotated,
     Any,
@@ -16,8 +17,7 @@ from mcp.server.fastmcp.utilities.func_metadata import (
 from mcp.types import (
     CallToolRequestParams,
     CallToolResult,
-    EmbeddedResource,
-    ImageContent,
+    ContentBlock,
     TextContent,
 )
 from mcp.types import Tool as RemoteTool
@@ -90,9 +90,7 @@ async def register_remote_tools(dbt_mcp: FastMCP, config: RemoteConfig) -> None:
     for tool in remote_tools:
         # Create a new function using a factory to avoid closure issues
         def create_tool_function(tool_name: str):
-            async def tool_function(
-                *args, **kwargs
-            ) -> list[TextContent | ImageContent | EmbeddedResource]:
+            async def tool_function(*args, **kwargs) -> Sequence[ContentBlock]:
                 with Client(base_url=base_url, headers=headers) as client:
                     tool_call_http_response = client.post(
                         "/tools/call",
@@ -139,7 +137,9 @@ async def register_remote_tools(dbt_mcp: FastMCP, config: RemoteConfig) -> None:
         new_tool = create_tool_function(tool.name)
         dbt_mcp._tool_manager._tools[tool.name] = Tool(
             fn=new_tool,
+            title=tool.name,
             name=tool.name,
+            annotations=None,
             description=tool.description or "",
             parameters=tool.inputSchema,
             fn_metadata=get_remote_tool_fn_metadata(tool),
