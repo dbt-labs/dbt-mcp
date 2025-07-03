@@ -137,7 +137,7 @@ async def register_remote_tools(dbt_mcp: FastMCP, config: RemoteConfig) -> None:
         new_tool = create_tool_function(tool.name)
         dbt_mcp._tool_manager._tools[tool.name] = Tool(
             fn=new_tool,
-            title=tool.name,
+            title=tool.title,
             name=tool.name,
             annotations=None,
             description=tool.description or "",
