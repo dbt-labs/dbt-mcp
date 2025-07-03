@@ -139,7 +139,7 @@ async def register_remote_tools(dbt_mcp: FastMCP, config: RemoteConfig) -> None:
             fn=new_tool,
             title=tool.title,
             name=tool.name,
-            annotations=None,
+            annotations=tool.annotations,
             description=tool.description or "",
             parameters=tool.inputSchema,
             fn_metadata=get_remote_tool_fn_metadata(tool),
