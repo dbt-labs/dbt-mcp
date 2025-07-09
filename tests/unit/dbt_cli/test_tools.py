@@ -234,10 +234,10 @@ def test_list_command_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
 
     # Test timeout case
     result = list_tool(resource_type=["model", "snapshot"])
-    assert "Timeout: dbt list command took too long to complete" in result
-    assert "Try using a more specific selector" in result
+    assert "Timeout: dbt command took too long to complete" in result
+    assert "Try using a specific selector to narrow down the results" in result
 
     # Test with selector - should still timeout
     result = list_tool(selector="my_model", resource_type=["model"])
-    assert "Timeout: dbt list command took too long to complete" in result
-    assert "Try using a more specific selector" in result
+    assert "Timeout: dbt command took too long to complete" in result
+    assert "Try using a specific selector to narrow down the results" in result
