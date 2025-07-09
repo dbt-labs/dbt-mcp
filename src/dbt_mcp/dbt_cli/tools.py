@@ -15,38 +15,56 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
         selector: str | None = None,
         timeout: int | None = None,
         resource_type: list[str] | None = None,
+        is_selectable: bool = False,
     ) -> str:
-        # Commands that should always be quiet to reduce output verbosity
-        verbose_commands = ["build", "compile", "docs", "parse", "run", "test", "list"]
+        try:
+            # Commands that should always be quiet to reduce output verbosity
+            verbose_commands = [
+                "build",
+                "compile",
+                "docs",
+                "parse",
+                "run",
+                "test",
+                "list",
+            ]
 
-        if selector:
-            selector_params = str(selector).split(" ")
-            command = command + ["--select"] + selector_params
+            if selector:
+                selector_params = str(selector).split(" ")
+                command = command + ["--select"] + selector_params
 
-        if isinstance(resource_type, Iterable):
-            command = command + ["--resource-type"] + resource_type
+            if isinstance(resource_type, Iterable):
+                command = command + ["--resource-type"] + resource_type
 
-        full_command = command.copy()
-        # Add --quiet flag to specific commands to reduce context window usage
-        if len(full_command) > 0 and full_command[0] in verbose_commands:
-            main_command = full_command[0]
-            command_args = full_command[1:] if len(full_command) > 1 else []
-            full_command = [main_command, "--quiet", *command_args]
+            full_command = command.copy()
+            # Add --quiet flag to specific commands to reduce context window usage
+            if len(full_command) > 0 and full_command[0] in verbose_commands:
+                main_command = full_command[0]
+                command_args = full_command[1:] if len(full_command) > 1 else []
+                full_command = [main_command, "--quiet", *command_args]
 
-        # We change the path only if this is an absolute path, otherwise we can have
-        # problems with relative paths applied multiple times as DBT_PROJECT_DIR
-        # is applied to dbt Core and Fusion as well (but not the dbt Cloud CLI)
-        cwd_path = config.project_dir if os.path.isabs(config.project_dir) else None
+            # We change the path only if this is an absolute path, otherwise we can have
+            # problems with relative paths applied multiple times as DBT_PROJECT_DIR
+            # is applied to dbt Core and Fusion as well (but not the dbt Cloud CLI)
+            cwd_path = config.project_dir if os.path.isabs(config.project_dir) else None
 
-        process = subprocess.Popen(
-            args=[config.dbt_path, *full_command],
-            cwd=cwd_path,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-        output, _ = process.communicate(timeout=timeout)
-        return output or "OK"
+            process = subprocess.Popen(
+                args=[config.dbt_path, *full_command],
+                cwd=cwd_path,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            output, _ = process.communicate(timeout=timeout)
+            return output or "OK"
+        except subprocess.TimeoutExpired:
+            return "Timeout: dbt command took too long to complete." + (
+                " Try using a specific selector to narrow down the results."
+                if is_selectable
+                else ""
+            )
+        except Exception as e:
+            return str(e)
 
     @dbt_mcp.tool(description=get_prompt("dbt_cli/build"))
     def build(
@@ -54,7 +72,7 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
     ) -> str:
-        return _run_dbt_command(["build"], selector)
+        return _run_dbt_command(["build"], selector, is_selectable=True)
 
     @dbt_mcp.tool(description=get_prompt("dbt_cli/compile"))
     def compile() -> str:
@@ -74,15 +92,13 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
             description=get_prompt("dbt_cli/args/resource_type"),
         ),
     ) -> str:
-        try:
-            return _run_dbt_command(
-                ["list"], selector, timeout=10, resource_type=resource_type
-            )
-        except subprocess.TimeoutExpired:
-            return (
-                "Timeout: dbt list command took too long to complete. "
-                + "Try using a more specific selector to narrow down the list of models."
-            )
+        return _run_dbt_command(
+            ["list"],
+            selector,
+            timeout=10,
+            resource_type=resource_type,
+            is_selectable=True,
+        )
 
     @dbt_mcp.tool(description=get_prompt("dbt_cli/parse"))
     def parse() -> str:
@@ -94,7 +110,7 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
     ) -> str:
-        return _run_dbt_command(["run"], selector)
+        return _run_dbt_command(["run"], selector, is_selectable=True)
 
     @dbt_mcp.tool(description=get_prompt("dbt_cli/test"))
     def test(
@@ -102,7 +118,7 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
     ) -> str:
-        return _run_dbt_command(["test"], selector)
+        return _run_dbt_command(["test"], selector, is_selectable=True)
 
     @dbt_mcp.tool(description=get_prompt("dbt_cli/show"))
     def show(
