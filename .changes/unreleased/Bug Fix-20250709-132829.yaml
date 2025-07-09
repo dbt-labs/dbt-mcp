@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Catch every tool error and surface as string
-time: 2025-07-09T13:28:29.733473-05:00
