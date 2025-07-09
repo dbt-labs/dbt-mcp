@@ -22,15 +22,24 @@ def register_sl_tools(dbt_mcp: FastMCP, config: SemanticLayerConfig) -> None:
 
     @dbt_mcp.tool(description=get_prompt("semantic_layer/list_metrics"))
     def list_metrics() -> list[MetricToolResponse] | str:
-        return semantic_layer_fetcher.list_metrics()
+        try:
+            return semantic_layer_fetcher.list_metrics()
+        except Exception as e:
+            return str(e)
 
     @dbt_mcp.tool(description=get_prompt("semantic_layer/get_dimensions"))
     def get_dimensions(metrics: list[str]) -> list[DimensionToolResponse] | str:
-        return semantic_layer_fetcher.get_dimensions(metrics=metrics)
+        try:
+            return semantic_layer_fetcher.get_dimensions(metrics=metrics)
+        except Exception as e:
+            return str(e)
 
     @dbt_mcp.tool(description=get_prompt("semantic_layer/get_entities"))
     def get_entities(metrics: list[str]) -> list[EntityToolResponse] | str:
-        return semantic_layer_fetcher.get_entities(metrics=metrics)
+        try:
+            return semantic_layer_fetcher.get_entities(metrics=metrics)
+        except Exception as e:
+            return str(e)
 
     @dbt_mcp.tool(description=get_prompt("semantic_layer/query_metrics"))
     def query_metrics(
@@ -40,14 +49,17 @@ def register_sl_tools(dbt_mcp: FastMCP, config: SemanticLayerConfig) -> None:
         where: str | None = None,
         limit: int | None = None,
     ) -> str:
-        result = semantic_layer_fetcher.query_metrics(
-            metrics=metrics,
-            group_by=group_by,
-            order_by=order_by,
-            where=where,
-            limit=limit,
-        )
-        if isinstance(result, QueryMetricsSuccess):
-            return result.result
-        else:
-            return result.error
+        try:
+            result = semantic_layer_fetcher.query_metrics(
+                metrics=metrics,
+                group_by=group_by,
+                order_by=order_by,
+                where=where,
+                limit=limit,
+            )
+            if isinstance(result, QueryMetricsSuccess):
+                return result.result
+            else:
+                return result.error
+        except Exception as e:
+            return str(e)

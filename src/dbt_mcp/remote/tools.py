@@ -91,46 +91,54 @@ async def register_remote_tools(dbt_mcp: FastMCP, config: RemoteConfig) -> None:
         # Create a new function using a factory to avoid closure issues
         def create_tool_function(tool_name: str):
             async def tool_function(*args, **kwargs) -> Sequence[ContentBlock]:
-                with Client(base_url=base_url, headers=headers) as client:
-                    tool_call_http_response = client.post(
-                        "/tools/call",
-                        json=CallToolRequest(
-                            method="tools/call",
-                            params=CallToolRequestParams(
-                                name=tool_name,
-                                arguments=kwargs,
-                            ),
-                        ).model_dump(),
-                        timeout=30,
-                    )
-                    if tool_call_http_response.status_code != 200:
-                        return [
-                            TextContent(
-                                type="text",
-                                text=f"Failed to call tool {tool_name} with "
-                                + f"status code: {tool_call_http_response.status_code} "
-                                + f"error message: {tool_call_http_response.text}",
+                try:
+                    with Client(base_url=base_url, headers=headers) as client:
+                        tool_call_http_response = client.post(
+                            "/tools/call",
+                            json=CallToolRequest(
+                                method="tools/call",
+                                params=CallToolRequestParams(
+                                    name=tool_name,
+                                    arguments=kwargs,
+                                ),
+                            ).model_dump(),
+                            timeout=30,
+                        )
+                        if tool_call_http_response.status_code != 200:
+                            return [
+                                TextContent(
+                                    type="text",
+                                    text=f"Failed to call tool {tool_name} with "
+                                    + f"status code: {tool_call_http_response.status_code} "
+                                    + f"error message: {tool_call_http_response.text}",
+                                )
+                            ]
+                        try:
+                            tool_call_jsonrpc_response = (
+                                JSONRPCResponse.model_validate_json(
+                                    tool_call_http_response.text
+                                )
                             )
-                        ]
-                    try:
-                        tool_call_jsonrpc_response = (
-                            JSONRPCResponse.model_validate_json(
-                                tool_call_http_response.text
+                            tool_call_result = CallToolResult.model_validate(
+                                tool_call_jsonrpc_response.result
                             )
+                        except ValidationError as e:
+                            raise ValueError(
+                                f"Failed to parse tool response for {tool_name}: {e}"
+                            ) from e
+                        if tool_call_result.isError:
+                            raise ValueError(
+                                f"Tool {tool_name} reported an error: "
+                                + f"{tool_call_result.content}"
+                            )
+                        return tool_call_result.content
+                except Exception as e:
+                    return [
+                        TextContent(
+                            type="text",
+                            text=str(e),
                         )
-                        tool_call_result = CallToolResult.model_validate(
-                            tool_call_jsonrpc_response.result
-                        )
-                    except ValidationError as e:
-                        raise ValueError(
-                            f"Failed to parse tool response for {tool_name}: {e}"
-                        ) from e
-                    if tool_call_result.isError:
-                        raise ValueError(
-                            f"Tool {tool_name} reported an error: "
-                            + f"{tool_call_result.content}"
-                        )
-                    return tool_call_result.content
+                    ]
 
             return tool_function
 

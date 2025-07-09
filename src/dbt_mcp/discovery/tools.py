@@ -20,26 +20,41 @@ def create_tool_definitions(config: DiscoveryConfig) -> list[ToolDefinition]:
     )
 
     def get_mart_models() -> list[dict] | str:
-        mart_models = models_fetcher.fetch_models(
-            model_filter={"modelingLayer": "marts"}
-        )
-        return [m for m in mart_models if m["name"] != "metricflow_time_spine"]
+        try:
+            mart_models = models_fetcher.fetch_models(
+                model_filter={"modelingLayer": "marts"}
+            )
+            return [m for m in mart_models if m["name"] != "metricflow_time_spine"]
+        except Exception as e:
+            return str(e)
 
     def get_all_models() -> list[dict] | str:
-        return models_fetcher.fetch_models()
+        try:
+            return models_fetcher.fetch_models()
+        except Exception as e:
+            return str(e)
 
     def get_model_details(model_name: str, unique_id: str | None = None) -> dict | str:
-        return models_fetcher.fetch_model_details(model_name, unique_id)
+        try:
+            return models_fetcher.fetch_model_details(model_name, unique_id)
+        except Exception as e:
+            return str(e)
 
     def get_model_parents(
         model_name: str, unique_id: str | None = None
     ) -> list[dict] | str:
-        return models_fetcher.fetch_model_parents(model_name, unique_id)
+        try:
+            return models_fetcher.fetch_model_parents(model_name, unique_id)
+        except Exception as e:
+            return str(e)
 
     def get_model_children(
         model_name: str, unique_id: str | None = None
     ) -> list[dict] | str:
-        return models_fetcher.fetch_model_children(model_name, unique_id)
+        try:
+            return models_fetcher.fetch_model_children(model_name, unique_id)
+        except Exception as e:
+            return str(e)
 
     return [
         ToolDefinition(
