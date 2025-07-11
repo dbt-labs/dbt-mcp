@@ -95,7 +95,7 @@ def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig) -> None:
         return _run_dbt_command(
             ["list"],
             selector,
-            timeout=10,
+            timeout=config.dbt_cli_timeout,
             resource_type=resource_type,
             is_selectable=True,
         )
