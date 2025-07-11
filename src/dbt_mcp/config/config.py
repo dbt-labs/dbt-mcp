@@ -35,6 +35,7 @@ class DiscoveryConfig:
 class DbtCliConfig:
     project_dir: str
     dbt_path: str
+    dbt_cli_timeout: int
 
 
 @dataclass
@@ -73,6 +74,7 @@ def load_config() -> Config:
     disable_discovery = os.environ.get("DISABLE_DISCOVERY", "false") == "true"
     disable_remote = os.environ.get("DISABLE_REMOTE", "true") == "true"
     multicell_account_prefix = os.environ.get("MULTICELL_ACCOUNT_PREFIX", None)
+    dbt_cli_timeout = int(os.environ.get("DBT_CLI_TIMEOUT", 10))
 
     # set default warn error options if not provided
     if os.environ.get("DBT_WARN_ERROR_OPTIONS") is None:
@@ -159,6 +161,7 @@ def load_config() -> Config:
         dbt_cli_config = DbtCliConfig(
             project_dir=project_dir,
             dbt_path=dbt_path,
+            dbt_cli_timeout=dbt_cli_timeout,
         )
 
     discovery_config = None

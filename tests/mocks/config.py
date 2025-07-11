@@ -28,6 +28,7 @@ mock_remote_config = RemoteConfig(
 mock_dbt_cli_config = DbtCliConfig(
     project_dir="/test/project",
     dbt_path="/path/to/dbt",
+    dbt_cli_timeout=10,
 )
 
 mock_discovery_config = DiscoveryConfig(
