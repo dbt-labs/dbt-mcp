@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Make dbt CLI command timeouts configurable via environment variable
+time: 2025-07-11T15:46:51.486455-05:00
