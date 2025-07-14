@@ -42,7 +42,11 @@ mock_discovery_config = DiscoveryConfig(
 mock_semantic_layer_config = SemanticLayerConfig(
     host="localhost",
     service_token="token",
-    multicell_account_prefix=None,
+    url="http://localhost:8000",
+    headers={
+        "Authorization": "Bearer token",
+        "Content-Type": "application/json",
+    },
     prod_environment_id=1,
 )
 

@@ -3,6 +3,7 @@ from typing import Any
 
 import pytest
 from dbtsl.api.shared.query_params import GroupByParam
+from dbtsl.client.sync import SyncSemanticLayerClient
 from openai import OpenAI
 from openai.types.responses import (
     FunctionToolParam,
@@ -15,14 +16,12 @@ from openai.types.responses.response_input_param import FunctionCallOutput
 from client.tools import get_tools
 from dbt_mcp.config.config import load_config
 from dbt_mcp.mcp.server import create_dbt_mcp
-from dbt_mcp.semantic_layer.client import get_semantic_layer_fetcher
+from dbt_mcp.semantic_layer.client import SemanticLayerFetcher
 from dbt_mcp.semantic_layer.types import OrderByParam, QueryMetricsSuccess
 
 LLM_MODEL = "gpt-4o-mini"
 llm_client = OpenAI()
 config = load_config()
-assert config.semantic_layer_config
-semantic_layer_fetcher = get_semantic_layer_fetcher(config.semantic_layer_config)
 
 
 async def expect_metadata_tool_call(
@@ -111,6 +110,16 @@ def expect_query_metrics_tool_call(
     else:
         assert args_dict.get("limit", None) is None
 
+    sl_config = config.semantic_layer_config
+    assert sl_config is not None
+    semantic_layer_fetcher = SemanticLayerFetcher(
+        sl_client=SyncSemanticLayerClient(
+            environment_id=sl_config.prod_environment_id,
+            auth_token=sl_config.service_token,
+            host=sl_config.host,
+        ),
+        config=sl_config,
+    )
     tool_response = semantic_layer_fetcher.query_metrics(
         metrics=args_dict["metrics"],
         group_by=[

@@ -18,10 +18,11 @@ class TrackingConfig:
 
 @dataclass
 class SemanticLayerConfig:
-    multicell_account_prefix: str | None
+    url: str
     host: str
     prod_environment_id: int
     service_token: str
+    headers: dict[str, str]
 
 
 @dataclass
@@ -183,11 +184,24 @@ def load_config() -> Config:
         and actual_prod_environment_id
         and token
     ):
+        is_local = actual_host and actual_host.startswith("localhost")
+        if is_local:
+            host = actual_host
+        elif multicell_account_prefix:
+            host = f"{multicell_account_prefix}.semantic-layer.{actual_host}"
+        else:
+            host = f"semantic-layer.{actual_host}"
+        assert host is not None
+
         semantic_layer_config = SemanticLayerConfig(
-            multicell_account_prefix=multicell_account_prefix,
-            host=actual_host,
+            url=f"http://{host}" if is_local else f"https://{host}" + "/api/graphql",
+            host=host,
             prod_environment_id=actual_prod_environment_id,
             service_token=token,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "x-dbt-partner-source": "dbt-mcp",
+            },
         )
 
     local_user_id = None

@@ -6,11 +6,12 @@ from dbt_mcp.config.config import DiscoveryConfig
 from dbt_mcp.discovery.client import MetadataAPIClient, ModelsFetcher
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import ToolDefinition
+from dbt_mcp.tools.register import register_tools
 
 logger = logging.getLogger(__name__)
 
 
-def create_tool_definitions(config: DiscoveryConfig) -> list[ToolDefinition]:
+def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefinition]:
     api_client = MetadataAPIClient(
         url=config.url,
         headers=config.headers,
@@ -81,8 +82,7 @@ def create_tool_definitions(config: DiscoveryConfig) -> list[ToolDefinition]:
 
 
 def register_discovery_tools(dbt_mcp: FastMCP, config: DiscoveryConfig) -> None:
-    for tool_definition in create_tool_definitions(config):
-        dbt_mcp.tool(
-            tool_definition.get_name(),
-            description=tool_definition.description,
-        )(tool_definition.fn)
+    register_tools(
+        dbt_mcp,
+        create_discovery_tool_definitions(config),
+    )
