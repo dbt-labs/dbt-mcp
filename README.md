@@ -43,6 +43,7 @@ The MCP server takes the following environment variable configuration:
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `DBT_PROJECT_DIR` | The path to where the repository of your dbt Project is hosted locally. This should look something like `/Users/firstnamelastname/reponame` |
 | `DBT_PATH`        | The path to your dbt Core, dbt Cloud CLI, or dbt Fusion executable. You can find your dbt executable by running `which dbt`                 |
+| `DBT_CLI_TIMEOUT` | Configure the number of seconds before your agent will timeout dbt CLI commands. Defaults to 10 seconds.                                    |
 
 It is also possible to set any environment variable supported by your dbt executable (see [here](https://docs.getdbt.com/reference/global-configs/about-global-configs#available-flags) for the ones supported in dbt Core).
 
