@@ -131,19 +131,21 @@ class SemanticLayerFetcher:
         if errors:
             return f"Errors: {', '.join(errors)}"
 
-        available_dimensions = [d.name for d in self.get_dimensions(metrics)]
-        dimension_misspellings = get_misspellings(
+        available_group_by = [d.name for d in self.get_dimensions(metrics)] + [
+            e.name for e in self.get_entities(metrics)
+        ]
+        group_by_misspellings = get_misspellings(
             targets=[g.name for g in group_by or []],
-            words=available_dimensions,
+            words=available_group_by,
             top_k=5,
         )
-        for dimension_misspelling in dimension_misspellings:
+        for group_by_misspelling in group_by_misspellings:
             recommendations = (
-                " Did you mean: " + ", ".join(dimension_misspelling.similar_words) + "?"
+                " Did you mean: " + ", ".join(group_by_misspelling.similar_words) + "?"
             )
             errors.append(
-                f"Dimension {dimension_misspelling.word} not found." + recommendations
-                if dimension_misspelling.similar_words
+                f"Group by {group_by_misspelling.word} not found." + recommendations
+                if group_by_misspelling.similar_words
                 else ""
             )
 
