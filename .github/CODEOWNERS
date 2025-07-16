@@ -1,1 +1,4 @@
 *   @dbt-labs/ai @jasnonaz @b-per
+
+/src/dbt_mcp/semantic_layer/   @dbt-labs/ai @dbt-labs/semantic-layer @jasnonaz @b-per
+/src/dbt_mcp/prompts/semantic_layer/   @dbt-labs/ai @dbt-labs/semantic-layer @jasnonaz @b-per
