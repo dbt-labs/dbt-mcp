@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/dbt-labs-dbt-mcp-badge.png)](https://mseep.ai/app/dbt-labs-dbt-mcp)
+
 # dbt MCP Server
 
 This MCP (Model Context Protocol) server provides tools to interact with dbt. Read [this](https://docs.getdbt.com/blog/introducing-dbt-mcp-server) blog to learn more.
