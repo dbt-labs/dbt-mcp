@@ -14,6 +14,7 @@ from mcp.types import (
 )
 
 from dbt_mcp.config.config import load_config
+from dbt_mcp.dbt_admin.tools import register_admin_api_tools
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.discovery.tools import register_discovery_tools
 from dbt_mcp.remote.tools import register_remote_tools
@@ -104,5 +105,8 @@ async def create_dbt_mcp():
     if config.remote_config:
         logger.info("Registering remote tools")
         await register_remote_tools(dbt_mcp, config.remote_config)
+        
+        logger.info("Registering admin API tools")
+        register_admin_api_tools(dbt_mcp, config.remote_config)
 
     return dbt_mcp

@@ -46,6 +46,7 @@ class RemoteConfig:
     dev_environment_id: int
     prod_environment_id: int
     token: str
+    account_id: int | None = None
 
 
 @dataclass
@@ -66,13 +67,14 @@ def load_config() -> Config:
     legacy_prod_environment_id = os.environ.get("DBT_ENV_ID")
     dev_environment_id = os.environ.get("DBT_DEV_ENV_ID")
     user_id = os.environ.get("DBT_USER_ID")
+    account_id = os.environ.get("DBT_ACCOUNT_ID")
     token = os.environ.get("DBT_TOKEN")
     project_dir = os.environ.get("DBT_PROJECT_DIR")
     dbt_path = os.environ.get("DBT_PATH", "dbt")
     disable_dbt_cli = os.environ.get("DISABLE_DBT_CLI", "false") == "true"
     disable_semantic_layer = os.environ.get("DISABLE_SEMANTIC_LAYER", "false") == "true"
     disable_discovery = os.environ.get("DISABLE_DISCOVERY", "false") == "true"
-    disable_remote = os.environ.get("DISABLE_REMOTE", "true") == "true"
+    disable_remote = os.environ.get("DISABLE_REMOTE", "false") == "true"
     multicell_account_prefix = os.environ.get("MULTICELL_ACCOUNT_PREFIX", None)
     dbt_cli_timeout = int(os.environ.get("DBT_CLI_TIMEOUT", 10))
 
@@ -149,8 +151,9 @@ def load_config() -> Config:
     ):
         remote_config = RemoteConfig(
             multicell_account_prefix=multicell_account_prefix,
-            user_id=int(user_id),
+            account_id=int(account_id) if account_id else None,
             token=token,
+            user_id=int(user_id),
             dev_environment_id=int(dev_environment_id),
             prod_environment_id=actual_prod_environment_id,
             host=actual_host,
