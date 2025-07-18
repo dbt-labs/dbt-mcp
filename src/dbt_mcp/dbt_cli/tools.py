@@ -9,7 +9,11 @@ from dbt_mcp.config.config import DbtCliConfig
 from dbt_mcp.prompts.prompts import get_prompt
 
 
-def register_dbt_cli_tools(dbt_mcp: FastMCP, config: DbtCliConfig, exclude_tools: Sequence[str] = [],) -> None:
+def register_dbt_cli_tools(
+    dbt_mcp: FastMCP,
+    config: DbtCliConfig,
+    exclude_tools: Sequence[str] = [],
+) -> None:
     def _run_dbt_command(
         command: list[str],
         selector: str | None = None,
