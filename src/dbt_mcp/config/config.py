@@ -56,6 +56,7 @@ class Config:
     dbt_cli_config: DbtCliConfig | None
     discovery_config: DiscoveryConfig | None
     semantic_layer_config: SemanticLayerConfig | None
+    disable_tools: list[str]
 
 
 def load_config() -> Config:
@@ -76,6 +77,7 @@ def load_config() -> Config:
     disable_remote = os.environ.get("DISABLE_REMOTE", "true") == "true"
     multicell_account_prefix = os.environ.get("MULTICELL_ACCOUNT_PREFIX", None)
     dbt_cli_timeout = int(os.environ.get("DBT_CLI_TIMEOUT", 10))
+    disable_tools = os.environ.get("DISABLE_TOOLS", "").split(",")
 
     # set default warn error options if not provided
     if os.environ.get("DBT_WARN_ERROR_OPTIONS") is None:
@@ -230,4 +232,5 @@ def load_config() -> Config:
         dbt_cli_config=dbt_cli_config,
         discovery_config=discovery_config,
         semantic_layer_config=semantic_layer_config,
+        disable_tools=disable_tools,
     )

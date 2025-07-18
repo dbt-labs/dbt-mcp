@@ -22,6 +22,7 @@ The MCP server takes the following environment variable configuration:
 | `DISABLE_SEMANTIC_LAYER` | `false` | Set this to `true` to disable dbt Semantic Layer MCP objects                    |
 | `DISABLE_DISCOVERY`      | `false` | Set this to `true` to disable dbt Discovery API MCP objects                     |
 | `DISABLE_REMOTE`         | `true`  | Set this to `false` to enable remote MCP objects                                |
+| `DISABLE_TOOLS`          | ""      | Set this to a list of tool names delimited by a `,` to disable certain tools    |
 
 
 ### Configuration for Discovery, Semantic Layer, and Remote Tools
