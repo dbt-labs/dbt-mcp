@@ -1,5 +1,6 @@
 import logging
 
+from collections.abc import Sequence
 from mcp.server.fastmcp import FastMCP
 
 from dbt_mcp.config.config import DiscoveryConfig
@@ -81,8 +82,13 @@ def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefin
     ]
 
 
-def register_discovery_tools(dbt_mcp: FastMCP, config: DiscoveryConfig) -> None:
+def register_discovery_tools(
+    dbt_mcp: FastMCP,
+    config: DiscoveryConfig,
+    exclude_tools: Sequence[str] = [],
+) -> None:
     register_tools(
         dbt_mcp,
         create_discovery_tool_definitions(config),
+        exclude_tools,
     )

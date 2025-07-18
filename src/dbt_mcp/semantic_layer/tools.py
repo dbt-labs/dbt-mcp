@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 import logging
 
 from dbtsl.api.shared.query_params import GroupByParam
@@ -91,7 +92,11 @@ def create_sl_tool_definitions(
     ]
 
 
-def register_sl_tools(dbt_mcp: FastMCP, config: SemanticLayerConfig) -> None:
+def register_sl_tools(
+    dbt_mcp: FastMCP,
+    config: SemanticLayerConfig,
+    exclude_tools: Sequence[str] = [],
+) -> None:
     register_tools(
         dbt_mcp,
         create_sl_tool_definitions(
@@ -102,4 +107,5 @@ def register_sl_tools(dbt_mcp: FastMCP, config: SemanticLayerConfig) -> None:
                 host=config.host,
             ),
         ),
+        exclude_tools,
     )
