@@ -1,5 +1,6 @@
 import pytest
 
+from dbt_mcp.config.config import load_config
 from dbt_mcp.mcp.server import create_dbt_mcp
 from dbt_mcp.tools.tool_names import ToolName
 from tests.env_vars import env_vars_context
@@ -20,8 +21,8 @@ async def test_tool_names_match_server_tools():
             "DBT_CLI_TIMEOUT": "10",
         }
     ):
-        # Create the dbt_mcp server instance
-        dbt_mcp = await create_dbt_mcp()
+        config = load_config()
+        dbt_mcp = await create_dbt_mcp(config)
 
         # Get all tools from the server
         server_tools = await dbt_mcp.list_tools()

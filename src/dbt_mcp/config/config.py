@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
-from dotenv import load_dotenv
 
 from dbt_mcp.tools.tool_names import ToolName
 
@@ -62,8 +61,6 @@ class Config:
 
 
 def load_config() -> Config:
-    load_dotenv()
-
     host = os.environ.get("DBT_HOST")
     cursor_host = os.environ.get("DBT_MCP_HOST")
     prod_environment_id = os.environ.get("DBT_PROD_ENV_ID")
