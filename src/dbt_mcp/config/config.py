@@ -79,10 +79,12 @@ def load_config() -> Config:
     disable_remote = os.environ.get("DISABLE_REMOTE", "true") == "true"
     multicell_account_prefix = os.environ.get("MULTICELL_ACCOUNT_PREFIX", None)
     dbt_cli_timeout = int(os.environ.get("DBT_CLI_TIMEOUT", 10))
-    disable_tools = [
-        ToolName(tool_name)
-        for tool_name in os.environ.get("DISABLE_TOOLS", "").split(",")
-    ]
+    disable_tools_str = os.environ.get("DISABLE_TOOLS")
+    disable_tools = (
+        [ToolName(tool_name) for tool_name in disable_tools_str.split(",")]
+        if disable_tools_str
+        else []
+    )
 
     # set default warn error options if not provided
     if os.environ.get("DBT_WARN_ERROR_OPTIONS") is None:
