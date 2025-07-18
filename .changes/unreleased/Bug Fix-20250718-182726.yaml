@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Fix SL validation error message when no misspellings are found
+time: 2025-07-18T18:27:26.47048-05:00
