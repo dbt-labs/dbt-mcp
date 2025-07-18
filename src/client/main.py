@@ -2,6 +2,7 @@ import asyncio
 import json
 from time import time
 
+from dotenv import load_dotenv
 from openai import OpenAI
 from openai.types.responses.response_input_param import FunctionCallOutput
 from openai.types.responses.response_output_message import ResponseOutputMessage
@@ -14,12 +15,13 @@ LLM_MODEL = "gpt-4o-mini"
 TOOL_RESPONSE_TRUNCATION = 100  # set to None for no truncation
 
 llm_client = OpenAI()
+load_dotenv()
 config = load_config()
 messages = []
 
 
 async def main():
-    dbt_mcp = await create_dbt_mcp()
+    dbt_mcp = await create_dbt_mcp(config)
     user_role = "user"
     available_tools = await get_tools(dbt_mcp)
     tools_str = "\n".join(

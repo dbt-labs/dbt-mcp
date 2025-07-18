@@ -1,6 +1,6 @@
 import logging
-
 from collections.abc import Sequence
+
 from mcp.server.fastmcp import FastMCP
 
 from dbt_mcp.config.config import DiscoveryConfig
@@ -8,6 +8,7 @@ from dbt_mcp.discovery.client import MetadataAPIClient, ModelsFetcher
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
+from dbt_mcp.tools.tool_names import ToolName
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefin
 def register_discovery_tools(
     dbt_mcp: FastMCP,
     config: DiscoveryConfig,
-    exclude_tools: Sequence[str] = [],
+    exclude_tools: Sequence[ToolName] = [],
 ) -> None:
     register_tools(
         dbt_mcp,

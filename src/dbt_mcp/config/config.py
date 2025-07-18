@@ -3,7 +3,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
-from dotenv import load_dotenv
+
+from dbt_mcp.tools.tool_names import ToolName
 
 
 @dataclass
@@ -56,12 +57,10 @@ class Config:
     dbt_cli_config: DbtCliConfig | None
     discovery_config: DiscoveryConfig | None
     semantic_layer_config: SemanticLayerConfig | None
-    disable_tools: list[str]
+    disable_tools: list[ToolName]
 
 
 def load_config() -> Config:
-    load_dotenv()
-
     host = os.environ.get("DBT_HOST")
     cursor_host = os.environ.get("DBT_MCP_HOST")
     prod_environment_id = os.environ.get("DBT_PROD_ENV_ID")
@@ -77,7 +76,12 @@ def load_config() -> Config:
     disable_remote = os.environ.get("DISABLE_REMOTE", "true") == "true"
     multicell_account_prefix = os.environ.get("MULTICELL_ACCOUNT_PREFIX", None)
     dbt_cli_timeout = int(os.environ.get("DBT_CLI_TIMEOUT", 10))
-    disable_tools = os.environ.get("DISABLE_TOOLS", "").split(",")
+    disable_tools_str = os.environ.get("DISABLE_TOOLS")
+    disable_tools = (
+        [ToolName(tool_name) for tool_name in disable_tools_str.split(",")]
+        if disable_tools_str
+        else []
+    )
 
     # set default warn error options if not provided
     if os.environ.get("DBT_WARN_ERROR_OPTIONS") is None:

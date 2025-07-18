@@ -56,3 +56,8 @@ include = ["src/dbt_mcp/**/*", "README.md", "LICENSE"]
 
 [tool.hatch.version]
 source = "vcs"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+pythonpath = [".", "src"]
