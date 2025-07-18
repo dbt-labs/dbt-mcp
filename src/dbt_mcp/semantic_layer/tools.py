@@ -1,5 +1,5 @@
-from collections.abc import Sequence
 import logging
+from collections.abc import Sequence
 
 from dbtsl.api.shared.query_params import GroupByParam
 from dbtsl.client.sync import SyncSemanticLayerClient
@@ -20,6 +20,7 @@ from dbt_mcp.semantic_layer.types import (
 )
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
+from dbt_mcp.tools.tool_names import ToolName
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +96,7 @@ def create_sl_tool_definitions(
 def register_sl_tools(
     dbt_mcp: FastMCP,
     config: SemanticLayerConfig,
-    exclude_tools: Sequence[str] = [],
+    exclude_tools: Sequence[ToolName] = [],
 ) -> None:
     register_tools(
         dbt_mcp,
