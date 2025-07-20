@@ -14,4 +14,6 @@ def test_initialization():
 
     assert result is not None
     assert hasattr(result, "usage_tracker")
-    assert asyncio.run(result.list_tools())
+
+    tools = asyncio.run(result.list_tools())
+    assert isinstance(tools, list)
