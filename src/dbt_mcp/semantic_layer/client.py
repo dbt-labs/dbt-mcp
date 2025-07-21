@@ -128,9 +128,8 @@ class SemanticLayerFetcher:
                 " Did you mean: " + ", ".join(metric_misspelling.similar_words) + "?"
             )
             errors.append(
-                f"Metric {metric_misspelling.word} not found." + recommendations
-                if metric_misspelling.similar_words
-                else ""
+                f"Metric {metric_misspelling.word} not found."
+                + (recommendations if metric_misspelling.similar_words else "")
             )
 
         if errors:
@@ -149,9 +148,8 @@ class SemanticLayerFetcher:
                 " Did you mean: " + ", ".join(group_by_misspelling.similar_words) + "?"
             )
             errors.append(
-                f"Group by {group_by_misspelling.word} not found." + recommendations
-                if group_by_misspelling.similar_words
-                else ""
+                f"Group by {group_by_misspelling.word} not found."
+                + (recommendations if group_by_misspelling.similar_words else "")
             )
 
         if errors:
