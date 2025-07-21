@@ -6,7 +6,7 @@ This tool allows you to restart a failed run, continuing from where it failed ra
 
 ## Parameters
 
-- **account_id** (required): The dbt Cloud account ID
+- **account_id** (required): The dbt platform account ID
 - **run_id** (required): The run ID to retry
 
 ## Returns

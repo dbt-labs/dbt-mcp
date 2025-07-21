@@ -6,7 +6,7 @@ This tool starts a new run for a specified job with the ability to override defa
 
 ## Parameters
 
-- **account_id** (required): The dbt Cloud account ID
+- **account_id** (required): The dbt platform account ID
 - **job_id** (required): The job ID to trigger
 - **cause** (required): Description of why the job is being triggered
 - **git_branch** (optional): Override the Git branch to checkout

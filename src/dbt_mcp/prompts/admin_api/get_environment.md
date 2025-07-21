@@ -6,7 +6,7 @@ This tool retrieves comprehensive environment configuration including connection
 
 ## Parameters
 
-- **account_id** (required): The dbt Cloud account ID
+- **account_id** (required): The dbt platform account ID
 - **environment_id** (required): The environment ID to retrieve details for
 
 ## Returns

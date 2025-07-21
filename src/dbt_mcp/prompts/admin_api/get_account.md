@@ -1,12 +1,12 @@
 # Get Account Details
 
-Get detailed information for a specific dbt Cloud account.
+Get detailed information for a specific dbt platform account.
 
 This tool retrieves comprehensive account information from the dbt Cloud Admin API v2.
 
 ## Parameters
 
-- **account_id** (required): The dbt Cloud account ID to retrieve details for
+- **account_id** (required): The dbt platform account ID to retrieve details for
 
 ## Returns
 

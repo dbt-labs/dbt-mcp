@@ -1,12 +1,12 @@
 # List Environments
 
-List all environments in a dbt Cloud account with optional filtering.
+List all environments in a dbt platform account with optional filtering.
 
 This tool retrieves environments from the dbt Cloud Admin API v2. Environments define the target data warehouse and dbt version settings for job execution.
 
 ## Parameters
 
-- **account_id** (required): The dbt Cloud account ID
+- **account_id** (required): The dbt platform account ID
 - **project_id** (optional): Filter environments by specific project ID
 - **limit** (optional): Maximum number of results to return
 - **offset** (optional): Number of results to skip for pagination

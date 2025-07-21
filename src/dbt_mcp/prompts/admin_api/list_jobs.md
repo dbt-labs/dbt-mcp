@@ -1,9 +1,9 @@
-List all jobs in a dbt Cloud account with optional filtering.
+List all jobs in a dbt platform account with optional filtering.
 
 This tool retrieves jobs from the dbt Cloud Admin API v2. Jobs are the configuration for scheduled or triggered dbt runs.
 
 Parameters:
-- account_id (required): The dbt Cloud account ID
+- account_id (required): The dbt platform account ID
 - project_id (optional): Filter jobs by specific project ID
 - environment_id (optional): Filter jobs by specific environment ID
 - limit (optional): Maximum number of results to return

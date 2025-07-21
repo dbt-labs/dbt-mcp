@@ -105,7 +105,7 @@ async def create_dbt_mcp():
     if config.remote_config:
         logger.info("Registering remote tools")
         await register_remote_tools(dbt_mcp, config.remote_config)
-        
+    
         logger.info("Registering admin API tools")
         register_admin_api_tools(dbt_mcp, config.remote_config)
 

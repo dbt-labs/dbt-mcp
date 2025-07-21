@@ -6,7 +6,7 @@ This tool retrieves comprehensive project information including associated envir
 
 ## Parameters
 
-- **account_id** (required): The dbt Cloud account ID
+- **account_id** (required): The dbt platform account ID
 - **project_id** (required): The project ID to retrieve details for
 
 ## Returns

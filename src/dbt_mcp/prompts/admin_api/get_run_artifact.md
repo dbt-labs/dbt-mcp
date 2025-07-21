@@ -6,7 +6,7 @@ This tool retrieves the content of a specific artifact file generated during run
 
 ## Parameters
 
-- **account_id** (required): The dbt Cloud account ID
+- **account_id** (required): The dbt platform account ID
 - **run_id** (required): The run ID containing the artifact
 - **artifact_path** (required): The path to the specific artifact file
 - **step** (optional): The step index to retrieve artifacts from (default: last step)

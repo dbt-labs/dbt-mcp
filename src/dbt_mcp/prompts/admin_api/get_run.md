@@ -6,7 +6,7 @@ This tool retrieves comprehensive run information including execution details, s
 
 ## Parameters
 
-- **account_id** (required): The dbt Cloud account ID
+- **account_id** (required): The dbt platform account ID
 - **run_id** (required): The run ID to retrieve details for
 - **include_related** (optional): Comma-separated list of related objects to include
   - Valid values: `trigger`, `job`, `environment`, `repository`, `run_steps`, `run_retries`, `used_repo_cache`, `repo_cache_restore`, `audit`, `debug_logs`

@@ -1,4 +1,4 @@
-List all dbt Cloud accounts accessible to the user.
+List all dbt platform accounts accessible to the user.
 
 This tool retrieves all accounts that the authenticated user has access to from the dbt Cloud Admin API v2.
 

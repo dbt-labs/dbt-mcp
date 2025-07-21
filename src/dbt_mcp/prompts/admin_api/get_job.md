@@ -6,7 +6,7 @@ This tool retrieves comprehensive job configuration including execution settings
 
 ## Parameters
 
-- **account_id** (required): The dbt Cloud account ID
+- **account_id** (required): The dbt platform account ID
 - **job_id** (required): The job ID to retrieve details for
 - **include_related** (optional): Comma-separated list of related objects to include
   - Valid values: `environment`, `custom_environment_variables`, `most_recent_run`, `most_recent_completed_run`

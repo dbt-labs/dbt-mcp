@@ -2,7 +2,6 @@ import logging
 from functools import cache
 from typing import Any, Dict, List, Optional
 import requests
-from datetime import datetime
 
 from dbt_mcp.config.config import RemoteConfig
 
@@ -27,14 +26,14 @@ class DbtAdminAPIClient:
         }
         
     def _get_base_url(self) -> str:
-        """Get the base URL for the dbt Cloud API."""
+        """Get the base URL for the dbt API."""
         if self.config.multicell_account_prefix:
             return f"https://{self.config.multicell_account_prefix}.{self.config.host}"
         else:
             return f"https://{self.config.host}"
     
     def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
-        """Make a request to the dbt Cloud API."""
+        """Make a request to the dbt API."""
         url = f"{self.base_url}{endpoint}"
         
         try:

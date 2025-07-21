@@ -1,12 +1,12 @@
 # List Projects
 
-List all projects in a dbt Cloud account with optional filtering.
+List all projects in a dbt platform account with optional filtering.
 
 This tool retrieves projects from the dbt Cloud Admin API v2. Projects are the top-level containers for dbt code and configurations.
 
 ## Parameters
 
-- **account_id** (required): The dbt Cloud account ID
+- **account_id** (required): The dbt platform account ID
 - **project_id** (optional): Filter to a specific project by ID
 - **limit** (optional): Maximum number of results to return (default: 100)
 - **offset** (optional): Number of results to skip for pagination

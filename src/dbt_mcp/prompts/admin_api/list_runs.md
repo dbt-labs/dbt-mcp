@@ -1,9 +1,9 @@
-List all runs in a dbt Cloud account with optional filtering.
+List all runs in a dbt platform account with optional filtering.
 
 This tool retrieves runs from the dbt Cloud Admin API v2. Runs represent executions of dbt jobs in dbt Cloud.
 
 Parameters:
-- account_id (required): The dbt Cloud account ID
+- account_id (required): The dbt platform account ID
 - job_id (optional): Filter runs by specific job ID
 - project_id (optional): Filter runs by specific project ID
 - environment_id (optional): Filter runs by specific environment ID

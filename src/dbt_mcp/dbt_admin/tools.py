@@ -22,7 +22,7 @@ def register_admin_api_tools(dbt_mcp: FastMCP, config: RemoteConfig) -> None:
 
     @dbt_mcp.tool(description=get_prompt("admin_api/list_accounts"))
     def list_accounts() -> List[Dict[str, Any]] | str:
-        """List all dbt Cloud accounts."""
+        """List all dbt platform accounts."""
         try:
             return admin_client.list_accounts()
         except Exception as e:

@@ -1,12 +1,12 @@
 # List Users
 
-List all users in a dbt Cloud account.
+List all users in a dbt platform account.
 
-This tool retrieves all users who have access to the specified dbt Cloud account, including their basic information and permissions.
+This tool retrieves all users who have access to the specified dbt platform account, including their basic information and permissions.
 
 ## Parameters
 
-- **account_id** (required): The dbt Cloud account ID
+- **account_id** (required): The dbt platform account ID
 
 ## Returns
 
