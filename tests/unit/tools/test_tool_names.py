@@ -3,24 +3,13 @@ import pytest
 from dbt_mcp.config.config import load_config
 from dbt_mcp.mcp.server import create_dbt_mcp
 from dbt_mcp.tools.tool_names import ToolName
-from tests.env_vars import env_vars_context
+from tests.env_vars import default_env_vars_context
 
 
 @pytest.mark.asyncio
 async def test_tool_names_match_server_tools():
     """Test that the ToolName enum matches the tools registered in the server."""
-    with env_vars_context(
-        {
-            "DBT_HOST": "http://localhost:8000",
-            "DBT_PROD_ENV_ID": "1234",
-            "DBT_TOKEN": "5678",
-            "DBT_PROJECT_DIR": "tests/fixtures/dbt_project",
-            "DBT_PATH": "dbt",
-            "DBT_DEV_ENV_ID": "5678",
-            "DBT_USER_ID": "9012",
-            "DBT_CLI_TIMEOUT": "10",
-        }
-    ):
+    with default_env_vars_context():
         config = load_config()
         dbt_mcp = await create_dbt_mcp(config)
 

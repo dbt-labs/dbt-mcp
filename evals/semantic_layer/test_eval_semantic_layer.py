@@ -4,7 +4,6 @@ from typing import Any
 import pytest
 from dbtsl.api.shared.query_params import GroupByParam
 from dbtsl.client.sync import SyncSemanticLayerClient
-from dotenv import load_dotenv
 from openai import OpenAI
 from openai.types.responses import (
     FunctionToolParam,
@@ -22,7 +21,6 @@ from dbt_mcp.semantic_layer.types import OrderByParam, QueryMetricsSuccess
 
 LLM_MODEL = "gpt-4o-mini"
 llm_client = OpenAI()
-load_dotenv()
 config = load_config()
 
 

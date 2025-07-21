@@ -1,4 +1,3 @@
-from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
 from dbt_mcp.config.config import load_config
@@ -6,7 +5,6 @@ from dbt_mcp.remote.tools import register_remote_tools
 
 
 async def test_remote_tool_execute_sql():
-    load_dotenv()
     config = load_config()
     dbt_mcp = FastMCP("Test")
     await register_remote_tools(dbt_mcp, config.remote_config)
@@ -18,7 +16,6 @@ async def test_remote_tool_execute_sql():
 
 
 async def test_remote_tool_text_to_sql():
-    load_dotenv()
     config = load_config()
     dbt_mcp = FastMCP("Test")
     await register_remote_tools(dbt_mcp, config.remote_config)
