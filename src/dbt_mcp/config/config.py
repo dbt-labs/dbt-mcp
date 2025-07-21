@@ -1,9 +1,10 @@
 import os
 from pathlib import Path
+from typing import Annotated
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class TrackingConfig(BaseModel):
@@ -50,9 +51,9 @@ class DbtMcpSettings(BaseSettings):
         case_sensitive=False,
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore"
+        extra="ignore",
     )
-    
+
     # Environment variables with proper field configuration
     dbt_host: str | None = Field(None, alias="DBT_HOST")
     dbt_mcp_host: str | None = Field(None, alias="DBT_MCP_HOST")
@@ -65,30 +66,29 @@ class DbtMcpSettings(BaseSettings):
     dbt_path: str = Field("dbt", alias="DBT_PATH")
     dbt_cli_timeout: int = Field(10, alias="DBT_CLI_TIMEOUT")
     dbt_warn_error_options: str | None = Field(None, alias="DBT_WARN_ERROR_OPTIONS")
-    
+
     disable_dbt_cli: bool = Field(False, alias="DISABLE_DBT_CLI")
     disable_semantic_layer: bool = Field(False, alias="DISABLE_SEMANTIC_LAYER")
     disable_discovery: bool = Field(False, alias="DISABLE_DISCOVERY")
     disable_remote: bool = Field(True, alias="DISABLE_REMOTE")
-    disable_tools: list[str] = Field(default_factory=list, alias="DISABLE_TOOLS")
-    
+    disable_tools: Annotated[list[str], NoDecode] = Field(
+        default_factory=list, alias="DISABLE_TOOLS"
+    )
+
     multicell_account_prefix: str | None = Field(None, alias="MULTICELL_ACCOUNT_PREFIX")
-    
+
     @property
     def actual_host(self) -> str | None:
         return self.dbt_host or self.dbt_mcp_host
-    
+
     @property
     def actual_prod_environment_id(self) -> int | None:
         return self.dbt_prod_env_id or self.dbt_env_id
-    
+
     @field_validator("disable_tools", mode="before")
     @classmethod
-    def parse_disable_tools(cls, value: str | list[str]) -> list[str]:
-        if isinstance(value, str):
-            return [tool.strip() for tool in value.split(",") if tool.strip()]
-        return value
-    
+    def parse_disable_tools(cls, value: str) -> list[str]:
+        return [tool.strip() for tool in value.split(",") if tool.strip()]
 
 
 class Config(BaseModel):
@@ -103,7 +103,7 @@ class Config(BaseModel):
 def load_config() -> Config:
     # Load settings from environment variables using pydantic_settings
     settings = DbtMcpSettings()  # type: ignore[call-arg]
-    
+
     # Set default warn error options if not provided
     if settings.dbt_warn_error_options is None:
         warn_error_options = '{"error": ["NoNodesForSelectionCriteria"]}'
@@ -111,7 +111,11 @@ def load_config() -> Config:
 
     # Validation
     errors: list[str] = []
-    if not settings.disable_semantic_layer or not settings.disable_discovery or not settings.disable_remote:
+    if (
+        not settings.disable_semantic_layer
+        or not settings.disable_discovery
+        or not settings.disable_remote
+    ):
         if not settings.actual_host:
             errors.append(
                 "DBT_HOST environment variable is required when semantic layer, discovery, or remote tools are enabled."
@@ -181,7 +185,12 @@ def load_config() -> Config:
         )
 
     discovery_config = None
-    if not settings.disable_discovery and settings.actual_host and settings.actual_prod_environment_id and settings.dbt_token:
+    if (
+        not settings.disable_discovery
+        and settings.actual_host
+        and settings.actual_prod_environment_id
+        and settings.dbt_token
+    ):
         if settings.multicell_account_prefix:
             url = f"https://{settings.multicell_account_prefix}.metadata.{settings.actual_host}/graphql"
         else:
