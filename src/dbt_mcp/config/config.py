@@ -74,7 +74,7 @@ def load_config() -> Config:
     disable_dbt_cli = os.environ.get("DISABLE_DBT_CLI", "false") == "true"
     disable_semantic_layer = os.environ.get("DISABLE_SEMANTIC_LAYER", "false") == "true"
     disable_discovery = os.environ.get("DISABLE_DISCOVERY", "false") == "true"
-    disable_remote = os.environ.get("DISABLE_REMOTE", "false") == "true"
+    disable_remote = os.environ.get("DISABLE_REMOTE", "true") == "true"
     multicell_account_prefix = os.environ.get("MULTICELL_ACCOUNT_PREFIX", None)
     dbt_cli_timeout = int(os.environ.get("DBT_CLI_TIMEOUT", 10))
 
