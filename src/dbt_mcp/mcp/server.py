@@ -92,19 +92,19 @@ async def create_dbt_mcp():
 
     if config.semantic_layer_config:
         logger.info("Registering semantic layer tools")
-        register_sl_tools(dbt_mcp, config.semantic_layer_config)
+        register_sl_tools(dbt_mcp, config.semantic_layer_config, config.disable_tools)
 
     if config.discovery_config:
         logger.info("Registering discovery tools")
-        register_discovery_tools(dbt_mcp, config.discovery_config)
+        register_discovery_tools(dbt_mcp, config.discovery_config, config.disable_tools)
 
     if config.dbt_cli_config:
         logger.info("Registering dbt cli tools")
-        register_dbt_cli_tools(dbt_mcp, config.dbt_cli_config)
+        register_dbt_cli_tools(dbt_mcp, config.dbt_cli_config, config.disable_tools)
 
     if config.remote_config:
         logger.info("Registering remote tools")
-        await register_remote_tools(dbt_mcp, config.remote_config)
+        await register_remote_tools(dbt_mcp, config.remote_config, config.disable_tools)
     
         logger.info("Registering admin API tools")
         register_admin_api_tools(dbt_mcp, config.remote_config)

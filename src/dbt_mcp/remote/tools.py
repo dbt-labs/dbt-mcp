@@ -69,7 +69,11 @@ def _get_remote_tools(base_url: str, headers: dict[str, str]) -> list[RemoteTool
         return []
 
 
-async def register_remote_tools(dbt_mcp: FastMCP, config: RemoteConfig) -> None:
+async def register_remote_tools(
+    dbt_mcp: FastMCP,
+    config: RemoteConfig,
+    exclude_tools: Sequence[str] = [],
+) -> None:
     is_local = config.host and config.host.startswith("localhost")
     path = "/mcp" if is_local else "/api/ai/mcp"
     scheme = "http://" if is_local else "https://"
@@ -88,6 +92,9 @@ async def register_remote_tools(dbt_mcp: FastMCP, config: RemoteConfig) -> None:
         f"Loaded remote tools: {', '.join([tool.name for tool in remote_tools])}",
     )
     for tool in remote_tools:
+        if tool.name in exclude_tools:
+            continue
+
         # Create a new function using a factory to avoid closure issues
         def create_tool_function(tool_name: str):
             async def tool_function(*args, **kwargs) -> Sequence[ContentBlock]:

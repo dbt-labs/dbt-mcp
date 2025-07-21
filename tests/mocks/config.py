@@ -43,7 +43,11 @@ mock_discovery_config = DiscoveryConfig(
 mock_semantic_layer_config = SemanticLayerConfig(
     host="localhost",
     service_token="token",
-    multicell_account_prefix=None,
+    url="http://localhost:8000",
+    headers={
+        "Authorization": "Bearer token",
+        "Content-Type": "application/json",
+    },
     prod_environment_id=1,
 )
 
@@ -53,4 +57,5 @@ mock_config = Config(
     dbt_cli_config=mock_dbt_cli_config,
     discovery_config=mock_discovery_config,
     semantic_layer_config=mock_semantic_layer_config,
+    disable_tools=[],
 )

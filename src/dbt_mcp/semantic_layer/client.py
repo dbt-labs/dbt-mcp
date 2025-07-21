@@ -1,17 +1,19 @@
+from contextlib import AbstractContextManager
 from functools import cache
+from typing import Any, Protocol
 
+import pyarrow as pa
 from dbtsl.api.shared.query_params import (
     GroupByParam,
     OrderByGroupBy,
-    OrderBySpec,
     OrderByMetric,
+    OrderBySpec,
 )
-from dbtsl.client.sync import SyncSemanticLayerClient
 from dbtsl.error import QueryFailedError
 
 from dbt_mcp.config.config import SemanticLayerConfig
 from dbt_mcp.semantic_layer.gql.gql import GRAPHQL_QUERIES
-from dbt_mcp.semantic_layer.gql.gql_request import ConnAttr, submit_request
+from dbt_mcp.semantic_layer.gql.gql_request import submit_request
 from dbt_mcp.semantic_layer.levenshtein import get_misspellings
 from dbt_mcp.semantic_layer.types import (
     DimensionToolResponse,
@@ -24,12 +26,27 @@ from dbt_mcp.semantic_layer.types import (
 )
 
 
+class SemanticLayerClientProtocol(Protocol):
+    def session(self) -> AbstractContextManager[Any]: ...
+
+    def query(
+        self,
+        metrics: list[str],
+        group_by: list[GroupByParam | str] | None = None,
+        limit: int | None = None,
+        order_by: list[str | OrderByGroupBy | OrderByMetric] | None = None,
+        where: list[str] | None = None,
+        read_cache: bool = True,
+    ) -> pa.Table: ...
+
+
 class SemanticLayerFetcher:
     def __init__(
-        self, sl_client: SyncSemanticLayerClient, host: str, config: SemanticLayerConfig
+        self,
+        sl_client: SemanticLayerClientProtocol,
+        config: SemanticLayerConfig,
     ):
         self.sl_client = sl_client
-        self.host = host
         self.config = config
         self.entities_cache: dict[str, list[EntityToolResponse]] = {}
         self.dimensions_cache: dict[str, list[DimensionToolResponse]] = {}
@@ -37,11 +54,7 @@ class SemanticLayerFetcher:
     @cache
     def list_metrics(self) -> list[MetricToolResponse]:
         metrics_result = submit_request(
-            ConnAttr(
-                host=self.host,
-                params={"environmentid": self.config.prod_environment_id},
-                auth_header=f"Bearer {self.config.service_token}",
-            ),
+            self.config,
             {"query": GRAPHQL_QUERIES["metrics"]},
         )
         return [
@@ -58,11 +71,7 @@ class SemanticLayerFetcher:
         metrics_key = ",".join(sorted(metrics))
         if metrics_key not in self.dimensions_cache:
             dimensions_result = submit_request(
-                ConnAttr(
-                    host=self.host,
-                    params={"environmentid": self.config.prod_environment_id},
-                    auth_header=f"Bearer {self.config.service_token}",
-                ),
+                self.config,
                 {
                     "query": GRAPHQL_QUERIES["dimensions"],
                     "variables": {"metrics": [{"name": m} for m in metrics]},
@@ -87,11 +96,7 @@ class SemanticLayerFetcher:
         metrics_key = ",".join(sorted(metrics))
         if metrics_key not in self.entities_cache:
             entities_result = submit_request(
-                ConnAttr(
-                    host=self.host,
-                    params={"environmentid": self.config.prod_environment_id},
-                    auth_header=f"Bearer {self.config.service_token}",
-                ),
+                self.config,
                 {
                     "query": GRAPHQL_QUERIES["entities"],
                     "variables": {"metrics": [{"name": m} for m in metrics]},
@@ -123,9 +128,8 @@ class SemanticLayerFetcher:
                 " Did you mean: " + ", ".join(metric_misspelling.similar_words) + "?"
             )
             errors.append(
-                f"Metric {metric_misspelling.word} not found." + recommendations
-                if metric_misspelling.similar_words
-                else ""
+                f"Metric {metric_misspelling.word} not found."
+                + (recommendations if metric_misspelling.similar_words else "")
             )
 
         if errors:
@@ -144,9 +148,8 @@ class SemanticLayerFetcher:
                 " Did you mean: " + ", ".join(group_by_misspelling.similar_words) + "?"
             )
             errors.append(
-                f"Group by {group_by_misspelling.word} not found." + recommendations
-                if group_by_misspelling.similar_words
-                else ""
+                f"Group by {group_by_misspelling.word} not found."
+                + (recommendations if group_by_misspelling.similar_words else "")
             )
 
         if errors:
@@ -245,29 +248,6 @@ class SemanticLayerFetcher:
             if query_error:
                 return self._format_query_failed_error(query_error)
             json_result = query_result.to_pandas().to_json(orient="records", indent=2)
-            return QueryMetricsSuccess(result=json_result)
+            return QueryMetricsSuccess(result=json_result or "")
         except Exception as e:
             return self._format_query_failed_error(e)
-
-
-def get_semantic_layer_fetcher(config: SemanticLayerConfig) -> SemanticLayerFetcher:
-    is_local = config.host and config.host.startswith("localhost")
-    if is_local:
-        host = config.host
-    elif config.multicell_account_prefix:
-        host = f"{config.multicell_account_prefix}.semantic-layer.{config.host}"
-    else:
-        host = f"semantic-layer.{config.host}"
-    assert host is not None
-
-    semantic_layer_client = SyncSemanticLayerClient(
-        environment_id=config.prod_environment_id,
-        auth_token=config.service_token,
-        host=host,
-    )
-
-    return SemanticLayerFetcher(
-        sl_client=semantic_layer_client,
-        host=f"http://{host}" if is_local else f"https://{host}",
-        config=config,
-    )

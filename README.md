@@ -16,27 +16,29 @@ This MCP (Model Context Protocol) server provides tools to interact with dbt. Re
 The MCP server takes the following environment variable configuration:
 
 ### Tool Groups
-| Name | Default | Description |
-|------|---------|-------------|
-| `DISABLE_DBT_CLI` | `false` | Set this to `true` to disable dbt Core, dbt Cloud CLI, and dbt Fusion MCP tools |
-| `DISABLE_SEMANTIC_LAYER` | `false` | Set this to `true` to disable dbt Semantic Layer MCP objects |
-| `DISABLE_DISCOVERY` | `false` | Set this to `true` to disable dbt Discovery API MCP objects |
-| `DISABLE_REMOTE` | `true` | Set this to `false` to enable remote MCP objects |
+| Name                     | Default | Description                                                                     |
+| ------------------------ | ------- | ------------------------------------------------------------------------------- |
+| `DISABLE_DBT_CLI`        | `false` | Set this to `true` to disable dbt Core, dbt Cloud CLI, and dbt Fusion MCP tools |
+| `DISABLE_SEMANTIC_LAYER` | `false` | Set this to `true` to disable dbt Semantic Layer MCP objects                    |
+| `DISABLE_DISCOVERY`      | `false` | Set this to `true` to disable dbt Discovery API MCP objects                     |
+| `DISABLE_REMOTE`         | `true`  | Set this to `false` to enable remote MCP objects                                |
+| `DISABLE_TOOLS`          | ""      | Set this to a list of tool names delimited by a `,` to disable certain tools    |
 
 
 ### Configuration for Discovery, Semantic Layer, and Remote Tools
-| Name | Default | Description |
-|------|---------|-------------|
-| `DBT_HOST` | `cloud.getdbt.com` | Your dbt Cloud instance hostname. This will look like an `Access URL` found [here](https://docs.getdbt.com/docs/cloud/about-cloud/access-regions-ip-addresses). If you are using Multi-cell, do not include the `ACCOUNT_PREFIX` here |
-| `MULTICELL_ACCOUNT_PREFIX` | - | If you are using Multi-cell, set this to your `ACCOUNT_PREFIX`. If you are not using Multi-cell, do not set this environment variable. You can learn more [here](https://docs.getdbt.com/docs/cloud/about-cloud/access-regions-ip-addresses) |
-| `DBT_TOKEN` | - | Your personal access token or service token. Note: a service token is required when using the Semantic Layer and this service token should have at least `Semantic Layer Only`, `Metadata Only`, and `Developer` permissions. |
-| `DBT_PROD_ENV_ID` | - | Your dbt Cloud production environment ID |
+| Name                       | Default            | Description                                                                                                                                                                                                                                  |
+| -------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DBT_HOST`                 | `cloud.getdbt.com` | Your dbt Cloud instance hostname. This will look like an `Access URL` found [here](https://docs.getdbt.com/docs/cloud/about-cloud/access-regions-ip-addresses). If you are using Multi-cell, do not include the `ACCOUNT_PREFIX` here        |
+| `MULTICELL_ACCOUNT_PREFIX` | -                  | If you are using Multi-cell, set this to your `ACCOUNT_PREFIX`. If you are not using Multi-cell, do not set this environment variable. You can learn more [here](https://docs.getdbt.com/docs/cloud/about-cloud/access-regions-ip-addresses) |
+| `DBT_TOKEN`                | -                  | Your personal access token or service token. Note: a service token is required when using the Semantic Layer and this service token should have at least `Semantic Layer Only`, `Metadata Only`, and `Developer` permissions.                |
+| `DBT_PROD_ENV_ID`          | -                  | Your dbt Cloud production environment ID                                                                                                                                                                                                     |
 
 ### Configuration for Remote Tools
-| Name | Description |
-|------|-------------|
+| Name             | Description                               |
+| ---------------- | ----------------------------------------- |
 | `DBT_DEV_ENV_ID` | Your dbt Cloud development environment ID |
-| `DBT_USER_ID` | Your dbt Cloud user ID |
+| `DBT_USER_ID`    | Your dbt Cloud user ID                    |
+|                  |                                           |
 
 ### Configuration for dbt CLI
 | Name              | Description                                                                                                                                 |
@@ -101,32 +103,29 @@ Cursor MCP docs [here](https://docs.cursor.com/context/model-context-protocol) f
 
 ![mcp-vscode-settings](https://github.com/user-attachments/assets/3d3fa853-2398-422a-8a6d-7f0a97120aba)
 
-4. Click "Edit in settings.json" under "Mcp > Discovery"
+4. Open the command palette `Control/Command + Shift + P`, and select either "MCP: Open Workspace Folder MCP Configuration" or "MCP: Open User Configuration" depending on whether you want to install the MCP server for this workspace or for all workspaces for the user
 
-5. Add your server configuration (`dbt`) to the provided `settings.json` file as one of the servers:
+5. Add your server configuration (`dbt`) to the provided `mcp.json` file as one of the servers:
 ```json
 {
-    "mcp": {
-        "inputs": [],
-        "servers": {
-          "dbt": {
-            "command": "uvx",
-            "args": [
-              "--env-file",
-              "<path-to-.env-file>",
-              "dbt-mcp"
-            ]
-          },
-        }
-    }
+	"servers": {
+		"dbt": {
+			"command": "uvx",
+      "args": [
+        "--env-file",
+        "<path-to-.env-file>",
+        "dbt-mcp"
+      ]
+		}
+	}
 }
 ```
 
 `<path-to-.env-file>` is where you saved the `.env` file from the Setup step
 
 6. You can start, stop, and configure your MCP servers by:
-- Running the `MCP: List Servers` command from the Command Palette (Control + Command + P) and selecting the server
-- Utlizing the keywords inline within the `settings.json` file
+- Running the `MCP: List Servers` command from the Command Palette (Control/Command + Shift + P) and selecting the server
+- Utlizing the keywords inline within the `mcp.json` file
 
 ![inline-management](https://github.com/user-attachments/assets/d33d4083-5243-4b36-adab-72f12738c263)
 
