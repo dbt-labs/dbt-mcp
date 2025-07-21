@@ -6,7 +6,7 @@ from tests.env_vars import default_env_vars_context
 
 
 @pytest.mark.asyncio
-async def test_tool_names_match_server_tools():
+async def test_disable_tools():
     """Test that the ToolName enum matches the tools registered in the server."""
     disable_tools = {"get_mart_models", "list_metrics"}
     with default_env_vars_context(
