@@ -90,7 +90,7 @@ class DbtMcpSettings(BaseSettings):
     @field_validator("disable_tools", mode="before")
     @classmethod
     def parse_disable_tools(cls, env_var: str | None) -> list[ToolName]:
-        if env_var is None:
+        if not env_var:
             return []
         errors: list[str] = []
         tool_names: list[ToolName] = []
