@@ -73,8 +73,8 @@ class DbtMcpSettings(BaseSettings):
     disable_semantic_layer: bool = Field(False, alias="DISABLE_SEMANTIC_LAYER")
     disable_discovery: bool = Field(False, alias="DISABLE_DISCOVERY")
     disable_remote: bool = Field(True, alias="DISABLE_REMOTE")
-    disable_tools: Annotated[list[ToolName], NoDecode] = Field(
-        default_factory=list, alias="DISABLE_TOOLS"
+    disable_tools: Annotated[list[ToolName] | None, NoDecode] = Field(
+        None, alias="DISABLE_TOOLS"
     )
 
     multicell_account_prefix: str | None = Field(None, alias="MULTICELL_ACCOUNT_PREFIX")
@@ -89,11 +89,23 @@ class DbtMcpSettings(BaseSettings):
 
     @field_validator("disable_tools", mode="before")
     @classmethod
-    def parse_disable_tools(cls, env_var: str | list) -> list[ToolName]:
-        if not env_var:
+    def parse_disable_tools(cls, env_var: str | None) -> list[ToolName]:
+        if env_var is None:
             return []
-        assert isinstance(env_var, str)
-        return [ToolName(tool.strip()) for tool in env_var.split(",") if tool.strip()]
+        errors: list[str] = []
+        tool_names: list[ToolName] = []
+        for tool_name in env_var.split(","):
+            tool_name_stripped = tool_name.strip()
+            try:
+                tool_names.append(ToolName(tool_name_stripped))
+            except ValueError:
+                errors.append(
+                    f"Invalid tool name in DISABLE_TOOLS: {tool_name_stripped}."
+                    + " Must be a valid tool name."
+                )
+        if errors:
+            raise ValueError("\n".join(errors))
+        return tool_names
 
 
 class Config(BaseModel):
@@ -260,5 +272,5 @@ def load_config() -> Config:
         dbt_cli_config=dbt_cli_config,
         discovery_config=discovery_config,
         semantic_layer_config=semantic_layer_config,
-        disable_tools=settings.disable_tools,
+        disable_tools=settings.disable_tools or [],
     )
