@@ -96,6 +96,8 @@ class DbtMcpSettings(BaseSettings):
         tool_names: list[ToolName] = []
         for tool_name in env_var.split(","):
             tool_name_stripped = tool_name.strip()
+            if tool_name_stripped == "":
+                continue
             try:
                 tool_names.append(ToolName(tool_name_stripped))
             except ValueError:
