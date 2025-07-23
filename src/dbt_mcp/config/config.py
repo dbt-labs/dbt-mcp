@@ -1,23 +1,24 @@
 import os
-from dataclasses import dataclass
 from pathlib import Path
+from typing import Annotated
 
 import yaml
-from dotenv import load_dotenv
+from pydantic import BaseModel, Field, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+from dbt_mcp.tools.tool_names import ToolName
 
 
-@dataclass
-class TrackingConfig:
-    host: str | None
-    multicell_account_prefix: str | None
-    prod_environment_id: int | None
-    dev_environment_id: int | None
-    dbt_cloud_user_id: int | None
-    local_user_id: str | None
+class TrackingConfig(BaseModel):
+    host: str | None = None
+    multicell_account_prefix: str | None = None
+    prod_environment_id: int | None = None
+    dev_environment_id: int | None = None
+    dbt_cloud_user_id: int | None = None
+    local_user_id: str | None = None
 
 
-@dataclass
-class SemanticLayerConfig:
+class SemanticLayerConfig(BaseModel):
     url: str
     host: str
     prod_environment_id: int
@@ -25,23 +26,20 @@ class SemanticLayerConfig:
     headers: dict[str, str]
 
 
-@dataclass
-class DiscoveryConfig:
+class DiscoveryConfig(BaseModel):
     url: str
     headers: dict[str, str]
     environment_id: int
 
 
-@dataclass
-class DbtCliConfig:
+class DbtCliConfig(BaseModel):
     project_dir: str
     dbt_path: str
     dbt_cli_timeout: int
 
 
-@dataclass
-class RemoteConfig:
-    multicell_account_prefix: str | None
+class RemoteConfig(BaseModel):
+    multicell_account_prefix: str | None = None
     host: str
     user_id: int
     dev_environment_id: int
@@ -49,82 +47,128 @@ class RemoteConfig:
     token: str
 
 
-@dataclass
-class Config:
+class DbtMcpSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="",
+        case_sensitive=False,
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    # Environment variables with proper field configuration
+    dbt_host: str | None = Field(None, alias="DBT_HOST")
+    dbt_mcp_host: str | None = Field(None, alias="DBT_MCP_HOST")
+    dbt_prod_env_id: int | None = Field(None, alias="DBT_PROD_ENV_ID")
+    dbt_env_id: int | None = Field(None, alias="DBT_ENV_ID")  # legacy support
+    dbt_dev_env_id: int | None = Field(None, alias="DBT_DEV_ENV_ID")
+    dbt_user_id: int | None = Field(None, alias="DBT_USER_ID")
+    dbt_token: str | None = Field(None, alias="DBT_TOKEN")
+    dbt_project_dir: str | None = Field(None, alias="DBT_PROJECT_DIR")
+    dbt_path: str = Field("dbt", alias="DBT_PATH")
+    dbt_cli_timeout: int = Field(10, alias="DBT_CLI_TIMEOUT")
+    dbt_warn_error_options: str | None = Field(None, alias="DBT_WARN_ERROR_OPTIONS")
+
+    disable_dbt_cli: bool = Field(False, alias="DISABLE_DBT_CLI")
+    disable_semantic_layer: bool = Field(False, alias="DISABLE_SEMANTIC_LAYER")
+    disable_discovery: bool = Field(False, alias="DISABLE_DISCOVERY")
+    disable_remote: bool = Field(True, alias="DISABLE_REMOTE")
+    disable_tools: Annotated[list[ToolName] | None, NoDecode] = Field(
+        None, alias="DISABLE_TOOLS"
+    )
+
+    multicell_account_prefix: str | None = Field(None, alias="MULTICELL_ACCOUNT_PREFIX")
+
+    @property
+    def actual_host(self) -> str | None:
+        return self.dbt_host or self.dbt_mcp_host
+
+    @property
+    def actual_prod_environment_id(self) -> int | None:
+        return self.dbt_prod_env_id or self.dbt_env_id
+
+    @field_validator("disable_tools", mode="before")
+    @classmethod
+    def parse_disable_tools(cls, env_var: str | None) -> list[ToolName]:
+        if not env_var:
+            return []
+        errors: list[str] = []
+        tool_names: list[ToolName] = []
+        for tool_name in env_var.split(","):
+            tool_name_stripped = tool_name.strip()
+            if tool_name_stripped == "":
+                continue
+            try:
+                tool_names.append(ToolName(tool_name_stripped))
+            except ValueError:
+                errors.append(
+                    f"Invalid tool name in DISABLE_TOOLS: {tool_name_stripped}."
+                    + " Must be a valid tool name."
+                )
+        if errors:
+            raise ValueError("\n".join(errors))
+        return tool_names
+
+
+class Config(BaseModel):
     tracking_config: TrackingConfig
-    remote_config: RemoteConfig | None
-    dbt_cli_config: DbtCliConfig | None
-    discovery_config: DiscoveryConfig | None
-    semantic_layer_config: SemanticLayerConfig | None
-    disable_tools: list[str]
+    remote_config: RemoteConfig | None = None
+    dbt_cli_config: DbtCliConfig | None = None
+    discovery_config: DiscoveryConfig | None = None
+    semantic_layer_config: SemanticLayerConfig | None = None
+    disable_tools: list[ToolName]
 
 
 def load_config() -> Config:
-    load_dotenv()
+    # Load settings from environment variables using pydantic_settings
+    settings = DbtMcpSettings()  # type: ignore[call-arg]
 
-    host = os.environ.get("DBT_HOST")
-    cursor_host = os.environ.get("DBT_MCP_HOST")
-    prod_environment_id = os.environ.get("DBT_PROD_ENV_ID")
-    legacy_prod_environment_id = os.environ.get("DBT_ENV_ID")
-    dev_environment_id = os.environ.get("DBT_DEV_ENV_ID")
-    user_id = os.environ.get("DBT_USER_ID")
-    token = os.environ.get("DBT_TOKEN")
-    project_dir = os.environ.get("DBT_PROJECT_DIR")
-    dbt_path = os.environ.get("DBT_PATH", "dbt")
-    disable_dbt_cli = os.environ.get("DISABLE_DBT_CLI", "false") == "true"
-    disable_semantic_layer = os.environ.get("DISABLE_SEMANTIC_LAYER", "false") == "true"
-    disable_discovery = os.environ.get("DISABLE_DISCOVERY", "false") == "true"
-    disable_remote = os.environ.get("DISABLE_REMOTE", "true") == "true"
-    multicell_account_prefix = os.environ.get("MULTICELL_ACCOUNT_PREFIX", None)
-    dbt_cli_timeout = int(os.environ.get("DBT_CLI_TIMEOUT", 10))
-    disable_tools = os.environ.get("DISABLE_TOOLS", "").split(",")
-
-    # set default warn error options if not provided
-    if os.environ.get("DBT_WARN_ERROR_OPTIONS") is None:
+    # Set default warn error options if not provided
+    if settings.dbt_warn_error_options is None:
         warn_error_options = '{"error": ["NoNodesForSelectionCriteria"]}'
         os.environ["DBT_WARN_ERROR_OPTIONS"] = warn_error_options
 
-    # Devon: I messed up and uploaded the wrong
-    # env var here https://docs.cursor.com/tools.
-    # So, we are supporting this alias now.
-    actual_host = host or cursor_host
-
-    errors = []
-    if not disable_semantic_layer or not disable_discovery or not disable_remote:
-        if not actual_host:
+    # Validation
+    errors: list[str] = []
+    if (
+        not settings.disable_semantic_layer
+        or not settings.disable_discovery
+        or not settings.disable_remote
+    ):
+        if not settings.actual_host:
             errors.append(
                 "DBT_HOST environment variable is required when semantic layer, discovery, or remote tools are enabled."
             )
-        if not prod_environment_id and not legacy_prod_environment_id:
+        if not settings.actual_prod_environment_id:
             errors.append(
                 "DBT_PROD_ENV_ID environment variable is required when semantic layer, discovery, or remote tools are enabled."
             )
-        if not token:
+        if not settings.dbt_token:
             errors.append(
                 "DBT_TOKEN environment variable is required when semantic layer, discovery, or remote tools are enabled."
             )
-        if actual_host and (
-            actual_host.startswith("metadata")
-            or actual_host.startswith("semantic-layer")
+        if settings.actual_host and (
+            settings.actual_host.startswith("metadata")
+            or settings.actual_host.startswith("semantic-layer")
         ):
             errors.append(
                 "DBT_HOST must not start with 'metadata' or 'semantic-layer'."
             )
-    if not disable_remote:
-        if not dev_environment_id:
+    if not settings.disable_remote:
+        if not settings.dbt_dev_env_id:
             errors.append(
                 "DBT_DEV_ENV_ID environment variable is required when remote tools are enabled."
             )
-        if not user_id:
+        if not settings.dbt_user_id:
             errors.append(
                 "DBT_USER_ID environment variable is required when remote tools are enabled."
             )
-    if not disable_dbt_cli:
-        if not project_dir:
+    if not settings.disable_dbt_cli:
+        if not settings.dbt_project_dir:
             errors.append(
                 "DBT_PROJECT_DIR environment variable is required when dbt CLI tools are enabled."
             )
-        if not dbt_path:
+        if not settings.dbt_path:
             errors.append(
                 "DBT_PATH environment variable is required when dbt CLI tools are enabled."
             )
@@ -132,83 +176,81 @@ def load_config() -> Config:
     if errors:
         raise ValueError("Errors found in configuration:\n\n" + "\n".join(errors))
 
-    # Allowing for configuration with legacy DBT_ENV_ID environment variable
-    actual_prod_environment_id = (
-        int(prod_environment_id)
-        if prod_environment_id
-        else int(legacy_prod_environment_id)
-        if legacy_prod_environment_id
-        else None
-    )
-
+    # Build configurations
     remote_config = None
     if (
-        not disable_remote
-        and user_id
-        and token
-        and dev_environment_id
-        and actual_prod_environment_id
-        and actual_host
+        not settings.disable_remote
+        and settings.dbt_user_id
+        and settings.dbt_token
+        and settings.dbt_dev_env_id
+        and settings.actual_prod_environment_id
+        and settings.actual_host
     ):
         remote_config = RemoteConfig(
-            multicell_account_prefix=multicell_account_prefix,
-            user_id=int(user_id),
-            token=token,
-            dev_environment_id=int(dev_environment_id),
-            prod_environment_id=actual_prod_environment_id,
-            host=actual_host,
+            multicell_account_prefix=settings.multicell_account_prefix,
+            user_id=settings.dbt_user_id,
+            token=settings.dbt_token,
+            dev_environment_id=settings.dbt_dev_env_id,
+            prod_environment_id=settings.actual_prod_environment_id,
+            host=settings.actual_host,
         )
 
     dbt_cli_config = None
-    if not disable_dbt_cli and project_dir and dbt_path:
+    if not settings.disable_dbt_cli and settings.dbt_project_dir and settings.dbt_path:
         dbt_cli_config = DbtCliConfig(
-            project_dir=project_dir,
-            dbt_path=dbt_path,
-            dbt_cli_timeout=dbt_cli_timeout,
+            project_dir=settings.dbt_project_dir,
+            dbt_path=settings.dbt_path,
+            dbt_cli_timeout=settings.dbt_cli_timeout,
         )
 
     discovery_config = None
-    if not disable_discovery and actual_host and actual_prod_environment_id and token:
-        if multicell_account_prefix:
-            url = f"https://{multicell_account_prefix}.metadata.{actual_host}/graphql"
+    if (
+        not settings.disable_discovery
+        and settings.actual_host
+        and settings.actual_prod_environment_id
+        and settings.dbt_token
+    ):
+        if settings.multicell_account_prefix:
+            url = f"https://{settings.multicell_account_prefix}.metadata.{settings.actual_host}/graphql"
         else:
-            url = f"https://metadata.{actual_host}/graphql"
+            url = f"https://metadata.{settings.actual_host}/graphql"
         discovery_config = DiscoveryConfig(
             url=url,
             headers={
-                "Authorization": f"Bearer {token}",
+                "Authorization": f"Bearer {settings.dbt_token}",
                 "Content-Type": "application/json",
             },
-            environment_id=actual_prod_environment_id,
+            environment_id=settings.actual_prod_environment_id,
         )
 
     semantic_layer_config = None
     if (
-        not disable_semantic_layer
-        and actual_host
-        and actual_prod_environment_id
-        and token
+        not settings.disable_semantic_layer
+        and settings.actual_host
+        and settings.actual_prod_environment_id
+        and settings.dbt_token
     ):
-        is_local = actual_host and actual_host.startswith("localhost")
+        is_local = settings.actual_host and settings.actual_host.startswith("localhost")
         if is_local:
-            host = actual_host
-        elif multicell_account_prefix:
-            host = f"{multicell_account_prefix}.semantic-layer.{actual_host}"
+            host = settings.actual_host
+        elif settings.multicell_account_prefix:
+            host = f"{settings.multicell_account_prefix}.semantic-layer.{settings.actual_host}"
         else:
-            host = f"semantic-layer.{actual_host}"
+            host = f"semantic-layer.{settings.actual_host}"
         assert host is not None
 
         semantic_layer_config = SemanticLayerConfig(
             url=f"http://{host}" if is_local else f"https://{host}" + "/api/graphql",
             host=host,
-            prod_environment_id=actual_prod_environment_id,
-            service_token=token,
+            prod_environment_id=settings.actual_prod_environment_id,
+            service_token=settings.dbt_token,
             headers={
-                "Authorization": f"Bearer {token}",
+                "Authorization": f"Bearer {settings.dbt_token}",
                 "x-dbt-partner-source": "dbt-mcp",
             },
         )
 
+    # Load local user ID from dbt profile
     local_user_id = None
     try:
         home = os.environ.get("HOME")
@@ -221,16 +263,16 @@ def load_config() -> Config:
 
     return Config(
         tracking_config=TrackingConfig(
-            host=actual_host,
-            multicell_account_prefix=multicell_account_prefix,
-            prod_environment_id=actual_prod_environment_id,
-            dev_environment_id=int(dev_environment_id) if dev_environment_id else None,
-            dbt_cloud_user_id=int(user_id) if user_id else None,
+            host=settings.actual_host,
+            multicell_account_prefix=settings.multicell_account_prefix,
+            prod_environment_id=settings.actual_prod_environment_id,
+            dev_environment_id=settings.dbt_dev_env_id,
+            dbt_cloud_user_id=settings.dbt_user_id,
             local_user_id=local_user_id,
         ),
         remote_config=remote_config,
         dbt_cli_config=dbt_cli_config,
         discovery_config=discovery_config,
         semantic_layer_config=semantic_layer_config,
-        disable_tools=disable_tools,
+        disable_tools=settings.disable_tools or [],
     )

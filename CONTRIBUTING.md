@@ -40,6 +40,11 @@ This repo has automated tests which can be run with `task test:unit`. Additional
 }
 ```
 
+## Signed Commits
+
+Before committing changes, ensure that you have set up [signed commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
+This repo requires signing on all commits for PRs.
+
 ## Changelog
 
 Every PR requires a changelog entry. [Install changie](https://changie.dev/) and run `changie new` to create a new changelog entry.

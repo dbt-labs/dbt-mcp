@@ -26,6 +26,7 @@ from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
 from dbt_mcp.config.config import RemoteConfig
+from dbt_mcp.tools.tool_names import ToolName
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ def _get_remote_tools(base_url: str, headers: dict[str, str]) -> list[RemoteTool
 async def register_remote_tools(
     dbt_mcp: FastMCP,
     config: RemoteConfig,
-    exclude_tools: Sequence[str] = [],
+    exclude_tools: Sequence[ToolName] = [],
 ) -> None:
     is_local = config.host and config.host.startswith("localhost")
     path = "/mcp" if is_local else "/api/ai/mcp"
@@ -92,7 +93,7 @@ async def register_remote_tools(
         f"Loaded remote tools: {', '.join([tool.name for tool in remote_tools])}",
     )
     for tool in remote_tools:
-        if tool.name in exclude_tools:
+        if tool.name.lower() in [tool.value.lower() for tool in exclude_tools]:
             continue
 
         # Create a new function using a factory to avoid closure issues

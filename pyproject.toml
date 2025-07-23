@@ -21,7 +21,7 @@ dependencies = [
   "dbtlabs-vortex==0.2.0",
   "mcp[cli]==1.10.1",
   "pandas==2.2.3",
-  "python-dotenv==1.0.1",
+  "pydantic-settings==2.10.1",
   "pyyaml==6.0.2",
   "requests==2.32.4",
 ]
@@ -56,3 +56,8 @@ include = ["src/dbt_mcp/**/*", "README.md", "LICENSE"]
 
 [tool.hatch.version]
 source = "vcs"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+pythonpath = [".", "src"]
