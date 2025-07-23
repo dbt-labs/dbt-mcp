@@ -45,47 +45,14 @@ class DbtAdminAPIClient:
             raise AdminAPIError(f"API request failed: {e}")
     
     @cache
-    def list_accounts(self) -> List[Dict[str, Any]]:
-        """List all accounts accessible to the user."""
-        result = self._make_request("GET", "/api/v2/accounts/")
-        return result.get("data", [])
-    
-    def get_account(self, account_id: int) -> Dict[str, Any]:
-        """Get details for a specific account."""
-        result = self._make_request("GET", f"/api/v2/accounts/{account_id}/")
-        return result.get("data", {})
-    
-    def list_projects(self, account_id: int, **params) -> List[Dict[str, Any]]:
-        """List projects for an account."""
-        result = self._make_request("GET", f"/api/v2/accounts/{account_id}/projects/", params=params)
-        return result.get("data", [])
-    
-    def get_project(self, account_id: int, project_id: int) -> Dict[str, Any]:
-        """Get details for a specific project."""
-        result = self._make_request("GET", f"/api/v2/accounts/{account_id}/projects/{project_id}/")
-        return result.get("data", {})
-    
-    def list_environments(self, account_id: int, **params) -> List[Dict[str, Any]]:
-        """List environments for an account."""
-        result = self._make_request("GET", f"/api/v2/accounts/{account_id}/environments/", params=params)
-        return result.get("data", [])
-    
-    def get_environment(self, account_id: int, environment_id: int) -> Dict[str, Any]:
-        """Get details for a specific environment."""
-        result = self._make_request("GET", f"/api/v2/accounts/{account_id}/environments/{environment_id}/")
-        return result.get("data", {})
-    
     def list_jobs(self, account_id: int, **params) -> List[Dict[str, Any]]:
         """List jobs for an account."""
-        result = self._make_request("GET", f"/api/v2/accounts/{account_id}/jobs/", params=params)
+        result = self._make_request("GET", f"/api/v2/accounts/{account_id}/jobs/?include_related=['most_recent_run','most_recent_completed_run']", params=params)
         return result.get("data", [])
     
-    def get_job(self, account_id: int, job_id: int, include_related: Optional[str] = None) -> Dict[str, Any]:
+    def get_job(self, account_id: int, job_id: int) -> Dict[str, Any]:
         """Get details for a specific job."""
-        params = {}
-        if include_related:
-            params["include_related"] = include_related
-        result = self._make_request("GET", f"/api/v2/accounts/{account_id}/jobs/{job_id}/", params=params)
+        result = self._make_request("GET", f"/api/v2/accounts/{account_id}/jobs/{job_id}/?include_related=['most_recent_run','most_recent_completed_run']")
         return result.get("data", {})
     
     def trigger_job_run(self, account_id: int, job_id: int, cause: str, **kwargs) -> Dict[str, Any]:
@@ -99,13 +66,19 @@ class DbtAdminAPIClient:
         result = self._make_request("GET", f"/api/v2/accounts/{account_id}/runs/", params=params)
         return result.get("data", [])
     
-    def get_run(self, account_id: int, run_id: int, include_related: Optional[str] = None) -> Dict[str, Any]:
+    def get_run(self, account_id: int, run_id: int, debug: bool = False) -> Dict[str, Any]:
         """Get details for a specific run."""
-        params = {}
-        if include_related:
-            params["include_related"] = include_related
-        result = self._make_request("GET", f"/api/v2/accounts/{account_id}/runs/{run_id}/", params=params)
-        return result.get("data", {})
+        incl = "?include_related=['run_steps']"
+        if debug:
+            incl = "?include_related=['run_steps','debug_logs']"
+        result = self._make_request("GET", f"/api/v2/accounts/{account_id}/runs/{run_id}/{incl}")
+        data = result.get("data", {})
+
+        # we remove the truncated debug logs that can be very big
+        if not debug:
+            for step in data.get("run_steps", []):
+                step.pop("truncated_debug_logs", None)
+        return data
     
     def cancel_run(self, account_id: int, run_id: int) -> Dict[str, Any]:
         """Cancel a run."""
@@ -139,39 +112,6 @@ class DbtAdminAPIClient:
             return response.json()
         else:
             return response.text
-    
-    def get_run_step(self, account_id: int, step_id: int, include_related: Optional[str] = None) -> Dict[str, Any]:
-        """Get details for a specific run step."""
-        params = {}
-        if include_related:
-            params["include_related"] = include_related
-        result = self._make_request("GET", f"/api/v2/accounts/{account_id}/steps/{step_id}/", params=params)
-        return result.get("data", {})
-    
-    def list_users(self, account_id: int) -> List[Dict[str, Any]]:
-        """List users in an account."""
-        result = self._make_request("GET", f"/api/v2/accounts/{account_id}/users/")
-        return result.get("data", [])
-    
-    def get_user(self, user_id: int) -> Dict[str, Any]:
-        """Get details for a specific user."""
-        result = self._make_request("GET", f"/api/v2/users/{user_id}/")
-        return result.get("data", {})
-    
-    def list_notifications(self, account_id: int, **params) -> List[Dict[str, Any]]:
-        """List notification configurations."""
-        result = self._make_request("GET", f"/api/v2/accounts/{account_id}/notifications/", params=params)
-        return result.get("data", [])
-    
-    def create_notification(self, account_id: int, notification_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create a new notification configuration."""
-        result = self._make_request("POST", f"/api/v2/accounts/{account_id}/notifications/", json=notification_data)
-        return result.get("data", {})
-    
-    def list_licenses(self, account_id: int) -> List[Dict[str, Any]]:
-        """List license allocations for an account."""
-        result = self._make_request("GET", f"/api/v2/accounts/{account_id}/licenses/")
-        return result.get("data", [])
 
 
 def get_admin_api_client(config: RemoteConfig) -> DbtAdminAPIClient:

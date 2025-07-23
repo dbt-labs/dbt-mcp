@@ -6,7 +6,6 @@ This tool retrieves the list of artifact files generated during a run execution,
 
 ## Parameters
 
-- **account_id** (required): The dbt platform account ID
 - **run_id** (required): The run ID to list artifacts for
 
 ## Returns

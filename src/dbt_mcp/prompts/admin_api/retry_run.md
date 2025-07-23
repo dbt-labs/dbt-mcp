@@ -6,7 +6,6 @@ This tool allows you to restart a failed run, continuing from where it failed ra
 
 ## Parameters
 
-- **account_id** (required): The dbt platform account ID
 - **run_id** (required): The run ID to retry
 
 ## Returns
@@ -49,7 +48,7 @@ If retry fails, possible reasons include:
 
 ```python
 # Retry a failed run
-retry_run(account_id=123, run_id=789)
+retry_run(run_id=789)
 ```
 
 This creates a new run that continues from the failure point of run 789.

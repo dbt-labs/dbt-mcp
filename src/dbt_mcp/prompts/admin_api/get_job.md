@@ -6,10 +6,7 @@ This tool retrieves comprehensive job configuration including execution settings
 
 ## Parameters
 
-- **account_id** (required): The dbt platform account ID
 - **job_id** (required): The job ID to retrieve details for
-- **include_related** (optional): Comma-separated list of related objects to include
-  - Valid values: `environment`, `custom_environment_variables`, `most_recent_run`, `most_recent_completed_run`
 
 ## Returns
 
@@ -43,9 +40,6 @@ Job object with detailed configuration including:
 ## Example Usage
 
 ```python
-# Basic job details
-get_job(account_id=123, job_id=456)
-
-# Include recent run information
-get_job(account_id=123, job_id=456, include_related="most_recent_run,environment")
+# Get job details
+get_job(job_id=456)
 ```

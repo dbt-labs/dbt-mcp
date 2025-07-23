@@ -41,9 +41,9 @@ class DbtCliConfig(BaseModel):
 class RemoteConfig(BaseModel):
     multicell_account_prefix: str | None = None
     host: str
-    user_id: int
-    dev_environment_id: int
-    prod_environment_id: int
+    user_id: int | None = None
+    dev_environment_id: int | None = None
+    prod_environment_id: int | None = None
     token: str
     account_id: int | None = None
 
@@ -75,6 +75,7 @@ class DbtMcpSettings(BaseSettings):
     disable_semantic_layer: bool = Field(False, alias="DISABLE_SEMANTIC_LAYER")
     disable_discovery: bool = Field(False, alias="DISABLE_DISCOVERY")
     disable_remote: bool = Field(True, alias="DISABLE_REMOTE")
+    disable_admin_api: bool = Field(False, alias="DISABLE_ADMIN_API")
     disable_tools: Annotated[list[ToolName] | None, NoDecode] = Field(
         None, alias="DISABLE_TOOLS"
     )
@@ -118,6 +119,7 @@ class Config(BaseModel):
     dbt_cli_config: DbtCliConfig | None = None
     discovery_config: DiscoveryConfig | None = None
     semantic_layer_config: SemanticLayerConfig | None = None
+    disable_admin_api: bool
     disable_tools: list[ToolName]
 
 
@@ -136,18 +138,19 @@ def load_config() -> Config:
         not settings.disable_semantic_layer
         or not settings.disable_discovery
         or not settings.disable_remote
+        or not settings.disable_admin_api
     ):
         if not settings.actual_host:
             errors.append(
-                "DBT_HOST environment variable is required when semantic layer, discovery, or remote tools are enabled."
+                "DBT_HOST environment variable is required when semantic layer, discovery, remote, or admin API tools are enabled."
             )
         if not settings.actual_prod_environment_id:
             errors.append(
-                "DBT_PROD_ENV_ID environment variable is required when semantic layer, discovery, or remote tools are enabled."
+                "DBT_PROD_ENV_ID environment variable is required when semantic layer, discovery, remote, or admin API tools are enabled."
             )
         if not settings.dbt_token:
             errors.append(
-                "DBT_TOKEN environment variable is required when semantic layer, discovery, or remote tools are enabled."
+                "DBT_TOKEN environment variable is required when semantic layer, discovery, remote, or admin API tools are enabled."
             )
         if settings.actual_host and (
             settings.actual_host.startswith("metadata")
@@ -165,6 +168,9 @@ def load_config() -> Config:
             errors.append(
                 "DBT_USER_ID environment variable is required when remote tools are enabled."
             )
+    if not settings.disable_admin_api:
+        # Admin API tools need basic auth but don't require user_id for all operations
+        pass
     if not settings.disable_dbt_cli:
         if not settings.dbt_project_dir:
             errors.append(
@@ -180,14 +186,23 @@ def load_config() -> Config:
 
     # Build configurations
     remote_config = None
-    if (
+    # For admin API tools, we only need token, host, and optionally user_id
+    admin_api_requirements_met = (
+        not settings.disable_admin_api
+        and settings.dbt_token
+        and settings.actual_host
+    )
+    # For remote tools, we need all fields
+    remote_requirements_met = (
         not settings.disable_remote
         and settings.dbt_user_id
         and settings.dbt_token
         and settings.dbt_dev_env_id
         and settings.actual_prod_environment_id
         and settings.actual_host
-    ):
+    )
+    
+    if remote_requirements_met or admin_api_requirements_met:
         remote_config = RemoteConfig(
             multicell_account_prefix=settings.multicell_account_prefix,
             account_id=settings.dbt_account_id,
@@ -277,5 +292,6 @@ def load_config() -> Config:
         dbt_cli_config=dbt_cli_config,
         discovery_config=discovery_config,
         semantic_layer_config=semantic_layer_config,
+        disable_admin_api=settings.disable_admin_api,
         disable_tools=settings.disable_tools or [],
     )

@@ -58,10 +58,6 @@ The Admin API v2 provides access to dbt Cloud administrative functionality inclu
 
 Based on the dbt Cloud Admin API v2 OpenAPI specification:
 
-- `GET /api/v2/accounts/` - List accounts
-- `GET /api/v2/accounts/{account_id}/` - Get account details
-- `GET /api/v2/accounts/{account_id}/projects/` - List projects
-- `GET /api/v2/accounts/{account_id}/environments/` - List environments
 - `GET /api/v2/accounts/{account_id}/jobs/` - List jobs
 - `POST /api/v2/accounts/{account_id}/jobs/{job_id}/run/` - Trigger job run
 - `GET /api/v2/accounts/{account_id}/runs/` - List runs
@@ -70,7 +66,6 @@ Based on the dbt Cloud Admin API v2 OpenAPI specification:
 - `POST /api/v2/accounts/{account_id}/runs/{run_id}/retry/` - Retry run
 - `GET /api/v2/accounts/{account_id}/runs/{run_id}/artifacts/` - List artifacts
 - `GET /api/v2/accounts/{account_id}/runs/{run_id}/artifacts/{path}` - Get artifact
-- `GET /api/v2/accounts/{account_id}/users/` - List users
 
 ## Configuration
 

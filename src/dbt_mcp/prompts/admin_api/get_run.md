@@ -6,10 +6,8 @@ This tool retrieves comprehensive run information including execution details, s
 
 ## Parameters
 
-- **account_id** (required): The dbt platform account ID
 - **run_id** (required): The run ID to retrieve details for
-- **include_related** (optional): Comma-separated list of related objects to include
-  - Valid values: `trigger`, `job`, `environment`, `repository`, `run_steps`, `run_retries`, `used_repo_cache`, `repo_cache_restore`, `audit`, `debug_logs`
+- **debug** (optional): Set to True only if the person is explicitely asking for debug level logs. Otherwise, do not set if just the logs are asked.
 
 ## Returns
 
@@ -46,15 +44,16 @@ Run object with detailed execution information including:
 
 ```python
 # Basic run details
-get_run(account_id=123, run_id=789)
+get_run(run_id=789)
 
-# Include debug logs and steps
-get_run(
-    account_id=123, 
-    run_id=789, 
-    include_related="run_steps,debug_logs,job"
-)
+# Get run details with debug logs for troubleshooting
+get_run(run_id=789, debug=true)
+
 ```
+
+## Debug Logs
+
+When the `debug` parameter is set to true, the response will contain detailed debug logs that can help troubleshoot run failures.
 
 ## Response Information
 

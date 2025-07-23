@@ -118,7 +118,9 @@ async def create_dbt_mcp(config: Config):
         logger.info("Registering remote tools")
         await register_remote_tools(dbt_mcp, config.remote_config, config.disable_tools)
     
+    # Admin API tools can work independently from remote tools
+    if config.remote_config and not config.disable_admin_api:
         logger.info("Registering admin API tools")
-        register_admin_api_tools(dbt_mcp, config.remote_config)
+        register_admin_api_tools(dbt_mcp, config.remote_config, config.disable_tools)
 
     return dbt_mcp

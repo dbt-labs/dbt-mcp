@@ -6,7 +6,6 @@ This tool allows you to stop a run that is currently executing or waiting in the
 
 ## Parameters
 
-- **account_id** (required): The dbt platform account ID
 - **run_id** (required): The run ID to cancel
 
 ## Returns
