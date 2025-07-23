@@ -6,6 +6,8 @@ import yaml
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from dbt_mcp.tools.tool_names import ToolName
+
 
 class TrackingConfig(BaseModel):
     host: str | None = None
@@ -73,8 +75,8 @@ class DbtMcpSettings(BaseSettings):
     disable_semantic_layer: bool = Field(False, alias="DISABLE_SEMANTIC_LAYER")
     disable_discovery: bool = Field(False, alias="DISABLE_DISCOVERY")
     disable_remote: bool = Field(True, alias="DISABLE_REMOTE")
-    disable_tools: Annotated[list[str], NoDecode] = Field(
-        default_factory=list, alias="DISABLE_TOOLS"
+    disable_tools: Annotated[list[ToolName] | None, NoDecode] = Field(
+        None, alias="DISABLE_TOOLS"
     )
 
     multicell_account_prefix: str | None = Field(None, alias="MULTICELL_ACCOUNT_PREFIX")
@@ -89,8 +91,25 @@ class DbtMcpSettings(BaseSettings):
 
     @field_validator("disable_tools", mode="before")
     @classmethod
-    def parse_disable_tools(cls, value: str) -> list[str]:
-        return [tool.strip() for tool in value.split(",") if tool.strip()]
+    def parse_disable_tools(cls, env_var: str | None) -> list[ToolName]:
+        if not env_var:
+            return []
+        errors: list[str] = []
+        tool_names: list[ToolName] = []
+        for tool_name in env_var.split(","):
+            tool_name_stripped = tool_name.strip()
+            if tool_name_stripped == "":
+                continue
+            try:
+                tool_names.append(ToolName(tool_name_stripped))
+            except ValueError:
+                errors.append(
+                    f"Invalid tool name in DISABLE_TOOLS: {tool_name_stripped}."
+                    + " Must be a valid tool name."
+                )
+        if errors:
+            raise ValueError("\n".join(errors))
+        return tool_names
 
 
 class Config(BaseModel):
@@ -99,7 +118,7 @@ class Config(BaseModel):
     dbt_cli_config: DbtCliConfig | None = None
     discovery_config: DiscoveryConfig | None = None
     semantic_layer_config: SemanticLayerConfig | None = None
-    disable_tools: list[str]
+    disable_tools: list[ToolName]
 
 
 def load_config() -> Config:
@@ -258,5 +277,5 @@ def load_config() -> Config:
         dbt_cli_config=dbt_cli_config,
         discovery_config=discovery_config,
         semantic_layer_config=semantic_layer_config,
-        disable_tools=settings.disable_tools,
+        disable_tools=settings.disable_tools or [],
     )

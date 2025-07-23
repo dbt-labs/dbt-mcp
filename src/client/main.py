@@ -19,7 +19,7 @@ messages = []
 
 
 async def main():
-    dbt_mcp = await create_dbt_mcp()
+    dbt_mcp = await create_dbt_mcp(config)
     user_role = "user"
     available_tools = await get_tools(dbt_mcp)
     tools_str = "\n".join(
