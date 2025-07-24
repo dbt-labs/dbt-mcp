@@ -9,7 +9,6 @@ from agents.mcp.server import MCPServerStreamableHttp
 
 
 async def main():
-
     prod_environment_id = os.environ.get("DBT_PROD_ENV_ID", os.getenv("DBT_ENV_ID"))
     token = os.environ.get("DBT_TOKEN")
     host = os.environ.get("DBT_HOST", "cloud.getdbt.com")
