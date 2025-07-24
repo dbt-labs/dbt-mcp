@@ -75,6 +75,26 @@ Add this configuration to the respective client's config file. Be sure to replac
 
 `<path-to-.env-file>` is where you saved the `.env` file from the Setup step
 
+## Claude Code
+
+Run the following command to add the MCP server to Claude Code:
+
+```bash
+claude mcp add dbt -- uvx --env-file <path-to-.env-file> dbt-mcp
+```
+
+By default the MCP server is installed in the "local" scope, meaning that it will be active for Claude Code sessions in the current directory for the user who installed it.
+
+It is also possible to install the MCP server:
+- in the "user" scope, to have it installed for all Claude Code sessions, independently of the directory used
+- in the "project" scope, to create a config file that can be version controlled so that all developers of the same project can have the MCP server already installed
+
+To install it in the project scope, run the following and and commit the `.mcp.json` file. Be sure to use an env var file path that is the same for all users.
+```bash
+claude mcp add dbt -s project -- uvx --env-file <path-to-.env-file> dbt-mcp
+```
+
+More info on scopes [here](https://docs.anthropic.com/en/docs/claude-code/mcp#understanding-mcp-server-scopes)
 
 ## Claude Desktop
 
