@@ -2,7 +2,6 @@
 
 import asyncio
 import os
-from pathlib import Path
 
 from agents import Agent, Runner, trace
 from agents.mcp import create_static_tool_filter
@@ -15,7 +14,6 @@ async def main():
     token = os.environ.get("DBT_TOKEN")
     host = os.environ.get("DBT_HOST", "cloud.getdbt.com")
 
-    dbt_mcp_dir = Path(__file__).parent.parent.parent
     async with MCPServerStreamableHttp(
         name="dbt",
         params={
