@@ -1,5 +1,5 @@
 import os
-from unittest.mock import patch, mock_open
+from unittest.mock import mock_open, patch
 
 import pytest
 import yaml
@@ -151,13 +151,15 @@ class TestLoadConfig:
 
     def _load_config_with_env(self, env_vars):
         """Helper method to load config with test environment variables, avoiding .env file interference"""
-        with patch.dict(os.environ, env_vars):
-            with patch("dbt_mcp.config.config.DbtMcpSettings") as mock_settings_class:
-                # Create a real instance with test values, but without .env file loading
-                with patch.dict(os.environ, env_vars, clear=True):
-                    settings_instance = DbtMcpSettings(_env_file=None)
-                mock_settings_class.return_value = settings_instance
-                return load_config()
+        with (
+            patch.dict(os.environ, env_vars),
+            patch("dbt_mcp.config.config.DbtMcpSettings") as mock_settings_class,
+        ):
+            # Create a real instance with test values, but without .env file loading
+            with patch.dict(os.environ, env_vars, clear=True):
+                settings_instance = DbtMcpSettings(_env_file=None)
+            mock_settings_class.return_value = settings_instance
+            return load_config()
 
     def test_valid_config_all_services_enabled(self):
         env_vars = {

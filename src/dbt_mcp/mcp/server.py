@@ -110,8 +110,7 @@ async def create_dbt_mcp(config: Config):
 
     if config.dbt_cli_config:
         logger.info("Registering dbt cli tools")
-        # TODO: allow for disabling CLI tools
-        register_dbt_cli_tools(dbt_mcp, config.dbt_cli_config, [])
+        register_dbt_cli_tools(dbt_mcp, config.dbt_cli_config, config.disable_tools)
 
     if config.remote_config:
         logger.info("Registering remote tools")

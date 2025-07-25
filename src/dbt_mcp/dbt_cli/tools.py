@@ -7,17 +7,15 @@ from pydantic import Field
 
 from dbt_mcp.config.config import DbtCliConfig
 from dbt_mcp.prompts.prompts import get_prompt
+from dbt_mcp.tools.definitions import ToolDefinition
+from dbt_mcp.tools.register import register_tools
+from dbt_mcp.tools.tool_names import ToolName
 
 
-def register_dbt_cli_tools(
-    dbt_mcp: FastMCP,
-    config: DbtCliConfig,
-    exclude_tools: Sequence[str] = [],
-) -> None:
+def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition]:
     def _run_dbt_command(
         command: list[str],
         selector: str | None = None,
-        timeout: int | None = None,
         resource_type: list[str] | None = None,
         is_selectable: bool = False,
     ) -> str:
@@ -59,7 +57,7 @@ def register_dbt_cli_tools(
                 stderr=subprocess.STDOUT,
                 text=True,
             )
-            output, _ = process.communicate(timeout=timeout)
+            output, _ = process.communicate(timeout=config.dbt_cli_timeout)
             return output or "OK"
         except subprocess.TimeoutExpired:
             return "Timeout: dbt command took too long to complete." + (
@@ -70,7 +68,6 @@ def register_dbt_cli_tools(
         except Exception as e:
             return str(e)
 
-    @dbt_mcp.tool(description=get_prompt("dbt_cli/build"))
     def build(
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
@@ -78,15 +75,12 @@ def register_dbt_cli_tools(
     ) -> str:
         return _run_dbt_command(["build"], selector, is_selectable=True)
 
-    @dbt_mcp.tool(description=get_prompt("dbt_cli/compile"))
     def compile() -> str:
         return _run_dbt_command(["compile"])
 
-    @dbt_mcp.tool(description=get_prompt("dbt_cli/docs"))
     def docs() -> str:
         return _run_dbt_command(["docs", "generate"])
 
-    @dbt_mcp.tool(name="list", description=get_prompt("dbt_cli/list"))
     def ls(
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
@@ -99,16 +93,13 @@ def register_dbt_cli_tools(
         return _run_dbt_command(
             ["list"],
             selector,
-            timeout=config.dbt_cli_timeout,
             resource_type=resource_type,
             is_selectable=True,
         )
 
-    @dbt_mcp.tool(description=get_prompt("dbt_cli/parse"))
     def parse() -> str:
         return _run_dbt_command(["parse"])
 
-    @dbt_mcp.tool(description=get_prompt("dbt_cli/run"))
     def run(
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
@@ -116,7 +107,6 @@ def register_dbt_cli_tools(
     ) -> str:
         return _run_dbt_command(["run"], selector, is_selectable=True)
 
-    @dbt_mcp.tool(description=get_prompt("dbt_cli/test"))
     def test(
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
@@ -124,7 +114,6 @@ def register_dbt_cli_tools(
     ) -> str:
         return _run_dbt_command(["test"], selector, is_selectable=True)
 
-    @dbt_mcp.tool(description=get_prompt("dbt_cli/show"))
     def show(
         sql_query: str = Field(description=get_prompt("dbt_cli/args/sql_query")),
         limit: int | None = Field(
@@ -148,3 +137,51 @@ def register_dbt_cli_tools(
             args.extend(["--limit", str(cli_limit)])
         args.extend(["--output", "json"])
         return _run_dbt_command(args)
+
+    return [
+        ToolDefinition(
+            fn=build,
+            description=get_prompt("dbt_cli/build"),
+        ),
+        ToolDefinition(
+            fn=compile,
+            description=get_prompt("dbt_cli/compile"),
+        ),
+        ToolDefinition(
+            fn=docs,
+            description=get_prompt("dbt_cli/docs"),
+        ),
+        ToolDefinition(
+            name="list",
+            fn=ls,
+            description=get_prompt("dbt_cli/list"),
+        ),
+        ToolDefinition(
+            fn=parse,
+            description=get_prompt("dbt_cli/parse"),
+        ),
+        ToolDefinition(
+            fn=run,
+            description=get_prompt("dbt_cli/run"),
+        ),
+        ToolDefinition(
+            fn=test,
+            description=get_prompt("dbt_cli/test"),
+        ),
+        ToolDefinition(
+            fn=show,
+            description=get_prompt("dbt_cli/show"),
+        ),
+    ]
+
+
+def register_dbt_cli_tools(
+    dbt_mcp: FastMCP,
+    config: DbtCliConfig,
+    exclude_tools: Sequence[ToolName] = [],
+) -> None:
+    register_tools(
+        dbt_mcp,
+        create_dbt_cli_tool_definitions(config),
+        exclude_tools,
+    )
