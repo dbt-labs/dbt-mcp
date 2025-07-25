@@ -23,12 +23,18 @@ parameter, only use the format `yyyy-mm-dd`.
 Don't call this tool if the user's question cannot be answered with the provided
 metrics, dimensions, and entities. Instead, clarify what metrics, dimensions,
 and entities are available and suggest a new question that can be answered
-and is approximately the same as the user's question.
+and is approximately the same as the user's question. Attempt to use available 
+synonyms returned from list_metrics() to address the question.
 
 For queries that may return large amounts of data, it's recommended
 to use a two-step approach:
 1. First make a query with a small limit to verify the results are what you expect
 2. Then make a follow-up query without a limit (or with a larger limit) to get the full dataset
+
+ASSESSING METRIC HEALTH:
+When responding to user requests to pull metrics data, check the health of the dbt models that
+are the parents of the dbt semantic models. Use the instructions from the "ASSESSING MODEL HEALTH"
+section of the get_model_details() prompts to do this.
 </instructions>
 
 <examples>
