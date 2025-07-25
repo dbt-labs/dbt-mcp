@@ -16,7 +16,6 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
     def _run_dbt_command(
         command: list[str],
         selector: str | None = None,
-        timeout: int | None = None,
         resource_type: list[str] | None = None,
         is_selectable: bool = False,
     ) -> str:
@@ -58,7 +57,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
                 stderr=subprocess.STDOUT,
                 text=True,
             )
-            output, _ = process.communicate(timeout=timeout)
+            output, _ = process.communicate(timeout=config.dbt_cli_timeout)
             return output or "OK"
         except subprocess.TimeoutExpired:
             return "Timeout: dbt command took too long to complete." + (
@@ -94,7 +93,6 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         return _run_dbt_command(
             ["list"],
             selector,
-            timeout=config.dbt_cli_timeout,
             resource_type=resource_type,
             is_selectable=True,
         )
