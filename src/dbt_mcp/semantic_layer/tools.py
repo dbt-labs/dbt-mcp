@@ -20,6 +20,7 @@ from dbt_mcp.semantic_layer.types import (
 )
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
+from dbt_mcp.tools.annotations import create_tool_annotations
 
 logger = logging.getLogger(__name__)
 
@@ -76,18 +77,22 @@ def create_sl_tool_definitions(
         ToolDefinition(
             description=get_prompt("semantic_layer/list_metrics"),
             fn=list_metrics,
+            annotations=create_tool_annotations(title="List Metrics"),
         ),
         ToolDefinition(
             description=get_prompt("semantic_layer/get_dimensions"),
             fn=get_dimensions,
+            annotations=create_tool_annotations(title="Get Dimensions"),
         ),
         ToolDefinition(
             description=get_prompt("semantic_layer/get_entities"),
             fn=get_entities,
+            annotations=create_tool_annotations(title="Get Entities"),
         ),
         ToolDefinition(
             description=get_prompt("semantic_layer/query_metrics"),
             fn=query_metrics,
+            annotations=create_tool_annotations(title="Query Metrics"),
         ),
     ]
 
