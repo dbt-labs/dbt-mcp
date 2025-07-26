@@ -8,7 +8,11 @@ from dbt_mcp.discovery.client import MetadataAPIClient, ModelsFetcher
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
+<<<<<<< Updated upstream
 from dbt_mcp.tools.tool_names import ToolName
+=======
+from dbt_mcp.tools.annotations import create_tool_annotations
+>>>>>>> Stashed changes
 
 logger = logging.getLogger(__name__)
 
@@ -63,22 +67,27 @@ def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefin
         ToolDefinition(
             description=get_prompt("discovery/get_mart_models"),
             fn=get_mart_models,
+            annotations=create_tool_annotations(title="Get Mart Models"),
         ),
         ToolDefinition(
             description=get_prompt("discovery/get_all_models"),
             fn=get_all_models,
+            annotations=create_tool_annotations(title="Get All Models"),
         ),
         ToolDefinition(
             description=get_prompt("discovery/get_model_details"),
             fn=get_model_details,
+            annotations=create_tool_annotations(title="Get Model Details"),
         ),
         ToolDefinition(
             description=get_prompt("discovery/get_model_parents"),
             fn=get_model_parents,
+            annotations=create_tool_annotations(title="Get Model Parents"),
         ),
         ToolDefinition(
             description=get_prompt("discovery/get_model_children"),
             fn=get_model_children,
+            annotations=create_tool_annotations(title="Get Model Children"),
         ),
     ]
 
