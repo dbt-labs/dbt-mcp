@@ -7,7 +7,7 @@ from tests.mocks.config import mock_config
 
 def test_initialization():
     with patch("dbt_mcp.config.config.load_config", return_value=mock_config):
-        result = asyncio.run(create_dbt_mcp())
+        result = asyncio.run(create_dbt_mcp(mock_config))
 
     assert result is not None
     assert hasattr(result, "usage_tracker")
