@@ -8,11 +8,8 @@ from dbt_mcp.discovery.client import MetadataAPIClient, ModelsFetcher
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
-<<<<<<< Updated upstream
 from dbt_mcp.tools.tool_names import ToolName
-=======
 from dbt_mcp.tools.annotations import create_tool_annotations
->>>>>>> Stashed changes
 
 logger = logging.getLogger(__name__)
 

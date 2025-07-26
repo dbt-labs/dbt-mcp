@@ -20,11 +20,8 @@ from dbt_mcp.semantic_layer.types import (
 )
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
-<<<<<<< Updated upstream
 from dbt_mcp.tools.tool_names import ToolName
-=======
 from dbt_mcp.tools.annotations import create_tool_annotations
->>>>>>> Stashed changes
 
 logger = logging.getLogger(__name__)
 

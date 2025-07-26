@@ -7,13 +7,10 @@ from pydantic import Field
 
 from dbt_mcp.config.config import DbtCliConfig
 from dbt_mcp.prompts.prompts import get_prompt
-<<<<<<< Updated upstream
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
-=======
 from dbt_mcp.tools.annotations import create_tool_annotations
->>>>>>> Stashed changes
 
 
 def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition]:
@@ -72,15 +69,6 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         except Exception as e:
             return str(e)
 
-<<<<<<< Updated upstream
-=======
-    @dbt_mcp.tool(
-        description=get_prompt("dbt_cli/build"),
-        annotations=create_tool_annotations(
-            title="dbt build", destructive_hint=True, idempotent_hint=False
-        ),
-    )
->>>>>>> Stashed changes
     def build(
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
@@ -88,34 +76,12 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
     ) -> str:
         return _run_dbt_command(["build"], selector, is_selectable=True)
 
-<<<<<<< Updated upstream
     def compile() -> str:
         return _run_dbt_command(["compile"])
 
     def docs() -> str:
         return _run_dbt_command(["docs", "generate"])
 
-=======
-    @dbt_mcp.tool(
-        description=get_prompt("dbt_cli/compile"),
-        annotations=create_tool_annotations(title="dbt compile"),
-    )
-    def compile() -> str:
-        return _run_dbt_command(["compile"])
-
-    @dbt_mcp.tool(
-        description=get_prompt("dbt_cli/docs"),
-        annotations=create_tool_annotations(title="dbt docs"),
-    )
-    def docs() -> str:
-        return _run_dbt_command(["docs", "generate"])
-
-    @dbt_mcp.tool(
-        name="list",
-        description=get_prompt("dbt_cli/list"),
-        annotations=create_tool_annotations(title="dbt list"),
-    )
->>>>>>> Stashed changes
     def ls(
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
@@ -132,25 +98,9 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             is_selectable=True,
         )
 
-<<<<<<< Updated upstream
     def parse() -> str:
         return _run_dbt_command(["parse"])
 
-=======
-    @dbt_mcp.tool(
-        description=get_prompt("dbt_cli/parse"),
-        annotations=create_tool_annotations(title="dbt parse"),
-    )
-    def parse() -> str:
-        return _run_dbt_command(["parse"])
-
-    @dbt_mcp.tool(
-        description=get_prompt("dbt_cli/run"),
-        annotations=create_tool_annotations(
-            title="dbt run", destructive_hint=True, idempotent_hint=False
-        ),
-    )
->>>>>>> Stashed changes
     def run(
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
@@ -158,15 +108,6 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
     ) -> str:
         return _run_dbt_command(["run"], selector, is_selectable=True)
 
-<<<<<<< Updated upstream
-=======
-    @dbt_mcp.tool(
-        description=get_prompt("dbt_cli/test"),
-        annotations=create_tool_annotations(
-            title="dbt test", destructive_hint=True, idempotent_hint=False
-        ),
-    )
->>>>>>> Stashed changes
     def test(
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
@@ -174,13 +115,6 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
     ) -> str:
         return _run_dbt_command(["test"], selector, is_selectable=True)
 
-<<<<<<< Updated upstream
-=======
-    @dbt_mcp.tool(
-        description=get_prompt("dbt_cli/show"),
-        annotations=create_tool_annotations(title="dbt show"),
-    )
->>>>>>> Stashed changes
     def show(
         sql_query: str = Field(description=get_prompt("dbt_cli/args/sql_query")),
         limit: int | None = Field(
@@ -209,35 +143,49 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ToolDefinition(
             fn=build,
             description=get_prompt("dbt_cli/build"),
+            annotations=create_tool_annotations(
+                title="dbt build", destructive_hint=True, idempotent_hint=False
+            ),
         ),
         ToolDefinition(
             fn=compile,
             description=get_prompt("dbt_cli/compile"),
+            annotations=create_tool_annotations(title="dbt compile"),
         ),
         ToolDefinition(
             fn=docs,
             description=get_prompt("dbt_cli/docs"),
+            annotations=create_tool_annotations(title="dbt docs"),
         ),
         ToolDefinition(
             name="list",
             fn=ls,
             description=get_prompt("dbt_cli/list"),
+            annotations=create_tool_annotations(title="dbt list"),
         ),
         ToolDefinition(
             fn=parse,
             description=get_prompt("dbt_cli/parse"),
+            annotations=create_tool_annotations(title="dbt parse"),
         ),
         ToolDefinition(
             fn=run,
             description=get_prompt("dbt_cli/run"),
+            annotations=create_tool_annotations(
+                title="dbt run", destructive_hint=True, idempotent_hint=False
+            ),
         ),
         ToolDefinition(
             fn=test,
             description=get_prompt("dbt_cli/test"),
+            annotations=create_tool_annotations(
+                title="dbt test", destructive_hint=True, idempotent_hint=False
+            ),
         ),
         ToolDefinition(
             fn=show,
             description=get_prompt("dbt_cli/show"),
+            annotations=create_tool_annotations(title="dbt show"),
         ),
     ]
 
