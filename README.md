@@ -43,14 +43,14 @@ This MCP (Model Context Protocol) server provides tools to interact with dbt. Re
 
 ## Setup
 
+There are two ways to setup dbt MCP, [local](#local) and [remote](#remote). Local setup is best for dbt projects that you are developing in a local IDE. Remote setup is better for building custom applications.
+
+### Local
+
 1. [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
-2. Copy the [`.env.example` file](https://github.com/dbt-labs/dbt-mcp/blob/main/.env.example) locally under a file called `.env` and set it with your specific environment variables (see the `Configuration` section of the `README.md`)
+2. Copy the [`.env.example` file](https://github.com/dbt-labs/dbt-mcp/blob/main/.env.example) locally under a file called `.env` and set it with the following environment variable configuration:
 
-## Configuration
-
-The MCP server takes the following environment variable configuration:
-
-### Tools
+#### Tools
 | Name                     | Default | Description                                                                     |
 | ------------------------ | ------- | ------------------------------------------------------------------------------- |
 | `DISABLE_DBT_CLI`        | `false` | Set this to `true` to disable dbt Core, dbt Cloud CLI, and dbt Fusion MCP tools |
@@ -60,7 +60,7 @@ The MCP server takes the following environment variable configuration:
 | `DISABLE_TOOLS`          | ""      | Set this to a list of tool names delimited by a `,` to disable certain tools    |
 
 
-### Configuration for Discovery, Semantic Layer, and SQL Tools
+#### Configuration for Discovery, Semantic Layer, and SQL Tools
 | Name                       | Default            | Description                                                                                                                                                                                                                                  |
 | -------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `DBT_HOST`                 | `cloud.getdbt.com` | Your dbt Cloud instance hostname. This will look like an `Access URL` found [here](https://docs.getdbt.com/docs/cloud/about-cloud/access-regions-ip-addresses). If you are using Multi-cell, do not include the `ACCOUNT_PREFIX` here        |
@@ -68,14 +68,14 @@ The MCP server takes the following environment variable configuration:
 | `DBT_TOKEN`                | -                  | Your personal access token or service token. Note: a service token is required when using the Semantic Layer and this service token should have at least `Semantic Layer Only`, `Metadata Only`, and `Developer` permissions.                |
 | `DBT_PROD_ENV_ID`          | -                  | Your dbt Cloud production environment ID                                                                                                                                                                                                     |
 
-### Configuration for SQL Tools
+#### Configuration for SQL Tools
 | Name             | Description                               |
 | ---------------- | ----------------------------------------- |
 | `DBT_DEV_ENV_ID` | Your dbt Cloud development environment ID |
 | `DBT_USER_ID`    | Your dbt Cloud user ID                    |
 |                  |                                           |
 
-### Configuration for dbt CLI
+#### Configuration for dbt CLI
 | Name              | Description                                                                                                                                 |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `DBT_PROJECT_DIR` | The path to where the repository of your dbt Project is hosted locally. This should look something like `/Users/firstnamelastname/reponame` |
@@ -87,7 +87,7 @@ It is also possible to set any environment variable supported by your dbt execut
 We automatically set `DBT_WARN_ERROR_OPTIONS='{"error": ["NoNodesForSelectionCriteria"]}'` so that the MCP server knows if no node is selected when running a dbt command.
 You can overwrite it if needed but we believe that it provides a better experience when calling dbt from the MCP server, making sure that the tool is selecting valid nodes.
 
-## Using with MCP Clients
+#### Using with MCP Clients
 
 After going through the [Setup](#setup), you can use dbt-mcp with an MCP client.
 
@@ -110,7 +110,7 @@ Add this configuration to the respective client's config file. Be sure to replac
 
 `<path-to-.env-file>` is where you saved the `.env` file from the Setup step
 
-## Claude Code
+#### Claude Code
 
 Run the following command to add the MCP server to Claude Code:
 
@@ -131,13 +131,13 @@ claude mcp add dbt -s project -- uvx --env-file <path-to-.env-file> dbt-mcp
 
 More info on scopes [here](https://docs.anthropic.com/en/docs/claude-code/mcp#understanding-mcp-server-scopes)
 
-## Claude Desktop
+#### Claude Desktop
 
 Follow [these](https://modelcontextprotocol.io/quickstart/user) instructions to create the `claude_desktop_config.json` file and connect.
 
 For debugging, you can find the Claude Desktop logs at `~/Library/Logs/Claude` for Mac or `%APPDATA%\Claude\logs` for Windows.
 
-## Cursor
+#### Cursor
 
 Note the configuration options [here](#configuration) and input your selections with this link:
 
@@ -145,7 +145,7 @@ Note the configuration options [here](#configuration) and input your selections 
 
 Cursor MCP docs [here](https://docs.cursor.com/context/model-context-protocol) for reference
 
-## VS Code
+#### VS Code
 
 1. Open the Settings menu (Command + Comma) and select the correct tab atop the page for your use case
     - `Workspace` - configures the server in the context of your workspace
@@ -185,6 +185,32 @@ Cursor MCP docs [here](https://docs.cursor.com/context/model-context-protocol) f
 ![inline-management](https://github.com/user-attachments/assets/d33d4083-5243-4b36-adab-72f12738c263)
 
 VS Code MCP docs [here](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) for reference
+
+### Remote
+
+The remote setup doesn't require running dbt MCP locally. Instead, an HTTP connection is made to dbt MCP running within dbt Cloud. Right now, only Semantic Layer & Discovery tools are supported. To get started, get the having the following information:
+
+- dbt Cloud host: Use this to form the full URL. For example, replace `<host>` here: `https://<host>/api/ai/v1/mcp/`. It may look like: `https://cloud.getdbt.com/api/ai/v1/mcp/`.
+- Production environment ID: This can be found on the `Orchestration` page of dbt Cloud. Use this to set a `x-dbt-prod-environment-id` header.
+- Service token: To fully utilize Remote MCP, this needs to be configured for the dbt Semantic Layer by following [this](https://docs.getdbt.com/docs/use-dbt-semantic-layer/setup-sl#2-add-a-credential-and-create-service-tokens) guide and have `Developer` permissions. Add this as a `Authorization` header with a value like: `token <token>`. Be sure to replace `<token>` with the value of your token.
+
+Then you can use these values to connect to the remote server with Streamable HTTP MCP transport. Use the example [here](https://github.com/dbt-labs/dbt-mcp/blob/76992ac51a905e9e0d2194774e7246ee288094b9/examples/remote_mcp/main.py) as a reference in Python. A similar implementation is possible with SDKs for many other languages.
+
+You can also connect from MCP clients which support remote MCP with headers. For instance, you can connect Cursor to the remote server with the following configuration. Be sure to replace `<host>`, `<token>`, `<prod-id>` with your information:
+
+```
+{
+  "mcpServers": {
+    "dbt": {
+      "url": "https://<host>/api/ai/v1/mcp/",
+      "headers": {
+        "Authorization": "token <token>",
+        "x-dbt-prod-environment-id": "<prod-id>",
+      }
+    }
+  }
+}
+```
 
 ## Troubleshooting
 
