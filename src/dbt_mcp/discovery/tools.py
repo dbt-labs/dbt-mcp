@@ -64,22 +64,42 @@ def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefin
         ToolDefinition(
             description=get_prompt("discovery/get_mart_models"),
             fn=get_mart_models,
-            annotations=create_tool_annotations(title="Get Mart Models"),
+            annotations=create_tool_annotations(
+                title="Get Mart Models",
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+            ),
         ),
         ToolDefinition(
             description=get_prompt("discovery/get_all_models"),
             fn=get_all_models,
-            annotations=create_tool_annotations(title="Get All Models"),
+            annotations=create_tool_annotations(
+                title="Get All Models",
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+            ),
         ),
         ToolDefinition(
             description=get_prompt("discovery/get_model_details"),
             fn=get_model_details,
-            annotations=create_tool_annotations(title="Get Model Details"),
+            annotations=create_tool_annotations(
+                title="Get Model Details",
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+            ),
         ),
         ToolDefinition(
             description=get_prompt("discovery/get_model_parents"),
             fn=get_model_parents,
-            annotations=create_tool_annotations(title="Get Model Parents"),
+            annotations=create_tool_annotations(
+                title="Get Model Parents",
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+            ),
         ),
         ToolDefinition(
             description=get_prompt("discovery/get_model_children"),

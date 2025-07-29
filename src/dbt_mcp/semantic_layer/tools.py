@@ -78,22 +78,42 @@ def create_sl_tool_definitions(
         ToolDefinition(
             description=get_prompt("semantic_layer/list_metrics"),
             fn=list_metrics,
-            annotations=create_tool_annotations(title="List Metrics"),
+            annotations=create_tool_annotations(
+                title="List Metrics",
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+            ),
         ),
         ToolDefinition(
             description=get_prompt("semantic_layer/get_dimensions"),
             fn=get_dimensions,
-            annotations=create_tool_annotations(title="Get Dimensions"),
+            annotations=create_tool_annotations(
+                title="Get Dimensions",
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+            ),
         ),
         ToolDefinition(
             description=get_prompt("semantic_layer/get_entities"),
             fn=get_entities,
-            annotations=create_tool_annotations(title="Get Entities"),
+            annotations=create_tool_annotations(
+                title="Get Entities",
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+            ),
         ),
         ToolDefinition(
             description=get_prompt("semantic_layer/query_metrics"),
             fn=query_metrics,
-            annotations=create_tool_annotations(title="Query Metrics"),
+            annotations=create_tool_annotations(
+                title="Query Metrics",
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+            ),
         ),
     ]
 
