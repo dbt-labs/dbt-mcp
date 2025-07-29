@@ -49,7 +49,8 @@ class TestDbtMcpSettings:
             assert settings.disable_dbt_cli is False
             assert settings.disable_semantic_layer is False
             assert settings.disable_discovery is False
-            assert settings.disable_remote is True
+            assert settings.disable_remote is None
+            assert settings.disable_sql is None
             assert settings.disable_tools == []
 
     def test_env_var_parsing(self):
@@ -178,8 +179,8 @@ class TestLoadConfig:
 
         assert config.tracking_config.host == "test.dbt.com"
         assert config.tracking_config.prod_environment_id == 123
-        assert config.remote_config is not None
-        assert config.remote_config.host == "test.dbt.com"
+        assert config.sql_config is not None
+        assert config.sql_config.host == "test.dbt.com"
         assert config.dbt_cli_config is not None
         assert config.discovery_config is not None
         assert config.semantic_layer_config is not None
@@ -194,7 +195,7 @@ class TestLoadConfig:
 
         config = self._load_config_with_env(env_vars)
 
-        assert config.remote_config is None
+        assert config.sql_config is None
         assert config.dbt_cli_config is None
         assert config.discovery_config is None
         assert config.semantic_layer_config is None
@@ -449,7 +450,7 @@ class TestLoadConfig:
 
         config = self._load_config_with_env(env_vars)
         # Remote config should not be created when remote tools are disabled
-        assert config.remote_config is None
+        assert config.sql_config is None
 
         # Test remote requirements (needs user_id and dev_env_id too)
         env_vars.update(
@@ -461,9 +462,9 @@ class TestLoadConfig:
         )
 
         config = self._load_config_with_env(env_vars)
-        assert config.remote_config is not None
-        assert config.remote_config.user_id == 789
-        assert config.remote_config.dev_environment_id == 456
+        assert config.sql_config is not None
+        assert config.sql_config.user_id == 789
+        assert config.sql_config.dev_environment_id == 456
 
     def test_disable_flags_combinations(self):
         base_env = {

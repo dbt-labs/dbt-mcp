@@ -32,7 +32,7 @@ class ToolName(Enum):
     GET_MODEL_PARENTS = "get_model_parents"
     GET_MODEL_CHILDREN = "get_model_children"
 
-    # Remote tools
+    # SQL tools
     TEXT_TO_SQL = "text_to_sql"
     EXECUTE_SQL = "execute_sql"
 

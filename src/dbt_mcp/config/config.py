@@ -38,7 +38,7 @@ class DbtCliConfig(BaseModel):
     dbt_cli_timeout: int
 
 
-class RemoteConfig(BaseModel):
+class SqlConfig(BaseModel):
     multicell_account_prefix: str | None = None
     host: str
     user_id: int
@@ -72,7 +72,8 @@ class DbtMcpSettings(BaseSettings):
     disable_dbt_cli: bool = Field(False, alias="DISABLE_DBT_CLI")
     disable_semantic_layer: bool = Field(False, alias="DISABLE_SEMANTIC_LAYER")
     disable_discovery: bool = Field(False, alias="DISABLE_DISCOVERY")
-    disable_remote: bool = Field(True, alias="DISABLE_REMOTE")
+    disable_remote: bool | None = Field(None, alias="DISABLE_REMOTE")
+    disable_sql: bool | None = Field(None, alias="DISABLE_SQL")
     disable_tools: Annotated[list[ToolName] | None, NoDecode] = Field(
         None, alias="DISABLE_TOOLS"
     )
@@ -86,6 +87,14 @@ class DbtMcpSettings(BaseSettings):
     @property
     def actual_prod_environment_id(self) -> int | None:
         return self.dbt_prod_env_id or self.dbt_env_id
+
+    @property
+    def actual_disable_sql(self) -> bool:
+        if self.disable_sql is not None:
+            return self.disable_sql
+        if self.disable_remote is not None:
+            return self.disable_remote
+        return True
 
     @field_validator("disable_tools", mode="before")
     @classmethod
@@ -112,7 +121,7 @@ class DbtMcpSettings(BaseSettings):
 
 class Config(BaseModel):
     tracking_config: TrackingConfig
-    remote_config: RemoteConfig | None = None
+    sql_config: SqlConfig | None = None
     dbt_cli_config: DbtCliConfig | None = None
     discovery_config: DiscoveryConfig | None = None
     semantic_layer_config: SemanticLayerConfig | None = None
@@ -133,19 +142,19 @@ def load_config() -> Config:
     if (
         not settings.disable_semantic_layer
         or not settings.disable_discovery
-        or not settings.disable_remote
+        or not settings.actual_disable_sql
     ):
         if not settings.actual_host:
             errors.append(
-                "DBT_HOST environment variable is required when semantic layer, discovery, or remote tools are enabled."
+                "DBT_HOST environment variable is required when semantic layer, discovery, or SQL tools are enabled."
             )
         if not settings.actual_prod_environment_id:
             errors.append(
-                "DBT_PROD_ENV_ID environment variable is required when semantic layer, discovery, or remote tools are enabled."
+                "DBT_PROD_ENV_ID environment variable is required when semantic layer, discovery, or SQL tools are enabled."
             )
         if not settings.dbt_token:
             errors.append(
-                "DBT_TOKEN environment variable is required when semantic layer, discovery, or remote tools are enabled."
+                "DBT_TOKEN environment variable is required when semantic layer, discovery, or SQL tools are enabled."
             )
         if settings.actual_host and (
             settings.actual_host.startswith("metadata")
@@ -154,14 +163,14 @@ def load_config() -> Config:
             errors.append(
                 "DBT_HOST must not start with 'metadata' or 'semantic-layer'."
             )
-    if not settings.disable_remote:
+    if not settings.actual_disable_sql:
         if not settings.dbt_dev_env_id:
             errors.append(
-                "DBT_DEV_ENV_ID environment variable is required when remote tools are enabled."
+                "DBT_DEV_ENV_ID environment variable is required when SQL tools are enabled."
             )
         if not settings.dbt_user_id:
             errors.append(
-                "DBT_USER_ID environment variable is required when remote tools are enabled."
+                "DBT_USER_ID environment variable is required when SQL tools are enabled."
             )
     if not settings.disable_dbt_cli:
         if not settings.dbt_project_dir:
@@ -177,16 +186,16 @@ def load_config() -> Config:
         raise ValueError("Errors found in configuration:\n\n" + "\n".join(errors))
 
     # Build configurations
-    remote_config = None
+    sql_config = None
     if (
-        not settings.disable_remote
+        not settings.actual_disable_sql
         and settings.dbt_user_id
         and settings.dbt_token
         and settings.dbt_dev_env_id
         and settings.actual_prod_environment_id
         and settings.actual_host
     ):
-        remote_config = RemoteConfig(
+        sql_config = SqlConfig(
             multicell_account_prefix=settings.multicell_account_prefix,
             user_id=settings.dbt_user_id,
             token=settings.dbt_token,
@@ -270,7 +279,7 @@ def load_config() -> Config:
             dbt_cloud_user_id=settings.dbt_user_id,
             local_user_id=local_user_id,
         ),
-        remote_config=remote_config,
+        sql_config=sql_config,
         dbt_cli_config=dbt_cli_config,
         discovery_config=discovery_config,
         semantic_layer_config=semantic_layer_config,
