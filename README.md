@@ -188,7 +188,7 @@ VS Code MCP docs [here](https://code.visualstudio.com/docs/copilot/chat/mcp-serv
 
 ### Remote
 
-The remote setup doesn't require running dbt MCP locally. Instead, an HTTP connection is made to dbt MCP running within dbt Cloud. Right now, only Semantic Layer & Discovery tools are supported. To get started, get the having the following information:
+The remote setup doesn't require running dbt MCP locally. Instead, an HTTP connection is made to dbt MCP running within dbt Cloud. Currently, only Semantic Layer & Discovery tools are supported. To get started, ensure that you have [AI Features](https://docs.getdbt.com/docs/cloud/enable-dbt-copilot) turned on, and get the following information:
 
 - dbt Cloud host: Use this to form the full URL. For example, replace `<host>` here: `https://<host>/api/ai/v1/mcp/`. It may look like: `https://cloud.getdbt.com/api/ai/v1/mcp/`.
 - Production environment ID: This can be found on the `Orchestration` page of dbt Cloud. Use this to set a `x-dbt-prod-environment-id` header.
@@ -196,7 +196,7 @@ The remote setup doesn't require running dbt MCP locally. Instead, an HTTP conne
 
 Then you can use these values to connect to the remote server with Streamable HTTP MCP transport. Use the example [here](https://github.com/dbt-labs/dbt-mcp/blob/76992ac51a905e9e0d2194774e7246ee288094b9/examples/remote_mcp/main.py) as a reference in Python. A similar implementation is possible with SDKs for many other languages.
 
-You can also connect from MCP clients which support remote MCP with headers. For instance, you can connect Cursor to the remote server with the following configuration. Be sure to replace `<host>`, `<token>`, `<prod-id>` with your information:
+You can also connect from MCP clients which support remote MCP with headers. For instance, you can connect Cursor to the remote server with the following configuration. Be sure to replace `<host>`, `<token>`, and `<prod-id>` with your information:
 
 ```
 {
