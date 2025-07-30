@@ -20,7 +20,7 @@ async def test_tool_names_match_server_tools():
             n
             for n in ToolName.get_all_tool_names()
             if n
-            # Not testing remote tools for now
+            # Not testing SQL tools for now
             not in ["text_to_sql", "execute_sql"]
         }
 

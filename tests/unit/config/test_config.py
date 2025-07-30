@@ -1,5 +1,5 @@
 import os
-from unittest.mock import patch, mock_open
+from unittest.mock import mock_open, patch
 
 import pytest
 import yaml
@@ -49,7 +49,8 @@ class TestDbtMcpSettings:
             assert settings.disable_dbt_cli is False
             assert settings.disable_semantic_layer is False
             assert settings.disable_discovery is False
-            assert settings.disable_remote is True
+            assert settings.disable_remote is None
+            assert settings.disable_sql is None
             assert settings.disable_tools == []
 
     def test_env_var_parsing(self):
@@ -151,13 +152,15 @@ class TestLoadConfig:
 
     def _load_config_with_env(self, env_vars):
         """Helper method to load config with test environment variables, avoiding .env file interference"""
-        with patch.dict(os.environ, env_vars):
-            with patch("dbt_mcp.config.config.DbtMcpSettings") as mock_settings_class:
-                # Create a real instance with test values, but without .env file loading
-                with patch.dict(os.environ, env_vars, clear=True):
-                    settings_instance = DbtMcpSettings(_env_file=None)
-                mock_settings_class.return_value = settings_instance
-                return load_config()
+        with (
+            patch.dict(os.environ, env_vars),
+            patch("dbt_mcp.config.config.DbtMcpSettings") as mock_settings_class,
+        ):
+            # Create a real instance with test values, but without .env file loading
+            with patch.dict(os.environ, env_vars, clear=True):
+                settings_instance = DbtMcpSettings(_env_file=None)
+            mock_settings_class.return_value = settings_instance
+            return load_config()
 
     def test_valid_config_all_services_enabled(self):
         env_vars = {
@@ -176,8 +179,8 @@ class TestLoadConfig:
 
         assert config.tracking_config.host == "test.dbt.com"
         assert config.tracking_config.prod_environment_id == 123
-        assert config.remote_config is not None
-        assert config.remote_config.host == "test.dbt.com"
+        assert config.sql_config is not None
+        assert config.sql_config.host == "test.dbt.com"
         assert config.dbt_cli_config is not None
         assert config.discovery_config is not None
         assert config.semantic_layer_config is not None
@@ -192,7 +195,7 @@ class TestLoadConfig:
 
         config = self._load_config_with_env(env_vars)
 
-        assert config.remote_config is None
+        assert config.sql_config is None
         assert config.dbt_cli_config is None
         assert config.discovery_config is None
         assert config.semantic_layer_config is None
@@ -447,7 +450,7 @@ class TestLoadConfig:
 
         config = self._load_config_with_env(env_vars)
         # Remote config should not be created when remote tools are disabled
-        assert config.remote_config is None
+        assert config.sql_config is None
 
         # Test remote requirements (needs user_id and dev_env_id too)
         env_vars.update(
@@ -459,9 +462,9 @@ class TestLoadConfig:
         )
 
         config = self._load_config_with_env(env_vars)
-        assert config.remote_config is not None
-        assert config.remote_config.user_id == 789
-        assert config.remote_config.dev_environment_id == 456
+        assert config.sql_config is not None
+        assert config.sql_config.user_id == 789
+        assert config.sql_config.dev_environment_id == 456
 
     def test_disable_flags_combinations(self):
         base_env = {
