@@ -8,7 +8,7 @@ from typing import (
 from httpx import Client
 from mcp import CallToolRequest, JSONRPCResponse, ListToolsResult
 from mcp.server.fastmcp import FastMCP
-from mcp.server.fastmcp.tools.base import Tool
+from mcp.server.fastmcp.tools.base import Tool as InternalTool
 from mcp.server.fastmcp.utilities.func_metadata import (
     ArgModelBase,
     FuncMetadata,
@@ -19,20 +19,20 @@ from mcp.types import (
     CallToolResult,
     ContentBlock,
     TextContent,
+    Tool,
 )
-from mcp.types import Tool as RemoteTool
 from pydantic import Field, ValidationError, WithJsonSchema, create_model
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
-from dbt_mcp.config.config import RemoteConfig
+from dbt_mcp.config.config import SqlConfig
 from dbt_mcp.tools.tool_names import ToolName
 
 logger = logging.getLogger(__name__)
 
 
 # Based on this: https://github.com/modelcontextprotocol/python-sdk/blob/9ae4df85fbab97bf476ddd160b766ca4c208cd13/src/mcp/server/fastmcp/utilities/func_metadata.py#L105
-def get_remote_tool_fn_metadata(tool: RemoteTool) -> FuncMetadata:
+def get_remote_tool_fn_metadata(tool: Tool) -> FuncMetadata:
     dynamic_pydantic_model_params: dict[str, Any] = {}
     for key in tool.inputSchema["properties"].keys():
         # Remote tools shouldn't have type annotations or default values
@@ -58,7 +58,7 @@ def get_remote_tool_fn_metadata(tool: RemoteTool) -> FuncMetadata:
     )
 
 
-def _get_remote_tools(base_url: str, headers: dict[str, str]) -> list[RemoteTool]:
+def _get_sql_tools(base_url: str, headers: dict[str, str]) -> list[Tool]:
     try:
         with Client(base_url=base_url, headers=headers) as client:
             list_tools_response = JSONRPCResponse.model_validate_json(
@@ -66,15 +66,21 @@ def _get_remote_tools(base_url: str, headers: dict[str, str]) -> list[RemoteTool
             )
             return ListToolsResult.model_validate(list_tools_response.result).tools
     except Exception as e:
-        logger.error(f"Error getting remote tools: {e}")
+        logger.error(f"Error getting SQL tools: {e}")
         return []
 
 
-async def register_remote_tools(
+async def register_sql_tools(
     dbt_mcp: FastMCP,
-    config: RemoteConfig,
+    config: SqlConfig,
     exclude_tools: Sequence[ToolName] = [],
 ) -> None:
+    """
+    Register SQL MCP tools.
+
+    SQL tools are hosted remotely, so their definitions aren't found in this repo.
+    """
+
     is_local = config.host and config.host.startswith("localhost")
     path = "/mcp" if is_local else "/api/ai/mcp"
     scheme = "http://" if is_local else "https://"
@@ -88,11 +94,11 @@ async def register_remote_tools(
         "x-dbt-dev-environment-id": str(config.dev_environment_id),
         "x-dbt-user-id": str(config.user_id),
     }
-    remote_tools = _get_remote_tools(base_url=base_url, headers=headers)
+    sql_tools = _get_sql_tools(base_url=base_url, headers=headers)
     logger.info(
-        f"Loaded remote tools: {', '.join([tool.name for tool in remote_tools])}",
+        f"Loaded sql tools: {', '.join([tool.name for tool in sql_tools])}",
     )
-    for tool in remote_tools:
+    for tool in sql_tools:
         if tool.name.lower() in [tool.value.lower() for tool in exclude_tools]:
             continue
 
@@ -151,7 +157,7 @@ async def register_remote_tools(
             return tool_function
 
         new_tool = create_tool_function(tool.name)
-        dbt_mcp._tool_manager._tools[tool.name] = Tool(
+        dbt_mcp._tool_manager._tools[tool.name] = InternalTool(
             fn=new_tool,
             title=tool.title,
             name=tool.name,

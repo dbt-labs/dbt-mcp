@@ -1,41 +1,13 @@
 import asyncio
-import contextlib
 import json
-import os
-from collections.abc import AsyncGenerator
 
-from mcp import ClientSession
-from mcp.client.streamable_http import streamablehttp_client
 from mcp.types import TextContent
 
-
-@contextlib.asynccontextmanager
-async def session_context(
-    *, url: str, headers: dict[str, str]
-) -> AsyncGenerator[ClientSession, None]:
-    async with (
-        streamablehttp_client(
-            url=url,
-            headers=headers,
-        ) as (
-            read_stream,
-            write_stream,
-            _,
-        ),
-        ClientSession(read_stream, write_stream) as session,
-    ):
-        await session.initialize()
-        yield session
+from remote_mcp.session import session_context
 
 
 async def main():
-    async with session_context(
-        url=f"https://{os.environ.get('DBT_HOST')}/api/ai/v1/mcp/",
-        headers={
-            "Authorization": f"token {os.environ.get('DBT_TOKEN')}",
-            "x-dbt-prod-environment-id": os.environ.get("DBT_PROD_ENV_ID"),
-        },
-    ) as session:
+    async with session_context() as session:
         available_metrics = await session.call_tool(
             name="list_metrics",
             arguments={},

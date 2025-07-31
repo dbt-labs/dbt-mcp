@@ -16,8 +16,8 @@ from mcp.types import (
 from dbt_mcp.config.config import Config
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.discovery.tools import register_discovery_tools
-from dbt_mcp.remote.tools import register_remote_tools
 from dbt_mcp.semantic_layer.tools import register_sl_tools
+from dbt_mcp.sql.tools import register_sql_tools
 from dbt_mcp.tracking.tracking import UsageTracker
 
 logger = logging.getLogger(__name__)
@@ -112,8 +112,8 @@ async def create_dbt_mcp(config: Config):
         logger.info("Registering dbt cli tools")
         register_dbt_cli_tools(dbt_mcp, config.dbt_cli_config, config.disable_tools)
 
-    if config.remote_config:
-        logger.info("Registering remote tools")
-        await register_remote_tools(dbt_mcp, config.remote_config, config.disable_tools)
+    if config.sql_config:
+        logger.info("Registering SQL tools")
+        await register_sql_tools(dbt_mcp, config.sql_config, config.disable_tools)
 
     return dbt_mcp

@@ -2,8 +2,8 @@ from dbt_mcp.config.config import (
     Config,
     DbtCliConfig,
     DiscoveryConfig,
-    RemoteConfig,
     SemanticLayerConfig,
+    SqlConfig,
     TrackingConfig,
 )
 
@@ -16,7 +16,7 @@ mock_tracking_config = TrackingConfig(
     local_user_id="1",
 )
 
-mock_remote_config = RemoteConfig(
+mock_sql_config = SqlConfig(
     multicell_account_prefix=None,
     prod_environment_id=1,
     dev_environment_id=1,
@@ -53,7 +53,7 @@ mock_semantic_layer_config = SemanticLayerConfig(
 
 mock_config = Config(
     tracking_config=mock_tracking_config,
-    remote_config=mock_remote_config,
+    sql_config=mock_sql_config,
     dbt_cli_config=mock_dbt_cli_config,
     discovery_config=mock_discovery_config,
     semantic_layer_config=mock_semantic_layer_config,
