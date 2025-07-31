@@ -163,16 +163,16 @@ Cursor MCP docs [here](https://docs.cursor.com/context/model-context-protocol) f
 5. Add your server configuration (`dbt`) to the provided `mcp.json` file as one of the servers:
 ```json
 {
-	"servers": {
-		"dbt": {
-			"command": "uvx",
+  "servers": {
+    "dbt": {
+      "command": "uvx",
       "args": [
         "--env-file",
         "<path-to-.env-file>",
         "dbt-mcp"
       ]
-		}
-	}
+    }
+  }
 }
 ```
 
