@@ -104,7 +104,12 @@ def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefin
         ToolDefinition(
             description=get_prompt("discovery/get_model_children"),
             fn=get_model_children,
-            annotations=create_tool_annotations(title="Get Model Children"),
+            annotations=create_tool_annotations(
+                title="Get Model Children",
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+            ),
         ),
     ]
 
