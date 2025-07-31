@@ -50,7 +50,7 @@ class GraphQLQueries:
                             node {
                                 name
                                 uniqueId
-                                compiledCode
+                                rawCode
                                 description
                                 database
                                 schema
