@@ -2,9 +2,12 @@ GRAPHQL_QUERIES = {
     "metrics": """
 query GetMetrics($environmentId: BigInt!) {
   metrics(environmentId: $environmentId) {
-    name
-    label
     description
+    label
+    config {
+      meta
+    }
+    name
     type
   }
 }

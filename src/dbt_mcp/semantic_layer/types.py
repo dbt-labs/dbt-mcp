@@ -17,6 +17,7 @@ class MetricToolResponse:
     type: MetricType
     label: str | None = None
     description: str | None = None
+    meta: dict | None = None
 
 
 @dataclass

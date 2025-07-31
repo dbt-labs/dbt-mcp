@@ -62,6 +62,7 @@ class SemanticLayerFetcher:
                 name=m.get("name"),
                 type=m.get("type"),
                 label=m.get("label"),
+                meta=m.get("config", {}).get("meta"),
                 description=m.get("description"),
             )
             for m in metrics_result["data"]["metrics"]
