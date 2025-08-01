@@ -12,9 +12,9 @@ from dbt_mcp.semantic_layer.client import (
     SemanticLayerFetcher,
 )
 from dbt_mcp.semantic_layer.types import (
-    CompileSqlSuccess,
     DimensionToolResponse,
     EntityToolResponse,
+    GetCompiledSqlSuccess,
     MetricToolResponse,
     OrderByParam,
     QueryMetricsSuccess,
@@ -75,7 +75,7 @@ def create_sl_tool_definitions(
         except Exception as e:
             return str(e)
 
-    def compile_sql(
+    def get_compiled_sql(
         metrics: list[str],
         group_by: list[GroupByParam] | None = None,
         order_by: list[OrderByParam] | None = None,
@@ -83,14 +83,14 @@ def create_sl_tool_definitions(
         limit: int | None = None,
     ) -> str:
         try:
-            result = semantic_layer_fetcher.compile_sql(
+            result = semantic_layer_fetcher.get_compiled_sql(
                 metrics=metrics,
                 group_by=group_by,
                 order_by=order_by,
                 where=where,
                 limit=limit,
             )
-            if isinstance(result, CompileSqlSuccess):
+            if isinstance(result, GetCompiledSqlSuccess):
                 return result.sql
             else:
                 return result.error
@@ -139,8 +139,8 @@ def create_sl_tool_definitions(
             ),
         ),
         ToolDefinition(
-            description=get_prompt("semantic_layer/compile_sql"),
-            fn=compile_sql,
+            description=get_prompt("semantic_layer/get_compiled_sql"),
+            fn=get_compiled_sql,
             annotations=create_tool_annotations(
                 title="Compile SQL",
                 read_only_hint=True,
