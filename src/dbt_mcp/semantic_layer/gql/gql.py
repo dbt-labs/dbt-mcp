@@ -30,7 +30,7 @@ query GetEntities($environmentId: BigInt!, $metrics: [MetricInput!]!) {
 }
     """,
     "compile_sql": """
-query CompileSql($environmentId: BigInt!, $metrics: [MetricInput!]!, $groupBy: [GroupByInput!]!) {
+mutation CompileSql($environmentId: BigInt!, $metrics: [MetricInput!]!, $groupBy: [GroupByInput!]!) {
   compileSql(environmentId: $environmentId, metrics: $metrics, groupBy: $groupBy) {
     sql
   }

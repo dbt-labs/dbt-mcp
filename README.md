@@ -27,7 +27,8 @@ This MCP (Model Context Protocol) server provides tools to interact with dbt. Re
 * `list_metrics` - Retrieves all defined metrics
 * `get_dimensions` - Gets dimensions associated with specified metrics
 * `get_entities` - Gets entities associated with specified metrics
-* `query_metrics` - Queries metrics with optional grouping, ordering, filtering, and limiting
+* `query_metrics` - Queries metrics with optional grouping, ordering, filtering, and limiting
+* `compile_sql` - Compiles and returns the SQL that would be generated for specified metrics and groupings without executing the query
 
 
 ### Discovery
