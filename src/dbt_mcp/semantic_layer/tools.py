@@ -12,6 +12,7 @@ from dbt_mcp.semantic_layer.client import (
     SemanticLayerFetcher,
 )
 from dbt_mcp.semantic_layer.types import (
+    CompileSqlSuccess,
     DimensionToolResponse,
     EntityToolResponse,
     MetricToolResponse,
@@ -74,6 +75,22 @@ def create_sl_tool_definitions(
         except Exception as e:
             return str(e)
 
+    def compile_sql(
+        metrics: list[str],
+        group_by: list[GroupByParam] | None = None,
+    ) -> str:
+        try:
+            result = semantic_layer_fetcher.compile_sql(
+                metrics=metrics,
+                group_by=group_by,
+            )
+            if isinstance(result, CompileSqlSuccess):
+                return result.sql
+            else:
+                return result.error
+        except Exception as e:
+            return str(e)
+
     return [
         ToolDefinition(
             description=get_prompt("semantic_layer/list_metrics"),
@@ -110,6 +127,16 @@ def create_sl_tool_definitions(
             fn=query_metrics,
             annotations=create_tool_annotations(
                 title="Query Metrics",
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+            ),
+        ),
+        ToolDefinition(
+            description=get_prompt("semantic_layer/compile_sql"),
+            fn=compile_sql,
+            annotations=create_tool_annotations(
+                title="Compile SQL",
                 read_only_hint=True,
                 destructive_hint=False,
                 idempotent_hint=True,

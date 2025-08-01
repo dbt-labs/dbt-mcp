@@ -16,6 +16,9 @@ from dbt_mcp.semantic_layer.gql.gql import GRAPHQL_QUERIES
 from dbt_mcp.semantic_layer.gql.gql_request import submit_request
 from dbt_mcp.semantic_layer.levenshtein import get_misspellings
 from dbt_mcp.semantic_layer.types import (
+    CompileSqlError,
+    CompileSqlResult,
+    CompileSqlSuccess,
     DimensionToolResponse,
     EntityToolResponse,
     MetricToolResponse,
@@ -112,6 +115,55 @@ class SemanticLayerFetcher:
             ]
             self.entities_cache[metrics_key] = entities
         return self.entities_cache[metrics_key]
+
+    def compile_sql(
+        self,
+        metrics: list[str],
+        group_by: list[GroupByParam] | None = None,
+    ) -> CompileSqlResult:
+        """
+        Compile SQL for the given metrics and group by parameters.
+        
+        Args:
+            metrics: List of metric names to compile SQL for
+            group_by: List of group by parameters (dimensions/entities with optional grain)
+            
+        Returns:
+            CompileSqlResult with either the compiled SQL or an error
+        """
+        validation_error = self.validate_query_metrics_params(
+            metrics=metrics,
+            group_by=group_by,
+        )
+        if validation_error:
+            return CompileSqlError(error=validation_error)
+
+        try:
+            # Format group by parameters for GraphQL request
+            group_by_input = []
+            if group_by:
+                for gb in group_by:
+                    group_by_dict = {"name": gb.name}
+                    if hasattr(gb, 'grain') and gb.grain:
+                        group_by_dict["grain"] = gb.grain
+                    group_by_input.append(group_by_dict)
+
+            compile_sql_result = submit_request(
+                self.config,
+                {
+                    "query": GRAPHQL_QUERIES["compile_sql"],
+                    "variables": {
+                        "metrics": [{"name": m} for m in metrics],
+                        "groupBy": group_by_input,
+                    },
+                },
+            )
+            
+            sql = compile_sql_result["data"]["compileSql"]["sql"]
+            return CompileSqlSuccess(sql=sql)
+            
+        except Exception as e:
+            return CompileSqlError(error=str(e))
 
     def validate_query_metrics_params(
         self, metrics: list[str], group_by: list[GroupByParam] | None
