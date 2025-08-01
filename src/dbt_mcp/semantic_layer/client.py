@@ -42,6 +42,15 @@ class SemanticLayerClientProtocol(Protocol):
         read_cache: bool = True,
     ) -> pa.Table: ...
 
+    def compile_sql(
+        self,
+        metrics: list[str],
+        group_by: list[GroupByParam | str] | None = None,
+        limit: int | None = None,
+        order_by: list[str | OrderByGroupBy | OrderByMetric] | None = None,
+        where: list[str] | None = None,
+    ) -> str: ...
+
 
 class SemanticLayerFetcher:
     def __init__(
@@ -120,13 +129,19 @@ class SemanticLayerFetcher:
         self,
         metrics: list[str],
         group_by: list[GroupByParam] | None = None,
+        order_by: list[OrderByParam] | None = None,
+        where: str | None = None,
+        limit: int | None = None,
     ) -> CompileSqlResult:
         """
-        Compile SQL for the given metrics and group by parameters.
+        Compile SQL for the given metrics and group by parameters using the SDK.
         
         Args:
             metrics: List of metric names to compile SQL for
             group_by: List of group by parameters (dimensions/entities with optional grain)
+            order_by: List of order by parameters
+            where: Optional SQL WHERE clause to filter results
+            limit: Optional limit for number of results
             
         Returns:
             CompileSqlResult with either the compiled SQL or an error
@@ -139,31 +154,52 @@ class SemanticLayerFetcher:
             return CompileSqlError(error=validation_error)
 
         try:
-            # Format group by parameters for GraphQL request
-            group_by_input = []
-            if group_by:
-                for gb in group_by:
-                    group_by_dict = {"name": gb.name}
-                    if hasattr(gb, 'grain') and gb.grain:
-                        group_by_dict["grain"] = gb.grain
-                    group_by_input.append(group_by_dict)
-
-            compile_sql_result = submit_request(
-                self.config,
-                {
-                    "query": GRAPHQL_QUERIES["compile_sql"],
-                    "variables": {
-                        "metrics": [{"name": m} for m in metrics],
-                        "groupBy": group_by_input,
-                    },
-                },
-            )
-            
-            sql = compile_sql_result["data"]["compileSql"]["sql"]
-            return CompileSqlSuccess(sql=sql)
+            with self.sl_client.session():
+                parsed_order_by: list[OrderBySpec] = (
+                    self.get_order_bys(
+                        order_by=order_by, metrics=metrics, group_by=group_by
+                    )
+                    if order_by is not None
+                    else []
+                )
+                
+                compiled_sql = self.sl_client.compile_sql(
+                    metrics=metrics,
+                    group_by=group_by,  # type: ignore
+                    order_by=parsed_order_by,  # type: ignore  
+                    where=[where] if where else None,
+                    limit=limit,
+                )
+                
+                return CompileSqlSuccess(sql=compiled_sql)
             
         except Exception as e:
-            return CompileSqlError(error=str(e))
+            return self._format_compile_sql_error(e)
+
+    def _format_compile_sql_error(self, compile_error: Exception) -> CompileSqlError:
+        """Format compile SQL errors similar to query errors."""
+        # Reuse the same error formatting logic as query_metrics
+        if hasattr(compile_error, '__str__'):
+            error_str = str(compile_error)
+            # Apply similar formatting as _format_query_failed_error
+            formatted_error = (
+                error_str
+                .replace("QueryFailedError(", "")
+                .rstrip(")")
+                .lstrip("[")
+                .rstrip("]")
+                .lstrip('"')
+                .rstrip('"')
+                .replace("INVALID_ARGUMENT: [FlightSQL]", "")
+                .replace("(InvalidArgument; Prepare)", "")
+                .replace("(InvalidArgument; ExecuteQuery)", "")
+                .replace("Failed to prepare statement:", "")
+                .replace("com.dbt.semanticlayer.exceptions.DataPlatformException:", "")
+                .strip()
+            )
+            return CompileSqlError(error=formatted_error)
+        else:
+            return CompileSqlError(error=str(compile_error))
 
     def validate_query_metrics_params(
         self, metrics: list[str], group_by: list[GroupByParam] | None
