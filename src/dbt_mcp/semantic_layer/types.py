@@ -48,3 +48,18 @@ class QueryMetricsError:
 
 
 QueryMetricsResult = QueryMetricsSuccess | QueryMetricsError
+
+
+@dataclass
+class GetCompiledSqlSuccess:
+    sql: str
+    error: None = None
+
+
+@dataclass
+class GetCompiledSqlError:
+    error: str
+    sql: None = None
+
+
+GetCompiledSqlResult = GetCompiledSqlSuccess | GetCompiledSqlError
