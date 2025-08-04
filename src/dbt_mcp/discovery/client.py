@@ -54,6 +54,7 @@ class GraphQLQueries:
                                 description
                                 database
                                 schema
+                                alias
                                 catalog {
                                     columns {
                                         description
