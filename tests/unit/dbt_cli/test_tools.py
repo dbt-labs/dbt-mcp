@@ -1,4 +1,6 @@
 import subprocess
+import inspect
+from functools import wraps
 
 import pytest
 from pytest import MonkeyPatch
@@ -24,7 +26,27 @@ def mock_fastmcp():
 
         def tool(self, **kwargs):
             def decorator(func):
-                self.tools[func.__name__] = func
+                # Create a wrapper that handles param defaults with 
+                # regular defaults AND Pydantic Field objects 
+                @wraps(func)
+                def wrapper(*args, **call_kwargs):
+                    sig = inspect.signature(func)
+                    
+                    processed_kwargs = {}
+                    for param_name, param in sig.parameters.items():
+                        if param_name in call_kwargs:
+                            processed_kwargs[param_name] = call_kwargs[param_name]
+                        elif param.default is not inspect.Parameter.empty:
+                            default_value = param.default
+                            # If the default value is a Pydantic Field object
+                            if hasattr(default_value, 'default'):
+                                processed_kwargs[param_name] = default_value.default
+                            else:
+                                processed_kwargs[param_name] = default_value
+                    
+                    return func(**processed_kwargs)
+                
+                self.tools[func.__name__] = wrapper
                 return func
 
             return decorator
