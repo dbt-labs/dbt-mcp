@@ -35,17 +35,20 @@ tool_policies = {
     ToolName.DOCS.value: ToolPolicy(
         name=ToolName.DOCS.value, behavior=ToolBehavior.METADATA
     ),
+    # Compile tool can have result_set behavior because of macros like print_table
     ToolName.COMPILE.value: ToolPolicy(
-        name=ToolName.COMPILE.value, behavior=ToolBehavior.METADATA
+        name=ToolName.COMPILE.value, behavior=ToolBehavior.RESULT_SET
     ),
     ToolName.TEST.value: ToolPolicy(
         name=ToolName.TEST.value, behavior=ToolBehavior.METADATA
     ),
+    # Run tool can have result_set behavior because of macros like print_table
     ToolName.RUN.value: ToolPolicy(
-        name=ToolName.RUN.value, behavior=ToolBehavior.METADATA
+        name=ToolName.RUN.value, behavior=ToolBehavior.RESULT_SET
     ),
+    # Build tool can have result_set behavior because of macros like print_table
     ToolName.BUILD.value: ToolPolicy(
-        name=ToolName.BUILD.value, behavior=ToolBehavior.METADATA
+        name=ToolName.BUILD.value, behavior=ToolBehavior.RESULT_SET
     ),
     ToolName.PARSE.value: ToolPolicy(
         name=ToolName.PARSE.value, behavior=ToolBehavior.METADATA
