@@ -82,7 +82,9 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             description=get_prompt("dbt_cli/args/full_refresh"),
         ),
     ) -> str:
-        return _run_dbt_command(["build"], selector, is_selectable=True, is_full_refresh=is_full_refresh)
+        return _run_dbt_command(
+            ["build"], selector, is_selectable=True, is_full_refresh=is_full_refresh
+        )
 
     def compile() -> str:
         return _run_dbt_command(["compile"])
@@ -118,7 +120,9 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             description=get_prompt("dbt_cli/args/full_refresh"),
         ),
     ) -> str:
-        return _run_dbt_command(["run"], selector, is_selectable=True, is_full_refresh=is_full_refresh)
+        return _run_dbt_command(
+            ["run"], selector, is_selectable=True, is_full_refresh=is_full_refresh
+        )
 
     def test(
         selector: str | None = Field(
