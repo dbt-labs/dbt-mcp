@@ -18,6 +18,9 @@ from dbt_mcp.semantic_layer.levenshtein import get_misspellings
 from dbt_mcp.semantic_layer.types import (
     DimensionToolResponse,
     EntityToolResponse,
+    GetMetricsCompiledSqlError,
+    GetMetricsCompiledSqlResult,
+    GetMetricsCompiledSqlSuccess,
     MetricToolResponse,
     OrderByParam,
     QueryMetricsError,
@@ -38,6 +41,16 @@ class SemanticLayerClientProtocol(Protocol):
         where: list[str] | None = None,
         read_cache: bool = True,
     ) -> pa.Table: ...
+
+    def compile_sql(
+        self,
+        metrics: list[str],
+        group_by: list[str] | None = None,
+        limit: int | None = None,
+        order_by: list[str | OrderByGroupBy | OrderByMetric] | None = None,
+        where: list[str] | None = None,
+        read_cache: bool = True,
+    ) -> str: ...
 
 
 class SemanticLayerFetcher:
@@ -113,6 +126,84 @@ class SemanticLayerFetcher:
             self.entities_cache[metrics_key] = entities
         return self.entities_cache[metrics_key]
 
+    def get_metrics_compiled_sql(
+        self,
+        metrics: list[str],
+        group_by: list[GroupByParam] | None = None,
+        order_by: list[OrderByParam] | None = None,
+        where: str | None = None,
+        limit: int | None = None,
+    ) -> GetMetricsCompiledSqlResult:
+        """
+        Get compiled SQL for the given metrics and group by parameters using the SDK.
+
+        Args:
+            metrics: List of metric names to get compiled SQL for
+            group_by: List of group by parameters (dimensions/entities with optional grain)
+            order_by: List of order by parameters
+            where: Optional SQL WHERE clause to filter results
+            limit: Optional limit for number of results
+
+        Returns:
+            GetMetricsCompiledSqlResult with either the compiled SQL or an error
+        """
+        validation_error = self.validate_query_metrics_params(
+            metrics=metrics,
+            group_by=group_by,
+        )
+        if validation_error:
+            return GetMetricsCompiledSqlError(error=validation_error)
+
+        try:
+            with self.sl_client.session():
+                parsed_order_by: list[OrderBySpec] = (
+                    self.get_order_bys(
+                        order_by=order_by, metrics=metrics, group_by=group_by
+                    )
+                    if order_by is not None
+                    else []
+                )
+
+                compiled_sql = self.sl_client.compile_sql(
+                    metrics=metrics,
+                    group_by=group_by,  # type: ignore
+                    order_by=parsed_order_by,  # type: ignore
+                    where=[where] if where else None,
+                    limit=limit,
+                    read_cache=True,
+                )
+
+                return GetMetricsCompiledSqlSuccess(sql=compiled_sql)
+
+        except Exception as e:
+            return self._format_get_metrics_compiled_sql_error(e)
+
+    def _format_semantic_layer_error(self, error: Exception) -> str:
+        """Format semantic layer errors by cleaning up common error message patterns."""
+        error_str = str(error)
+        return (
+            error_str.replace("QueryFailedError(", "")
+            .rstrip(")")
+            .lstrip("[")
+            .rstrip("]")
+            .lstrip('"')
+            .rstrip('"')
+            .replace("INVALID_ARGUMENT: [FlightSQL]", "")
+            .replace("(InvalidArgument; Prepare)", "")
+            .replace("(InvalidArgument; ExecuteQuery)", "")
+            .replace("Failed to prepare statement:", "")
+            .replace("com.dbt.semanticlayer.exceptions.DataPlatformException:", "")
+            .strip()
+        )
+
+    def _format_get_metrics_compiled_sql_error(
+        self, compile_error: Exception
+    ) -> GetMetricsCompiledSqlError:
+        """Format get compiled SQL errors using the shared error formatter."""
+        return GetMetricsCompiledSqlError(
+            error=self._format_semantic_layer_error(compile_error)
+        )
+
     def validate_query_metrics_params(
         self, metrics: list[str], group_by: list[GroupByParam] | None
     ) -> str | None:
@@ -160,22 +251,7 @@ class SemanticLayerFetcher:
     def _format_query_failed_error(self, query_error: Exception) -> QueryMetricsError:
         if isinstance(query_error, QueryFailedError):
             return QueryMetricsError(
-                error=str(query_error)
-                .replace("QueryFailedError(", "")
-                .rstrip(")")
-                .lstrip("[")
-                .rstrip("]")
-                .lstrip('"')
-                .rstrip('"')
-                .replace("INVALID_ARGUMENT: [FlightSQL]", "")
-                .replace("(InvalidArgument; Prepare)", "")
-                .replace("(InvalidArgument; ExecuteQuery)", "")
-                .replace("Failed to prepare statement:", "")
-                .replace(
-                    "com.dbt.semanticlayer.exceptions.DataPlatformException:",
-                    "",
-                )
-                .strip()
+                error=self._format_semantic_layer_error(query_error)
             )
         else:
             return QueryMetricsError(error=str(query_error))

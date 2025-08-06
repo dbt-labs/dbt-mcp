@@ -27,7 +27,8 @@ This MCP (Model Context Protocol) server provides tools to interact with dbt. Re
 * `list_metrics` - Retrieves all defined metrics
 * `get_dimensions` - Gets dimensions associated with specified metrics
 * `get_entities` - Gets entities associated with specified metrics
-* `query_metrics` - Queries metrics with optional grouping, ordering, filtering, and limiting
+* `query_metrics` - Queries metrics with optional grouping, ordering, filtering, and limiting
+* `get_metrics_compiled_sql` - Gets and returns the compiled SQL that would be generated for specified metrics and groupings without executing the query
 
 
 ### Discovery
@@ -38,6 +39,7 @@ This MCP (Model Context Protocol) server provides tools to interact with dbt. Re
 * `get_model_children` - Gets children models of a specific model
 
 ### SQL
+⚠️ The SQL tools are implemented remotely. While MCP usage of the tools do not consume dbt Copilot credits, access to the tools will be impacted by dbt Copilot credit overages from direct usage of Copilot in dbt Platform. 
 * `text_to_sql` - Generate SQL from natural language requests
 * `execute_sql` - Execute SQL on dbt Cloud's backend infrastructure with support for Semantic Layer SQL syntax. Note: using a PAT instead of a service token for `DBT_TOKEN` is required for this tool.
 
@@ -188,7 +190,7 @@ VS Code MCP docs [here](https://code.visualstudio.com/docs/copilot/chat/mcp-serv
 
 ### Remote
 
-The remote setup doesn't require running dbt MCP locally. Instead, an HTTP connection is made to dbt MCP running within dbt Cloud. Currently, only Semantic Layer & Discovery tools are supported. To get started, ensure that you have [AI Features](https://docs.getdbt.com/docs/cloud/enable-dbt-copilot) turned on, and get the following information:
+The remote setup doesn't require running dbt MCP locally. Instead, an HTTP connection is made to dbt MCP running within dbt Cloud. Currently, only Semantic Layer & Discovery tools are supported. Note, the remote MCP server doesn't expend dbt Copilot credits but is impacted by dbt Copilot credit overages. To get started, ensure that you have [AI Features](https://docs.getdbt.com/docs/cloud/enable-dbt-copilot) turned on, and get the following information:
 
 - dbt Cloud host: Use this to form the full URL. For example, replace `<host>` here: `https://<host>/api/ai/v1/mcp/`. It may look like: `https://cloud.getdbt.com/api/ai/v1/mcp/`.
 - Production environment ID: This can be found on the `Orchestration` page of dbt Cloud. Use this to set a `x-dbt-prod-environment-id` header.
