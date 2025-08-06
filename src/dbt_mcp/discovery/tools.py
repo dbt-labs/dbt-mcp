@@ -6,10 +6,10 @@ from mcp.server.fastmcp import FastMCP
 from dbt_mcp.config.config import DiscoveryConfig
 from dbt_mcp.discovery.client import MetadataAPIClient, ModelsFetcher
 from dbt_mcp.prompts.prompts import get_prompt
+from dbt_mcp.tools.annotations import create_tool_annotations
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.annotations import create_tool_annotations
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,9 @@ def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefin
         except Exception as e:
             return str(e)
 
-    def get_model_details(model_name: str, unique_id: str | None = None) -> dict | str:
+    def get_model_details(
+        model_name: str | None = None, unique_id: str | None = None
+    ) -> dict | str:
         try:
             return models_fetcher.fetch_model_details(model_name, unique_id)
         except Exception as e:
