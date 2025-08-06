@@ -1,5 +1,5 @@
 <instructions>
-Retrieves information about a specific dbt model, including compiled SQL, description, and column details.
+Retrieves information about a specific dbt model, including compiled SQL, description, database, schema, alias, and column details.
 
 IMPORTANT: Use uniqueId when available.
 - Using uniqueId guarantees the correct model is retrieved
