@@ -66,6 +66,9 @@ tool_policies = {
     ToolName.QUERY_METRICS.value: ToolPolicy(
         name=ToolName.QUERY_METRICS.value, behavior=ToolBehavior.RESULT_SET
     ),
+    ToolName.GET_METRICS_COMPILED_SQL.value: ToolPolicy(
+        name=ToolName.GET_METRICS_COMPILED_SQL.value, behavior=ToolBehavior.METADATA
+    ),
     # Discovery tools
     ToolName.GET_MODEL_PARENTS.value: ToolPolicy(
         name=ToolName.GET_MODEL_PARENTS.value, behavior=ToolBehavior.METADATA
