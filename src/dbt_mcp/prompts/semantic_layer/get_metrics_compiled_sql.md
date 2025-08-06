@@ -1,7 +1,7 @@
 <instructions>
 Gets compiled SQL for given metrics and dimensions/entities from the dbt Semantic Layer.
 
-This tool generates the underlying SQL that would be executed for a given metric query,
+This tool generates the underlying SQL that would be executed for a given metric query by the `query_metrics` tool,
 without actually running the query. This is useful for understanding what SQL is being
 generated, debugging query issues, or getting SQL to run elsewhere.
 
