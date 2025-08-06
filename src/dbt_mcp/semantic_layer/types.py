@@ -51,15 +51,15 @@ QueryMetricsResult = QueryMetricsSuccess | QueryMetricsError
 
 
 @dataclass
-class GetCompiledSqlSuccess:
+class GetMetricsCompiledSqlSuccess:
     sql: str
     error: None = None
 
 
 @dataclass
-class GetCompiledSqlError:
+class GetMetricsCompiledSqlError:
     error: str
     sql: None = None
 
 
-GetCompiledSqlResult = GetCompiledSqlSuccess | GetCompiledSqlError
+GetMetricsCompiledSqlResult = GetMetricsCompiledSqlSuccess | GetMetricsCompiledSqlError

@@ -1,7 +1,7 @@
 <instructions>
 Gets compiled SQL for given metrics and dimensions/entities from the dbt Semantic Layer.
 
-This tool generates the underlying SQL that would be executed for a given metric query,
+This tool generates the underlying SQL that would be executed for a given metric query by the `query_metrics` tool,
 without actually running the query. This is useful for understanding what SQL is being
 generated, debugging query issues, or getting SQL to run elsewhere.
 
@@ -28,13 +28,5 @@ This tool is particularly useful when:
 - Understanding how grouping affects the generated SQL
 - Getting SQL to run in other tools or systems
 </instructions>
-
-compile_sql(
-    metrics: list[str],
-    group_by: list[GroupByParam] | None = None,
-) -> str
-
-- metrics: List of metric names to compile SQL for (required)
-- group_by: List of dimensions and entities to group by, with optional grain for time dimensions (optional)
 
 Returns the compiled SQL as a string, or an error message if the compilation fails.
