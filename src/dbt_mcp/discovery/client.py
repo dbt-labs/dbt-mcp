@@ -254,11 +254,16 @@ class ModelsFetcher:
         return all_edges
 
     def fetch_model_details(
-        self, model_name: str, unique_id: str | None = None
+        self, model_name: str | None = None, unique_id: str | None = None
     ) -> dict:
-        model_filters: dict[str, list[str] | str] = (
-            {"uniqueIds": [unique_id]} if unique_id else {"identifier": model_name}
-        )
+        model_filters: dict[str, list[str] | str]
+        if unique_id:
+            model_filters = {"uniqueIds": [unique_id]}
+        elif model_name:
+            model_filters = {"identifier": model_name}
+        else:
+            raise ValueError("Either model_name or unique_id must be provided")
+
         variables = {
             "environmentId": self.environment_id,
             "modelsFilter": model_filters,
