@@ -29,12 +29,4 @@ This tool is particularly useful when:
 - Getting SQL to run in other tools or systems
 </instructions>
 
-compile_sql(
-    metrics: list[str],
-    group_by: list[GroupByParam] | None = None,
-) -> str
-
-- metrics: List of metric names to compile SQL for (required)
-- group_by: List of dimensions and entities to group by, with optional grain for time dimensions (optional)
-
 Returns the compiled SQL as a string, or an error message if the compilation fails.
