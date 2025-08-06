@@ -18,9 +18,9 @@ from dbt_mcp.semantic_layer.levenshtein import get_misspellings
 from dbt_mcp.semantic_layer.types import (
     DimensionToolResponse,
     EntityToolResponse,
-    GetCompiledSqlError,
-    GetCompiledSqlResult,
-    GetCompiledSqlSuccess,
+    GetMetricsCompiledSqlError,
+    GetMetricsCompiledSqlResult,
+    GetMetricsCompiledSqlSuccess,
     MetricToolResponse,
     OrderByParam,
     QueryMetricsError,
@@ -126,14 +126,14 @@ class SemanticLayerFetcher:
             self.entities_cache[metrics_key] = entities
         return self.entities_cache[metrics_key]
 
-    def get_compiled_sql(
+    def get_metrics_compiled_sql(
         self,
         metrics: list[str],
         group_by: list[GroupByParam] | None = None,
         order_by: list[OrderByParam] | None = None,
         where: str | None = None,
         limit: int | None = None,
-    ) -> GetCompiledSqlResult:
+    ) -> GetMetricsCompiledSqlResult:
         """
         Get compiled SQL for the given metrics and group by parameters using the SDK.
 
@@ -145,14 +145,14 @@ class SemanticLayerFetcher:
             limit: Optional limit for number of results
 
         Returns:
-            GetCompiledSqlResult with either the compiled SQL or an error
+            GetMetricsCompiledSqlResult with either the compiled SQL or an error
         """
         validation_error = self.validate_query_metrics_params(
             metrics=metrics,
             group_by=group_by,
         )
         if validation_error:
-            return GetCompiledSqlError(error=validation_error)
+            return GetMetricsCompiledSqlError(error=validation_error)
 
         try:
             with self.sl_client.session():
@@ -173,14 +173,14 @@ class SemanticLayerFetcher:
                     read_cache=True,
                 )
 
-                return GetCompiledSqlSuccess(sql=compiled_sql)
+                return GetMetricsCompiledSqlSuccess(sql=compiled_sql)
 
         except Exception as e:
-            return self._format_get_compiled_sql_error(e)
+            return self._format_get_metrics_compiled_sql_error(e)
 
-    def _format_get_compiled_sql_error(
+    def _format_get_metrics_compiled_sql_error(
         self, compile_error: Exception
-    ) -> GetCompiledSqlError:
+    ) -> GetMetricsCompiledSqlError:
         """Format get compiled SQL errors similar to query errors."""
         # Reuse the same error formatting logic as query_metrics
         if hasattr(compile_error, "__str__"):
@@ -200,9 +200,9 @@ class SemanticLayerFetcher:
                 .replace("com.dbt.semanticlayer.exceptions.DataPlatformException:", "")
                 .strip()
             )
-            return GetCompiledSqlError(error=formatted_error)
+            return GetMetricsCompiledSqlError(error=formatted_error)
         else:
-            return GetCompiledSqlError(error=str(compile_error))
+            return GetMetricsCompiledSqlError(error=str(compile_error))
 
     def validate_query_metrics_params(
         self, metrics: list[str], group_by: list[GroupByParam] | None
