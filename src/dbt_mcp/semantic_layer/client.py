@@ -178,31 +178,29 @@ class SemanticLayerFetcher:
         except Exception as e:
             return self._format_get_metrics_compiled_sql_error(e)
 
+    def _format_semantic_layer_error(self, error: Exception) -> str:
+        """Format semantic layer errors by cleaning up common error message patterns."""
+        error_str = str(error)
+        return (
+            error_str.replace("QueryFailedError(", "")
+            .rstrip(")")
+            .lstrip("[")
+            .rstrip("]")
+            .lstrip('"')
+            .rstrip('"')
+            .replace("INVALID_ARGUMENT: [FlightSQL]", "")
+            .replace("(InvalidArgument; Prepare)", "")
+            .replace("(InvalidArgument; ExecuteQuery)", "")
+            .replace("Failed to prepare statement:", "")
+            .replace("com.dbt.semanticlayer.exceptions.DataPlatformException:", "")
+            .strip()
+        )
+
     def _format_get_metrics_compiled_sql_error(
         self, compile_error: Exception
     ) -> GetMetricsCompiledSqlError:
-        """Format get compiled SQL errors similar to query errors."""
-        # Reuse the same error formatting logic as query_metrics
-        if hasattr(compile_error, "__str__"):
-            error_str = str(compile_error)
-            # Apply similar formatting as _format_query_failed_error
-            formatted_error = (
-                error_str.replace("QueryFailedError(", "")
-                .rstrip(")")
-                .lstrip("[")
-                .rstrip("]")
-                .lstrip('"')
-                .rstrip('"')
-                .replace("INVALID_ARGUMENT: [FlightSQL]", "")
-                .replace("(InvalidArgument; Prepare)", "")
-                .replace("(InvalidArgument; ExecuteQuery)", "")
-                .replace("Failed to prepare statement:", "")
-                .replace("com.dbt.semanticlayer.exceptions.DataPlatformException:", "")
-                .strip()
-            )
-            return GetMetricsCompiledSqlError(error=formatted_error)
-        else:
-            return GetMetricsCompiledSqlError(error=str(compile_error))
+        """Format get compiled SQL errors using the shared error formatter."""
+        return GetMetricsCompiledSqlError(error=self._format_semantic_layer_error(compile_error))
 
     def validate_query_metrics_params(
         self, metrics: list[str], group_by: list[GroupByParam] | None
@@ -250,24 +248,7 @@ class SemanticLayerFetcher:
     # TODO: move this to the SDK
     def _format_query_failed_error(self, query_error: Exception) -> QueryMetricsError:
         if isinstance(query_error, QueryFailedError):
-            return QueryMetricsError(
-                error=str(query_error)
-                .replace("QueryFailedError(", "")
-                .rstrip(")")
-                .lstrip("[")
-                .rstrip("]")
-                .lstrip('"')
-                .rstrip('"')
-                .replace("INVALID_ARGUMENT: [FlightSQL]", "")
-                .replace("(InvalidArgument; Prepare)", "")
-                .replace("(InvalidArgument; ExecuteQuery)", "")
-                .replace("Failed to prepare statement:", "")
-                .replace(
-                    "com.dbt.semanticlayer.exceptions.DataPlatformException:",
-                    "",
-                )
-                .strip()
-            )
+            return QueryMetricsError(error=self._format_semantic_layer_error(query_error))
         else:
             return QueryMetricsError(error=str(query_error))
 
