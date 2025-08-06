@@ -38,7 +38,7 @@ This MCP (Model Context Protocol) server provides tools to interact with dbt. Re
 * `get_model_children` - Gets children models of a specific model
 
 ### SQL
-⚠️ The SQL tools are implemented remotely. They don't expend dbt Copilot credits but are impacted by dbt Copilot credit overages.
+⚠️ The SQL tools are implemented remotely. While MCP usage of the tools do not consume dbt Copilot credits, access to the tools will be impacted by dbt Copilot credit overages from direct usage of Copilot in dbt Platform. 
 * `text_to_sql` - Generate SQL from natural language requests
 * `execute_sql` - Execute SQL on dbt Cloud's backend infrastructure with support for Semantic Layer SQL syntax. Note: using a PAT instead of a service token for `DBT_TOKEN` is required for this tool.
 
