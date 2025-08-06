@@ -200,7 +200,9 @@ class SemanticLayerFetcher:
         self, compile_error: Exception
     ) -> GetMetricsCompiledSqlError:
         """Format get compiled SQL errors using the shared error formatter."""
-        return GetMetricsCompiledSqlError(error=self._format_semantic_layer_error(compile_error))
+        return GetMetricsCompiledSqlError(
+            error=self._format_semantic_layer_error(compile_error)
+        )
 
     def validate_query_metrics_params(
         self, metrics: list[str], group_by: list[GroupByParam] | None
@@ -248,7 +250,9 @@ class SemanticLayerFetcher:
     # TODO: move this to the SDK
     def _format_query_failed_error(self, query_error: Exception) -> QueryMetricsError:
         if isinstance(query_error, QueryFailedError):
-            return QueryMetricsError(error=self._format_semantic_layer_error(query_error))
+            return QueryMetricsError(
+                error=self._format_semantic_layer_error(query_error)
+            )
         else:
             return QueryMetricsError(error=str(query_error))
 
