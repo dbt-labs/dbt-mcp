@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Make model_name of get_model_details optional
-time: 2025-08-05T06:17:26.438578-05:00
