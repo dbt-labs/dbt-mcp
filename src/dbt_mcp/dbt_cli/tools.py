@@ -77,7 +77,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
-        is_full_refresh: bool = Field(
+        is_full_refresh: bool | None = Field(
             default=False,
             description=get_prompt("dbt_cli/args/full_refresh"),
         ),
@@ -115,7 +115,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
-        is_full_refresh: bool = Field(
+        is_full_refresh: bool | None = Field(
             default=False,
             description=get_prompt("dbt_cli/args/full_refresh"),
         ),
