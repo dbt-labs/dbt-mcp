@@ -33,7 +33,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
                 "list",
             ]
 
-            if is_full_refresh:
+            if is_full_refresh is True:
                 command.append("--full-refresh")
 
             if selector:
