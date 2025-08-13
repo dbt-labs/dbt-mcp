@@ -5,7 +5,7 @@ from tests.env_vars import default_env_vars_context
 
 
 async def test_toolsets_match_server_tools():
-    """Test that the ToolPolicy enum matches the tools registered in the server."""
+    """Test that the defined toolsets match the tools registered in the server."""
     sql_tool_names = {"text_to_sql", "execute_sql"}
 
     with default_env_vars_context():
