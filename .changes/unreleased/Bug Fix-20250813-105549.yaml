@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Fix the prompt to ensure grain is passed even for non-time group by"
+time: 2025-08-13T10:55:49.072094-04:00
