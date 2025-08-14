@@ -56,6 +56,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
                 cwd=cwd_path,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
                 text=True,
             )
             output, _ = process.communicate(timeout=config.dbt_cli_timeout)
