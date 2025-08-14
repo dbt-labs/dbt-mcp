@@ -16,6 +16,7 @@ from dbt_mcp.semantic_layer.types import (
     EntityToolResponse,
     GetMetricsCompiledSqlSuccess,
     MetricToolResponse,
+    SavedQueryToolResponse,
     OrderByParam,
     QueryMetricsSuccess,
 )
@@ -38,6 +39,12 @@ def create_sl_tool_definitions(
     def list_metrics() -> list[MetricToolResponse] | str:
         try:
             return semantic_layer_fetcher.list_metrics()
+        except Exception as e:
+            return str(e)
+
+    def list_saved_queries() -> list[SavedQueryToolResponse] | str:
+        try:
+            return semantic_layer_fetcher.list_saved_queries()
         except Exception as e:
             return str(e)
 
@@ -143,6 +150,16 @@ def create_sl_tool_definitions(
             fn=get_metrics_compiled_sql,
             annotations=create_tool_annotations(
                 title="Compile SQL",
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+            ),
+        ),
+        ToolDefinition(
+            description=get_prompt("semantic_layer/list_saved_queries"),
+            fn=list_saved_queries,
+            annotations=create_tool_annotations(
+                title="List Saved Queries",
                 read_only_hint=True,
                 destructive_hint=False,
                 idempotent_hint=True,

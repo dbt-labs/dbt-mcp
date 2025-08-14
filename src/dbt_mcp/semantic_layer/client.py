@@ -26,6 +26,7 @@ from dbt_mcp.semantic_layer.types import (
     QueryMetricsError,
     QueryMetricsResult,
     QueryMetricsSuccess,
+    SavedQueryToolResponse,
 )
 
 
@@ -78,6 +79,30 @@ class SemanticLayerFetcher:
                 description=m.get("description"),
             )
             for m in metrics_result["data"]["metrics"]
+        ]
+
+    @cache
+    def list_saved_queries(self) -> list[SavedQueryToolResponse]:
+        saved_queries_result = submit_request(
+            self.config,
+            {"query": GRAPHQL_QUERIES["saved_queries"]},
+        )
+        return [
+            SavedQueryToolResponse(
+                name=sq.get("name"),
+                label=sq.get("label"),
+                description=sq.get("description"),
+                metrics=[
+                    m.get("name") for m in sq.get("queryParams", {}).get("metrics", [])
+                ],
+                group_by=[
+                    g.get("name") for g in sq.get("queryParams", {}).get("groupBy", [])
+                ],
+                where=sq.get("queryParams", {}).get("where", {}).get("whereSqlTemplate")
+                if sq.get("queryParams", {}).get("where")
+                else None,
+            )
+            for sq in saved_queries_result["data"]["savedQueries"]
         ]
 
     def get_dimensions(self, metrics: list[str]) -> list[DimensionToolResponse]:
