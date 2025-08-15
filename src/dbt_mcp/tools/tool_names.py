@@ -32,6 +32,7 @@ class ToolName(Enum):
     GET_MODEL_DETAILS = "get_model_details"
     GET_MODEL_PARENTS = "get_model_parents"
     GET_MODEL_CHILDREN = "get_model_children"
+    GET_MODEL_HEALTH = "get_model_health"
 
     # SQL tools
     TEXT_TO_SQL = "text_to_sql"
