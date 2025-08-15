@@ -37,6 +37,7 @@ This MCP (Model Context Protocol) server provides tools to interact with dbt. Re
 * `get_model_details` - Gets details for a specific model
 * `get_model_parents` - Gets parent nodes of a specific model
 * `get_model_children` - Gets children models of a specific model
+* `get_model_health` - Get health signals for a specific model
 
 ### SQL
 ⚠️ The SQL tools are implemented remotely. While MCP usage of the tools do not consume dbt Copilot credits, access to the tools will be impacted by dbt Copilot credit overages from direct usage of Copilot in dbt Platform. 
