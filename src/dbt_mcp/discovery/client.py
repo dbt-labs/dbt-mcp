@@ -380,7 +380,7 @@ class ModelsFetcher:
         if not edges:
             return []
         return edges[0]["node"]["children"]
-    
+
     def fetch_model_health(
         self, model_name: str, unique_id: str | None = None
     ) -> list[dict]:
@@ -400,4 +400,3 @@ class ModelsFetcher:
         if not edges:
             return []
         return edges[0]["node"]
-
