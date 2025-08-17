@@ -50,19 +50,6 @@ class GraphQLQueries:
                             node {
                                 name
                                 uniqueId
-                                rawCode
-                                description
-                                database
-                                schema
-                                alias
-                                catalog {
-                                    columns {
-                                        name 
-                                        description
-                                        name
-                                        type
-                                    }
-                                }
                                 executionInfo {
                                     lastRunGeneratedAt
                                     lastRunStatus
@@ -81,16 +68,45 @@ class GraphQLQueries:
                                         executeStartedAt
                                     }
                                 }
-                                parents {
-                                name
-                                resourceType
-                                ... on SourceAppliedStateNestedNode {
-                                  freshness {
-                                    freshnessChecked
-                                    freshnessStatus
-                                    freshnessRunGeneratedAt
+                                ancestors(types: [Model, Source, Seed, Snapshot]) {
+                                  ... on ModelAppliedStateNestedNode {
+                                    name
+                                    uniqueId
+                                    resourceType
+                                    materializedType
+                                    modelexecutionInfo: executionInfo {
+                                      lastRunStatus
+                                      executeCompletedAt
+                                      }
                                   }
-                                }
+                                  ... on SnapshotAppliedStateNestedNode {
+                                    name
+                                    uniqueId
+                                    resourceType
+                                    snapshotExecutionInfo: executionInfo {
+                                      lastRunStatus
+                                      executeCompletedAt
+                                    }
+                                  }
+                                  ... on SeedAppliedStateNestedNode {
+                                    name
+                                    uniqueId
+                                    resourceType
+                                    seedExecutionInfo: executionInfo {
+                                      lastRunStatus
+                                      executeCompletedAt
+                                    }
+                                  }
+                                  ... on SourceAppliedStateNestedNode {
+                                    sourceName
+                                    name
+                                    resourceType
+                                    freshness {
+                                      maxLoadedAt
+                                      maxLoadedAtTimeAgoInS
+                                      freshnessStatus
+                                    }
+                                  }
                               }
                             }
                         }

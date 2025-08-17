@@ -1,5 +1,5 @@
 <instructions>
-Retrieves information about the health of a dbt model, including the last time it ran, the last test execution status, and whether the upstream source data for the model is fresh.
+Retrieves information about the health of a dbt model, including the last time it ran, the last test execution status, and whether the upstream data for the model is fresh.
 
 IMPORTANT: Use uniqueId when available.
 - Using uniqueId guarantees the correct model is retrieved
@@ -7,13 +7,19 @@ IMPORTANT: Use uniqueId when available.
 - If you obtained models via get_all_models(), you should always use the uniqueId from those results
 
 ASSESSING MODEL HEALTH: 
-- for the model level executionInfo, if the lastRunStatus is "success" consider the model healthy
-- for the test level executionInfo, if the lastRunStatus is "success" consider the model healthy
-- If the freshnessStatus is null, consider the model questionably health
-- If the freshnessRunGeneratedAt is null or more than 24 hours old, consider the model questionably healthy
-- If the freshnessStatus is "pass", consider the model healthy
-- If the freshnessStatus is "fail", consider the model unhealthy
-- If the freshnessStatus is "warn", consider the model questionably healthy
+For all of the below, summarize whether the model is healthy, questionable, or unhealthy. Only provide more details when asked.
+
+- for the model executionInfo, if the lastRunStatus is "success" consider the model healthy
+- for the test executionInfo, if the lastRunStatus is "success" consider the model healthy
+
+- for the models parents:
+-- check the modelexecutionInfo, snapshotExecutionInfo, and seedExecutionInfo. If the lastRunStatus is "success" consider the model healthy. If the lastRunStatus is "error" consider the model unhealthy.
+
+-- if the parent node is a SourceAppliedStateNestedNode:
+--- If the freshnessStatus is "pass", consider the model healthy
+--- If the freshnessStatus is "fail", consider the model unhealthy
+--- If the freshnessStatus is null, consider the model health questionable
+--- If the freshnessStatus is "warn", consider the model health questionable
 </instructions>
 
 <parameters>
