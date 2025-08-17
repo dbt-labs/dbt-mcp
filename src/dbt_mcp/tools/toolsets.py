@@ -28,6 +28,7 @@ toolsets = {
         ToolName.GET_MODEL_DETAILS,
         ToolName.GET_MODEL_PARENTS,
         ToolName.GET_MODEL_CHILDREN,
+        ToolName.GET_MODEL_HEALTH,
     },
     Toolset.DBT_CLI: {
         ToolName.BUILD,

@@ -79,6 +79,9 @@ tool_policies = {
     ToolName.GET_MODEL_DETAILS.value: ToolPolicy(
         name=ToolName.GET_MODEL_DETAILS.value, behavior=ToolBehavior.METADATA
     ),
+    ToolName.GET_MODEL_HEALTH.value: ToolPolicy(
+        name=ToolName.GET_MODEL_HEALTH.value, behavior=ToolBehavior.METADATA
+    ),
     ToolName.GET_MART_MODELS.value: ToolPolicy(
         name=ToolName.GET_MART_MODELS.value, behavior=ToolBehavior.METADATA
     ),
