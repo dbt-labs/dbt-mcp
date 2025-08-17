@@ -64,7 +64,7 @@ def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefin
 
     def get_model_health(
         model_name: str, unique_id: str | None = None
-    ) -> dict | str:
+    ) -> list[dict] | str:
         try:
             return models_fetcher.fetch_model_health(model_name, unique_id)
         except Exception as e:
