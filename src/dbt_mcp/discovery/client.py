@@ -307,6 +307,16 @@ class ModelsFetcher:
             parsed_edges.append(node)
         return parsed_edges
 
+    def _get_model_filters(
+        self, model_name: str | None = None, unique_id: str | None = None
+    ) -> dict[str, list[str] | str]:
+        if unique_id:
+            return {"uniqueIds": [unique_id]}
+        elif model_name:
+            return {"identifier": model_name}
+        else:
+            raise ValueError("Either model_name or unique_id must be provided")
+
     def fetch_models(self, model_filter: ModelFilter | None = None) -> list[dict]:
         has_next_page = True
         after_cursor: str = ""
@@ -335,14 +345,7 @@ class ModelsFetcher:
     def fetch_model_details(
         self, model_name: str | None = None, unique_id: str | None = None
     ) -> dict:
-        model_filters: dict[str, list[str] | str]
-        if unique_id:
-            model_filters = {"uniqueIds": [unique_id]}
-        elif model_name:
-            model_filters = {"identifier": model_name}
-        else:
-            raise ValueError("Either model_name or unique_id must be provided")
-
+        model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
             "environmentId": self.environment_id,
             "modelsFilter": model_filters,
@@ -358,11 +361,9 @@ class ModelsFetcher:
         return edges[0]["node"]
 
     def fetch_model_parents(
-        self, model_name: str, unique_id: str | None = None
+        self, model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict]:
-        model_filters: dict[str, list[str] | str] = (
-            {"uniqueIds": [unique_id]} if unique_id else {"identifier": model_name}
-        )
+        model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
             "environmentId": self.environment_id,
             "modelsFilter": model_filters,
@@ -378,11 +379,9 @@ class ModelsFetcher:
         return edges[0]["node"]["parents"]
 
     def fetch_model_children(
-        self, model_name: str, unique_id: str | None = None
+        self, model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict]:
-        model_filters: dict[str, list[str] | str] = (
-            {"uniqueIds": [unique_id]} if unique_id else {"identifier": model_name}
-        )
+        model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
             "environmentId": self.environment_id,
             "modelsFilter": model_filters,
@@ -398,11 +397,9 @@ class ModelsFetcher:
         return edges[0]["node"]["children"]
 
     def fetch_model_health(
-        self, model_name: str, unique_id: str | None = None
+        self, model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict]:
-        model_filters: dict[str, list[str] | str] = (
-            {"uniqueIds": [unique_id]} if unique_id else {"identifier": model_name}
-        )
+        model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
             "environmentId": self.environment_id,
             "modelsFilter": model_filters,
