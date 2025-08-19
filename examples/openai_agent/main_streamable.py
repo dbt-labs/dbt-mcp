@@ -27,7 +27,7 @@ def print_tool_call(tool_name, params, color="yellow", show_params=True):
 
 
 def handle_event_printing(event, show_tools_calls=True):
-    if type(event) == RunItemStreamEvent and show_tools_calls:
+    if type(event) is RunItemStreamEvent and show_tools_calls:
         if event.name == "tool_called":
             print_tool_call(
                 event.item.raw_item.name,
@@ -36,10 +36,10 @@ def handle_event_printing(event, show_tools_calls=True):
                 show_params=True,
             )
 
-    if type(event) == RawResponsesStreamEvent:
-        if type(event.data) == ResponseCompletedEvent:
+    if type(event) is RawResponsesStreamEvent:
+        if type(event.data) is ResponseCompletedEvent:
             for output in event.data.response.output:
-                if type(output) == ResponseOutputMessage:
+                if type(output) is ResponseOutputMessage:
                     print(output.content[0].text)
 
 
