@@ -45,7 +45,6 @@ class SqlConfig(BaseModel):
     dev_environment_id: int | None = None
     prod_environment_id: int | None = None
     token: str
-    account_id: int | None = None
 
 
 class AdminApiConfig(BaseModel):
@@ -231,7 +230,6 @@ def load_config() -> Config:
         if token is not None and host is not None:
             sql_config = SqlConfig(
                 multicell_account_prefix=settings.multicell_account_prefix,
-                account_id=settings.dbt_account_id,
                 user_id=settings.dbt_user_id,
                 token=token,
                 dev_environment_id=settings.dbt_dev_env_id,
