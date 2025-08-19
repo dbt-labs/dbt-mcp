@@ -17,7 +17,7 @@ List of artifact file paths available for download. Common artifacts include:
 - **run_results.json**: Execution results and timing
 - **sources.json**: Source freshness check results
 - **compiled/**: Compiled SQL files
-- **logs/**: Execution logs and debug information
+- **run/**: SQL statements executed during the run
 
 ## Artifact Availability
 
@@ -38,7 +38,7 @@ Artifacts are only available for:
 
 ```python
 # List all artifacts for a run
-artifacts = list_run_artifacts(account_id=123, run_id=789)
+artifacts = list_run_artifacts(run_id=789)
 
 # Example response:
 # [

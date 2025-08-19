@@ -38,6 +38,17 @@ class ToolName(Enum):
     TEXT_TO_SQL = "text_to_sql"
     EXECUTE_SQL = "execute_sql"
 
+    # Admin API tools
+    LIST_JOBS = "list_jobs"
+    GET_JOB = "get_job"
+    TRIGGER_JOB_RUN = "trigger_job_run"
+    LIST_RUNS = "list_runs"
+    GET_RUN = "get_run"
+    CANCEL_RUN = "cancel_run"
+    RETRY_RUN = "retry_run"
+    LIST_RUN_ARTIFACTS = "list_run_artifacts"
+    GET_RUN_ARTIFACT = "get_run_artifact"
+
     @classmethod
     def get_all_tool_names(cls) -> set[str]:
         """Returns a set of all tool names as strings."""

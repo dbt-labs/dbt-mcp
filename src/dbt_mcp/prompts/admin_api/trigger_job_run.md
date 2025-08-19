@@ -46,14 +46,12 @@ Run object with information about the newly triggered run including:
 ```python
 # Basic job trigger
 trigger_job_run(
-    account_id=123,
     job_id=456, 
     cause="Manual trigger for testing"
 )
 
 # Trigger with branch override
 trigger_job_run(
-    account_id=123,
     job_id=456,
     cause="Testing feature branch",
     git_branch="feature/new-models",

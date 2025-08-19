@@ -8,6 +8,7 @@ class Toolset(Enum):
     SEMANTIC_LAYER = "semantic_layer"
     DISCOVERY = "discovery"
     DBT_CLI = "dbt_cli"
+    ADMIN_API = "admin_api"
 
 
 toolsets = {
@@ -39,5 +40,16 @@ toolsets = {
         ToolName.RUN,
         ToolName.TEST,
         ToolName.SHOW,
+    },
+    Toolset.ADMIN_API: {
+        ToolName.LIST_JOBS,
+        ToolName.GET_JOB,
+        ToolName.TRIGGER_JOB_RUN,
+        ToolName.LIST_RUNS,
+        ToolName.GET_RUN,
+        ToolName.CANCEL_RUN,
+        ToolName.RETRY_RUN,
+        ToolName.LIST_RUN_ARTIFACTS,
+        ToolName.GET_RUN_ARTIFACT,
     },
 }

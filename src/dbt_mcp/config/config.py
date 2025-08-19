@@ -48,6 +48,13 @@ class SqlConfig(BaseModel):
     account_id: int | None = None
 
 
+class AdminApiConfig(BaseModel):
+    host: str
+    token: str
+    account_id: int
+    multicell_account_prefix: str | None = None
+
+
 class DbtMcpSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="",
@@ -99,6 +106,10 @@ class DbtMcpSettings(BaseSettings):
             return self.disable_remote
         return True
 
+    @property
+    def actual_disable_admin_api(self) -> bool:
+        return self.disable_admin_api if self.disable_admin_api is not None else False
+
     @field_validator("disable_tools", mode="before")
     @classmethod
     def parse_disable_tools(cls, env_var: str | None) -> list[ToolName]:
@@ -128,6 +139,7 @@ class Config(BaseModel):
     dbt_cli_config: DbtCliConfig | None = None
     discovery_config: DiscoveryConfig | None = None
     semantic_layer_config: SemanticLayerConfig | None = None
+    admin_api_config: AdminApiConfig | None = None
     disable_admin_api: bool
     disable_tools: list[ToolName]
 
@@ -147,7 +159,7 @@ def load_config() -> Config:
         not settings.disable_semantic_layer
         or not settings.disable_discovery
         or not settings.actual_disable_sql
-        or not settings.disable_admin_api
+        or not settings.actual_disable_admin_api
     ):
         if not settings.actual_host:
             errors.append(
@@ -177,7 +189,7 @@ def load_config() -> Config:
             errors.append(
                 "DBT_USER_ID environment variable is required when SQL tools are enabled."
             )
-    if not settings.disable_admin_api:
+    if not settings.actual_disable_admin_api:
         # Admin API tools need basic auth but don't require user_id for all operations
         pass
     if not settings.disable_dbt_cli:
@@ -195,11 +207,12 @@ def load_config() -> Config:
 
     # Build configurations
     sql_config = None
-    # For admin API tools, we only need token, host, and optionally user_id
+    # For admin API tools, we need token, host, and account_id
     admin_api_requirements_met = (
-        not settings.disable_admin_api
+        not settings.actual_disable_admin_api
         and settings.dbt_token
         and settings.actual_host
+        and settings.dbt_account_id
     )
     # For remote tools, we need all fields
     remote_requirements_met = (
@@ -210,17 +223,34 @@ def load_config() -> Config:
         and settings.actual_prod_environment_id
         and settings.actual_host
     )
-    
-    if remote_requirements_met or admin_api_requirements_met:
-        sql_config = SqlConfig(
-            multicell_account_prefix=settings.multicell_account_prefix,
-            account_id=settings.dbt_account_id,
-            user_id=settings.dbt_user_id,
-            token=settings.dbt_token,
-            dev_environment_id=settings.dbt_dev_env_id,
-            prod_environment_id=settings.actual_prod_environment_id,
-            host=settings.actual_host,
-        )
+
+    if remote_requirements_met:
+        # Type guard: requirements check ensures these are not None
+        token = settings.dbt_token
+        host = settings.actual_host
+        if token is not None and host is not None:
+            sql_config = SqlConfig(
+                multicell_account_prefix=settings.multicell_account_prefix,
+                account_id=settings.dbt_account_id,
+                user_id=settings.dbt_user_id,
+                token=token,
+                dev_environment_id=settings.dbt_dev_env_id,
+                prod_environment_id=settings.actual_prod_environment_id,
+                host=host,
+            )
+
+    admin_api_config = None
+    if admin_api_requirements_met:
+        # Type guard: requirements check ensures these are not None
+        token = settings.dbt_token
+        host = settings.actual_host
+        account_id = settings.dbt_account_id
+        if token is not None and host is not None and account_id is not None:
+            admin_api_config = AdminApiConfig(
+                host=host,
+                token=token,
+                account_id=account_id,
+            )
 
     dbt_cli_config = None
     if not settings.disable_dbt_cli and settings.dbt_project_dir and settings.dbt_path:
@@ -301,6 +331,7 @@ def load_config() -> Config:
         dbt_cli_config=dbt_cli_config,
         discovery_config=discovery_config,
         semantic_layer_config=semantic_layer_config,
-        disable_admin_api=settings.disable_admin_api,
+        admin_api_config=admin_api_config,
+        disable_admin_api=settings.actual_disable_admin_api,
         disable_tools=settings.disable_tools or [],
     )

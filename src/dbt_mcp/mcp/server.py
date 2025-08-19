@@ -115,7 +115,7 @@ async def create_dbt_mcp(config: Config):
 
     if not config.disable_admin_api:
         logger.info("Registering admin API tools")
-        register_admin_api_tools(dbt_mcp, config.remote_config, config.disable_tools)
+        register_admin_api_tools(dbt_mcp, config, config.disable_tools)
 
     if config.sql_config:
         logger.info("Registering SQL tools")
