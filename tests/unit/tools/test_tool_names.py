@@ -9,20 +9,18 @@ from tests.env_vars import default_env_vars_context
 @pytest.mark.asyncio
 async def test_tool_names_match_server_tools():
     """Test that the ToolName enum matches the tools registered in the server."""
+    sql_tool_names = {"text_to_sql", "execute_sql"}
+
     with default_env_vars_context():
         config = load_config()
         dbt_mcp = await create_dbt_mcp(config)
 
         # Get all tools from the server
         server_tools = await dbt_mcp.list_tools()
-        server_tool_names = {tool.name for tool in server_tools}
-        enum_names = {
-            n
-            for n in ToolName.get_all_tool_names()
-            if n
-            # Not testing remote tools for now
-            not in ["text_to_sql", "execute_sql"]
-        }
+        # Manually adding SQL tools here because the server doesn't get them
+        # in this unit test.
+        server_tool_names = {tool.name for tool in server_tools} | sql_tool_names
+        enum_names = {n for n in ToolName.get_all_tool_names()}
 
         # This should not raise any errors if the enum is in sync
         if server_tool_names != enum_names:
@@ -37,3 +35,8 @@ async def test_tool_names_match_server_tools():
             assert isinstance(tool.value, str), (
                 f"Tool {tool.name} value should be a string"
             )
+
+
+def test_tool_names_no_duplicates():
+    """Test that there are no duplicate tool names in the enum."""
+    assert len(ToolName.get_all_tool_names()) == len(set(ToolName.get_all_tool_names()))

@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -189,7 +189,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "dbt-protos", specifier = "==1.0.317" },
-    { name = "dbt-sl-sdk", extras = ["sync"], specifier = "==0.11.0" },
+    { name = "dbt-sl-sdk", extras = ["sync"], specifier = "==0.13.0" },
     { name = "dbtlabs-vortex", specifier = "==0.2.0" },
     { name = "mcp", extras = ["cli"], specifier = "==1.10.1" },
     { name = "pandas", specifier = "==2.2.3" },
@@ -225,7 +225,7 @@ wheels = [
 
 [[package]]
 name = "dbt-sl-sdk"
-version = "0.11.0"
+version = "0.13.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "adbc-driver-flightsql" },
@@ -234,9 +234,9 @@ dependencies = [
     { name = "pyarrow" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0d/3f/0ed1e5a2c1f4b880ba536179397107ffbbdd9f11080a37fb4302258e8738/dbt_sl_sdk-0.11.0.tar.gz", hash = "sha256:b25716276d03aee1228d1a28e2932f63ffd4356878072c4106f6e1664ad680e8", size = 28836, upload-time = "2025-04-22T11:19:29.11Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2b/ab/95fa1178138403fc9ae9f9d9705cabbe0f9d125a561ab29b88a142a98345/dbt_sl_sdk-0.13.0.tar.gz", hash = "sha256:e6d34f2ba61661ddcd7a69e70c2e3c94ca1b78ff4b560c44b55be333dedca9dc", size = 29075, upload-time = "2025-07-15T20:59:48.073Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1d/7a/10ca303a8004089bcb69914b3a5ace943da25611417a1613fad47a40eed2/dbt_sl_sdk-0.11.0-py3-none-any.whl", hash = "sha256:bba027b38def0f64e390b0d0e0894ed41b5b0921b04edef2f5e22f555b415400", size = 46773, upload-time = "2025-04-22T11:19:27.476Z" },
+    { url = "https://files.pythonhosted.org/packages/4d/8e/3c8f1e03f4af9190fedde7ef9a2fe1e7828107bd8610f46d3bd272c6694c/dbt_sl_sdk-0.13.0-py3-none-any.whl", hash = "sha256:b16810dfcb7ae47dce7bed352d02a5d5956dccd2751ccd8bd9ca5c8d8ee31474", size = 47093, upload-time = "2025-07-15T20:59:46.867Z" },
 ]
 
 [package.optional-dependencies]
