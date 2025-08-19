@@ -17,7 +17,7 @@ dependencies = [
   # Pinning all dependencies because this app is installed with uvx
   # and we want to have a consistent install as much as possible.
   "dbt-protos==1.0.317",
-  "dbt-sl-sdk[sync]==0.11.0",
+  "dbt-sl-sdk[sync]==0.13.0",
   "dbtlabs-vortex==0.2.0",
   "mcp[cli]==1.10.1",
   "pandas==2.2.3",
