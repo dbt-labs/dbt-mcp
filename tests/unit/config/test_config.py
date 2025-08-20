@@ -29,6 +29,7 @@ class TestDbtMcpSettings:
             "DISABLE_SEMANTIC_LAYER",
             "DISABLE_DISCOVERY",
             "DISABLE_REMOTE",
+            "DISABLE_ADMIN_API",
             "MULTICELL_ACCOUNT_PREFIX",
             "DBT_WARN_ERROR_OPTIONS",
             "DISABLE_TOOLS",
@@ -142,6 +143,7 @@ class TestLoadConfig:
             "DISABLE_SEMANTIC_LAYER",
             "DISABLE_DISCOVERY",
             "DISABLE_REMOTE",
+            "DISABLE_ADMIN_API",
             "MULTICELL_ACCOUNT_PREFIX",
             "DBT_WARN_ERROR_OPTIONS",
             "DISABLE_TOOLS",
@@ -191,6 +193,7 @@ class TestLoadConfig:
             "DISABLE_SEMANTIC_LAYER": "true",
             "DISABLE_DISCOVERY": "true",
             "DISABLE_REMOTE": "true",
+            "DISABLE_ADMIN_API": "true",
         }
 
         config = self._load_config_with_env(env_vars)
@@ -371,6 +374,7 @@ class TestLoadConfig:
             "DISABLE_SEMANTIC_LAYER": "true",
             "DISABLE_DISCOVERY": "true",
             "DISABLE_REMOTE": "true",
+            "DISABLE_ADMIN_API": "true",
         }
 
         # For this test, we need to call load_config directly to see environment side effects
@@ -392,6 +396,7 @@ class TestLoadConfig:
             "DISABLE_SEMANTIC_LAYER": "true",
             "DISABLE_DISCOVERY": "true",
             "DISABLE_REMOTE": "true",
+            "DISABLE_ADMIN_API": "true",
         }
 
         # For this test, we need to call load_config directly to see environment side effects
@@ -413,6 +418,7 @@ class TestLoadConfig:
             "DISABLE_SEMANTIC_LAYER": "true",
             "DISABLE_DISCOVERY": "true",
             "DISABLE_REMOTE": "true",
+            "DISABLE_ADMIN_API": "true",
         }
 
         with patch.dict(os.environ, env_vars):
@@ -428,6 +434,7 @@ class TestLoadConfig:
             "DISABLE_SEMANTIC_LAYER": "true",
             "DISABLE_DISCOVERY": "true",
             "DISABLE_REMOTE": "true",
+            "DISABLE_ADMIN_API": "true",
         }
 
         with patch.dict(os.environ, env_vars):
@@ -446,6 +453,7 @@ class TestLoadConfig:
             "DISABLE_DBT_CLI": "true",
             "DISABLE_SEMANTIC_LAYER": "true",
             "DISABLE_DISCOVERY": "true",
+            "DISABLE_ADMIN_API": "true",
         }
 
         config = self._load_config_with_env(env_vars)

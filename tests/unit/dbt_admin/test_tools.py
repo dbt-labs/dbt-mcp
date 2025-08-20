@@ -158,10 +158,10 @@ def test_list_jobs_tool(mock_get_prompt, mock_config, mock_admin_client):
     )
     list_jobs_tool = tool_definitions[0].fn  # First tool is list_jobs
 
-    result = list_jobs_tool(project_id=1, limit=10)
+    result = list_jobs_tool(limit=10)
 
     assert isinstance(result, list)
-    mock_admin_client.list_jobs.assert_called_once_with(12345, project_id=1, limit=10)
+    mock_admin_client.list_jobs.assert_called_once_with(12345, limit=10)
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
@@ -209,7 +209,7 @@ def test_list_jobs_runs_tool(mock_get_prompt, mock_config, mock_admin_client):
 
     assert isinstance(result, list)
     mock_admin_client.list_jobs_runs.assert_called_once_with(
-        12345, job_definition_id=1, status="success", limit=5
+        12345, job_definition_id=1, status=10, limit=5
     )
 
 
