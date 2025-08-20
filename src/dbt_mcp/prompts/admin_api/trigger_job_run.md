@@ -1,6 +1,6 @@
 # Trigger Job Run
 
-Trigger a dbt Cloud job run with optional parameter overrides.
+Trigger a dbt job run with optional parameter overrides.
 
 This tool starts a new run for a specified job with the ability to override default settings like Git branch, schema, or other execution parameters.
 

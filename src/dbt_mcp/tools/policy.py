@@ -99,28 +99,28 @@ tool_policies = {
     ToolName.LIST_JOBS.value: ToolPolicy(
         name=ToolName.LIST_JOBS.value, behavior=ToolBehavior.METADATA
     ),
-    ToolName.GET_JOB.value: ToolPolicy(
-        name=ToolName.GET_JOB.value, behavior=ToolBehavior.METADATA
+    ToolName.GET_JOB_DETAILS.value: ToolPolicy(
+        name=ToolName.GET_JOB_DETAILS.value, behavior=ToolBehavior.METADATA
     ),
     ToolName.TRIGGER_JOB_RUN.value: ToolPolicy(
         name=ToolName.TRIGGER_JOB_RUN.value, behavior=ToolBehavior.METADATA
     ),
-    ToolName.LIST_RUNS.value: ToolPolicy(
-        name=ToolName.LIST_RUNS.value, behavior=ToolBehavior.METADATA
+    ToolName.LIST_JOBS_RUNS.value: ToolPolicy(
+        name=ToolName.LIST_JOBS_RUNS.value, behavior=ToolBehavior.METADATA
     ),
-    ToolName.GET_RUN.value: ToolPolicy(
-        name=ToolName.GET_RUN.value, behavior=ToolBehavior.METADATA
+    ToolName.GET_JOB_RUN_DETAILS.value: ToolPolicy(
+        name=ToolName.GET_JOB_RUN_DETAILS.value, behavior=ToolBehavior.METADATA
     ),
-    ToolName.CANCEL_RUN.value: ToolPolicy(
-        name=ToolName.CANCEL_RUN.value, behavior=ToolBehavior.METADATA
+    ToolName.CANCEL_JOB_RUN.value: ToolPolicy(
+        name=ToolName.CANCEL_JOB_RUN.value, behavior=ToolBehavior.METADATA
     ),
-    ToolName.RETRY_RUN.value: ToolPolicy(
-        name=ToolName.RETRY_RUN.value, behavior=ToolBehavior.METADATA
+    ToolName.RETRY_JOB_RUN.value: ToolPolicy(
+        name=ToolName.RETRY_JOB_RUN.value, behavior=ToolBehavior.METADATA
     ),
-    ToolName.LIST_RUN_ARTIFACTS.value: ToolPolicy(
-        name=ToolName.LIST_RUN_ARTIFACTS.value, behavior=ToolBehavior.METADATA
+    ToolName.LIST_JOB_RUN_ARTIFACTS.value: ToolPolicy(
+        name=ToolName.LIST_JOB_RUN_ARTIFACTS.value, behavior=ToolBehavior.METADATA
     ),
-    ToolName.GET_RUN_ARTIFACT.value: ToolPolicy(
-        name=ToolName.GET_RUN_ARTIFACT.value, behavior=ToolBehavior.METADATA
+    ToolName.GET_JOB_RUN_ARTIFACT.value: ToolPolicy(
+        name=ToolName.GET_JOB_RUN_ARTIFACT.value, behavior=ToolBehavior.METADATA
     ),
 }

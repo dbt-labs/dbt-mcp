@@ -1,6 +1,4 @@
-# List Run Artifacts
-
-List all available artifacts for a completed dbt Cloud run.
+List all available artifacts for a completed dbt job run.
 
 This tool retrieves the list of artifact files generated during a run execution, such as manifest.json, catalog.json, and run_results.json.
 
@@ -38,7 +36,7 @@ Artifacts are only available for:
 
 ```python
 # List all artifacts for a run
-artifacts = list_run_artifacts(run_id=789)
+artifacts = list_job_run_artifacts(run_id=789)
 
 # Example response:
 # [

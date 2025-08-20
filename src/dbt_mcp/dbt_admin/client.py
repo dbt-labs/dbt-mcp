@@ -15,7 +15,7 @@ class AdminAPIError(Exception):
 
 
 class DbtAdminAPIClient:
-    """Client for interacting with dbt Cloud Admin API v2."""
+    """Client for interacting with the dbt Admin API."""
 
     def __init__(self, config: AdminApiConfig):
         self.config = config
@@ -113,7 +113,7 @@ class DbtAdminAPIClient:
 
         return filtered_data
 
-    def get_job(self, account_id: int, job_id: int) -> Dict[str, Any]:
+    def get_job_details(self, account_id: int, job_id: int) -> Dict[str, Any]:
         """Get details for a specific job."""
         result = self._make_request(
             "GET",
@@ -131,7 +131,7 @@ class DbtAdminAPIClient:
         )
         return result.get("data", {})
 
-    def list_runs(self, account_id: int, **params) -> List[Dict[str, Any]]:
+    def list_jobs_runs(self, account_id: int, **params) -> List[Dict[str, Any]]:
         """List runs for an account."""
         extra_info = "?include_related=['job']"
         result = self._make_request(
@@ -172,10 +172,10 @@ class DbtAdminAPIClient:
 
         return data
 
-    def get_run(
+    def get_job_run_details(
         self, account_id: int, run_id: int, debug: bool = False
     ) -> Dict[str, Any]:
-        """Get details for a specific run."""
+        """Get details for a specific job run."""
 
         # we add this for individual runs but not all of them
         incl = "?include_related=['run_steps']"
@@ -193,22 +193,22 @@ class DbtAdminAPIClient:
 
         return data
 
-    def cancel_run(self, account_id: int, run_id: int) -> Dict[str, Any]:
-        """Cancel a run."""
+    def cancel_job_run(self, account_id: int, run_id: int) -> Dict[str, Any]:
+        """Cancel a job run."""
         result = self._make_request(
             "POST", f"/api/v2/accounts/{account_id}/runs/{run_id}/cancel/"
         )
         return result.get("data", {})
 
-    def retry_run(self, account_id: int, run_id: int) -> Dict[str, Any]:
-        """Retry a failed run."""
+    def retry_job_run(self, account_id: int, run_id: int) -> Dict[str, Any]:
+        """Retry a failed job run."""
         result = self._make_request(
             "POST", f"/api/v2/accounts/{account_id}/runs/{run_id}/retry/"
         )
         return result.get("data", {})
 
-    def list_run_artifacts(self, account_id: int, run_id: int) -> List[str]:
-        """List artifacts for a run."""
+    def list_job_run_artifacts(self, account_id: int, run_id: int) -> List[str]:
+        """List artifacts for a job run."""
         result = self._make_request(
             "GET", f"/api/v2/accounts/{account_id}/runs/{run_id}/artifacts/"
         )
@@ -224,14 +224,14 @@ class DbtAdminAPIClient:
         ]
         return filtered_data
 
-    def get_run_artifact(
+    def get_job_run_artifact(
         self,
         account_id: int,
         run_id: int,
         artifact_path: str,
         step: Optional[int] = None,
     ) -> Any:
-        """Get a specific run artifact."""
+        """Get a specific job run artifact."""
         params = {}
         if step:
             params["step"] = step
@@ -247,14 +247,4 @@ class DbtAdminAPIClient:
             params=params,
         )
         response.raise_for_status()
-
-        # Return raw content for artifacts
-        if response.headers.get("content-type", "").startswith("application/json"):
-            return response.json()
-        else:
-            return response.text
-
-
-def get_admin_api_client(config: AdminApiConfig) -> DbtAdminAPIClient:
-    """Factory function to create a DbtAdminAPIClient instance."""
-    return DbtAdminAPIClient(config)
+        return response.text

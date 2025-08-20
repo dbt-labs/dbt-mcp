@@ -1,6 +1,4 @@
-# Get Run Artifact
-
-Download a specific artifact file from a dbt Cloud run.
+Download a specific artifact file from a dbt job run.
 
 This tool retrieves the content of a specific artifact file generated during run execution, such as manifest.json, catalog.json, or compiled SQL files.
 

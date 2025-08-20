@@ -1,6 +1,6 @@
 List all jobs in a dbt platform account with optional filtering.
 
-This tool retrieves jobs from the dbt Cloud Admin API v2. Jobs are the configuration for scheduled or triggered dbt runs.
+This tool retrieves jobs from the dbt Admin API. Jobs are the configuration for scheduled or triggered dbt runs.
 
 ## Parameters
 

@@ -1,6 +1,4 @@
-# Get Run Details
-
-Get detailed information for a specific dbt Cloud run.
+Get detailed information for a specific dbt job run.
 
 This tool retrieves comprehensive run information including execution details, steps, artifacts, and debug logs.
 
@@ -21,15 +19,6 @@ Run object with detailed execution information including:
 - Trigger information and cause
 - Debug logs (if requested)
 - Performance metrics and timing
-
-## Run Statuses
-
-- **1**: Queued - Run is waiting to start
-- **2**: Starting - Run is initializing
-- **3**: Running - Run is executing
-- **10**: Success - Run completed successfully
-- **20**: Error - Run failed with errors
-- **30**: Cancelled - Run was cancelled
 
 ## Use Cases
 
@@ -57,4 +46,4 @@ When the `debug` parameter is set to true, the response will contain detailed de
 
 ## Response Information
 
-The detailed response includes timing, status, and execution context to help with monitoring and debugging dbt Cloud runs.
+The detailed response includes timing, status, and execution context to help with monitoring and debugging dbt job runs.

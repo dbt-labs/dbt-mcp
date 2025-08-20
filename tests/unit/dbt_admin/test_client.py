@@ -5,7 +5,6 @@ from unittest.mock import Mock, patch
 from dbt_mcp.dbt_admin.client import (
     DbtAdminAPIClient,
     AdminAPIError,
-    get_admin_api_client,
 )
 from dbt_mcp.config.config import AdminApiConfig
 
@@ -51,12 +50,6 @@ def test_client_initialization(client):
 
 def test_client_initialization_with_prefix(client_with_prefix):
     assert client_with_prefix.base_url == "https://eu1.cloud.getdbt.com"
-
-
-def test_get_admin_api_client_factory(admin_config):
-    client = get_admin_api_client(admin_config)
-    assert isinstance(client, DbtAdminAPIClient)
-    assert client.config == admin_config
 
 
 @patch("requests.request")
@@ -164,13 +157,13 @@ def test_list_jobs_with_null_values(mock_request, client):
 
 
 @patch("requests.request")
-def test_get_job(mock_request, client):
+def test_get_job_details(mock_request, client):
     mock_response = Mock()
     mock_response.json.return_value = {"data": {"id": 1, "name": "test_job"}}
     mock_response.raise_for_status.return_value = None
     mock_request.return_value = mock_response
 
-    result = client.get_job(12345, 1)
+    result = client.get_job_details(12345, 1)
 
     assert result == {"id": 1, "name": "test_job"}
     mock_request.assert_called_once_with(
@@ -205,7 +198,7 @@ def test_trigger_job_run(mock_request, client):
 
 
 @patch("requests.request")
-def test_list_runs(mock_request, client):
+def test_list_jobs_runs(mock_request, client):
     mock_response = Mock()
     mock_response.json.return_value = {
         "data": [
@@ -247,7 +240,7 @@ def test_list_runs(mock_request, client):
     mock_response.raise_for_status.return_value = None
     mock_request.return_value = mock_response
 
-    result = client.list_runs(12345, job_definition_id=1, status="success")
+    result = client.list_jobs_runs(12345, job_definition_id=1, status="success")
 
     assert len(result) == 1
     run = result[0]
@@ -295,7 +288,7 @@ def test_list_runs(mock_request, client):
 
 
 @patch("requests.request")
-def test_get_run_without_debug(mock_request, client):
+def test_get_job_run_details_without_debug(mock_request, client):
     mock_response = Mock()
     mock_response.json.return_value = {
         "data": {
@@ -309,7 +302,7 @@ def test_get_run_without_debug(mock_request, client):
     mock_response.raise_for_status.return_value = None
     mock_request.return_value = mock_response
 
-    result = client.get_run(12345, 100, debug=False)
+    result = client.get_job_run_details(12345, 100, debug=False)
 
     assert result["id"] == 100
     # Verify truncated_debug_logs are removed
@@ -323,7 +316,7 @@ def test_get_run_without_debug(mock_request, client):
 
 
 @patch("requests.request")
-def test_get_run_with_debug(mock_request, client):
+def test_get_job_run_details_with_debug(mock_request, client):
     mock_response = Mock()
     mock_response.json.return_value = {
         "data": {
@@ -337,7 +330,7 @@ def test_get_run_with_debug(mock_request, client):
     mock_response.raise_for_status.return_value = None
     mock_request.return_value = mock_response
 
-    _ = client.get_run(12345, 100, debug=True)
+    _ = client.get_job_run_details(12345, 100, debug=True)
 
     mock_request.assert_called_once_with(
         "GET",
@@ -347,13 +340,13 @@ def test_get_run_with_debug(mock_request, client):
 
 
 @patch("requests.request")
-def test_cancel_run(mock_request, client):
+def test_cancel_job_run(mock_request, client):
     mock_response = Mock()
     mock_response.json.return_value = {"data": {"id": 100, "status": "cancelled"}}
     mock_response.raise_for_status.return_value = None
     mock_request.return_value = mock_response
 
-    result = client.cancel_run(12345, 100)
+    result = client.cancel_job_run(12345, 100)
 
     assert result == {"id": 100, "status": "cancelled"}
     mock_request.assert_called_once_with(
@@ -364,13 +357,13 @@ def test_cancel_run(mock_request, client):
 
 
 @patch("requests.request")
-def test_retry_run(mock_request, client):
+def test_retry_job_run(mock_request, client):
     mock_response = Mock()
     mock_response.json.return_value = {"data": {"id": 101, "status": "queued"}}
     mock_response.raise_for_status.return_value = None
     mock_request.return_value = mock_response
 
-    result = client.retry_run(12345, 100)
+    result = client.retry_job_run(12345, 100)
 
     assert result == {"id": 101, "status": "queued"}
     mock_request.assert_called_once_with(
@@ -381,7 +374,7 @@ def test_retry_run(mock_request, client):
 
 
 @patch("requests.request")
-def test_list_run_artifacts(mock_request, client):
+def test_list_job_run_artifacts(mock_request, client):
     mock_response = Mock()
     mock_response.json.return_value = {
         "data": [
@@ -395,7 +388,7 @@ def test_list_run_artifacts(mock_request, client):
     mock_response.raise_for_status.return_value = None
     mock_request.return_value = mock_response
 
-    result = client.list_run_artifacts(12345, 100)
+    result = client.list_job_run_artifacts(12345, 100)
 
     # Should filter out compiled/ and run/ artifacts
     expected = ["manifest.json", "catalog.json", "sources.json"]
@@ -409,14 +402,14 @@ def test_list_run_artifacts(mock_request, client):
 
 
 @patch("requests.get")
-def test_get_run_artifact_json(mock_get, client):
+def test_get_job_run_artifact_json(mock_get, client):
     mock_response = Mock()
     mock_response.json.return_value = {"nodes": {"model.test": {}}}
     mock_response.headers = {"content-type": "application/json"}
     mock_response.raise_for_status.return_value = None
     mock_get.return_value = mock_response
 
-    result = client.get_run_artifact(12345, 100, "manifest.json", step=1)
+    result = client.get_job_run_artifact(12345, 100, "manifest.json", step=1)
 
     assert result == {"nodes": {"model.test": {}}}
     mock_get.assert_called_once_with(
@@ -427,14 +420,14 @@ def test_get_run_artifact_json(mock_get, client):
 
 
 @patch("requests.get")
-def test_get_run_artifact_text(mock_get, client):
+def test_get_job_run_artifact_text(mock_get, client):
     mock_response = Mock()
     mock_response.text = "LOG DATA"
     mock_response.headers = {"content-type": "text/plain"}
     mock_response.raise_for_status.return_value = None
     mock_get.return_value = mock_response
 
-    result = client.get_run_artifact(12345, 100, "logs/dbt.log")
+    result = client.get_job_run_artifact(12345, 100, "logs/dbt.log")
 
     assert result == "LOG DATA"
     mock_get.assert_called_once_with(
@@ -445,14 +438,14 @@ def test_get_run_artifact_text(mock_get, client):
 
 
 @patch("requests.get")
-def test_get_run_artifact_no_step_param(mock_get, client):
+def test_get_job_run_artifact_no_step_param(mock_get, client):
     mock_response = Mock()
     mock_response.text = "artifact content"
     mock_response.headers = {"content-type": "text/plain"}
     mock_response.raise_for_status.return_value = None
     mock_get.return_value = mock_response
 
-    client.get_run_artifact(12345, 100, "manifest.json")
+    client.get_job_run_artifact(12345, 100, "manifest.json")
 
     mock_get.assert_called_once_with(
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/artifacts/manifest.json",
@@ -462,8 +455,8 @@ def test_get_run_artifact_no_step_param(mock_get, client):
 
 
 @patch("requests.get")
-def test_get_run_artifact_request_exception(mock_get, client):
+def test_get_job_run_artifact_request_exception(mock_get, client):
     mock_get.side_effect = requests.exceptions.HTTPError("404 Not Found")
 
     with pytest.raises(requests.exceptions.HTTPError):
-        client.get_run_artifact(12345, 100, "nonexistent.json")
+        client.get_job_run_artifact(12345, 100, "nonexistent.json")

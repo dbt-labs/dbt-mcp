@@ -25,7 +25,6 @@ def mock_config(mock_admin_config):
     return Config(
         tracking_config=mock_tracking_config,
         admin_api_config=mock_admin_config,
-        disable_admin_api=False,
         disable_tools=[],
     )
 
@@ -63,9 +62,9 @@ def mock_admin_client():
             "schedule": "0 9 * * *",
         }
     ]
-    client.get_job.return_value = {"id": 1, "name": "test_job"}
+    client.get_job_details.return_value = {"id": 1, "name": "test_job"}
     client.trigger_job_run.return_value = {"id": 200, "status": "queued"}
-    client.list_runs.return_value = [
+    client.list_jobs_runs.return_value = [
         {
             "id": 100,
             "status": 10,
@@ -75,23 +74,23 @@ def mock_admin_client():
             "finished_at": "2024-01-01T00:05:00Z",
         }
     ]
-    client.get_run.return_value = {
+    client.get_job_run_details.return_value = {
         "id": 100,
         "status": 10,
         "status_humanized": "Success",
     }
-    client.cancel_run.return_value = {
+    client.cancel_job_run.return_value = {
         "id": 100,
         "status": 20,
         "status_humanized": "Cancelled",
     }
-    client.retry_run.return_value = {
+    client.retry_job_run.return_value = {
         "id": 101,
         "status": 1,
         "status_humanized": "Queued",
     }
-    client.list_run_artifacts.return_value = ["manifest.json", "catalog.json"]
-    client.get_run_artifact.return_value = {"nodes": {}}
+    client.list_job_run_artifacts.return_value = ["manifest.json", "catalog.json"]
+    client.get_job_run_artifact.return_value = {"nodes": {}}
     return client
 
 
@@ -102,7 +101,6 @@ def test_register_admin_api_tools_without_config(mock_register_tools, mock_fastm
     config = Config(
         tracking_config=mock_tracking_config,
         admin_api_config=None,
-        disable_admin_api=False,
         disable_tools=[],
     )
     fastmcp, tools = mock_fastmcp
@@ -167,18 +165,18 @@ def test_list_jobs_tool(mock_get_prompt, mock_config, mock_admin_client):
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
-def test_get_job_tool(mock_get_prompt, mock_config, mock_admin_client):
+def test_get_job_details_tool(mock_get_prompt, mock_config, mock_admin_client):
     mock_get_prompt.return_value = "Get job prompt"
 
     tool_definitions = create_admin_api_tool_definitions(
         mock_admin_client, mock_config.admin_api_config
     )
-    get_job_tool = tool_definitions[1].fn  # Second tool is get_job
+    get_job_details_tool = tool_definitions[1].fn  # Second tool is get_job_details
 
-    result = get_job_tool(job_id=1)
+    result = get_job_details_tool(job_id=1)
 
     assert isinstance(result, dict)
-    mock_admin_client.get_job.assert_called_once_with(12345, 1)
+    mock_admin_client.get_job_details.assert_called_once_with(12345, 1)
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
@@ -199,97 +197,105 @@ def test_trigger_job_run_tool(mock_get_prompt, mock_config, mock_admin_client):
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
-def test_list_runs_tool(mock_get_prompt, mock_config, mock_admin_client):
+def test_list_jobs_runs_tool(mock_get_prompt, mock_config, mock_admin_client):
     mock_get_prompt.return_value = "List runs prompt"
 
     tool_definitions = create_admin_api_tool_definitions(
         mock_admin_client, mock_config.admin_api_config
     )
-    list_runs_tool = tool_definitions[3].fn  # Fourth tool is list_runs
+    list_jobs_runs_tool = tool_definitions[3].fn  # Fourth tool is list_jobs_runs
 
-    result = list_runs_tool(job_id=1, status="success", limit=5)
+    result = list_jobs_runs_tool(job_id=1, status="success", limit=5)
 
     assert isinstance(result, list)
-    mock_admin_client.list_runs.assert_called_once_with(
+    mock_admin_client.list_jobs_runs.assert_called_once_with(
         12345, job_definition_id=1, status="success", limit=5
     )
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
-def test_get_run_tool(mock_get_prompt, mock_config, mock_admin_client):
+def test_get_job_run_details_tool(mock_get_prompt, mock_config, mock_admin_client):
     mock_get_prompt.return_value = "Get run prompt"
 
     tool_definitions = create_admin_api_tool_definitions(
         mock_admin_client, mock_config.admin_api_config
     )
-    get_run_tool = tool_definitions[4].fn  # Fifth tool is get_run
+    get_job_run_details_tool = tool_definitions[
+        4
+    ].fn  # Fifth tool is get_job_run_details
 
-    result = get_run_tool(run_id=100, debug=True)
+    result = get_job_run_details_tool(run_id=100, debug=True)
 
     assert isinstance(result, dict)
-    mock_admin_client.get_run.assert_called_once_with(12345, 100, debug=True)
+    mock_admin_client.get_job_run_details.assert_called_once_with(
+        12345, 100, debug=True
+    )
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
-def test_cancel_run_tool(mock_get_prompt, mock_config, mock_admin_client):
+def test_cancel_job_run_tool(mock_get_prompt, mock_config, mock_admin_client):
     mock_get_prompt.return_value = "Cancel run prompt"
 
     tool_definitions = create_admin_api_tool_definitions(
         mock_admin_client, mock_config.admin_api_config
     )
-    cancel_run_tool = tool_definitions[5].fn  # Sixth tool is cancel_run
+    cancel_job_run_tool = tool_definitions[5].fn  # Sixth tool is cancel_job_run
 
-    result = cancel_run_tool(run_id=100)
+    result = cancel_job_run_tool(run_id=100)
 
     assert isinstance(result, dict)
-    mock_admin_client.cancel_run.assert_called_once_with(12345, 100)
+    mock_admin_client.cancel_job_run.assert_called_once_with(12345, 100)
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
-def test_retry_run_tool(mock_get_prompt, mock_config, mock_admin_client):
+def test_retry_job_run_tool(mock_get_prompt, mock_config, mock_admin_client):
     mock_get_prompt.return_value = "Retry run prompt"
 
     tool_definitions = create_admin_api_tool_definitions(
         mock_admin_client, mock_config.admin_api_config
     )
-    retry_run_tool = tool_definitions[6].fn  # Seventh tool is retry_run
+    retry_job_run_tool = tool_definitions[6].fn  # Seventh tool is retry_job_run
 
-    result = retry_run_tool(run_id=100)
+    result = retry_job_run_tool(run_id=100)
 
     assert isinstance(result, dict)
-    mock_admin_client.retry_run.assert_called_once_with(12345, 100)
+    mock_admin_client.retry_job_run.assert_called_once_with(12345, 100)
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
-def test_list_run_artifacts_tool(mock_get_prompt, mock_config, mock_admin_client):
+def test_list_job_run_artifacts_tool(mock_get_prompt, mock_config, mock_admin_client):
     mock_get_prompt.return_value = "List run artifacts prompt"
 
     tool_definitions = create_admin_api_tool_definitions(
         mock_admin_client, mock_config.admin_api_config
     )
-    list_run_artifacts_tool = tool_definitions[
+    list_job_run_artifacts_tool = tool_definitions[
         7
-    ].fn  # Eighth tool is list_run_artifacts
+    ].fn  # Eighth tool is list_job_run_artifacts
 
-    result = list_run_artifacts_tool(run_id=100)
+    result = list_job_run_artifacts_tool(run_id=100)
 
     assert isinstance(result, list)
-    mock_admin_client.list_run_artifacts.assert_called_once_with(12345, 100)
+    mock_admin_client.list_job_run_artifacts.assert_called_once_with(12345, 100)
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
-def test_get_run_artifact_tool(mock_get_prompt, mock_config, mock_admin_client):
+def test_get_job_run_artifact_tool(mock_get_prompt, mock_config, mock_admin_client):
     mock_get_prompt.return_value = "Get run artifact prompt"
 
     tool_definitions = create_admin_api_tool_definitions(
         mock_admin_client, mock_config.admin_api_config
     )
-    get_run_artifact_tool = tool_definitions[8].fn  # Ninth tool is get_run_artifact
+    get_job_run_artifact_tool = tool_definitions[
+        8
+    ].fn  # Ninth tool is get_job_run_artifact
 
-    result = get_run_artifact_tool(run_id=100, artifact_path="manifest.json", step=1)
+    result = get_job_run_artifact_tool(
+        run_id=100, artifact_path="manifest.json", step=1
+    )
 
     assert result is not None
-    mock_admin_client.get_run_artifact.assert_called_once_with(
+    mock_admin_client.get_job_run_artifact.assert_called_once_with(
         12345, 100, "manifest.json", 1
     )
 
@@ -327,18 +333,18 @@ def test_tools_with_no_optional_parameters(
     assert isinstance(result, list)
     mock_admin_client.list_jobs.assert_called_with(12345)
 
-    # Test list_runs with no parameters
-    list_runs_tool = tool_definitions[3].fn
-    result = list_runs_tool()
+    # Test list_jobs_runs with no parameters
+    list_jobs_runs_tool = tool_definitions[3].fn
+    result = list_jobs_runs_tool()
     assert isinstance(result, list)
-    mock_admin_client.list_runs.assert_called_with(12345)
+    mock_admin_client.list_jobs_runs.assert_called_with(12345)
 
-    # Test get_run with default debug parameter
-    get_run_tool = tool_definitions[4].fn
-    result = get_run_tool(run_id=100)
+    # Test get_job_run_details with default debug parameter
+    get_job_run_details_tool = tool_definitions[4].fn
+    result = get_job_run_details_tool(run_id=100)
     assert isinstance(result, dict)
     # The debug parameter should be a Field object with default False
-    call_args = mock_admin_client.get_run.call_args
+    call_args = mock_admin_client.get_job_run_details.call_args
     assert call_args[0] == (12345, 100)
     debug_field = call_args[1]["debug"]
     # Check that it's a Field with the correct default

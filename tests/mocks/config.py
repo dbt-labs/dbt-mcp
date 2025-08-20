@@ -57,6 +57,5 @@ mock_config = Config(
     dbt_cli_config=mock_dbt_cli_config,
     discovery_config=mock_discovery_config,
     semantic_layer_config=mock_semantic_layer_config,
-    disable_admin_api=False,
     disable_tools=[],
 )

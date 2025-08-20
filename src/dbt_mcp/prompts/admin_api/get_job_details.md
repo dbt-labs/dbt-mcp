@@ -1,6 +1,4 @@
-# Get Job Details
-
-Get detailed information for a specific dbt Cloud job.
+Get detailed information for a specific dbt job.
 
 This tool retrieves comprehensive job configuration including execution settings, triggers, and scheduling information.
 

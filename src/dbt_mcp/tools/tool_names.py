@@ -40,14 +40,14 @@ class ToolName(Enum):
 
     # Admin API tools
     LIST_JOBS = "list_jobs"
-    GET_JOB = "get_job"
+    GET_JOB_DETAILS = "get_job_details"
     TRIGGER_JOB_RUN = "trigger_job_run"
-    LIST_RUNS = "list_runs"
-    GET_RUN = "get_run"
-    CANCEL_RUN = "cancel_run"
-    RETRY_RUN = "retry_run"
-    LIST_RUN_ARTIFACTS = "list_run_artifacts"
-    GET_RUN_ARTIFACT = "get_run_artifact"
+    LIST_JOBS_RUNS = "list_jobs_runs"
+    GET_JOB_RUN_DETAILS = "get_job_run_details"
+    CANCEL_JOB_RUN = "cancel_job_run"
+    RETRY_JOB_RUN = "retry_job_run"
+    LIST_JOB_RUN_ARTIFACTS = "list_job_run_artifacts"
+    GET_JOB_RUN_ARTIFACT = "get_job_run_artifact"
 
     @classmethod
     def get_all_tool_names(cls) -> set[str]:

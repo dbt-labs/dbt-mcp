@@ -1,6 +1,4 @@
-# Retry Run
-
-Retry a failed dbt Cloud run from the point of failure.
+Retry a failed dbt job run from the point of failure.
 
 This tool allows you to restart a failed run, continuing from where it failed rather than starting completely over.
 

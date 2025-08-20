@@ -1,6 +1,4 @@
-# Cancel Run
-
-Cancel a currently running or queued dbt Cloud run.
+Cancel a currently running or queued dbt run.
 
 This tool allows you to stop a run that is currently executing or waiting in the queue.
 
