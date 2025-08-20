@@ -41,9 +41,9 @@ class DbtCliConfig(BaseModel):
 class SqlConfig(BaseModel):
     multicell_account_prefix: str | None = None
     host: str
-    user_id: int | None = None
-    dev_environment_id: int | None = None
-    prod_environment_id: int | None = None
+    user_id: int
+    dev_environment_id: int
+    prod_environment_id: int
     token: str
 
 
@@ -162,11 +162,11 @@ def load_config() -> Config:
             )
         if not settings.actual_prod_environment_id:
             errors.append(
-                "DBT_PROD_ENV_ID environment variable is required when semantic layer, discovery, remote or admin API tools are enabled."
+                "DBT_PROD_ENV_ID environment variable is required when semantic layer, discovery, SQL or admin API tools are enabled."
             )
         if not settings.dbt_token:
             errors.append(
-                "DBT_TOKEN environment variable is required when semantic layer, discovery, remote or admin API tools are enabled."
+                "DBT_TOKEN environment variable is required when semantic layer, discovery, SQL or admin API tools are enabled."
             )
         if settings.actual_host and (
             settings.actual_host.startswith("metadata")

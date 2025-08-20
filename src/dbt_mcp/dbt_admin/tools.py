@@ -1,11 +1,12 @@
 import logging
+from enum import Enum
 from typing import Any, Dict, List, Optional
 from collections.abc import Sequence
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
-from dbt_mcp.config.config import Config
+from dbt_mcp.config.config import AdminApiConfig
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import ToolDefinition
@@ -16,13 +17,24 @@ from dbt_mcp.tools.annotations import create_tool_annotations
 logger = logging.getLogger(__name__)
 
 
+class JobRunStatus(str, Enum):
+    """Enum for job run status values."""
+
+    QUEUED = "queued"
+    STARTING = "starting"
+    RUNNING = "running"
+    SUCCESS = "success"
+    ERROR = "error"
+    CANCELLED = "cancelled"
+
+
 STATUS_MAP = {
-    "queued": 1,
-    "starting": 2,
-    "running": 3,
-    "success": 10,
-    "error": 20,
-    "cancelled": 30,
+    JobRunStatus.QUEUED: 1,
+    JobRunStatus.STARTING: 2,
+    JobRunStatus.RUNNING: 3,
+    JobRunStatus.SUCCESS: 10,
+    JobRunStatus.ERROR: 20,
+    JobRunStatus.CANCELLED: 30,
 }
 
 
@@ -86,7 +98,7 @@ def create_admin_api_tool_definitions(
 
     def list_jobs_runs(
         job_id: Optional[int] = None,
-        status: Optional[str] = None,
+        status: Optional[JobRunStatus] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         order_by: Optional[str] = None,
@@ -264,16 +276,13 @@ def create_admin_api_tool_definitions(
 
 def register_admin_api_tools(
     dbt_mcp: FastMCP,
-    config: Config,
+    admin_config: AdminApiConfig,
     exclude_tools: Sequence[ToolName] = [],
 ) -> None:
     """Register dbt Admin API tools."""
-    if not config.admin_api_config:
-        return
-
-    admin_client = DbtAdminAPIClient(config.admin_api_config)
+    admin_client = DbtAdminAPIClient(admin_config)
     register_tools(
         dbt_mcp,
-        create_admin_api_tool_definitions(admin_client, config.admin_api_config),
+        create_admin_api_tool_definitions(admin_client, admin_config),
         exclude_tools,
     )

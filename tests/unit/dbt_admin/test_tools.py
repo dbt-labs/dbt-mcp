@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 from dbt_mcp.dbt_admin.tools import (
     register_admin_api_tools,
     create_admin_api_tool_definitions,
+    JobRunStatus,
 )
 from dbt_mcp.config.config import Config, AdminApiConfig
 
@@ -95,23 +96,6 @@ def mock_admin_client():
 
 
 @patch("dbt_mcp.dbt_admin.tools.register_tools")
-def test_register_admin_api_tools_without_config(mock_register_tools, mock_fastmcp):
-    from tests.mocks.config import mock_tracking_config
-
-    config = Config(
-        tracking_config=mock_tracking_config,
-        admin_api_config=None,
-        disable_tools=[],
-    )
-    fastmcp, tools = mock_fastmcp
-
-    register_admin_api_tools(fastmcp, config, [])
-
-    # Should not register tools when admin_api_config is None
-    mock_register_tools.assert_not_called()
-
-
-@patch("dbt_mcp.dbt_admin.tools.register_tools")
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
 def test_register_admin_api_tools_all_tools(
     mock_get_prompt, mock_register_tools, mock_config, mock_fastmcp
@@ -119,7 +103,7 @@ def test_register_admin_api_tools_all_tools(
     mock_get_prompt.return_value = "Test prompt"
     fastmcp, tools = mock_fastmcp
 
-    register_admin_api_tools(fastmcp, mock_config, [])
+    register_admin_api_tools(fastmcp, mock_config.admin_api_config, [])
 
     # Should call register_tools with 9 tool definitions
     mock_register_tools.assert_called_once()
@@ -137,7 +121,7 @@ def test_register_admin_api_tools_with_disabled_tools(
     fastmcp, tools = mock_fastmcp
 
     disable_tools = ["list_jobs", "get_job", "trigger_job_run"]
-    register_admin_api_tools(fastmcp, mock_config, disable_tools)
+    register_admin_api_tools(fastmcp, mock_config.admin_api_config, disable_tools)
 
     # Should still call register_tools with all 9 tool definitions
     # The exclude_tools parameter is passed to register_tools to handle filtering
@@ -205,7 +189,7 @@ def test_list_jobs_runs_tool(mock_get_prompt, mock_config, mock_admin_client):
     )
     list_jobs_runs_tool = tool_definitions[3].fn  # Fourth tool is list_jobs_runs
 
-    result = list_jobs_runs_tool(job_id=1, status="success", limit=5)
+    result = list_jobs_runs_tool(job_id=1, status=JobRunStatus.SUCCESS, limit=5)
 
     assert isinstance(result, list)
     mock_admin_client.list_jobs_runs.assert_called_once_with(
