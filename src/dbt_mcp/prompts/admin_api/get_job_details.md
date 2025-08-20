@@ -37,7 +37,8 @@ Job object with detailed configuration including:
 
 ## Example Usage
 
-```python
-# Get job details
-get_job(job_id=456)
+```json
+{
+  "job_id": 456
+}
 ```

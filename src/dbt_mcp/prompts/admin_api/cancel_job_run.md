@@ -33,9 +33,10 @@ Updated run object showing the cancelled status and timing information.
 
 ## Example Usage
 
-```python
-# Cancel a specific run
-cancel_run(run_id=789)
+```json
+{
+  "run_id": 789
+}
 ```
 
 ## Response

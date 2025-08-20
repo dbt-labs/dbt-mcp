@@ -44,9 +44,10 @@ If retry fails, possible reasons include:
 
 ## Example Usage
 
-```python
-# Retry a failed run
-retry_run(run_id=789)
+```json
+{
+  "run_id": 789
+}
 ```
 
 This creates a new run that continues from the failure point of run 789.

@@ -41,23 +41,24 @@ The artifact content in its original format:
 
 ## Example Usage
 
-```python
-# Get the manifest from the latest step
-manifest = get_run_artifact(
-    run_id=789, 
-    artifact_path="manifest.json"
-)
+```json
+{
+  "run_id": 789,
+  "artifact_path": "manifest.json"
+}
+```
 
-# Get a compiled SQL file
-sql = get_run_artifact(
-    run_id=789, 
-    artifact_path="compiled/analytics/models/staging/stg_users.sql"
-)
+```json
+{
+  "run_id": 789,
+  "artifact_path": "compiled/analytics/models/staging/stg_users.sql"
+}
+```
 
-# Get artifacts from a specific step
-results = get_run_artifact(
-    run_id=789,
-    artifact_path="run_results.json",
-    step=2
-)
+```json
+{
+  "run_id": 789,
+  "artifact_path": "run_results.json",
+  "step": 2
+}
 ```

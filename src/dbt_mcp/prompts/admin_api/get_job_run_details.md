@@ -31,13 +31,17 @@ Run object with detailed execution information including:
 
 ## Example Usage
 
-```python
-# Basic run details
-get_run(run_id=789)
+```json
+{
+  "run_id": 789
+}
+```
 
-# Get run details with debug logs for troubleshooting
-get_run(run_id=789, debug=true)
-
+```json
+{
+  "run_id": 789,
+  "debug": true
+}
 ```
 
 ## Debug Logs

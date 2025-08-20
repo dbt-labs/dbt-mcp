@@ -43,18 +43,18 @@ Run object with information about the newly triggered run including:
 
 ## Example Usage
 
-```python
-# Basic job trigger
-trigger_job_run(
-    job_id=456, 
-    cause="Manual trigger for testing"
-)
+```json
+{
+  "job_id": 456,
+  "cause": "Manual trigger for testing"
+}
+```
 
-# Trigger with branch override
-trigger_job_run(
-    job_id=456,
-    cause="Testing feature branch",
-    git_branch="feature/new-models",
-    schema_override="dev_testing"
-)
+```json
+{
+  "job_id": 456,
+  "cause": "Testing feature branch",
+  "git_branch": "feature/new-models",
+  "schema_override": "dev_testing"
+}
 ```

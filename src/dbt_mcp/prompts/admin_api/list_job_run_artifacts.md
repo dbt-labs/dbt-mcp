@@ -34,17 +34,10 @@ Artifacts are only available for:
 
 ## Example Usage
 
-```python
-# List all artifacts for a run
-artifacts = list_job_run_artifacts(run_id=789)
-
-# Example response:
-# [
-#   "manifest.json",
-#   "catalog.json", 
-#   "run_results.json",
-#   "compiled/analytics/models/staging/stg_users.sql"
-# ]
+```json
+{
+  "run_id": 789
+}
 ```
 
 ## Next Steps
