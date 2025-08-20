@@ -19,6 +19,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         selector: str | None = None,
         resource_type: list[str] | None = None,
         is_selectable: bool = False,
+        is_full_refresh: bool | None = False,
     ) -> str:
         try:
             # Commands that should always be quiet to reduce output verbosity
@@ -31,6 +32,9 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
                 "test",
                 "list",
             ]
+
+            if is_full_refresh is True:
+                command.append("--full-refresh")
 
             if selector:
                 selector_params = str(selector).split(" ")
@@ -74,8 +78,13 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
+        is_full_refresh: bool | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/full_refresh")
+        ),
     ) -> str:
-        return _run_dbt_command(["build"], selector, is_selectable=True)
+        return _run_dbt_command(
+            ["build"], selector, is_selectable=True, is_full_refresh=is_full_refresh
+        )
 
     def compile() -> str:
         return _run_dbt_command(["compile"])
@@ -106,8 +115,13 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
+        is_full_refresh: bool | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/full_refresh")
+        ),
     ) -> str:
-        return _run_dbt_command(["run"], selector, is_selectable=True)
+        return _run_dbt_command(
+            ["run"], selector, is_selectable=True, is_full_refresh=is_full_refresh
+        )
 
     def test(
         selector: str | None = Field(
