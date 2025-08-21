@@ -18,7 +18,7 @@ from dbt_mcp.dbt_admin.tools import register_admin_api_tools
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.discovery.tools import register_discovery_tools
 from dbt_mcp.semantic_layer.tools import register_sl_tools
-from dbt_mcp.sql.tools import register_sql_tools
+from dbt_mcp.sql.tools import SqlToolsManager, register_sql_tools
 from dbt_mcp.tracking.tracking import UsageTracker
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,14 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[None]:
         raise e
     finally:
         logger.info("Shutting down MCP server")
-        shutdown()
+        try:
+            await SqlToolsManager.close()
+        except Exception:
+            logger.exception("Error closing SQL tools manager")
+        try:
+            shutdown()
+        except Exception:
+            logger.exception("Error shutting down MCP server")
 
 
 class DbtMCP(FastMCP):

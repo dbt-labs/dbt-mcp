@@ -1,12 +1,14 @@
 import logging
 from collections.abc import Sequence
+from contextlib import AsyncExitStack
 from typing import (
     Annotated,
     Any,
 )
 
-from httpx import Client
-from mcp import CallToolRequest, JSONRPCResponse, ListToolsResult
+from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+from mcp import ClientSession
+from mcp.client.streamable_http import GetSessionIdCallback, streamablehttp_client
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.tools.base import Tool as InternalTool
 from mcp.server.fastmcp.utilities.func_metadata import (
@@ -14,19 +16,19 @@ from mcp.server.fastmcp.utilities.func_metadata import (
     FuncMetadata,
     _get_typed_annotation,
 )
+from mcp.shared.message import SessionMessage
 from mcp.types import (
-    CallToolRequestParams,
-    CallToolResult,
     ContentBlock,
     TextContent,
     Tool,
 )
-from pydantic import Field, ValidationError, WithJsonSchema, create_model
+from pydantic import Field, WithJsonSchema, create_model
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
 from dbt_mcp.config.config import SqlConfig
 from dbt_mcp.tools.tool_names import ToolName
+from dbt_mcp.tools.toolsets import Toolset, toolsets
 
 logger = logging.getLogger(__name__)
 
@@ -58,16 +60,41 @@ def get_remote_tool_fn_metadata(tool: Tool) -> FuncMetadata:
     )
 
 
-def _get_sql_tools(base_url: str, headers: dict[str, str]) -> list[Tool]:
+async def _get_sql_tools(session: ClientSession) -> list[Tool]:
     try:
-        with Client(base_url=base_url, headers=headers) as client:
-            list_tools_response = JSONRPCResponse.model_validate_json(
-                client.get("/tools/list").text
-            )
-            return ListToolsResult.model_validate(list_tools_response.result).tools
+        sql_tool_names = {t.value for t in toolsets[Toolset.SQL]}
+        return [
+            t for t in (await session.list_tools()).tools if t.name in sql_tool_names
+        ]
     except Exception as e:
         logger.error(f"Error getting SQL tools: {e}")
         return []
+
+
+class SqlToolsManager:
+    _stack = AsyncExitStack()
+
+    async def get_remote_mcp_session(
+        self, url: str, headers: dict[str, str]
+    ) -> ClientSession:
+        streamablehttp_client_context: tuple[
+            MemoryObjectReceiveStream[SessionMessage | Exception],
+            MemoryObjectSendStream[SessionMessage],
+            GetSessionIdCallback,
+        ] = await self._stack.enter_async_context(
+            streamablehttp_client(
+                url=url,
+                headers=headers,
+            )
+        )
+        read_stream, write_stream, _ = streamablehttp_client_context
+        return await self._stack.enter_async_context(
+            ClientSession(read_stream, write_stream)
+        )
+
+    @classmethod
+    async def close(cls) -> None:
+        await cls._stack.aclose()
 
 
 async def register_sql_tools(
@@ -82,22 +109,23 @@ async def register_sql_tools(
     """
 
     is_local = config.host and config.host.startswith("localhost")
-    path = "/mcp" if is_local else "/api/ai/mcp"
+    path = "/v1/mcp/" if is_local else "/api/ai/v1/mcp/"
     scheme = "http://" if is_local else "https://"
     multicell_account_prefix = (
         f"{config.multicell_account_prefix}." if config.multicell_account_prefix else ""
     )
-    base_url = f"{scheme}{multicell_account_prefix}{config.host}{path}"
+    url = f"{scheme}{multicell_account_prefix}{config.host}{path}"
     headers = {
         "Authorization": f"Bearer {config.token}",
         "x-dbt-prod-environment-id": str(config.prod_environment_id),
         "x-dbt-dev-environment-id": str(config.dev_environment_id),
         "x-dbt-user-id": str(config.user_id),
     }
-    sql_tools = _get_sql_tools(base_url=base_url, headers=headers)
-    logger.info(
-        f"Loaded sql tools: {', '.join([tool.name for tool in sql_tools])}",
-    )
+    sql_tools_manager = SqlToolsManager()
+    session = await sql_tools_manager.get_remote_mcp_session(url, headers)
+    await session.initialize()
+    sql_tools = await _get_sql_tools(session)
+    logger.info(f"Loaded sql tools: {', '.join([tool.name for tool in sql_tools])}")
     for tool in sql_tools:
         if tool.name.lower() in [tool.value.lower() for tool in exclude_tools]:
             continue
@@ -106,46 +134,16 @@ async def register_sql_tools(
         def create_tool_function(tool_name: str):
             async def tool_function(*args, **kwargs) -> Sequence[ContentBlock]:
                 try:
-                    with Client(base_url=base_url, headers=headers) as client:
-                        tool_call_http_response = client.post(
-                            "/tools/call",
-                            json=CallToolRequest(
-                                method="tools/call",
-                                params=CallToolRequestParams(
-                                    name=tool_name,
-                                    arguments=kwargs,
-                                ),
-                            ).model_dump(),
-                            timeout=30,
+                    tool_call_result = await session.call_tool(
+                        tool_name,
+                        kwargs,
+                    )
+                    if tool_call_result.isError:
+                        raise ValueError(
+                            f"Tool {tool_name} reported an error: "
+                            + f"{tool_call_result.content}"
                         )
-                        if tool_call_http_response.status_code != 200:
-                            return [
-                                TextContent(
-                                    type="text",
-                                    text=f"Failed to call tool {tool_name} with "
-                                    + f"status code: {tool_call_http_response.status_code} "
-                                    + f"error message: {tool_call_http_response.text}",
-                                )
-                            ]
-                        try:
-                            tool_call_jsonrpc_response = (
-                                JSONRPCResponse.model_validate_json(
-                                    tool_call_http_response.text
-                                )
-                            )
-                            tool_call_result = CallToolResult.model_validate(
-                                tool_call_jsonrpc_response.result
-                            )
-                        except ValidationError as e:
-                            raise ValueError(
-                                f"Failed to parse tool response for {tool_name}: {e}"
-                            ) from e
-                        if tool_call_result.isError:
-                            raise ValueError(
-                                f"Tool {tool_name} reported an error: "
-                                + f"{tool_call_result.content}"
-                            )
-                        return tool_call_result.content
+                    return tool_call_result.content
                 except Exception as e:
                     return [
                         TextContent(
@@ -156,9 +154,8 @@ async def register_sql_tools(
 
             return tool_function
 
-        new_tool = create_tool_function(tool.name)
         dbt_mcp._tool_manager._tools[tool.name] = InternalTool(
-            fn=new_tool,
+            fn=create_tool_function(tool.name),
             title=tool.title,
             name=tool.name,
             annotations=tool.annotations,
