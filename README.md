@@ -1,4 +1,5 @@
 # dbt MCP Server
+[![Trust Score](https://archestra.ai/mcp-catalog/api/badge/quality/dbt-labs/dbt-mcp)](https://archestra.ai/mcp-catalog/dbt-labs__dbt-mcp)
 
 This MCP (Model Context Protocol) server provides tools to interact with dbt. Read [this](https://docs.getdbt.com/blog/introducing-dbt-mcp-server) blog to learn more. Add comments or questions to GitHub Issues or join us in [the community Slack](https://www.getdbt.com/community/join-the-community) in the `#tools-dbt-mcp` channel.
 
