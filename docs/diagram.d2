@@ -15,6 +15,14 @@ classes: {
     width: 600
     *.style.border-radius: 8
   }
+
+  big-container: {
+    grid-columns: 2
+    grid-rows: 4
+    grid-gap: 10
+    width: 600
+    *.style.border-radius: 8
+  }
 }
 
 mcp: dbt MCP server
@@ -41,6 +49,7 @@ tools: Tools {
     get_model_details
     get_model_parents
     get_model_children
+    get_model_health
   }
 
   sl: dbt Semantic Layer {
@@ -57,6 +66,20 @@ tools: Tools {
     class: container
     text_to_sql
     execute_sql
+  }
+
+  admin: Admin API tools {
+    label.near: outside-right-center
+    class: big-container
+    list_jobs
+    get_job_details
+    trigger_job_run
+    list_jobs_runs
+    get_job_run_details
+    cancel_job_run
+    retry_job_run
+    list_job_run_artifacts
+    get_job_run_artifact
   }
 }
 

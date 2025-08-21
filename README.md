@@ -44,6 +44,17 @@ This MCP (Model Context Protocol) server provides tools to interact with dbt. Re
 * `text_to_sql` - Generate SQL from natural language requests
 * `execute_sql` - Execute SQL on dbt Cloud's backend infrastructure with support for Semantic Layer SQL syntax. Note: using a PAT instead of a service token for `DBT_TOKEN` is required for this tool.
 
+### Admin API
+* `list_jobs` - List all jobs in a dbt Cloud account
+* `get_job_details` - Get detailed information for a specific job including configuration and settings  
+* `trigger_job_run` - Trigger a job run with optional parameter overrides like Git branch, schema, or execution parameters
+* `list_jobs_runs` - List runs in an account with optional filtering by job, status, or other criteria
+* `get_job_run_details` - Get comprehensive run information including execution details, steps, artifacts, and debug logs
+* `cancel_job_run` - Cancel a running job to stop execution
+* `retry_job_run` - Retry a failed job run to attempt execution again
+* `list_job_run_artifacts` - List all available artifacts for a job run (manifest.json, catalog.json, logs, etc.)
+* `get_job_run_artifact` - Download specific artifact files from job runs for analysis or integration
+
 ## Setup
 
 There are two ways to setup dbt MCP, [local](#local) and [remote](#remote). Local setup is best for dbt projects that you are developing in a local IDE. Remote setup is better for building custom applications.
@@ -57,19 +68,21 @@ There are two ways to setup dbt MCP, [local](#local) and [remote](#remote). Loca
 | Name                     | Default | Description                                                                     |
 | ------------------------ | ------- | ------------------------------------------------------------------------------- |
 | `DISABLE_DBT_CLI`        | `false` | Set this to `true` to disable dbt Core, dbt Cloud CLI, and dbt Fusion MCP tools |
-| `DISABLE_SEMANTIC_LAYER` | `false` | Set this to `true` to disable dbt Semantic Layer MCP tools                    |
-| `DISABLE_DISCOVERY`      | `false` | Set this to `true` to disable dbt Discovery API MCP tools                     |
-| `DISABLE_SQL`         | `true`  | Set this to `false` to enable SQL MCP tools                                |
+| `DISABLE_SEMANTIC_LAYER` | `false` | Set this to `true` to disable dbt Semantic Layer MCP tools                      |
+| `DISABLE_DISCOVERY`      | `false` | Set this to `true` to disable dbt Discovery API MCP tools                       |
+| `DISABLE_ADMIN_API`      | `false` | Set this to `true` to disable dbt Admin API MCP tools                           |
+| `DISABLE_SQL`            | `true`  | Set this to `false` to enable SQL MCP tools                                     |
 | `DISABLE_TOOLS`          | ""      | Set this to a list of tool names delimited by a `,` to disable certain tools    |
 
 
-#### Configuration for Discovery, Semantic Layer, and SQL Tools
+#### Configuration for Discovery, Semantic Layer, Admin API, and SQL Tools
 | Name                       | Default            | Description                                                                                                                                                                                                                                  |
 | -------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `DBT_HOST`                 | `cloud.getdbt.com` | Your dbt Cloud instance hostname. This will look like an `Access URL` found [here](https://docs.getdbt.com/docs/cloud/about-cloud/access-regions-ip-addresses). If you are using Multi-cell, do not include the `ACCOUNT_PREFIX` here        |
 | `MULTICELL_ACCOUNT_PREFIX` | -                  | If you are using Multi-cell, set this to your `ACCOUNT_PREFIX`. If you are not using Multi-cell, do not set this environment variable. You can learn more [here](https://docs.getdbt.com/docs/cloud/about-cloud/access-regions-ip-addresses) |
 | `DBT_TOKEN`                | -                  | Your personal access token or service token. Note: a service token is required when using the Semantic Layer and this service token should have at least `Semantic Layer Only`, `Metadata Only`, and `Developer` permissions.                |
 | `DBT_PROD_ENV_ID`          | -                  | Your dbt Cloud production environment ID                                                                                                                                                                                                     |
+| `DBT_ACCOUNT_ID`           | -                  | Your dbt Cloud account ID (required for Admin API tools)                                                                                                                                                                                     |
 
 #### Configuration for SQL Tools
 | Name             | Description                               |
