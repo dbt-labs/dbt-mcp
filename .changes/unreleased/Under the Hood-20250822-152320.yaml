@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: Correctly handle admin API host containing protocol prefix
+time: 2025-08-22T15:23:20.719116+01:00

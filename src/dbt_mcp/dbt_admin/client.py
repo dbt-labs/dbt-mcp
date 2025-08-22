@@ -31,7 +31,8 @@ class DbtAdminAPIClient:
         if self.config.multicell_account_prefix:
             return f"https://{self.config.multicell_account_prefix}.{self.config.host}"
         else:
-            return f"https://{self.config.host}"
+            protocol = "https://" if not self.config.host.startswith("http") else ""
+            return f"{protocol}{self.config.host}"
 
     def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
         """Make a request to the dbt API."""
