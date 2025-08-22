@@ -1,7 +1,7 @@
 import logging
-from enum import Enum
-from typing import Any, Dict, List, Optional
 from collections.abc import Sequence
+from enum import Enum
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -9,10 +9,10 @@ from pydantic import Field
 from dbt_mcp.config.config import AdminApiConfig
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.prompts.prompts import get_prompt
+from dbt_mcp.tools.annotations import create_tool_annotations
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.annotations import create_tool_annotations
 
 logger = logging.getLogger(__name__)
 
@@ -39,14 +39,14 @@ STATUS_MAP = {
 
 
 def create_admin_api_tool_definitions(
-    admin_client: Any, admin_api_config: Any
+    admin_client: DbtAdminAPIClient, admin_api_config: AdminApiConfig
 ) -> list[ToolDefinition]:
     def list_jobs(
         # TODO: add support for project_id in the future
         # project_id: Optional[int] = None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
-    ) -> List[Dict[str, Any]] | str:
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[dict[str, Any]] | str:
         """List jobs in an account."""
         try:
             params = {}
@@ -65,7 +65,7 @@ def create_admin_api_tool_definitions(
             )
             return str(e)
 
-    def get_job_details(job_id: int) -> Dict[str, Any] | str:
+    def get_job_details(job_id: int) -> dict[str, Any] | str:
         """Get details for a specific job."""
         try:
             return admin_client.get_job_details(admin_api_config.account_id, job_id)
@@ -76,10 +76,10 @@ def create_admin_api_tool_definitions(
     def trigger_job_run(
         job_id: int,
         cause: str = "Triggered by dbt MCP",
-        git_branch: Optional[str] = None,
-        git_sha: Optional[str] = None,
-        schema_override: Optional[str] = None,
-    ) -> Dict[str, Any] | str:
+        git_branch: str | None = None,
+        git_sha: str | None = None,
+        schema_override: str | None = None,
+    ) -> dict[str, Any] | str:
         """Trigger a job run."""
         try:
             kwargs = {}
@@ -97,15 +97,15 @@ def create_admin_api_tool_definitions(
             return str(e)
 
     def list_jobs_runs(
-        job_id: Optional[int] = None,
-        status: Optional[JobRunStatus] = None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
-        order_by: Optional[str] = None,
-    ) -> List[Dict[str, Any]] | str:
+        job_id: int | None = None,
+        status: JobRunStatus | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+        order_by: str | None = None,
+    ) -> list[dict[str, Any]] | str:
         """List runs in an account."""
         try:
-            params: Dict[str, Any] = {}
+            params: dict[str, Any] = {}
             if job_id:
                 params["job_definition_id"] = job_id
             if status:
@@ -130,7 +130,7 @@ def create_admin_api_tool_definitions(
             default=False,
             description="Set to True only if the person is explicitely asking for debug level logs. Otherwise, do not set if just the logs are asked.",
         ),
-    ) -> Dict[str, Any] | str:
+    ) -> dict[str, Any] | str:
         """Get details for a specific job run."""
         try:
             return admin_client.get_job_run_details(
@@ -140,7 +140,7 @@ def create_admin_api_tool_definitions(
             logger.error(f"Error getting run {run_id}: {e}")
             return str(e)
 
-    def cancel_job_run(run_id: int) -> Dict[str, Any] | str:
+    def cancel_job_run(run_id: int) -> dict[str, Any] | str:
         """Cancel a job run."""
         try:
             return admin_client.cancel_job_run(admin_api_config.account_id, run_id)
@@ -148,7 +148,7 @@ def create_admin_api_tool_definitions(
             logger.error(f"Error cancelling run {run_id}: {e}")
             return str(e)
 
-    def retry_job_run(run_id: int) -> Dict[str, Any] | str:
+    def retry_job_run(run_id: int) -> dict[str, Any] | str:
         """Retry a failed job run."""
         try:
             return admin_client.retry_job_run(admin_api_config.account_id, run_id)
@@ -156,7 +156,7 @@ def create_admin_api_tool_definitions(
             logger.error(f"Error retrying run {run_id}: {e}")
             return str(e)
 
-    def list_job_run_artifacts(run_id: int) -> List[str] | str:
+    def list_job_run_artifacts(run_id: int) -> list[str] | str:
         """List artifacts for a job run."""
         try:
             return admin_client.list_job_run_artifacts(
@@ -167,7 +167,7 @@ def create_admin_api_tool_definitions(
             return str(e)
 
     def get_job_run_artifact(
-        run_id: int, artifact_path: str, step: Optional[int] = None
+        run_id: int, artifact_path: str, step: int | None = None
     ) -> Any | str:
         """Get a specific job run artifact."""
         try:
