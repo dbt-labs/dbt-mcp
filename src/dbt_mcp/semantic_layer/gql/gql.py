@@ -29,4 +29,24 @@ query GetEntities($environmentId: BigInt!, $metrics: [MetricInput!]!) {
   }
 }
     """,
+    "saved_queries": """
+query GetSavedQueries($environmentId: BigInt!) {
+  savedQueries(environmentId: $environmentId) {
+    name
+    description
+    label
+    queryParams {
+      metrics {
+        name
+      }
+      groupBy {
+        name
+      }
+      where {
+        whereSqlTemplate
+      }
+    }
+  }
+}
+    """,
 }
