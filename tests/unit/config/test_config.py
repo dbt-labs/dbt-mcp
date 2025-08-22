@@ -170,11 +170,13 @@ class TestLoadConfig:
             "DBT_PROD_ENV_ID": "123",
             "DBT_DEV_ENV_ID": "456",
             "DBT_USER_ID": "789",
+            "DBT_ACCOUNT_ID": "123",
             "DBT_TOKEN": "test_token",
             "DBT_PROJECT_DIR": "/test/project",
             "DISABLE_SEMANTIC_LAYER": "false",
             "DISABLE_DISCOVERY": "false",
             "DISABLE_REMOTE": "false",
+            "DISABLE_ADMIN_API": "false",
         }
 
         config = self._load_config_with_env(env_vars)
@@ -186,6 +188,11 @@ class TestLoadConfig:
         assert config.dbt_cli_config is not None
         assert config.discovery_config is not None
         assert config.semantic_layer_config is not None
+        assert config.admin_api_config is not None
+        assert config.admin_api_config.url == "https://test.dbt.com"
+        assert config.admin_api_config.token == "test_token"
+        assert config.admin_api_config.account_id == 123
+        assert config.admin_api_config.prod_environment_id == 123
 
     def test_valid_config_all_services_disabled(self):
         env_vars = {

@@ -19,24 +19,15 @@ class DbtAdminAPIClient:
 
     def __init__(self, config: AdminApiConfig):
         self.config = config
-        self.base_url = self._get_base_url()
         self.headers = {
             "Authorization": f"Bearer {config.token}",
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
 
-    def _get_base_url(self) -> str:
-        """Get the base URL for the dbt API."""
-        if self.config.multicell_account_prefix:
-            return f"https://{self.config.multicell_account_prefix}.{self.config.host}"
-        else:
-            protocol = "https://" if not self.config.host.startswith("http") else ""
-            return f"{protocol}{self.config.host}"
-
     def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
         """Make a request to the dbt API."""
-        url = f"{self.base_url}{endpoint}"
+        url = f"{self.config.url}{endpoint}"
 
         try:
             response = requests.request(method, url, headers=self.headers, **kwargs)
@@ -243,7 +234,7 @@ class DbtAdminAPIClient:
         }
 
         response = requests.get(
-            f"{self.base_url}/api/v2/accounts/{account_id}/runs/{run_id}/artifacts/{artifact_path}",
+            f"{self.config.url}/api/v2/accounts/{account_id}/runs/{run_id}/artifacts/{artifact_path}",
             headers=get_artifact_header,
             params=params,
         )

@@ -14,8 +14,7 @@ def admin_config():
     return AdminApiConfig(
         account_id=12345,
         token="test_token",
-        host="cloud.getdbt.com",
-        multicell_account_prefix=None,
+        url="https://cloud.getdbt.com",
     )
 
 
@@ -24,8 +23,7 @@ def admin_config_with_prefix():
     return AdminApiConfig(
         account_id=12345,
         token="test_token",
-        host="cloud.getdbt.com",
-        multicell_account_prefix="eu1",
+        url="https://eu1.cloud.getdbt.com",
     )
 
 
@@ -42,14 +40,10 @@ def client_with_prefix(admin_config_with_prefix):
 def test_client_initialization(client):
     assert client.config.account_id == 12345
     assert client.config.token == "test_token"
-    assert client.base_url == "https://cloud.getdbt.com"
+    assert client.config.url == "https://cloud.getdbt.com"
     assert client.headers["Authorization"] == "Bearer test_token"
     assert client.headers["Content-Type"] == "application/json"
     assert client.headers["Accept"] == "application/json"
-
-
-def test_client_initialization_with_prefix(client_with_prefix):
-    assert client_with_prefix.base_url == "https://eu1.cloud.getdbt.com"
 
 
 @patch("requests.request")

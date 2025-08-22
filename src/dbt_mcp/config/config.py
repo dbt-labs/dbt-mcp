@@ -48,10 +48,9 @@ class SqlConfig(BaseModel):
 
 
 class AdminApiConfig(BaseModel):
-    host: str
+    url: str
     token: str
     account_id: int
-    multicell_account_prefix: str | None = None
     prod_environment_id: int | None = None
 
 
@@ -224,11 +223,14 @@ def load_config() -> Config:
         and settings.actual_host
         and settings.dbt_account_id
     ):
+        if settings.multicell_account_prefix:
+            url = f"https://{settings.multicell_account_prefix}.{settings.actual_host}"
+        else:
+            url = f"https://{settings.actual_host}"
         admin_api_config = AdminApiConfig(
-            host=settings.actual_host,
+            url=url,
             token=settings.dbt_token,
             account_id=settings.dbt_account_id,
-            multicell_account_prefix=settings.multicell_account_prefix,
             prod_environment_id=settings.actual_prod_environment_id,
         )
 

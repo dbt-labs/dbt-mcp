@@ -1,4 +1,5 @@
 from dbt_mcp.config.config import (
+    AdminApiConfig,
     Config,
     DbtCliConfig,
     DiscoveryConfig,
@@ -51,11 +52,19 @@ mock_semantic_layer_config = SemanticLayerConfig(
     prod_environment_id=1,
 )
 
+mock_admin_api_config = AdminApiConfig(
+    url="http://localhost:8000",
+    token="token",
+    account_id=1,
+    prod_environment_id=1,
+)
+
 mock_config = Config(
     tracking_config=mock_tracking_config,
     sql_config=mock_sql_config,
     dbt_cli_config=mock_dbt_cli_config,
     discovery_config=mock_discovery_config,
     semantic_layer_config=mock_semantic_layer_config,
+    admin_api_config=mock_admin_api_config,
     disable_tools=[],
 )

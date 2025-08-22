@@ -14,8 +14,7 @@ def mock_admin_config():
     return AdminApiConfig(
         account_id=12345,
         token="test_token",
-        host="cloud.getdbt.com",
-        multicell_account_prefix=None,
+        url="https://cloud.getdbt.com",
     )
 
 
