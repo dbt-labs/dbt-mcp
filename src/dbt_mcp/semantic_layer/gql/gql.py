@@ -6,6 +6,9 @@ query GetMetrics($environmentId: BigInt!) {
     label
     description
     type
+    config {
+      meta
+    }
   }
 }
     """,
