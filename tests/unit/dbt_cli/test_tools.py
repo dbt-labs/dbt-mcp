@@ -264,3 +264,47 @@ def test_full_refresh_flag_added_to_command(
     assert mock_calls
     args_list = mock_calls[0]
     assert "--full-refresh" in args_list
+
+
+@pytest.mark.parametrize("command_name", ["build", "run", "test"])
+def test_vars_flag_added_to_command(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, command_name
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(fastmcp, mock_dbt_cli_config)
+    tool = tools[command_name]
+
+    tool(vars="environment: production")
+
+    assert mock_calls
+    args_list = mock_calls[0]
+    assert "--vars" in args_list
+    assert "environment: production" in args_list
+
+
+def test_vars_not_added_when_none(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(fastmcp, mock_dbt_cli_config)
+    build_tool = tools["build"]
+
+    build_tool()  # Non-explicit
+
+    assert mock_calls
+    args_list = mock_calls[0]
+    assert "--vars" not in args_list

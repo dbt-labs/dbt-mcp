@@ -20,6 +20,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         resource_type: list[str] | None = None,
         is_selectable: bool = False,
         is_full_refresh: bool | None = False,
+        vars: str | None = None,
     ) -> str:
         try:
             # Commands that should always be quiet to reduce output verbosity
@@ -36,12 +37,15 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             if is_full_refresh is True:
                 command.append("--full-refresh")
 
+            if vars and isinstance(vars, str):
+                command.extend(["--vars", vars])
+
             if selector:
                 selector_params = str(selector).split(" ")
-                command = command + ["--select"] + selector_params
+                command.extend(["--select"] + selector_params)
 
             if isinstance(resource_type, Iterable):
-                command = command + ["--resource-type"] + resource_type
+                command.extend(["--resource-type"] + resource_type)
 
             full_command = command.copy()
             # Add --quiet flag to specific commands to reduce context window usage
@@ -81,9 +85,16 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         is_full_refresh: bool | None = Field(
             default=None, description=get_prompt("dbt_cli/args/full_refresh")
         ),
+        vars: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/vars")
+        ),
     ) -> str:
         return _run_dbt_command(
-            ["build"], selector, is_selectable=True, is_full_refresh=is_full_refresh
+            ["build"],
+            selector,
+            is_selectable=True,
+            is_full_refresh=is_full_refresh,
+            vars=vars,
         )
 
     def compile() -> str:
@@ -118,17 +129,27 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         is_full_refresh: bool | None = Field(
             default=None, description=get_prompt("dbt_cli/args/full_refresh")
         ),
+        vars: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/vars")
+        ),
     ) -> str:
         return _run_dbt_command(
-            ["run"], selector, is_selectable=True, is_full_refresh=is_full_refresh
+            ["run"],
+            selector,
+            is_selectable=True,
+            is_full_refresh=is_full_refresh,
+            vars=vars,
         )
 
     def test(
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
+        vars: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/vars")
+        ),
     ) -> str:
-        return _run_dbt_command(["test"], selector, is_selectable=True)
+        return _run_dbt_command(["test"], selector, is_selectable=True, vars=vars)
 
     def show(
         sql_query: str = Field(description=get_prompt("dbt_cli/args/sql_query")),
