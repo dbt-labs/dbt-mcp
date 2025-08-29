@@ -29,6 +29,7 @@ from pydantic_core import PydanticUndefined
 from dbt_mcp.config.config import SqlConfig
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset, toolsets
+from dbt_mcp.tools.error_handling import make_error_result
 
 logger = logging.getLogger(__name__)
 
@@ -145,12 +146,7 @@ async def register_sql_tools(
                         )
                     return tool_call_result.content
                 except Exception as e:
-                    return [
-                        TextContent(
-                            type="text",
-                            text=str(e),
-                        )
-                    ]
+                    return make_error_result(str(e))
 
             return tool_function
 
