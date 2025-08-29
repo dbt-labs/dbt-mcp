@@ -10,6 +10,7 @@ from dbt_mcp.tools.annotations import create_tool_annotations
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
+from dbt_mcp.tools.error_handling import make_error_result
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +31,13 @@ def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefin
             )
             return [m for m in mart_models if m["name"] != "metricflow_time_spine"]
         except Exception as e:
-            return str(e)
+            return make_error_result(str(e))
 
     def get_all_models() -> list[dict] | str:
         try:
             return models_fetcher.fetch_models()
         except Exception as e:
-            return str(e)
+            return make_error_result(str(e))
 
     def get_model_details(
         model_name: str | None = None, unique_id: str | None = None
@@ -44,7 +45,7 @@ def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefin
         try:
             return models_fetcher.fetch_model_details(model_name, unique_id)
         except Exception as e:
-            return str(e)
+            return make_error_result(str(e))
 
     def get_model_parents(
         model_name: str | None = None, unique_id: str | None = None
@@ -52,7 +53,7 @@ def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefin
         try:
             return models_fetcher.fetch_model_parents(model_name, unique_id)
         except Exception as e:
-            return str(e)
+            return make_error_result(str(e))
 
     def get_model_children(
         model_name: str | None = None, unique_id: str | None = None
@@ -60,7 +61,7 @@ def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefin
         try:
             return models_fetcher.fetch_model_children(model_name, unique_id)
         except Exception as e:
-            return str(e)
+            return make_error_result(str(e))
 
     def get_model_health(
         model_name: str | None = None, unique_id: str | None = None
@@ -68,7 +69,7 @@ def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefin
         try:
             return models_fetcher.fetch_model_health(model_name, unique_id)
         except Exception as e:
-            return str(e)
+            return make_error_result(str(e))
 
     return [
         ToolDefinition(

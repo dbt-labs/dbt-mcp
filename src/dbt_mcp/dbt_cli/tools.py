@@ -11,6 +11,7 @@ from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.annotations import create_tool_annotations
+from dbt_mcp.tools.error_handling import make_error_result
 
 
 def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition]:
@@ -76,7 +77,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
                 else ""
             )
         except Exception as e:
-            return str(e)
+            return make_error_result(str(e))
 
     def build(
         selector: str | None = Field(
