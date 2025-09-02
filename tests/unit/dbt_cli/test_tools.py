@@ -4,6 +4,7 @@ import pytest
 from pytest import MonkeyPatch
 
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
+from dbt_mcp.tools.config import DbtMcpContext
 from tests.mocks.config import mock_dbt_cli_config
 
 
@@ -115,11 +116,12 @@ def test_show_command_limit_logic(
 
     # Register tools and get show tool
     fastmcp, tools = mock_fastmcp
-    register_dbt_cli_tools(fastmcp, mock_dbt_cli_config)
+    register_dbt_cli_tools(fastmcp)
+    context = DbtMcpContext(dbt_cli_config=mock_dbt_cli_config)
     show_tool = tools["show"]
 
     # Call show tool with test parameters
-    show_tool(sql_query=sql_query, limit=limit_param)
+    show_tool(ctx=context, sql_query=sql_query, limit=limit_param)
 
     # Verify the command was called with expected arguments
     assert mock_calls
@@ -141,11 +143,12 @@ def test_run_command_adds_quiet_flag_to_verbose_commands(
 
     # Setup
     mock_fastmcp_obj, tools = mock_fastmcp
-    register_dbt_cli_tools(mock_fastmcp_obj, mock_dbt_cli_config)
+    register_dbt_cli_tools(mock_fastmcp_obj)
+    context = DbtMcpContext(dbt_cli_config=mock_dbt_cli_config)
     run_tool = tools["run"]
 
     # Execute
-    run_tool()
+    run_tool(ctx=context)
 
     # Verify
     assert mock_calls
@@ -168,11 +171,12 @@ def test_run_command_correctly_formatted(
     fastmcp, tools = mock_fastmcp
 
     # Register the tools
-    register_dbt_cli_tools(fastmcp, mock_dbt_cli_config)
+    register_dbt_cli_tools(fastmcp)
+    context = DbtMcpContext(dbt_cli_config=mock_dbt_cli_config)
     run_tool = tools["run"]
 
     # Run the command with a selector
-    run_tool(selector="my_model")
+    run_tool(ctx=context, selector="my_model")
 
     # Verify the command is correctly formatted
     assert mock_calls
@@ -200,11 +204,12 @@ def test_show_command_correctly_formatted(
 
     # Setup
     mock_fastmcp_obj, tools = mock_fastmcp
-    register_dbt_cli_tools(mock_fastmcp_obj, mock_dbt_cli_config)
+    register_dbt_cli_tools(mock_fastmcp_obj)
+    context = DbtMcpContext(dbt_cli_config=mock_dbt_cli_config)
     show_tool = tools["show"]
 
     # Execute
-    show_tool(sql_query="SELECT * FROM my_model")
+    show_tool(ctx=context, sql_query="SELECT * FROM my_model")
 
     # Verify
     assert mock_calls
@@ -229,16 +234,17 @@ def test_list_command_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
 
     # Setup
     mock_fastmcp_obj, tools = mock_fastmcp
-    register_dbt_cli_tools(mock_fastmcp_obj, mock_dbt_cli_config)
+    register_dbt_cli_tools(mock_fastmcp_obj)
+    context = DbtMcpContext(dbt_cli_config=mock_dbt_cli_config)
     list_tool = tools["ls"]
 
     # Test timeout case
-    result = list_tool(resource_type=["model", "snapshot"])
+    result = list_tool(ctx=context, resource_type=["model", "snapshot"])
     assert "Timeout: dbt command took too long to complete" in result
     assert "Try using a specific selector to narrow down the results" in result
 
     # Test with selector - should still timeout
-    result = list_tool(selector="my_model", resource_type=["model"])
+    result = list_tool(ctx=context, selector="my_model", resource_type=["model"])
     assert "Timeout: dbt command took too long to complete" in result
     assert "Try using a specific selector to narrow down the results" in result
 
@@ -256,10 +262,11 @@ def test_full_refresh_flag_added_to_command(
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
     fastmcp, tools = mock_fastmcp
-    register_dbt_cli_tools(fastmcp, mock_dbt_cli_config)
+    register_dbt_cli_tools(fastmcp)
+    context = DbtMcpContext(dbt_cli_config=mock_dbt_cli_config)
     tool = tools[command_name]
 
-    tool(is_full_refresh=True)
+    tool(ctx=context, is_full_refresh=True)
 
     assert mock_calls
     args_list = mock_calls[0]
@@ -279,10 +286,11 @@ def test_vars_flag_added_to_command(
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
     fastmcp, tools = mock_fastmcp
-    register_dbt_cli_tools(fastmcp, mock_dbt_cli_config)
+    register_dbt_cli_tools(fastmcp)
+    context = DbtMcpContext(dbt_cli_config=mock_dbt_cli_config)
     tool = tools[command_name]
 
-    tool(vars="environment: production")
+    tool(ctx=context, vars="environment: production")
 
     assert mock_calls
     args_list = mock_calls[0]
@@ -300,10 +308,11 @@ def test_vars_not_added_when_none(monkeypatch: MonkeyPatch, mock_process, mock_f
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
     fastmcp, tools = mock_fastmcp
-    register_dbt_cli_tools(fastmcp, mock_dbt_cli_config)
+    register_dbt_cli_tools(fastmcp)
+    context = DbtMcpContext(dbt_cli_config=mock_dbt_cli_config)
     build_tool = tools["build"]
 
-    build_tool()  # Non-explicit
+    build_tool(ctx=context)  # Non-explicit
 
     assert mock_calls
     args_list = mock_calls[0]

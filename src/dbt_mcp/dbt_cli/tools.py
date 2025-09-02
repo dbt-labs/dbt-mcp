@@ -2,19 +2,28 @@ import os
 import subprocess
 from collections.abc import Iterable, Sequence
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 
 from dbt_mcp.config.config import DbtCliConfig
 from dbt_mcp.prompts.prompts import get_prompt
+from dbt_mcp.tools.annotations import create_tool_annotations
+from dbt_mcp.tools.config import DbtMcpContext
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.annotations import create_tool_annotations
 
 
-def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition]:
+def get_cli_config(ctx: DbtMcpContext) -> DbtCliConfig:
+    dbt_cli_config = ctx.get_dbt_cli_config()
+    if dbt_cli_config is None:
+        raise ValueError("dbt cli config is not set")
+    return dbt_cli_config
+
+
+def create_dbt_cli_tool_definitions() -> list[ToolDefinition]:
     def _run_dbt_command(
+        ctx: DbtMcpContext,
         command: list[str],
         selector: str | None = None,
         resource_type: list[str] | None = None,
@@ -22,6 +31,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         is_full_refresh: bool | None = False,
         vars: str | None = None,
     ) -> str:
+        config = ctx.get_dbt_cli_config()
         try:
             # Commands that should always be quiet to reduce output verbosity
             verbose_commands = [
@@ -79,6 +89,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             return str(e)
 
     def build(
+        ctx: DbtMcpContext,
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
@@ -90,6 +101,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
     ) -> str:
         return _run_dbt_command(
+            ctx,
             ["build"],
             selector,
             is_selectable=True,
@@ -97,13 +109,14 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             vars=vars,
         )
 
-    def compile() -> str:
-        return _run_dbt_command(["compile"])
+    def compile(ctx: DbtMcpContext) -> str:
+        return _run_dbt_command(ctx, ["compile"])
 
-    def docs() -> str:
-        return _run_dbt_command(["docs", "generate"])
+    def docs(ctx: DbtMcpContext) -> str:
+        return _run_dbt_command(ctx, ["docs", "generate"])
 
     def ls(
+        ctx: DbtMcpContext,
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
@@ -113,16 +126,18 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
     ) -> str:
         return _run_dbt_command(
+            ctx,
             ["list"],
             selector,
             resource_type=resource_type,
             is_selectable=True,
         )
 
-    def parse() -> str:
-        return _run_dbt_command(["parse"])
+    def parse(ctx: DbtMcpContext) -> str:
+        return _run_dbt_command(ctx, ["parse"])
 
     def run(
+        ctx: DbtMcpContext,
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
@@ -134,6 +149,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
     ) -> str:
         return _run_dbt_command(
+            ctx,
             ["run"],
             selector,
             is_selectable=True,
@@ -142,6 +158,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         )
 
     def test(
+        ctx: DbtMcpContext,
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
@@ -149,9 +166,10 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             default=None, description=get_prompt("dbt_cli/args/vars")
         ),
     ) -> str:
-        return _run_dbt_command(["test"], selector, is_selectable=True, vars=vars)
+        return _run_dbt_command(ctx, ["test"], selector, is_selectable=True, vars=vars)
 
     def show(
+        ctx: DbtMcpContext,
         sql_query: str = Field(description=get_prompt("dbt_cli/args/sql_query")),
         limit: int = Field(default=5, description=get_prompt("dbt_cli/args/limit")),
     ) -> str:
@@ -171,7 +189,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         if cli_limit is not None:
             args.extend(["--limit", str(cli_limit)])
         args.extend(["--output", "json"])
-        return _run_dbt_command(args)
+        return _run_dbt_command(ctx, args)
 
     return [
         ToolDefinition(
@@ -260,11 +278,10 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
 
 def register_dbt_cli_tools(
     dbt_mcp: FastMCP,
-    config: DbtCliConfig,
     exclude_tools: Sequence[ToolName] = [],
 ) -> None:
     register_tools(
         dbt_mcp,
-        create_dbt_cli_tool_definitions(config),
+        create_dbt_cli_tool_definitions(),
         exclude_tools,
     )
