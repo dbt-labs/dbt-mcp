@@ -19,7 +19,7 @@ from mcp.server.fastmcp.utilities.func_metadata import (
 from mcp.shared.message import SessionMessage
 from mcp.types import (
     ContentBlock,
-    TextContent,
+    ServerResult,
     Tool,
 )
 from pydantic import Field, WithJsonSchema, create_model
@@ -133,7 +133,9 @@ async def register_sql_tools(
 
         # Create a new function using a factory to avoid closure issues
         def create_tool_function(tool_name: str):
-            async def tool_function(*args, **kwargs) -> Sequence[ContentBlock]:
+            async def tool_function(
+                *args, **kwargs
+            ) -> Sequence[ContentBlock] | ServerResult:
                 try:
                     tool_call_result = await session.call_tool(
                         tool_name,

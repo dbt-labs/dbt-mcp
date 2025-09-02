@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from dbtsl.api.shared.query_params import GroupByParam
 from dbtsl.client.sync import SyncSemanticLayerClient
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ServerResult
 
 from dbt_mcp.config.config import SemanticLayerConfig
 from dbt_mcp.prompts.prompts import get_prompt
@@ -36,19 +37,23 @@ def create_sl_tool_definitions(
         config=config,
     )
 
-    def list_metrics() -> list[MetricToolResponse] | str:
+    def list_metrics() -> list[MetricToolResponse] | str | ServerResult:
         try:
             return semantic_layer_fetcher.list_metrics()
         except Exception as e:
             return make_error_result(str(e))
 
-    def get_dimensions(metrics: list[str]) -> list[DimensionToolResponse] | str:
+    def get_dimensions(
+        metrics: list[str],
+    ) -> list[DimensionToolResponse] | str | ServerResult:
         try:
             return semantic_layer_fetcher.get_dimensions(metrics=metrics)
         except Exception as e:
             return make_error_result(str(e))
 
-    def get_entities(metrics: list[str]) -> list[EntityToolResponse] | str:
+    def get_entities(
+        metrics: list[str],
+    ) -> list[EntityToolResponse] | str | ServerResult:
         try:
             return semantic_layer_fetcher.get_entities(metrics=metrics)
         except Exception as e:
@@ -60,7 +65,7 @@ def create_sl_tool_definitions(
         order_by: list[OrderByParam] | None = None,
         where: str | None = None,
         limit: int | None = None,
-    ) -> str:
+    ) -> str | ServerResult:
         try:
             result = semantic_layer_fetcher.query_metrics(
                 metrics=metrics,
@@ -82,7 +87,7 @@ def create_sl_tool_definitions(
         order_by: list[OrderByParam] | None = None,
         where: str | None = None,
         limit: int | None = None,
-    ) -> str:
+    ) -> str | ServerResult:
         try:
             result = semantic_layer_fetcher.get_metrics_compiled_sql(
                 metrics=metrics,

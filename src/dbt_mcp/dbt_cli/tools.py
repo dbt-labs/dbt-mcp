@@ -4,6 +4,7 @@ from collections.abc import Iterable, Sequence
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
+from mcp.types import ServerResult
 
 from dbt_mcp.config.config import DbtCliConfig
 from dbt_mcp.prompts.prompts import get_prompt
@@ -22,7 +23,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         is_selectable: bool = False,
         is_full_refresh: bool | None = False,
         vars: str | None = None,
-    ) -> str:
+    ) -> str | ServerResult:
         try:
             # Commands that should always be quiet to reduce output verbosity
             verbose_commands = [
@@ -89,7 +90,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         vars: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/vars")
         ),
-    ) -> str:
+    ) -> str | ServerResult:
         return _run_dbt_command(
             ["build"],
             selector,
@@ -98,10 +99,10 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             vars=vars,
         )
 
-    def compile() -> str:
+    def compile() -> str | ServerResult:
         return _run_dbt_command(["compile"])
 
-    def docs() -> str:
+    def docs() -> str | ServerResult:
         return _run_dbt_command(["docs", "generate"])
 
     def ls(
@@ -112,7 +113,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             default=None,
             description=get_prompt("dbt_cli/args/resource_type"),
         ),
-    ) -> str:
+    ) -> str | ServerResult:
         return _run_dbt_command(
             ["list"],
             selector,
@@ -120,7 +121,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             is_selectable=True,
         )
 
-    def parse() -> str:
+    def parse() -> str | ServerResult:
         return _run_dbt_command(["parse"])
 
     def run(
@@ -133,7 +134,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         vars: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/vars")
         ),
-    ) -> str:
+    ) -> str | ServerResult:
         return _run_dbt_command(
             ["run"],
             selector,
@@ -149,13 +150,13 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         vars: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/vars")
         ),
-    ) -> str:
+    ) -> str | ServerResult:
         return _run_dbt_command(["test"], selector, is_selectable=True, vars=vars)
 
     def show(
         sql_query: str = Field(description=get_prompt("dbt_cli/args/sql_query")),
         limit: int = Field(default=5, description=get_prompt("dbt_cli/args/limit")),
-    ) -> str:
+    ) -> str | ServerResult:
         args = ["show", "--inline", sql_query, "--favor-state"]
         # This is quite crude, but it should be okay for now
         # until we have a dbt Fusion integration.
