@@ -26,11 +26,7 @@ logger = logging.getLogger(__name__)
 
 def get_fetcher(ctx: DbtMcpContext) -> SemanticLayerFetcher:
     sl_config = ctx.get_semantic_layer_config()
-    sl_client = SyncSemanticLayerClient(
-        environment_id=sl_config.prod_environment_id,
-        auth_token=sl_config.service_token,
-        host=sl_config.host,
-    )
+    sl_client = ctx.get_semantic_layer_client()
     return SemanticLayerFetcher(
         sl_client=sl_client,
         config=sl_config,

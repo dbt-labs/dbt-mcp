@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from dbtlabs_vortex.producer import shutdown
+from dbtsl.client.sync import SyncSemanticLayerClient
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ContentBlock, TextContent
 
@@ -109,6 +110,15 @@ class DbtMCP(FastMCP):
             request_context=request_context,
             fastmcp=self,
             semantic_layer_config=self.config.semantic_layer_config,
+            semantic_layer_client=(
+                SyncSemanticLayerClient(
+                    environment_id=self.config.semantic_layer_config.prod_environment_id,
+                    auth_token=self.config.semantic_layer_config.service_token,
+                    host=self.config.semantic_layer_config.host,
+                )
+                if self.config.semantic_layer_config
+                else None
+            ),
             discovery_config=self.config.discovery_config,
             dbt_cli_config=self.config.dbt_cli_config,
             admin_api_config=self.config.admin_api_config,

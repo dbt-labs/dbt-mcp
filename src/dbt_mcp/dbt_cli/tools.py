@@ -2,7 +2,7 @@ import os
 import subprocess
 from collections.abc import Iterable, Sequence
 
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from dbt_mcp.config.config import DbtCliConfig
