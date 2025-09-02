@@ -62,24 +62,3 @@ class DbtMcpContext(Context[ServerSession, object, Request]):
         if self._admin_api_client is None:
             raise ValueError("Admin api client is not set")
         return self._admin_api_client
-
-
-def get_request(context: Context) -> Request:
-    """Extract Starlette Request from MCP context.
-
-    Helper function to safely extract a FastAPI Request object from
-    the Model Context Protocol (MCP) context.
-
-    Args:
-        context: MCP context containing request information
-
-    Returns:
-        Starlette Request object from the context
-
-    Raises:
-        ValueError: If the context doesn't contain a FastAPI Request
-    """
-    request = context.request_context.request
-    if not isinstance(request, Request):
-        raise ValueError("Couldn't get request from MCP context")
-    return request
