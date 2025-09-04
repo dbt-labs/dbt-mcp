@@ -1,8 +1,8 @@
 import asyncio
 import os
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, RunContext  # type: ignore
 from pydantic_ai.mcp import MCPServerStreamableHTTP  # type: ignore
-from pydantic_ai.messages import (
+from pydantic_ai.messages import (  # type: ignore
     FunctionToolCallEvent,
 )
 
