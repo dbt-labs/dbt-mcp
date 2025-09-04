@@ -1,7 +1,7 @@
 import asyncio
 import os
 from pydantic_ai import Agent, RunContext
-from pydantic_ai.mcp import MCPServerStreamableHTTP
+from pydantic_ai.mcp import MCPServerStreamableHTTP  # type: ignore
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
 )
@@ -25,26 +25,26 @@ async def main():
     # Initialize the agent with OpenAI model and MCP tools
     # PydanticAI also supports Anthropic models, Google models, and more
     agent = Agent(
-        'openai:gpt-5',
+        "openai:gpt-5",
         toolsets=[server],
         system_prompt="You are a helpful AI assistant with access to MCP tools.",
     )
-    
+
     print("Starting conversation with PydanticAI + MCP server...")
     print("Type 'quit' to exit\n")
-    
+
     async with agent:
         while True:
             try:
                 user_input = input("You: ").strip()
-                
-                if user_input.lower() in ['quit', 'exit', 'q']:
+
+                if user_input.lower() in ["quit", "exit", "q"]:
                     print("Goodbye!")
                     break
-                
+
                 if not user_input:
                     continue
-                
+
                 # Event handler for real-time tool call detection
                 async def event_handler(ctx: RunContext, event_stream):
                     async for event in event_stream:
@@ -52,14 +52,16 @@ async def main():
                             print(f"\n🔧 Tool called: {event.part.tool_name}")
                             print(f"   Arguments: {event.part.args}")
                             print("Assistant: ", end="", flush=True)
-                
+
                 # Stream the response with real-time events
                 print("Assistant: ", end="", flush=True)
-                async with agent.run_stream(user_input, event_stream_handler=event_handler) as result:
+                async with agent.run_stream(
+                    user_input, event_stream_handler=event_handler
+                ) as result:
                     async for text in result.stream_text(delta=True):
                         print(text, end="", flush=True)
                 print()  # New line after response
-                
+
             except KeyboardInterrupt:
                 print("\nGoodbye!")
                 break
