@@ -100,7 +100,7 @@ class DbtMCP(FastMCP):
         return result
 
 
-async def create_dbt_mcp(config: Config):
+async def create_dbt_mcp(config: Config) -> DbtMCP:
     dbt_mcp = DbtMCP(
         config=config,
         usage_tracker=UsageTracker(),
