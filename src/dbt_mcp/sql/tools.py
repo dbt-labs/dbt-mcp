@@ -111,10 +111,8 @@ async def register_sql_tools(
     is_local = config.host and config.host.startswith("localhost")
     path = "/v1/mcp/" if is_local else "/api/ai/v1/mcp/"
     scheme = "http://" if is_local else "https://"
-    multicell_account_prefix = (
-        f"{config.multicell_account_prefix}." if config.multicell_account_prefix else ""
-    )
-    url = f"{scheme}{multicell_account_prefix}{config.host}{path}"
+    host_prefix = f"{config.host_prefix}." if config.host_prefix else ""
+    url = f"{scheme}{host_prefix}{config.host}{path}"
     headers = {
         "Authorization": f"Bearer {config.token}",
         "x-dbt-prod-environment-id": str(config.prod_environment_id),

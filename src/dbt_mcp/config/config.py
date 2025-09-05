@@ -1,4 +1,5 @@
 import os
+import socket
 from pathlib import Path
 from typing import Annotated
 
@@ -6,12 +7,16 @@ import yaml
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from dbt_mcp.oauth.login import login
 from dbt_mcp.tools.tool_names import ToolName
+
+OAUTH_REDIRECT_STARTING_PORT = 6785
+OAUTH_CLIENT_ID = "34ec61e834cdffd9dd90a32231937821"
 
 
 class TrackingConfig(BaseModel):
     host: str | None = None
-    multicell_account_prefix: str | None = None
+    host_prefix: str | None = None
     prod_environment_id: int | None = None
     dev_environment_id: int | None = None
     dbt_cloud_user_id: int | None = None
@@ -39,7 +44,7 @@ class DbtCliConfig(BaseModel):
 
 
 class SqlConfig(BaseModel):
-    multicell_account_prefix: str | None = None
+    host_prefix: str | None = None
     host: str
     user_id: int
     dev_environment_id: int
@@ -63,7 +68,7 @@ class DbtMcpSettings(BaseSettings):
         extra="ignore",
     )
 
-    # Environment variables with proper field configuration
+    # dbt Platform settings
     dbt_host: str | None = Field(None, alias="DBT_HOST")
     dbt_mcp_host: str | None = Field(None, alias="DBT_MCP_HOST")
     dbt_prod_env_id: int | None = Field(None, alias="DBT_PROD_ENV_ID")
@@ -72,11 +77,17 @@ class DbtMcpSettings(BaseSettings):
     dbt_user_id: int | None = Field(None, alias="DBT_USER_ID")
     dbt_account_id: int | None = Field(None, alias="DBT_ACCOUNT_ID")
     dbt_token: str | None = Field(None, alias="DBT_TOKEN")
+    multicell_account_prefix: str | None = Field(None, alias="MULTICELL_ACCOUNT_PREFIX")
+    host_prefix: str | None = Field(None, alias="DBT_HOST_PREFIX")
+
+    # dbt CLI settings
     dbt_project_dir: str | None = Field(None, alias="DBT_PROJECT_DIR")
     dbt_path: str = Field("dbt", alias="DBT_PATH")
     dbt_cli_timeout: int = Field(10, alias="DBT_CLI_TIMEOUT")
     dbt_warn_error_options: str | None = Field(None, alias="DBT_WARN_ERROR_OPTIONS")
+    dbt_profiles_dir: str | None = Field(None, alias="DBT_PROFILES_DIR")
 
+    # Disable tool settings
     disable_dbt_cli: bool = Field(False, alias="DISABLE_DBT_CLI")
     disable_semantic_layer: bool = Field(False, alias="DISABLE_SEMANTIC_LAYER")
     disable_discovery: bool = Field(False, alias="DISABLE_DISCOVERY")
@@ -87,11 +98,12 @@ class DbtMcpSettings(BaseSettings):
         None, alias="DISABLE_TOOLS"
     )
 
-    multicell_account_prefix: str | None = Field(None, alias="MULTICELL_ACCOUNT_PREFIX")
-
     @property
     def actual_host(self) -> str | None:
-        return self.dbt_host or self.dbt_mcp_host
+        host = self.dbt_host or self.dbt_mcp_host
+        if host is None:
+            return None
+        return host.rstrip("/")
 
     @property
     def actual_prod_environment_id(self) -> int | None:
@@ -104,6 +116,14 @@ class DbtMcpSettings(BaseSettings):
         if self.disable_remote is not None:
             return self.disable_remote
         return True
+
+    @property
+    def actual_host_prefix(self) -> str | None:
+        if self.host_prefix is not None:
+            return self.host_prefix
+        if self.multicell_account_prefix is not None:
+            return self.multicell_account_prefix
+        return None
 
     @field_validator("disable_tools", mode="before")
     @classmethod
@@ -138,16 +158,48 @@ class Config(BaseModel):
     disable_tools: list[ToolName]
 
 
-def load_config() -> Config:
-    # Load settings from environment variables using pydantic_settings
-    settings = DbtMcpSettings()  # type: ignore[call-arg]
+def _create_mcp_yml(dbt_profiles_dir: str | None = None) -> Path:
+    # Respect DBT_PROFILES_DIR if set; otherwise default to ~/.dbt/mcp.yml
+    if dbt_profiles_dir:
+        config_dir = Path(dbt_profiles_dir).expanduser()
+    else:
+        config_dir = Path.home() / ".dbt"
+    config_location = config_dir / "mcp.yml"
+    config_location.parent.mkdir(parents=True, exist_ok=True)
+    config_location.touch()
+    return config_location
 
-    # Set default warn error options if not provided
-    if settings.dbt_warn_error_options is None:
-        warn_error_options = '{"error": ["NoNodesForSelectionCriteria"]}'
-        os.environ["DBT_WARN_ERROR_OPTIONS"] = warn_error_options
 
-    # Validation
+def _find_available_port(*, start_port: int, max_attempts: int = 20) -> int:
+    """
+    Return the first available port on 127.0.0.1 starting at start_port.
+
+    Raises RuntimeError if no port is found within the attempted range.
+    """
+    for candidate_port in range(start_port, start_port + max_attempts):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind(("127.0.0.1", candidate_port))
+            except OSError:
+                continue
+            return candidate_port
+    raise RuntimeError(
+        "No available port found starting at "
+        f"{start_port} after {max_attempts} attempts."
+    )
+
+
+def validate_settings(settings: DbtMcpSettings) -> list[str]:
+    errors: list[str] = []
+    errors.extend(validate_dbt_platform_settings(settings))
+    errors.extend(validate_dbt_cli_settings(settings))
+    return errors
+
+
+def validate_dbt_platform_settings(
+    settings: DbtMcpSettings,
+) -> list[str]:
     errors: list[str] = []
     if (
         not settings.disable_semantic_layer
@@ -174,15 +226,30 @@ def load_config() -> Config:
             errors.append(
                 "DBT_HOST must not start with 'metadata' or 'semantic-layer'."
             )
-    if not settings.actual_disable_sql:
+    if (
+        not settings.actual_disable_sql
+        and ToolName.TEXT_TO_SQL not in (settings.disable_tools or [])
+        and not settings.actual_prod_environment_id
+    ):
+        errors.append(
+            "DBT_PROD_ENV_ID environment variable is required when text_to_sql is enabled."
+        )
+    if not settings.actual_disable_sql and ToolName.EXECUTE_SQL not in (
+        settings.disable_tools or []
+    ):
         if not settings.dbt_dev_env_id:
             errors.append(
-                "DBT_DEV_ENV_ID environment variable is required when SQL tools are enabled."
+                "DBT_DEV_ENV_ID environment variable is required when execute_sql is enabled."
             )
         if not settings.dbt_user_id:
             errors.append(
-                "DBT_USER_ID environment variable is required when SQL tools are enabled."
+                "DBT_USER_ID environment variable is required when execute_sql is enabled."
             )
+    return errors
+
+
+def validate_dbt_cli_settings(settings: DbtMcpSettings) -> list[str]:
+    errors: list[str] = []
     if not settings.disable_dbt_cli:
         if not settings.dbt_project_dir:
             errors.append(
@@ -192,7 +259,66 @@ def load_config() -> Config:
             errors.append(
                 "DBT_PATH environment variable is required when dbt CLI tools are enabled."
             )
+    return errors
 
+
+def load_config() -> Config:
+    # Load settings from environment variables using pydantic_settings
+    settings = DbtMcpSettings()  # type: ignore[call-arg]
+    dbt_platform_errors = validate_dbt_platform_settings(settings)
+    # Oauth is exerimental but secure, so you shouldn't use it,
+    # but there are no security concerns if you do.
+    enable_oauth = os.environ.get("ENABLE_EXPERIMENAL_SECURE_OAUTH") == "true"
+    if enable_oauth and dbt_platform_errors:
+        config_location = _create_mcp_yml(dbt_profiles_dir=settings.dbt_profiles_dir)
+        actual_host = settings.actual_host
+        if not actual_host:
+            raise ValueError("DBT_HOST is a required environment variable")
+
+        # Find an available port for the local OAuth redirect server
+        selected_port = _find_available_port(start_port=OAUTH_REDIRECT_STARTING_PORT)
+        login_result = login(
+            dbt_platform_url=f"https://{actual_host}",
+            port=selected_port,
+            client_id=OAUTH_CLIENT_ID,
+            config_location=config_location,
+        )
+
+        # Override settings with settings attained from login
+        dbt_platform_context = login_result.dbt_platform_context
+        settings.dbt_user_id = dbt_platform_context.user_id
+        settings.dbt_dev_env_id = (
+            dbt_platform_context.dev_environment.id
+            if dbt_platform_context.dev_environment
+            else None
+        )
+        settings.dbt_prod_env_id = (
+            dbt_platform_context.prod_environment.id
+            if dbt_platform_context.prod_environment
+            else None
+        )
+        settings.dbt_token = (
+            login_result.decoded_access_token.access_token_response.access_token
+        )
+        settings.host_prefix = dbt_platform_context.host_prefix
+        host_prefix_with_period = f"{dbt_platform_context.host_prefix}."
+        if not actual_host.startswith(host_prefix_with_period):
+            raise ValueError(
+                f"The DBT_HOST environment variable is expected to start with the {dbt_platform_context.host_prefix} custom subdomain."
+            )
+        # We have to remove the custom subdomain prefix
+        # so that the metadata and semantic-layer URLs can be constructed correctly.
+        settings.dbt_host = actual_host.removeprefix(host_prefix_with_period)
+    return create_config(settings)
+
+
+def create_config(settings: DbtMcpSettings) -> Config:
+    # Set default warn error options if not provided
+    if settings.dbt_warn_error_options is None:
+        warn_error_options = '{"error": ["NoNodesForSelectionCriteria"]}'
+        os.environ["DBT_WARN_ERROR_OPTIONS"] = warn_error_options
+
+    errors = validate_settings(settings)
     if errors:
         raise ValueError("Errors found in configuration:\n\n" + "\n".join(errors))
 
@@ -207,7 +333,7 @@ def load_config() -> Config:
         and settings.actual_host
     ):
         sql_config = SqlConfig(
-            multicell_account_prefix=settings.multicell_account_prefix,
+            host_prefix=settings.actual_host_prefix,
             user_id=settings.dbt_user_id,
             token=settings.dbt_token,
             dev_environment_id=settings.dbt_dev_env_id,
@@ -223,8 +349,8 @@ def load_config() -> Config:
         and settings.actual_host
         and settings.dbt_account_id
     ):
-        if settings.multicell_account_prefix:
-            url = f"https://{settings.multicell_account_prefix}.{settings.actual_host}"
+        if settings.actual_host_prefix:
+            url = f"https://{settings.actual_host_prefix}.{settings.actual_host}"
         else:
             url = f"https://{settings.actual_host}"
         admin_api_config = AdminApiConfig(
@@ -249,8 +375,8 @@ def load_config() -> Config:
         and settings.actual_prod_environment_id
         and settings.dbt_token
     ):
-        if settings.multicell_account_prefix:
-            url = f"https://{settings.multicell_account_prefix}.metadata.{settings.actual_host}/graphql"
+        if settings.actual_host_prefix:
+            url = f"https://{settings.actual_host_prefix}.metadata.{settings.actual_host}/graphql"
         else:
             url = f"https://metadata.{settings.actual_host}/graphql"
         discovery_config = DiscoveryConfig(
@@ -272,8 +398,10 @@ def load_config() -> Config:
         is_local = settings.actual_host and settings.actual_host.startswith("localhost")
         if is_local:
             host = settings.actual_host
-        elif settings.multicell_account_prefix:
-            host = f"{settings.multicell_account_prefix}.semantic-layer.{settings.actual_host}"
+        elif settings.actual_host_prefix:
+            host = (
+                f"{settings.actual_host_prefix}.semantic-layer.{settings.actual_host}"
+            )
         else:
             host = f"semantic-layer.{settings.actual_host}"
         assert host is not None
@@ -303,7 +431,7 @@ def load_config() -> Config:
     return Config(
         tracking_config=TrackingConfig(
             host=settings.actual_host,
-            multicell_account_prefix=settings.multicell_account_prefix,
+            host_prefix=settings.actual_host_prefix,
             prod_environment_id=settings.actual_prod_environment_id,
             dev_environment_id=settings.dbt_dev_env_id,
             dbt_cloud_user_id=settings.dbt_user_id,

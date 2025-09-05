@@ -18,8 +18,13 @@ jobs:
       - name: setup python
         uses: ./.github/actions/setup-python
         id: setup-python
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+        with:
+          version: 10
       - name: Install go-task
         run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+      - name: Install dependencies
+        run: task install
       - name: Run check
         run: task check
 
@@ -38,6 +43,9 @@ jobs:
       - name: setup python
         uses: ./.github/actions/setup-python
         id: setup-python
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+        with:
+          version: 10
       - name: Install go-task
         run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
       - name: Run tests

@@ -58,7 +58,7 @@ class UsageTracker:
                     else "",
                     local_user_id=config.local_user_id or "",
                     host=config.host or "",
-                    multicell_account_prefix=config.multicell_account_prefix or "",
+                    multicell_account_prefix=config.host_prefix or "",
                 )
             )
         except Exception as e:
