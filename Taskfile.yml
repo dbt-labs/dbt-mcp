@@ -32,6 +32,7 @@ tasks:
   install:
     desc: Install dependencies
     cmds:
+      - (cd ui && pnpm install && pnpm build)
       - uv sync
       - uv pip install -e .
 
@@ -43,6 +44,7 @@ tasks:
   check:
     desc: Run linting and type checking
     cmds:
+      - (cd ui && pnpm run lint)
       - uv run pre-commit run --all-files
 
   fmt:
@@ -53,16 +55,19 @@ tasks:
   run:
     desc: "Run the dbt-mcp server"
     cmds:
+      - (cd ui && pnpm install && pnpm build)
       - uv run src/dbt_mcp/main.py
 
   dev:
     desc: "Run the dbt-mcp server in development mode"
     cmds:
+      - (cd ui && pnpm install && pnpm build)
       - ./.venv/bin/mcp dev ./src/dbt_mcp/main.py
 
   inspector:
     desc: "Run the dbt-mcp server with MCP inspector"
     cmds:
+      - (cd ui && pnpm install && pnpm build)
       - npx @modelcontextprotocol/inspector ./.venv/bin/mcp run src/dbt_mcp/main.py
 
   test:
@@ -88,11 +93,13 @@ tasks:
   build:
     desc: "Build the package"
     cmds:
+      - (cd ui && pnpm install && pnpm build)
       - uv build
 
   client:
     desc: "Run the test client"
     cmds:
+      - (cd ui && pnpm install && pnpm build)
       - uv run src/client/main.py
 
   d2:
