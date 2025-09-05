@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+from dbt_mcp.tools.config import DbtMcpContext
 from tests.mocks.config import mock_config
 
 
@@ -35,7 +36,7 @@ class TestDbtCliIntegration(unittest.TestCase):
         mock_fastmcp.tool = mock_tool_decorator
 
         # Register the tools
-        register_dbt_cli_tools(mock_fastmcp, mock_config.dbt_cli_config)
+        register_dbt_cli_tools(mock_fastmcp)
 
         # Test cases for different command types
         test_cases = [
@@ -89,12 +90,14 @@ class TestDbtCliIntegration(unittest.TestCase):
             ),
         ]
 
+        context = DbtMcpContext(dbt_cli_config=mock_config.dbt_cli_config)
+
         # Run each test case
         for command_name, args, expected_args in test_cases:
             mock_popen.reset_mock()
 
             # Call the function
-            result = tools[command_name](*args)
+            result = tools[command_name](context, *args)
 
             # Verify the command was called correctly
             mock_popen.assert_called_once()

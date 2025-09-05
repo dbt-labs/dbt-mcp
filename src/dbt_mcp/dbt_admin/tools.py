@@ -10,6 +10,7 @@ from dbt_mcp.config.config import AdminApiConfig
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.annotations import create_tool_annotations
+from dbt_mcp.tools.config import DbtMcpContext
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
@@ -38,10 +39,21 @@ STATUS_MAP = {
 }
 
 
-def create_admin_api_tool_definitions(
-    admin_client: DbtAdminAPIClient, admin_api_config: AdminApiConfig
-) -> list[ToolDefinition]:
+def get_admin_client_and_config(
+    ctx: DbtMcpContext,
+) -> tuple[DbtAdminAPIClient, AdminApiConfig]:
+    admin_api_config = ctx.get_admin_api_config()
+    if admin_api_config is None:
+        raise ValueError("admin api config is not set")
+    admin_api_client = ctx.get_admin_api_client()
+    if admin_api_client is None:
+        raise ValueError("admin api client is not set")
+    return admin_api_client, admin_api_config
+
+
+def create_admin_api_tool_definitions() -> list[ToolDefinition]:
     def list_jobs(
+        ctx: DbtMcpContext,
         # TODO: add support for project_id in the future
         # project_id: Optional[int] = None,
         limit: int | None = None,
@@ -49,6 +61,7 @@ def create_admin_api_tool_definitions(
     ) -> list[dict[str, Any]] | str:
         """List jobs in an account."""
         try:
+            admin_client, admin_api_config = get_admin_client_and_config(ctx)
             params = {}
             # if project_id:
             #     params["project_id"] = project_id
@@ -65,15 +78,20 @@ def create_admin_api_tool_definitions(
             )
             return str(e)
 
-    def get_job_details(job_id: int) -> dict[str, Any] | str:
+    def get_job_details(
+        ctx: DbtMcpContext,
+        job_id: int,
+    ) -> dict[str, Any] | str:
         """Get details for a specific job."""
         try:
+            admin_client, admin_api_config = get_admin_client_and_config(ctx)
             return admin_client.get_job_details(admin_api_config.account_id, job_id)
         except Exception as e:
             logger.error(f"Error getting job {job_id}: {e}")
             return str(e)
 
     def trigger_job_run(
+        ctx: DbtMcpContext,
         job_id: int,
         cause: str = "Triggered by dbt MCP",
         git_branch: str | None = None,
@@ -82,6 +100,7 @@ def create_admin_api_tool_definitions(
     ) -> dict[str, Any] | str:
         """Trigger a job run."""
         try:
+            admin_client, admin_api_config = get_admin_client_and_config(ctx)
             kwargs = {}
             if git_branch:
                 kwargs["git_branch"] = git_branch
@@ -97,6 +116,7 @@ def create_admin_api_tool_definitions(
             return str(e)
 
     def list_jobs_runs(
+        ctx: DbtMcpContext,
         job_id: int | None = None,
         status: JobRunStatus | None = None,
         limit: int | None = None,
@@ -105,6 +125,7 @@ def create_admin_api_tool_definitions(
     ) -> list[dict[str, Any]] | str:
         """List runs in an account."""
         try:
+            admin_client, admin_api_config = get_admin_client_and_config(ctx)
             params: dict[str, Any] = {}
             if job_id:
                 params["job_definition_id"] = job_id
@@ -125,6 +146,7 @@ def create_admin_api_tool_definitions(
             return str(e)
 
     def get_job_run_details(
+        ctx: DbtMcpContext,
         run_id: int,
         debug: bool = Field(
             default=False,
@@ -133,6 +155,7 @@ def create_admin_api_tool_definitions(
     ) -> dict[str, Any] | str:
         """Get details for a specific job run."""
         try:
+            admin_client, admin_api_config = get_admin_client_and_config(ctx)
             return admin_client.get_job_run_details(
                 admin_api_config.account_id, run_id, debug=debug
             )
@@ -140,25 +163,37 @@ def create_admin_api_tool_definitions(
             logger.error(f"Error getting run {run_id}: {e}")
             return str(e)
 
-    def cancel_job_run(run_id: int) -> dict[str, Any] | str:
+    def cancel_job_run(
+        ctx: DbtMcpContext,
+        run_id: int,
+    ) -> dict[str, Any] | str:
         """Cancel a job run."""
         try:
+            admin_client, admin_api_config = get_admin_client_and_config(ctx)
             return admin_client.cancel_job_run(admin_api_config.account_id, run_id)
         except Exception as e:
             logger.error(f"Error cancelling run {run_id}: {e}")
             return str(e)
 
-    def retry_job_run(run_id: int) -> dict[str, Any] | str:
+    def retry_job_run(
+        ctx: DbtMcpContext,
+        run_id: int,
+    ) -> dict[str, Any] | str:
         """Retry a failed job run."""
         try:
+            admin_client, admin_api_config = get_admin_client_and_config(ctx)
             return admin_client.retry_job_run(admin_api_config.account_id, run_id)
         except Exception as e:
             logger.error(f"Error retrying run {run_id}: {e}")
             return str(e)
 
-    def list_job_run_artifacts(run_id: int) -> list[str] | str:
+    def list_job_run_artifacts(
+        ctx: DbtMcpContext,
+        run_id: int,
+    ) -> list[str] | str:
         """List artifacts for a job run."""
         try:
+            admin_client, admin_api_config = get_admin_client_and_config(ctx)
             return admin_client.list_job_run_artifacts(
                 admin_api_config.account_id, run_id
             )
@@ -167,10 +202,14 @@ def create_admin_api_tool_definitions(
             return str(e)
 
     def get_job_run_artifact(
-        run_id: int, artifact_path: str, step: int | None = None
+        ctx: DbtMcpContext,
+        run_id: int,
+        artifact_path: str,
+        step: int | None = None,
     ) -> Any | str:
         """Get a specific job run artifact."""
         try:
+            admin_client, admin_api_config = get_admin_client_and_config(ctx)
             return admin_client.get_job_run_artifact(
                 admin_api_config.account_id, run_id, artifact_path, step
             )
@@ -276,13 +315,11 @@ def create_admin_api_tool_definitions(
 
 def register_admin_api_tools(
     dbt_mcp: FastMCP,
-    admin_config: AdminApiConfig,
     exclude_tools: Sequence[ToolName] = [],
 ) -> None:
     """Register dbt Admin API tools."""
-    admin_client = DbtAdminAPIClient(admin_config)
     register_tools(
         dbt_mcp,
-        create_admin_api_tool_definitions(admin_client, admin_config),
+        create_admin_api_tool_definitions(),
         exclude_tools,
     )

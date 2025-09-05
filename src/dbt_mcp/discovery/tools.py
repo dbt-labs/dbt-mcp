@@ -3,10 +3,10 @@ from collections.abc import Sequence
 
 from mcp.server.fastmcp import FastMCP
 
-from dbt_mcp.config.config import DiscoveryConfig
 from dbt_mcp.discovery.client import MetadataAPIClient, ModelsFetcher
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.annotations import create_tool_annotations
+from dbt_mcp.tools.config import DbtMcpContext
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
@@ -14,17 +14,25 @@ from dbt_mcp.tools.tool_names import ToolName
 logger = logging.getLogger(__name__)
 
 
-def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefinition]:
+def get_fetcher(ctx: DbtMcpContext) -> ModelsFetcher:
+    discovery_config = ctx.get_discovery_config()
+    if discovery_config is None:
+        raise ValueError("Discovery config is not set")
     api_client = MetadataAPIClient(
-        url=config.url,
-        headers=config.headers,
+        url=discovery_config.url,
+        headers=discovery_config.headers,
     )
     models_fetcher = ModelsFetcher(
-        api_client=api_client, environment_id=config.environment_id
+        api_client=api_client, environment_id=discovery_config.environment_id
     )
+    return models_fetcher
 
-    def get_mart_models() -> list[dict] | str:
+
+def create_discovery_tool_definitions() -> list[ToolDefinition]:
+
+    def get_mart_models(ctx: DbtMcpContext) -> list[dict] | str:
         try:
+            models_fetcher = get_fetcher(ctx)
             mart_models = models_fetcher.fetch_models(
                 model_filter={"modelingLayer": "marts"}
             )
@@ -32,40 +40,45 @@ def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefin
         except Exception as e:
             return str(e)
 
-    def get_all_models() -> list[dict] | str:
+    def get_all_models(ctx: DbtMcpContext) -> list[dict] | str:
         try:
+            models_fetcher = get_fetcher(ctx)
             return models_fetcher.fetch_models()
         except Exception as e:
             return str(e)
 
     def get_model_details(
-        model_name: str | None = None, unique_id: str | None = None
+        ctx: DbtMcpContext, model_name: str | None = None, unique_id: str | None = None
     ) -> dict | str:
         try:
+            models_fetcher = get_fetcher(ctx)
             return models_fetcher.fetch_model_details(model_name, unique_id)
         except Exception as e:
             return str(e)
 
     def get_model_parents(
-        model_name: str | None = None, unique_id: str | None = None
+        ctx: DbtMcpContext, model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict] | str:
         try:
+            models_fetcher = get_fetcher(ctx)
             return models_fetcher.fetch_model_parents(model_name, unique_id)
         except Exception as e:
             return str(e)
 
     def get_model_children(
-        model_name: str | None = None, unique_id: str | None = None
+        ctx: DbtMcpContext, model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict] | str:
         try:
+            models_fetcher = get_fetcher(ctx)
             return models_fetcher.fetch_model_children(model_name, unique_id)
         except Exception as e:
             return str(e)
 
     def get_model_health(
-        model_name: str | None = None, unique_id: str | None = None
+        ctx: DbtMcpContext, model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict] | str:
         try:
+            models_fetcher = get_fetcher(ctx)
             return models_fetcher.fetch_model_health(model_name, unique_id)
         except Exception as e:
             return str(e)
@@ -136,11 +149,10 @@ def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefin
 
 def register_discovery_tools(
     dbt_mcp: FastMCP,
-    config: DiscoveryConfig,
     exclude_tools: Sequence[ToolName] = [],
 ) -> None:
     register_tools(
         dbt_mcp,
-        create_discovery_tool_definitions(config),
+        create_discovery_tool_definitions(),
         exclude_tools,
     )
