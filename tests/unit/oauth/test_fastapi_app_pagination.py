@@ -52,7 +52,7 @@ def test_get_all_projects_for_account_paginates(mock_get: Mock, base_headers, ac
         dbt_platform_url="https://cloud.getdbt.com",
         account=account,
         headers=base_headers,
-        limit=2,
+        page_size=2,
     )
 
     # Should aggregate 3 projects and include account_name field
@@ -99,7 +99,7 @@ def test_get_all_environments_for_project_paginates(mock_get: Mock, base_headers
         account_id=1,
         project_id=9,
         headers=base_headers,
-        limit=2,
+        page_size=2,
     )
 
     assert len(result) == 3

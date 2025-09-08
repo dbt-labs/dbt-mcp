@@ -45,14 +45,14 @@ def _get_all_projects_for_account(
     dbt_platform_url: str,
     account: DbtPlatformAccount,
     headers: dict[str, str],
-    limit: int = 100,
+    page_size: int = 100,
 ) -> list[DbtPlatformProject]:
-    """Fetch all projects for an account using offset/limit pagination."""
+    """Fetch all projects for an account using offset/page_size pagination."""
     offset = 0
     projects: list[DbtPlatformProject] = []
     while True:
         projects_response = requests.get(
-            f"{dbt_platform_url}/api/v3/accounts/{account.id}/projects/?state=1&offset={offset}&limit={limit}",
+            f"{dbt_platform_url}/api/v3/accounts/{account.id}/projects/?state=1&offset={offset}&limit={page_size}",
             headers=headers,
         )
         projects_response.raise_for_status()
@@ -60,9 +60,9 @@ def _get_all_projects_for_account(
         projects.extend(
             DbtPlatformProject(**project, account_name=account.name) for project in page
         )
-        if len(page) < limit:
+        if len(page) < page_size:
             break
-        offset += limit
+        offset += page_size
     return projects
 
 
@@ -72,14 +72,14 @@ def _get_all_environments_for_project(
     account_id: int,
     project_id: int,
     headers: dict[str, str],
-    limit: int = 100,
+    page_size: int = 100,
 ) -> list[DbtPlatformEnvironmentResponse]:
-    """Fetch all environments for a project using offset/limit pagination."""
+    """Fetch all environments for a project using offset/page_size pagination."""
     offset = 0
     environments: list[DbtPlatformEnvironmentResponse] = []
     while True:
         environments_response = requests.get(
-            f"{dbt_platform_url}/api/v3/accounts/{account_id}/projects/{project_id}/environments/?state=1&offset={offset}&limit={limit}",
+            f"{dbt_platform_url}/api/v3/accounts/{account_id}/projects/{project_id}/environments/?state=1&offset={offset}&limit={page_size}",
             headers=headers,
         )
         environments_response.raise_for_status()
@@ -87,9 +87,9 @@ def _get_all_environments_for_project(
         environments.extend(
             DbtPlatformEnvironmentResponse(**environment) for environment in page
         )
-        if len(page) < limit:
+        if len(page) < page_size:
             break
-        offset += limit
+        offset += page_size
     return environments
 
 
@@ -131,23 +131,17 @@ def create_app(
         new_dbt_platform_context: DbtPlatformContext,
     ) -> DbtPlatformContext:
         existing_dbt_platform_context = _read_dbt_platform_context()
-        new_dbt_platform_context = DbtPlatformContext(
-            dev_environment=new_dbt_platform_context.dev_environment
-            or existing_dbt_platform_context.dev_environment,
-            prod_environment=new_dbt_platform_context.prod_environment
-            or existing_dbt_platform_context.prod_environment,
-            user_id=new_dbt_platform_context.user_id,
-            host_prefix=new_dbt_platform_context.host_prefix
-            or existing_dbt_platform_context.host_prefix,
+        next_dbt_platform_context = existing_dbt_platform_context.override(
+            new_dbt_platform_context
         )
-        app.state.dbt_platform_context = new_dbt_platform_context
+        app.state.dbt_platform_context = next_dbt_platform_context
         config_location.write_text(
             data=yaml.safe_dump(
-                new_dbt_platform_context.model_dump(),
+                next_dbt_platform_context.model_dump(),
                 sort_keys=True,
             )
         )
-        return new_dbt_platform_context
+        return next_dbt_platform_context
 
     @app.get("/")
     async def oauth_callback(request: Request) -> RedirectResponse:
@@ -258,7 +252,7 @@ def create_app(
             account_id=selected_project_request.account_id,
             project_id=selected_project_request.project_id,
             headers=headers,
-            limit=100,
+            page_size=100,
         )
         prod_environment = None
         dev_environment = None

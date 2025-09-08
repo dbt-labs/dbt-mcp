@@ -47,3 +47,11 @@ class DbtPlatformContext(BaseModel):
     host_prefix: str | None = None
     dev_environment: DbtPlatformEnvironment | None = None
     prod_environment: DbtPlatformEnvironment | None = None
+
+    def override(self, other: "DbtPlatformContext") -> "DbtPlatformContext":
+        return DbtPlatformContext(
+            dev_environment=other.dev_environment or self.dev_environment,
+            prod_environment=other.prod_environment or self.prod_environment,
+            user_id=other.user_id or self.user_id,
+            host_prefix=other.host_prefix or self.host_prefix,
+        )
