@@ -1,3 +1,0 @@
-kind: Enhancement or New Feature
-body: Adding the ability to return the config.meta attribute from list metrics to give the LLM more context
-time: 2025-08-28T12:16:55.17476-04:00
