@@ -40,30 +40,31 @@ class TestDbtCliIntegration(unittest.TestCase):
         # Test cases for different command types
         test_cases = [
             # Command name, args, expected command list
-            ("build", [], ["/path/to/dbt", "build", "--quiet"]),
+            ("build", [], ["/path/to/dbt", "--no-use-colors", "build", "--quiet"]),
             (
                 "compile",
                 [],
-                ["/path/to/dbt", "compile", "--quiet"],
+                ["/path/to/dbt", "--no-use-colors", "compile", "--quiet"],
             ),
             (
                 "docs",
                 [],
-                ["/path/to/dbt", "docs", "--quiet", "generate"],
+                ["/path/to/dbt", "--no-use-colors", "docs", "--quiet", "generate"],
             ),
             (
                 "ls",
                 [],
-                ["/path/to/dbt", "list", "--quiet"],
+                ["/path/to/dbt", "--no-use-colors", "list", "--quiet"],
             ),
-            ("parse", [], ["/path/to/dbt", "parse", "--quiet"]),
-            ("run", [], ["/path/to/dbt", "run", "--quiet"]),
-            ("test", [], ["/path/to/dbt", "test", "--quiet"]),
+            ("parse", [], ["/path/to/dbt", "--no-use-colors", "parse", "--quiet"]),
+            ("run", [], ["/path/to/dbt", "--no-use-colors", "run", "--quiet"]),
+            ("test", [], ["/path/to/dbt", "--no-use-colors", "test", "--quiet"]),
             (
                 "show",
                 ["SELECT * FROM model"],
                 [
                     "/path/to/dbt",
+                    "--no-use-colors",
                     "show",
                     "--inline",
                     "SELECT * FROM model",
@@ -77,6 +78,7 @@ class TestDbtCliIntegration(unittest.TestCase):
                 ["SELECT * FROM model", 10],
                 [
                     "/path/to/dbt",
+                    "--no-use-colors",
                     "show",
                     "--inline",
                     "SELECT * FROM model",
@@ -100,7 +102,7 @@ class TestDbtCliIntegration(unittest.TestCase):
             mock_popen.assert_called_once()
             actual_args = mock_popen.call_args.kwargs.get("args")
 
-            num_params = 3
+            num_params = 4
 
             self.assertEqual(actual_args[:num_params], expected_args[:num_params])
 

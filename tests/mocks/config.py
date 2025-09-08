@@ -7,6 +7,7 @@ from dbt_mcp.config.config import (
     SqlConfig,
     TrackingConfig,
 )
+from dbt_mcp.dbt_cli.binary_type import BinaryType
 
 mock_tracking_config = TrackingConfig(
     host="http://localhost:8000",
@@ -30,6 +31,7 @@ mock_dbt_cli_config = DbtCliConfig(
     project_dir="/test/project",
     dbt_path="/path/to/dbt",
     dbt_cli_timeout=10,
+    binary_type=BinaryType.DBT_CORE,
 )
 
 mock_discovery_config = DiscoveryConfig(

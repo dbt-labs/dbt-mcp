@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from dbt_mcp.tools.tool_names import ToolName
+from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
 
 
 class TrackingConfig(BaseModel):
@@ -36,6 +37,7 @@ class DbtCliConfig(BaseModel):
     project_dir: str
     dbt_path: str
     dbt_cli_timeout: int
+    binary_type: BinaryType
 
 
 class SqlConfig(BaseModel):
@@ -236,10 +238,12 @@ def load_config() -> Config:
 
     dbt_cli_config = None
     if not settings.disable_dbt_cli and settings.dbt_project_dir and settings.dbt_path:
+        binary_type = detect_binary_type(settings.dbt_path)
         dbt_cli_config = DbtCliConfig(
             project_dir=settings.dbt_project_dir,
             dbt_path=settings.dbt_path,
             dbt_cli_timeout=settings.dbt_cli_timeout,
+            binary_type=binary_type,
         )
 
     discovery_config = None
