@@ -6,6 +6,7 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from dbt_mcp.config.config import DbtCliConfig
+from dbt_mcp.dbt_cli.binary_type import get_color_disable_flag
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
@@ -59,8 +60,12 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             # is applied to dbt Core and Fusion as well (but not the dbt Cloud CLI)
             cwd_path = config.project_dir if os.path.isabs(config.project_dir) else None
 
+            # Add appropriate color disable flag based on binary type
+            color_flag = get_color_disable_flag(config.binary_type)
+            args = [config.dbt_path, color_flag, *full_command]
+
             process = subprocess.Popen(
-                args=[config.dbt_path, *full_command],
+                args=args,
                 cwd=cwd_path,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
