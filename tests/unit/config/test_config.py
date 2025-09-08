@@ -8,6 +8,7 @@ from dbt_mcp.config.config import (
     DbtMcpSettings,
     load_config,
 )
+from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.tools.tool_names import ToolName
 
 
@@ -157,6 +158,10 @@ class TestLoadConfig:
         with (
             patch.dict(os.environ, env_vars),
             patch("dbt_mcp.config.config.DbtMcpSettings") as mock_settings_class,
+            patch(
+                "dbt_mcp.config.config.detect_binary_type",
+                return_value=BinaryType.DBT_CORE,
+            ),
         ):
             # Create a real instance with test values, but without .env file loading
             with patch.dict(os.environ, env_vars, clear=True):
