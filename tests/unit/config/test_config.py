@@ -8,6 +8,7 @@ from dbt_mcp.config.config import (
     DbtMcpSettings,
     load_config,
 )
+from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.tools.tool_names import ToolName
 
 
@@ -29,6 +30,7 @@ class TestDbtMcpSettings:
             "DISABLE_SEMANTIC_LAYER",
             "DISABLE_DISCOVERY",
             "DISABLE_REMOTE",
+            "DISABLE_ADMIN_API",
             "MULTICELL_ACCOUNT_PREFIX",
             "DBT_WARN_ERROR_OPTIONS",
             "DISABLE_TOOLS",
@@ -142,6 +144,7 @@ class TestLoadConfig:
             "DISABLE_SEMANTIC_LAYER",
             "DISABLE_DISCOVERY",
             "DISABLE_REMOTE",
+            "DISABLE_ADMIN_API",
             "MULTICELL_ACCOUNT_PREFIX",
             "DBT_WARN_ERROR_OPTIONS",
             "DISABLE_TOOLS",
@@ -155,6 +158,10 @@ class TestLoadConfig:
         with (
             patch.dict(os.environ, env_vars),
             patch("dbt_mcp.config.config.DbtMcpSettings") as mock_settings_class,
+            patch(
+                "dbt_mcp.config.config.detect_binary_type",
+                return_value=BinaryType.DBT_CORE,
+            ),
         ):
             # Create a real instance with test values, but without .env file loading
             with patch.dict(os.environ, env_vars, clear=True):
@@ -168,11 +175,13 @@ class TestLoadConfig:
             "DBT_PROD_ENV_ID": "123",
             "DBT_DEV_ENV_ID": "456",
             "DBT_USER_ID": "789",
+            "DBT_ACCOUNT_ID": "123",
             "DBT_TOKEN": "test_token",
             "DBT_PROJECT_DIR": "/test/project",
             "DISABLE_SEMANTIC_LAYER": "false",
             "DISABLE_DISCOVERY": "false",
             "DISABLE_REMOTE": "false",
+            "DISABLE_ADMIN_API": "false",
         }
 
         config = self._load_config_with_env(env_vars)
@@ -184,6 +193,11 @@ class TestLoadConfig:
         assert config.dbt_cli_config is not None
         assert config.discovery_config is not None
         assert config.semantic_layer_config is not None
+        assert config.admin_api_config is not None
+        assert config.admin_api_config.url == "https://test.dbt.com"
+        assert config.admin_api_config.headers == {"Authorization": "Bearer test_token"}
+        assert config.admin_api_config.account_id == 123
+        assert config.admin_api_config.prod_environment_id == 123
 
     def test_valid_config_all_services_disabled(self):
         env_vars = {
@@ -191,6 +205,7 @@ class TestLoadConfig:
             "DISABLE_SEMANTIC_LAYER": "true",
             "DISABLE_DISCOVERY": "true",
             "DISABLE_REMOTE": "true",
+            "DISABLE_ADMIN_API": "true",
         }
 
         config = self._load_config_with_env(env_vars)
@@ -371,6 +386,7 @@ class TestLoadConfig:
             "DISABLE_SEMANTIC_LAYER": "true",
             "DISABLE_DISCOVERY": "true",
             "DISABLE_REMOTE": "true",
+            "DISABLE_ADMIN_API": "true",
         }
 
         # For this test, we need to call load_config directly to see environment side effects
@@ -392,6 +408,7 @@ class TestLoadConfig:
             "DISABLE_SEMANTIC_LAYER": "true",
             "DISABLE_DISCOVERY": "true",
             "DISABLE_REMOTE": "true",
+            "DISABLE_ADMIN_API": "true",
         }
 
         # For this test, we need to call load_config directly to see environment side effects
@@ -413,6 +430,7 @@ class TestLoadConfig:
             "DISABLE_SEMANTIC_LAYER": "true",
             "DISABLE_DISCOVERY": "true",
             "DISABLE_REMOTE": "true",
+            "DISABLE_ADMIN_API": "true",
         }
 
         with patch.dict(os.environ, env_vars):
@@ -428,6 +446,7 @@ class TestLoadConfig:
             "DISABLE_SEMANTIC_LAYER": "true",
             "DISABLE_DISCOVERY": "true",
             "DISABLE_REMOTE": "true",
+            "DISABLE_ADMIN_API": "true",
         }
 
         with patch.dict(os.environ, env_vars):
@@ -446,6 +465,7 @@ class TestLoadConfig:
             "DISABLE_DBT_CLI": "true",
             "DISABLE_SEMANTIC_LAYER": "true",
             "DISABLE_DISCOVERY": "true",
+            "DISABLE_ADMIN_API": "true",
         }
 
         config = self._load_config_with_env(env_vars)

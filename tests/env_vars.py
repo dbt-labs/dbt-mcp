@@ -37,6 +37,7 @@ def default_env_vars_context(override_env_vars: dict[str, str] | None = None):
             "DBT_DEV_ENV_ID": "5678",
             "DBT_USER_ID": "9012",
             "DBT_CLI_TIMEOUT": "10",
+            "DBT_ACCOUNT_ID": "12345",
             "DISABLE_TOOLS": "",
         }
         | (override_env_vars or {})

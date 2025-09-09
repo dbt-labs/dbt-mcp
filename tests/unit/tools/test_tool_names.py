@@ -1,6 +1,8 @@
 import pytest
+from unittest.mock import patch
 
 from dbt_mcp.config.config import load_config
+from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.mcp.server import create_dbt_mcp
 from dbt_mcp.tools.tool_names import ToolName
 from tests.env_vars import default_env_vars_context
@@ -11,7 +13,12 @@ async def test_tool_names_match_server_tools():
     """Test that the ToolName enum matches the tools registered in the server."""
     sql_tool_names = {"text_to_sql", "execute_sql"}
 
-    with default_env_vars_context():
+    with (
+        default_env_vars_context(),
+        patch(
+            "dbt_mcp.config.config.detect_binary_type", return_value=BinaryType.DBT_CORE
+        ),
+    ):
         config = load_config()
         dbt_mcp = await create_dbt_mcp(config)
 

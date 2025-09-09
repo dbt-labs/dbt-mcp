@@ -29,6 +29,14 @@ For queries that may return large amounts of data, it's recommended
 to use a two-step approach:
 1. First make a query with a small limit to verify the results are what you expect
 2. Then make a follow-up query without a limit (or with a larger limit) to get the full dataset
+
+IMPORTANT:
+
+Do the below if the GET_MODEL_HEALTH tool is enabled.
+
+When responding to user requests to pull metrics data, check the health of the dbt models that
+are the parents of the dbt semantic models. Use the instructions from the "ASSESSING MODEL HEALTH"
+section of the get_model_health() prompts to do this.
 </instructions>
 
 <examples>
@@ -81,12 +89,12 @@ Question: "What's our average order value by product category for orders over $1
     - I should first limit results to verify the query works
     Parameters (initial query):
     metrics=["average_order_value"]
-    group_by=[{"name": "product_category", "type": "dimension"}]
+    group_by=[{"name": "product_category", "type": "dimension", "grain":null}]
     where="{{ Dimension('order_value') }} > 100"
     limit=10
     Follow-up Query (after verifying results):
     metrics=["average_order_value"]
-    group_by=[{"name": "product_category", "type": "dimension"}]
+    group_by=[{"name": "product_category", "type": "dimension", "grain":null}]
     where="{{ Dimension('order_value') }} > 100"
     limit=None
 </example>
@@ -131,7 +139,7 @@ Question: "What's our customer satisfaction score by region?"
     If user agrees, then:
     Parameters:
     metrics=["net_promoter_score"]
-    group_by=[{"name": "region", "type": "dimension"}]
+    group_by=[{"name": "region", "type": "dimension", "grain":null}]
     order_by=[{"name": "net_promoter_score", "desc": true}]
     limit=10
 </example>

@@ -37,6 +37,85 @@ class GraphQLQueries:
         }
     """)
 
+    GET_MODEL_HEALTH = textwrap.dedent("""
+        query GetModelDetails(
+            $environmentId: BigInt!,
+            $modelsFilter: ModelAppliedFilter
+            $first: Int,
+        ) {
+            environment(id: $environmentId) {
+                applied {
+                    models(filter: $modelsFilter, first: $first) {
+                        edges {
+                            node {
+                                name
+                                uniqueId
+                                executionInfo {
+                                    lastRunGeneratedAt
+                                    lastRunStatus
+                                    executeCompletedAt
+                                    executeStartedAt
+                                }
+                                tests {
+                                    name
+                                    description
+                                    columnName
+                                    testType
+                                    executionInfo {
+                                        lastRunGeneratedAt
+                                        lastRunStatus
+                                        executeCompletedAt
+                                        executeStartedAt
+                                    }
+                                }
+                                ancestors(types: [Model, Source, Seed, Snapshot]) {
+                                  ... on ModelAppliedStateNestedNode {
+                                    name
+                                    uniqueId
+                                    resourceType
+                                    materializedType
+                                    modelexecutionInfo: executionInfo {
+                                      lastRunStatus
+                                      executeCompletedAt
+                                      }
+                                  }
+                                  ... on SnapshotAppliedStateNestedNode {
+                                    name
+                                    uniqueId
+                                    resourceType
+                                    snapshotExecutionInfo: executionInfo {
+                                      lastRunStatus
+                                      executeCompletedAt
+                                    }
+                                  }
+                                  ... on SeedAppliedStateNestedNode {
+                                    name
+                                    uniqueId
+                                    resourceType
+                                    seedExecutionInfo: executionInfo {
+                                      lastRunStatus
+                                      executeCompletedAt
+                                    }
+                                  }
+                                  ... on SourceAppliedStateNestedNode {
+                                    sourceName
+                                    name
+                                    resourceType
+                                    freshness {
+                                      maxLoadedAt
+                                      maxLoadedAtTimeAgoInS
+                                      freshnessStatus
+                                    }
+                                  }
+                              }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    """)
+
     GET_MODEL_DETAILS = textwrap.dedent("""
         query GetModelDetails(
             $environmentId: BigInt!,
@@ -228,6 +307,16 @@ class ModelsFetcher:
             parsed_edges.append(node)
         return parsed_edges
 
+    def _get_model_filters(
+        self, model_name: str | None = None, unique_id: str | None = None
+    ) -> dict[str, list[str] | str]:
+        if unique_id:
+            return {"uniqueIds": [unique_id]}
+        elif model_name:
+            return {"identifier": model_name}
+        else:
+            raise ValueError("Either model_name or unique_id must be provided")
+
     def fetch_models(self, model_filter: ModelFilter | None = None) -> list[dict]:
         has_next_page = True
         after_cursor: str = ""
@@ -256,14 +345,7 @@ class ModelsFetcher:
     def fetch_model_details(
         self, model_name: str | None = None, unique_id: str | None = None
     ) -> dict:
-        model_filters: dict[str, list[str] | str]
-        if unique_id:
-            model_filters = {"uniqueIds": [unique_id]}
-        elif model_name:
-            model_filters = {"identifier": model_name}
-        else:
-            raise ValueError("Either model_name or unique_id must be provided")
-
+        model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
             "environmentId": self.environment_id,
             "modelsFilter": model_filters,
@@ -279,11 +361,9 @@ class ModelsFetcher:
         return edges[0]["node"]
 
     def fetch_model_parents(
-        self, model_name: str, unique_id: str | None = None
+        self, model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict]:
-        model_filters: dict[str, list[str] | str] = (
-            {"uniqueIds": [unique_id]} if unique_id else {"identifier": model_name}
-        )
+        model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
             "environmentId": self.environment_id,
             "modelsFilter": model_filters,
@@ -299,11 +379,9 @@ class ModelsFetcher:
         return edges[0]["node"]["parents"]
 
     def fetch_model_children(
-        self, model_name: str, unique_id: str | None = None
+        self, model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict]:
-        model_filters: dict[str, list[str] | str] = (
-            {"uniqueIds": [unique_id]} if unique_id else {"identifier": model_name}
-        )
+        model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
             "environmentId": self.environment_id,
             "modelsFilter": model_filters,
@@ -317,3 +395,21 @@ class ModelsFetcher:
         if not edges:
             return []
         return edges[0]["node"]["children"]
+
+    def fetch_model_health(
+        self, model_name: str | None = None, unique_id: str | None = None
+    ) -> list[dict]:
+        model_filters = self._get_model_filters(model_name, unique_id)
+        variables = {
+            "environmentId": self.environment_id,
+            "modelsFilter": model_filters,
+            "first": 1,
+        }
+        result = self.api_client.execute_query(
+            GraphQLQueries.GET_MODEL_HEALTH, variables
+        )
+        raise_gql_error(result)
+        edges = result["data"]["environment"]["applied"]["models"]["edges"]
+        if not edges:
+            return []
+        return edges[0]["node"]

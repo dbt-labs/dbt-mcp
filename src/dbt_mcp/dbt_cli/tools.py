@@ -6,6 +6,7 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from dbt_mcp.config.config import DbtCliConfig
+from dbt_mcp.dbt_cli.binary_type import get_color_disable_flag
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
@@ -19,6 +20,8 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         selector: str | None = None,
         resource_type: list[str] | None = None,
         is_selectable: bool = False,
+        is_full_refresh: bool | None = False,
+        vars: str | None = None,
     ) -> str:
         try:
             # Commands that should always be quiet to reduce output verbosity
@@ -32,12 +35,18 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
                 "list",
             ]
 
+            if is_full_refresh is True:
+                command.append("--full-refresh")
+
+            if vars and isinstance(vars, str):
+                command.extend(["--vars", vars])
+
             if selector:
                 selector_params = str(selector).split(" ")
-                command = command + ["--select"] + selector_params
+                command.extend(["--select"] + selector_params)
 
             if isinstance(resource_type, Iterable):
-                command = command + ["--resource-type"] + resource_type
+                command.extend(["--resource-type"] + resource_type)
 
             full_command = command.copy()
             # Add --quiet flag to specific commands to reduce context window usage
@@ -51,11 +60,16 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             # is applied to dbt Core and Fusion as well (but not the dbt Cloud CLI)
             cwd_path = config.project_dir if os.path.isabs(config.project_dir) else None
 
+            # Add appropriate color disable flag based on binary type
+            color_flag = get_color_disable_flag(config.binary_type)
+            args = [config.dbt_path, color_flag, *full_command]
+
             process = subprocess.Popen(
-                args=[config.dbt_path, *full_command],
+                args=args,
                 cwd=cwd_path,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
                 text=True,
             )
             output, _ = process.communicate(timeout=config.dbt_cli_timeout)
@@ -73,8 +87,20 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
+        is_full_refresh: bool | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/full_refresh")
+        ),
+        vars: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/vars")
+        ),
     ) -> str:
-        return _run_dbt_command(["build"], selector, is_selectable=True)
+        return _run_dbt_command(
+            ["build"],
+            selector,
+            is_selectable=True,
+            is_full_refresh=is_full_refresh,
+            vars=vars,
+        )
 
     def compile() -> str:
         return _run_dbt_command(["compile"])
@@ -105,21 +131,34 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
+        is_full_refresh: bool | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/full_refresh")
+        ),
+        vars: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/vars")
+        ),
     ) -> str:
-        return _run_dbt_command(["run"], selector, is_selectable=True)
+        return _run_dbt_command(
+            ["run"],
+            selector,
+            is_selectable=True,
+            is_full_refresh=is_full_refresh,
+            vars=vars,
+        )
 
     def test(
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
+        vars: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/vars")
+        ),
     ) -> str:
-        return _run_dbt_command(["test"], selector, is_selectable=True)
+        return _run_dbt_command(["test"], selector, is_selectable=True, vars=vars)
 
     def show(
         sql_query: str = Field(description=get_prompt("dbt_cli/args/sql_query")),
-        limit: int | None = Field(
-            default=None, description=get_prompt("dbt_cli/args/limit")
-        ),
+        limit: int = Field(default=5, description=get_prompt("dbt_cli/args/limit")),
     ) -> str:
         args = ["show", "--inline", sql_query, "--favor-state"]
         # This is quite crude, but it should be okay for now

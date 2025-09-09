@@ -41,6 +41,7 @@ def mock_fastmcp():
             "SELECT * FROM my_model LIMIT 10",
             None,
             [
+                "--no-use-colors",
                 "show",
                 "--inline",
                 "SELECT * FROM my_model LIMIT 10",
@@ -56,6 +57,7 @@ def mock_fastmcp():
             "select * from my_model limit 5",
             None,
             [
+                "--no-use-colors",
                 "show",
                 "--inline",
                 "select * from my_model limit 5",
@@ -71,6 +73,7 @@ def mock_fastmcp():
             "SELECT * FROM my_model",
             10,
             [
+                "--no-use-colors",
                 "show",
                 "--inline",
                 "SELECT * FROM my_model",
@@ -86,6 +89,7 @@ def mock_fastmcp():
             "SELECT * FROM my_model",
             None,
             [
+                "--no-use-colors",
                 "show",
                 "--inline",
                 "SELECT * FROM my_model",
@@ -179,6 +183,7 @@ def test_run_command_correctly_formatted(
     args_list = mock_calls[0]
     assert args_list == [
         "/path/to/dbt",
+        "--no-use-colors",
         "run",
         "--quiet",
         "--select",
@@ -210,10 +215,11 @@ def test_show_command_correctly_formatted(
     assert mock_calls
     args_list = mock_calls[0]
     assert args_list[0].endswith("dbt")
-    assert args_list[1] == "show"
-    assert args_list[2] == "--inline"
-    assert args_list[3] == "SELECT * FROM my_model"
-    assert args_list[4] == "--favor-state"
+    assert args_list[1] == "--no-use-colors"
+    assert args_list[2] == "show"
+    assert args_list[3] == "--inline"
+    assert args_list[4] == "SELECT * FROM my_model"
+    assert args_list[5] == "--favor-state"
 
 
 def test_list_command_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
@@ -241,3 +247,70 @@ def test_list_command_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
     result = list_tool(selector="my_model", resource_type=["model"])
     assert "Timeout: dbt command took too long to complete" in result
     assert "Try using a specific selector to narrow down the results" in result
+
+
+@pytest.mark.parametrize("command_name", ["run", "build"])
+def test_full_refresh_flag_added_to_command(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, command_name
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(fastmcp, mock_dbt_cli_config)
+    tool = tools[command_name]
+
+    tool(is_full_refresh=True)
+
+    assert mock_calls
+    args_list = mock_calls[0]
+    assert "--full-refresh" in args_list
+
+
+@pytest.mark.parametrize("command_name", ["build", "run", "test"])
+def test_vars_flag_added_to_command(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, command_name
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(fastmcp, mock_dbt_cli_config)
+    tool = tools[command_name]
+
+    tool(vars="environment: production")
+
+    assert mock_calls
+    args_list = mock_calls[0]
+    assert "--vars" in args_list
+    assert "environment: production" in args_list
+
+
+def test_vars_not_added_when_none(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(fastmcp, mock_dbt_cli_config)
+    build_tool = tools["build"]
+
+    build_tool()  # Non-explicit
+
+    assert mock_calls
+    args_list = mock_calls[0]
+    assert "--vars" not in args_list

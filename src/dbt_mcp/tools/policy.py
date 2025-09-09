@@ -79,6 +79,9 @@ tool_policies = {
     ToolName.GET_MODEL_DETAILS.value: ToolPolicy(
         name=ToolName.GET_MODEL_DETAILS.value, behavior=ToolBehavior.METADATA
     ),
+    ToolName.GET_MODEL_HEALTH.value: ToolPolicy(
+        name=ToolName.GET_MODEL_HEALTH.value, behavior=ToolBehavior.METADATA
+    ),
     ToolName.GET_MART_MODELS.value: ToolPolicy(
         name=ToolName.GET_MART_MODELS.value, behavior=ToolBehavior.METADATA
     ),
@@ -91,5 +94,33 @@ tool_policies = {
     ),
     ToolName.EXECUTE_SQL.value: ToolPolicy(
         name=ToolName.EXECUTE_SQL.value, behavior=ToolBehavior.RESULT_SET
+    ),
+    # Admin API tools
+    ToolName.LIST_JOBS.value: ToolPolicy(
+        name=ToolName.LIST_JOBS.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.GET_JOB_DETAILS.value: ToolPolicy(
+        name=ToolName.GET_JOB_DETAILS.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.TRIGGER_JOB_RUN.value: ToolPolicy(
+        name=ToolName.TRIGGER_JOB_RUN.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.LIST_JOBS_RUNS.value: ToolPolicy(
+        name=ToolName.LIST_JOBS_RUNS.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.GET_JOB_RUN_DETAILS.value: ToolPolicy(
+        name=ToolName.GET_JOB_RUN_DETAILS.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.CANCEL_JOB_RUN.value: ToolPolicy(
+        name=ToolName.CANCEL_JOB_RUN.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.RETRY_JOB_RUN.value: ToolPolicy(
+        name=ToolName.RETRY_JOB_RUN.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.LIST_JOB_RUN_ARTIFACTS.value: ToolPolicy(
+        name=ToolName.LIST_JOB_RUN_ARTIFACTS.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.GET_JOB_RUN_ARTIFACT.value: ToolPolicy(
+        name=ToolName.GET_JOB_RUN_ARTIFACT.value, behavior=ToolBehavior.METADATA
     ),
 }

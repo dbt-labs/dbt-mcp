@@ -47,7 +47,7 @@ def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefin
             return str(e)
 
     def get_model_parents(
-        model_name: str, unique_id: str | None = None
+        model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict] | str:
         try:
             return models_fetcher.fetch_model_parents(model_name, unique_id)
@@ -55,10 +55,18 @@ def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefin
             return str(e)
 
     def get_model_children(
-        model_name: str, unique_id: str | None = None
+        model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict] | str:
         try:
             return models_fetcher.fetch_model_children(model_name, unique_id)
+        except Exception as e:
+            return str(e)
+
+    def get_model_health(
+        model_name: str | None = None, unique_id: str | None = None
+    ) -> list[dict] | str:
+        try:
+            return models_fetcher.fetch_model_health(model_name, unique_id)
         except Exception as e:
             return str(e)
 
@@ -108,6 +116,16 @@ def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefin
             fn=get_model_children,
             annotations=create_tool_annotations(
                 title="Get Model Children",
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+            ),
+        ),
+        ToolDefinition(
+            description=get_prompt("discovery/get_model_health"),
+            fn=get_model_health,
+            annotations=create_tool_annotations(
+                title="Get Model Health",
                 read_only_hint=True,
                 destructive_hint=False,
                 idempotent_hint=True,

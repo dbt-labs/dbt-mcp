@@ -1,1 +1,1 @@
-Limit the number of rows that the data platform will return. Use this in place of a `LIMIT` clause in the SQL query.
+Limit the number of rows that the data platform will return. Use this in place of a `LIMIT` clause in the SQL query. If no limit is passed, use the default of 5 to prevent returning a very large result set.
