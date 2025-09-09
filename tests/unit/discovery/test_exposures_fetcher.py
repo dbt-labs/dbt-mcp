@@ -20,10 +20,7 @@ def test_fetch_exposures_single_page(exposures_fetcher, mock_api_client):
             "environment": {
                 "definition": {
                     "exposures": {
-                        "pageInfo": {
-                            "hasNextPage": False,
-                            "endCursor": None
-                        },
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
                         "edges": [
                             {
                                 "node": {
@@ -40,21 +37,21 @@ def test_fetch_exposures_single_page(exposures_fetcher, mock_api_client):
                                     "label": None,
                                     "parents": [
                                         {"uniqueId": "model.test.parent_model"}
-                                    ]
+                                    ],
                                 }
                             }
-                        ]
+                        ],
                     }
                 }
             }
         }
     }
-    
+
     mock_api_client.execute_query.return_value = mock_response
-    
-    with patch('dbt_mcp.discovery.client.raise_gql_error'):
+
+    with patch("dbt_mcp.discovery.client.raise_gql_error"):
         result = exposures_fetcher.fetch_exposures()
-    
+
     assert len(result) == 1
     assert result[0]["name"] == "test_exposure"
     assert result[0]["uniqueId"] == "exposure.test.test_exposure"
@@ -67,7 +64,7 @@ def test_fetch_exposures_single_page(exposures_fetcher, mock_api_client):
     assert result[0]["freshnessStatus"] == "Unknown"
     assert result[0]["description"] == "Test exposure"
     assert result[0]["parents"] == [{"uniqueId": "model.test.parent_model"}]
-    
+
     mock_api_client.execute_query.assert_called_once()
     args, kwargs = mock_api_client.execute_query.call_args
     assert args[1]["environmentId"] == 123
@@ -80,10 +77,7 @@ def test_fetch_exposures_multiple_pages(exposures_fetcher, mock_api_client):
             "environment": {
                 "definition": {
                     "exposures": {
-                        "pageInfo": {
-                            "hasNextPage": True,
-                            "endCursor": "cursor123"
-                        },
+                        "pageInfo": {"hasNextPage": True, "endCursor": "cursor123"},
                         "edges": [
                             {
                                 "node": {
@@ -98,25 +92,22 @@ def test_fetch_exposures_multiple_pages(exposures_fetcher, mock_api_client):
                                     "freshnessStatus": "Unknown",
                                     "description": "Test exposure 1",
                                     "label": None,
-                                    "parents": []
+                                    "parents": [],
                                 }
                             }
-                        ]
+                        ],
                     }
                 }
             }
         }
     }
-    
+
     page2_response = {
         "data": {
             "environment": {
                 "definition": {
                     "exposures": {
-                        "pageInfo": {
-                            "hasNextPage": False,
-                            "endCursor": "cursor456"
-                        },
+                        "pageInfo": {"hasNextPage": False, "endCursor": "cursor456"},
                         "edges": [
                             {
                                 "node": {
@@ -133,35 +124,35 @@ def test_fetch_exposures_multiple_pages(exposures_fetcher, mock_api_client):
                                     "label": "Label 2",
                                     "parents": [
                                         {"uniqueId": "model.test.parent_model2"}
-                                    ]
+                                    ],
                                 }
                             }
-                        ]
+                        ],
                     }
                 }
             }
         }
     }
-    
+
     mock_api_client.execute_query.side_effect = [page1_response, page2_response]
-    
-    with patch('dbt_mcp.discovery.client.raise_gql_error'):
+
+    with patch("dbt_mcp.discovery.client.raise_gql_error"):
         result = exposures_fetcher.fetch_exposures()
-    
+
     assert len(result) == 2
     assert result[0]["name"] == "exposure1"
     assert result[1]["name"] == "exposure2"
     assert result[1]["meta"] == {"key": "value"}
     assert result[1]["label"] == "Label 2"
-    
+
     assert mock_api_client.execute_query.call_count == 2
-    
+
     # Check first call (no cursor)
     first_call = mock_api_client.execute_query.call_args_list[0]
     assert first_call[0][1]["environmentId"] == 123
     assert first_call[0][1]["first"] == 100
     assert "after" not in first_call[0][1]
-    
+
     # Check second call (with cursor)
     second_call = mock_api_client.execute_query.call_args_list[1]
     assert second_call[0][1]["environmentId"] == 123
@@ -175,22 +166,19 @@ def test_fetch_exposures_empty_response(exposures_fetcher, mock_api_client):
             "environment": {
                 "definition": {
                     "exposures": {
-                        "pageInfo": {
-                            "hasNextPage": False,
-                            "endCursor": None
-                        },
-                        "edges": []
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        "edges": [],
                     }
                 }
             }
         }
     }
-    
+
     mock_api_client.execute_query.return_value = mock_response
-    
-    with patch('dbt_mcp.discovery.client.raise_gql_error'):
+
+    with patch("dbt_mcp.discovery.client.raise_gql_error"):
         result = exposures_fetcher.fetch_exposures()
-    
+
     assert len(result) == 0
     assert isinstance(result, list)
 
@@ -201,10 +189,7 @@ def test_fetch_exposures_handles_malformed_edges(exposures_fetcher, mock_api_cli
             "environment": {
                 "definition": {
                     "exposures": {
-                        "pageInfo": {
-                            "hasNextPage": False,
-                            "endCursor": None
-                        },
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
                         "edges": [
                             {
                                 "node": {
@@ -219,7 +204,7 @@ def test_fetch_exposures_handles_malformed_edges(exposures_fetcher, mock_api_cli
                                     "freshnessStatus": "Unknown",
                                     "description": "Valid exposure",
                                     "label": None,
-                                    "parents": []
+                                    "parents": [],
                                 }
                             },
                             {"invalid": "edge"},  # Missing "node" key
@@ -237,28 +222,30 @@ def test_fetch_exposures_handles_malformed_edges(exposures_fetcher, mock_api_cli
                                     "freshnessStatus": "Stale",
                                     "description": "Another valid exposure",
                                     "label": None,
-                                    "parents": []
+                                    "parents": [],
                                 }
-                            }
-                        ]
+                            },
+                        ],
                     }
                 }
             }
         }
     }
-    
+
     mock_api_client.execute_query.return_value = mock_response
-    
-    with patch('dbt_mcp.discovery.client.raise_gql_error'):
+
+    with patch("dbt_mcp.discovery.client.raise_gql_error"):
         result = exposures_fetcher.fetch_exposures()
-    
+
     # Should only get the valid exposures (malformed edges should be filtered out)
     assert len(result) == 2
     assert result[0]["name"] == "valid_exposure"
     assert result[1]["name"] == "another_valid_exposure"
 
 
-def test_fetch_exposure_details_by_unique_ids_single(exposures_fetcher, mock_api_client):
+def test_fetch_exposure_details_by_unique_ids_single(
+    exposures_fetcher, mock_api_client
+):
     mock_response = {
         "data": {
             "environment": {
@@ -280,8 +267,10 @@ def test_fetch_exposure_details_by_unique_ids_single(exposures_fetcher, mock_api
                                     "label": "Customer Dashboard",
                                     "parents": [
                                         {"uniqueId": "model.analytics.customers"},
-                                        {"uniqueId": "model.analytics.customer_metrics"}
-                                    ]
+                                        {
+                                            "uniqueId": "model.analytics.customer_metrics"
+                                        },
+                                    ],
                                 }
                             }
                         ]
@@ -290,14 +279,14 @@ def test_fetch_exposure_details_by_unique_ids_single(exposures_fetcher, mock_api
             }
         }
     }
-    
+
     mock_api_client.execute_query.return_value = mock_response
-    
-    with patch('dbt_mcp.discovery.client.raise_gql_error'):
+
+    with patch("dbt_mcp.discovery.client.raise_gql_error"):
         result = exposures_fetcher.fetch_exposure_details(
             unique_ids=["exposure.analytics.customer_dashboard"]
         )
-    
+
     assert isinstance(result, list)
     assert len(result) == 1
     exposure = result[0]
@@ -315,7 +304,7 @@ def test_fetch_exposure_details_by_unique_ids_single(exposures_fetcher, mock_api
     assert len(exposure["parents"]) == 2
     assert exposure["parents"][0]["uniqueId"] == "model.analytics.customers"
     assert exposure["parents"][1]["uniqueId"] == "model.analytics.customer_metrics"
-    
+
     mock_api_client.execute_query.assert_called_once()
     args, kwargs = mock_api_client.execute_query.call_args
     assert args[1]["environmentId"] == 123
@@ -323,7 +312,9 @@ def test_fetch_exposure_details_by_unique_ids_single(exposures_fetcher, mock_api
     assert args[1]["filter"] == {"uniqueIds": ["exposure.analytics.customer_dashboard"]}
 
 
-def test_fetch_exposure_details_by_unique_ids_multiple(exposures_fetcher, mock_api_client):
+def test_fetch_exposure_details_by_unique_ids_multiple(
+    exposures_fetcher, mock_api_client
+):
     mock_response = {
         "data": {
             "environment": {
@@ -343,7 +334,7 @@ def test_fetch_exposure_details_by_unique_ids_multiple(exposures_fetcher, mock_a
                                     "freshnessStatus": "Fresh",
                                     "description": "Customer analytics dashboard",
                                     "label": "Customer Dashboard",
-                                    "parents": []
+                                    "parents": [],
                                 }
                             },
                             {
@@ -359,45 +350,51 @@ def test_fetch_exposure_details_by_unique_ids_multiple(exposures_fetcher, mock_a
                                     "freshnessStatus": "Stale",
                                     "description": "Monthly sales analysis report",
                                     "label": None,
-                                    "parents": [
-                                        {"uniqueId": "model.sales.sales_data"}
-                                    ]
+                                    "parents": [{"uniqueId": "model.sales.sales_data"}],
                                 }
-                            }
+                            },
                         ]
                     }
                 }
             }
         }
     }
-    
+
     mock_api_client.execute_query.return_value = mock_response
-    
-    with patch('dbt_mcp.discovery.client.raise_gql_error'):
+
+    with patch("dbt_mcp.discovery.client.raise_gql_error"):
         result = exposures_fetcher.fetch_exposure_details(
-            unique_ids=["exposure.analytics.customer_dashboard", "exposure.sales.sales_report"]
+            unique_ids=[
+                "exposure.analytics.customer_dashboard",
+                "exposure.sales.sales_report",
+            ]
         )
-    
+
     assert isinstance(result, list)
     assert len(result) == 2
-    
+
     # Check first exposure
     exposure1 = result[0]
     assert exposure1["name"] == "customer_dashboard"
     assert exposure1["uniqueId"] == "exposure.analytics.customer_dashboard"
     assert exposure1["exposureType"] == "dashboard"
-    
+
     # Check second exposure
     exposure2 = result[1]
     assert exposure2["name"] == "sales_report"
     assert exposure2["uniqueId"] == "exposure.sales.sales_report"
     assert exposure2["exposureType"] == "analysis"
-    
+
     mock_api_client.execute_query.assert_called_once()
     args, kwargs = mock_api_client.execute_query.call_args
     assert args[1]["environmentId"] == 123
     assert args[1]["first"] == 2
-    assert args[1]["filter"] == {"uniqueIds": ["exposure.analytics.customer_dashboard", "exposure.sales.sales_report"]}
+    assert args[1]["filter"] == {
+        "uniqueIds": [
+            "exposure.analytics.customer_dashboard",
+            "exposure.sales.sales_report",
+        ]
+    }
 
 
 def test_fetch_exposure_details_by_name(exposures_fetcher, mock_api_client):
@@ -407,10 +404,7 @@ def test_fetch_exposure_details_by_name(exposures_fetcher, mock_api_client):
             "environment": {
                 "definition": {
                     "exposures": {
-                        "pageInfo": {
-                            "hasNextPage": False,
-                            "endCursor": None
-                        },
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
                         "edges": [
                             {
                                 "node": {
@@ -425,9 +419,7 @@ def test_fetch_exposure_details_by_name(exposures_fetcher, mock_api_client):
                                     "freshnessStatus": "Stale",
                                     "description": "Monthly sales analysis report",
                                     "label": None,
-                                    "parents": [
-                                        {"uniqueId": "model.sales.sales_data"}
-                                    ]
+                                    "parents": [{"uniqueId": "model.sales.sales_data"}],
                                 }
                             },
                             {
@@ -443,21 +435,21 @@ def test_fetch_exposure_details_by_name(exposures_fetcher, mock_api_client):
                                     "freshnessStatus": "Fresh",
                                     "description": "Other exposure",
                                     "label": None,
-                                    "parents": []
+                                    "parents": [],
                                 }
-                            }
-                        ]
+                            },
+                        ],
                     }
                 }
             }
         }
     }
-    
+
     mock_api_client.execute_query.return_value = mock_exposures_response
-    
-    with patch('dbt_mcp.discovery.client.raise_gql_error'):
+
+    with patch("dbt_mcp.discovery.client.raise_gql_error"):
         result = exposures_fetcher.fetch_exposure_details(exposure_name="sales_report")
-    
+
     assert isinstance(result, list)
     assert len(result) == 1
     exposure = result[0]
@@ -469,7 +461,7 @@ def test_fetch_exposure_details_by_name(exposures_fetcher, mock_api_client):
     assert exposure["meta"] == {}
     assert exposure["freshnessStatus"] == "Stale"
     assert exposure["label"] is None
-    
+
     # Should have called the GET_EXPOSURES query (not GET_EXPOSURE_DETAILS)
     mock_api_client.execute_query.assert_called_once()
     args, kwargs = mock_api_client.execute_query.call_args
@@ -479,24 +471,16 @@ def test_fetch_exposure_details_by_name(exposures_fetcher, mock_api_client):
 
 def test_fetch_exposure_details_not_found(exposures_fetcher, mock_api_client):
     mock_response = {
-        "data": {
-            "environment": {
-                "definition": {
-                    "exposures": {
-                        "edges": []
-                    }
-                }
-            }
-        }
+        "data": {"environment": {"definition": {"exposures": {"edges": []}}}}
     }
-    
+
     mock_api_client.execute_query.return_value = mock_response
-    
-    with patch('dbt_mcp.discovery.client.raise_gql_error'):
+
+    with patch("dbt_mcp.discovery.client.raise_gql_error"):
         result = exposures_fetcher.fetch_exposure_details(
             unique_ids=["exposure.nonexistent.exposure"]
         )
-    
+
     assert result == []
 
 
@@ -520,7 +504,9 @@ def test_get_exposure_filters_name_raises_error(exposures_fetcher):
 
 
 def test_get_exposure_filters_no_params(exposures_fetcher):
-    with pytest.raises(ValueError, match="unique_ids must be provided for exposure filtering"):
+    with pytest.raises(
+        ValueError, match="unique_ids must be provided for exposure filtering"
+    ):
         exposures_fetcher._get_exposure_filters()
 
 
@@ -531,20 +517,19 @@ def test_fetch_exposure_details_by_name_not_found(exposures_fetcher, mock_api_cl
             "environment": {
                 "definition": {
                     "exposures": {
-                        "pageInfo": {
-                            "hasNextPage": False,
-                            "endCursor": None
-                        },
-                        "edges": []
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        "edges": [],
                     }
                 }
             }
         }
     }
-    
+
     mock_api_client.execute_query.return_value = mock_response
-    
-    with patch('dbt_mcp.discovery.client.raise_gql_error'):
-        result = exposures_fetcher.fetch_exposure_details(exposure_name="nonexistent_exposure")
-    
+
+    with patch("dbt_mcp.discovery.client.raise_gql_error"):
+        result = exposures_fetcher.fetch_exposure_details(
+            exposure_name="nonexistent_exposure"
+        )
+
     assert result == []
