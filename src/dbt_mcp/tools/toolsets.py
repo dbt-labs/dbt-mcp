@@ -30,6 +30,8 @@ toolsets = {
         ToolName.GET_MODEL_PARENTS,
         ToolName.GET_MODEL_CHILDREN,
         ToolName.GET_MODEL_HEALTH,
+        ToolName.GET_EXPOSURES,
+        ToolName.GET_EXPOSURE_DETAILS,
     },
     Toolset.DBT_CLI: {
         ToolName.BUILD,

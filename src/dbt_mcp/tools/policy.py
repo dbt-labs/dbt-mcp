@@ -88,6 +88,12 @@ tool_policies = {
     ToolName.GET_ALL_MODELS.value: ToolPolicy(
         name=ToolName.GET_ALL_MODELS.value, behavior=ToolBehavior.METADATA
     ),
+    ToolName.GET_EXPOSURES.value: ToolPolicy(
+        name=ToolName.GET_EXPOSURES.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.GET_EXPOSURE_DETAILS.value: ToolPolicy(
+        name=ToolName.GET_EXPOSURE_DETAILS.value, behavior=ToolBehavior.METADATA
+    ),
     # SQL tools
     ToolName.TEXT_TO_SQL.value: ToolPolicy(
         name=ToolName.TEXT_TO_SQL.value, behavior=ToolBehavior.METADATA
