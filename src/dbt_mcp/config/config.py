@@ -7,9 +7,9 @@ import yaml
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
 from dbt_mcp.oauth.login import login
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
 
 OAUTH_REDIRECT_STARTING_PORT = 6785
 OAUTH_CLIENT_ID = "34ec61e834cdffd9dd90a32231937821"
@@ -271,7 +271,7 @@ def load_config() -> Config:
     # Oauth is exerimental but secure, so you shouldn't use it,
     # but there are no security concerns if you do.
     enable_oauth = os.environ.get("ENABLE_EXPERIMENAL_SECURE_OAUTH") == "true"
-    if enable_oauth and dbt_platform_errors:
+    if enable_oauth and dbt_platform_errors and False:
         config_location = _create_mcp_yml(dbt_profiles_dir=settings.dbt_profiles_dir)
         actual_host = settings.actual_host
         if not actual_host:
@@ -320,9 +320,9 @@ def create_config(settings: DbtMcpSettings) -> Config:
         warn_error_options = '{"error": ["NoNodesForSelectionCriteria"]}'
         os.environ["DBT_WARN_ERROR_OPTIONS"] = warn_error_options
 
-    errors = validate_settings(settings)
-    if errors:
-        raise ValueError("Errors found in configuration:\n\n" + "\n".join(errors))
+    # errors = validate_settings(settings)
+    # if errors:
+    #     raise ValueError("Errors found in configuration:\n\n" + "\n".join(errors))
 
     # Build configurations
     sql_config = None

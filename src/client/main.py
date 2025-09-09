@@ -6,7 +6,6 @@ from openai import OpenAI
 from openai.types.responses.response_input_param import FunctionCallOutput
 from openai.types.responses.response_output_message import ResponseOutputMessage
 
-from client.tools import get_tools
 from dbt_mcp.config.config import load_config
 from dbt_mcp.mcp.server import create_dbt_mcp
 
@@ -21,7 +20,7 @@ messages = []
 async def main():
     dbt_mcp = await create_dbt_mcp(config)
     user_role = "user"
-    available_tools = await get_tools(dbt_mcp)
+    available_tools = []
     tools_str = "\n".join(
         [
             f"- {t['name']}({', '.join(t['parameters']['properties'].keys())})"

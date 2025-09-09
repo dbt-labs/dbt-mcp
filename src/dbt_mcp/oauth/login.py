@@ -32,6 +32,7 @@ def login(
     """Start OAuth login flow with PKCE using authlib and return
     the decoded access token
     """
+
     # OAuth2 configuration
     redirect_uri = f"http://localhost:{port}"
     authorization_endpoint = f"{dbt_platform_url}/oauth/authorize"
