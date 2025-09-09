@@ -85,7 +85,7 @@ def login(
         webbrowser.open(authorization_url)
         # Logs have to be disabled because they mess up stdio MCP communication
         disable_server_logs()
-        server.run()
+        server.run()  # Execution blocks here until the server is shutdown
 
         if not app.state.decoded_access_token or not app.state.dbt_platform_context:
             raise ValueError("Undefined login state")

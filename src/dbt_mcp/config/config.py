@@ -7,9 +7,9 @@ import yaml
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
 from dbt_mcp.oauth.login import login
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
 
 OAUTH_REDIRECT_STARTING_PORT = 6785
 OAUTH_CLIENT_ID = "34ec61e834cdffd9dd90a32231937821"
@@ -311,6 +311,9 @@ def load_config() -> Config:
         # We have to remove the custom subdomain prefix
         # so that the metadata and semantic-layer URLs can be constructed correctly.
         settings.dbt_host = actual_host.removeprefix(host_prefix_with_period)
+        # The CLI tools cannot be set with the login flow,
+        # so setting them to False here.
+        settings.disable_dbt_cli = False
     return create_config(settings)
 
 
