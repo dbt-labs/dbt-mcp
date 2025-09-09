@@ -2,7 +2,12 @@ import os
 
 import pytest
 
-from dbt_mcp.discovery.client import MetadataAPIClient, ModelFilter, ModelsFetcher
+from dbt_mcp.discovery.client import (
+    MetadataAPIClient,
+    ModelFilter,
+    ModelsFetcher,
+    ExposuresFetcher,
+)
 
 
 @pytest.fixture
@@ -28,6 +33,15 @@ def models_fetcher(api_client: MetadataAPIClient) -> ModelsFetcher:
         raise ValueError("DBT_PROD_ENV_ID environment variable is required")
 
     return ModelsFetcher(api_client=api_client, environment_id=int(environment_id))
+
+
+@pytest.fixture
+def exposures_fetcher(api_client: MetadataAPIClient) -> ExposuresFetcher:
+    environment_id = os.getenv("DBT_PROD_ENV_ID")
+    if not environment_id:
+        raise ValueError("DBT_PROD_ENV_ID environment variable is required")
+
+    return ExposuresFetcher(api_client=api_client, environment_id=int(environment_id))
 
 
 def test_fetch_models(models_fetcher: ModelsFetcher):
@@ -149,3 +163,76 @@ def test_fetch_model_children_with_uniqueId(models_fetcher: ModelsFetcher):
     if len(results_by_name) > 0:
         # Compare the first child's name if there are any children
         assert results_by_name[0]["name"] == results_by_uniqueId[0]["name"]
+
+
+def test_fetch_exposures(exposures_fetcher: ExposuresFetcher):
+    results = exposures_fetcher.fetch_exposures()
+
+    # Basic validation of the response
+    assert isinstance(results, list)
+
+    # If there are exposures, validate their structure
+    if len(results) > 0:
+        for exposure in results:
+            assert "name" in exposure
+            assert "uniqueId" in exposure
+            assert isinstance(exposure["name"], str)
+            assert isinstance(exposure["uniqueId"], str)
+
+
+def test_fetch_exposures_pagination(exposures_fetcher: ExposuresFetcher):
+    # Test that pagination works correctly by fetching all exposures
+    # This test ensures the pagination logic handles multiple pages properly
+    results = exposures_fetcher.fetch_exposures()
+
+    # Validate that we get results (assuming the test environment has some exposures)
+    assert isinstance(results, list)
+
+    # If we have more than the page size, ensure no duplicates
+    if len(results) > 100:  # PAGE_SIZE is 100
+        unique_ids = set()
+        for exposure in results:
+            unique_id = exposure["uniqueId"]
+            assert unique_id not in unique_ids, f"Duplicate exposure found: {unique_id}"
+            unique_ids.add(unique_id)
+
+
+def test_fetch_exposure_details_by_unique_ids(exposures_fetcher: ExposuresFetcher):
+    # First get all exposures to find one to test with
+    exposures = exposures_fetcher.fetch_exposures()
+
+    # Skip test if no exposures are available
+    if not exposures:
+        pytest.skip("No exposures available in the test environment")
+
+    # Pick the first exposure to test with
+    test_exposure = exposures[0]
+    unique_id = test_exposure["uniqueId"]
+
+    # Fetch the same exposure by unique_ids
+    result = exposures_fetcher.fetch_exposure_details(unique_ids=[unique_id])
+
+    # Validate that we got the correct exposure back
+    assert isinstance(result, list)
+    assert len(result) == 1
+    exposure = result[0]
+    assert exposure["uniqueId"] == unique_id
+    assert exposure["name"] == test_exposure["name"]
+    assert "exposureType" in exposure
+    assert "maturity" in exposure
+
+    # Validate structure
+    if "parents" in exposure and exposure["parents"]:
+        assert isinstance(exposure["parents"], list)
+        for parent in exposure["parents"]:
+            assert "uniqueId" in parent
+
+
+def test_fetch_exposure_details_nonexistent(exposures_fetcher: ExposuresFetcher):
+    # Test with a non-existent exposure
+    result = exposures_fetcher.fetch_exposure_details(
+        unique_ids=["exposure.nonexistent.exposure"]
+    )
+
+    # Should return empty list when not found
+    assert result == []
