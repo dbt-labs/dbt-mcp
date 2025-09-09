@@ -19,7 +19,7 @@ from mcp.server.fastmcp.utilities.func_metadata import (
 from mcp.shared.message import SessionMessage
 from mcp.types import (
     ContentBlock,
-    TextContent,
+    ServerResult,
     Tool,
 )
 from pydantic import Field, WithJsonSchema, create_model
@@ -29,6 +29,7 @@ from pydantic_core import PydanticUndefined
 from dbt_mcp.config.config import SqlConfig
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset, toolsets
+from dbt_mcp.tools.error_handling import make_error_result
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +131,9 @@ async def register_sql_tools(
 
         # Create a new function using a factory to avoid closure issues
         def create_tool_function(tool_name: str):
-            async def tool_function(*args, **kwargs) -> Sequence[ContentBlock]:
+            async def tool_function(
+                *args, **kwargs
+            ) -> Sequence[ContentBlock] | ServerResult:
                 try:
                     tool_call_result = await session.call_tool(
                         tool_name,
@@ -143,12 +146,7 @@ async def register_sql_tools(
                         )
                     return tool_call_result.content
                 except Exception as e:
-                    return [
-                        TextContent(
-                            type="text",
-                            text=str(e),
-                        )
-                    ]
+                    return make_error_result(str(e))
 
             return tool_function
 
