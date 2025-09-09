@@ -266,6 +266,59 @@ class GraphQLQueries:
     """)
     )
 
+    GET_EXPOSURES = textwrap.dedent("""
+        query Exposures($environmentId: BigInt!, $first: Int, $after: String) {
+            environment(id: $environmentId) {
+                definition {
+                    exposures(first: $first, after: $after) {
+                        totalCount
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
+                        edges {
+                            node {
+                                name
+                                uniqueId
+                                url
+                                description
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    """)
+
+    GET_EXPOSURE_DETAILS = textwrap.dedent("""
+        query ExposureDetails($environmentId: BigInt!, $filter: ExposureFilter, $first: Int) {
+            environment(id: $environmentId) {
+                definition {
+                    exposures(first: $first, filter: $filter) {
+                        edges {
+                            node {
+                                name
+                                maturity
+                                label
+                                ownerEmail
+                                ownerName
+                                uniqueId
+                                url
+                                meta
+                                freshnessStatus
+                                exposureType
+                                description
+                                parents {
+                                    uniqueId
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    """)
+
 
 class MetadataAPIClient:
     def __init__(self, *, url: str, headers: dict[str, str]):
@@ -413,3 +466,94 @@ class ModelsFetcher:
         if not edges:
             return []
         return edges[0]["node"]
+
+
+class ExposuresFetcher:
+    def __init__(self, api_client: MetadataAPIClient, environment_id: int):
+        self.api_client = api_client
+        self.environment_id = environment_id
+
+    def _parse_response_to_json(self, result: dict) -> list[dict]:
+        raise_gql_error(result)
+        edges = result["data"]["environment"]["definition"]["exposures"]["edges"]
+        parsed_edges: list[dict] = []
+        if not edges:
+            return parsed_edges
+        if result.get("errors"):
+            raise Exception(f"GraphQL query failed: {result['errors']}")
+        for edge in edges:
+            if not isinstance(edge, dict) or "node" not in edge:
+                continue
+            node = edge["node"]
+            if not isinstance(node, dict):
+                continue
+            parsed_edges.append(node)
+        return parsed_edges
+
+    def fetch_exposures(self) -> list[dict]:
+        has_next_page = True
+        after_cursor: str | None = None
+        all_edges: list[dict] = []
+
+        while has_next_page:
+            variables: dict[str, int | str] = {
+                "environmentId": self.environment_id,
+                "first": PAGE_SIZE,
+            }
+            if after_cursor:
+                variables["after"] = after_cursor
+
+            result = self.api_client.execute_query(
+                GraphQLQueries.GET_EXPOSURES, variables
+            )
+            new_edges = self._parse_response_to_json(result)
+            all_edges.extend(new_edges)
+
+            page_info = result["data"]["environment"]["definition"]["exposures"][
+                "pageInfo"
+            ]
+            has_next_page = page_info.get("hasNextPage", False)
+            after_cursor = page_info.get("endCursor")
+
+        return all_edges
+
+    def _get_exposure_filters(
+        self, exposure_name: str | None = None, unique_ids: list[str] | None = None
+    ) -> dict[str, list[str]]:
+        if unique_ids:
+            return {"uniqueIds": unique_ids}
+        elif exposure_name:
+            raise ValueError(
+                "ExposureFilter only supports uniqueIds. Please use unique_ids parameter instead of exposure_name."
+            )
+        else:
+            raise ValueError("unique_ids must be provided for exposure filtering")
+
+    def fetch_exposure_details(
+        self, exposure_name: str | None = None, unique_ids: list[str] | None = None
+    ) -> list[dict]:
+        if exposure_name and not unique_ids:
+            # Since ExposureFilter doesn't support filtering by name,
+            # we need to fetch all exposures and find the one with matching name
+            all_exposures = self.fetch_exposures()
+            for exposure in all_exposures:
+                if exposure.get("name") == exposure_name:
+                    return [exposure]
+            return []
+        elif unique_ids:
+            exposure_filters = self._get_exposure_filters(unique_ids=unique_ids)
+            variables = {
+                "environmentId": self.environment_id,
+                "filter": exposure_filters,
+                "first": len(unique_ids),  # Request as many as we're filtering for
+            }
+            result = self.api_client.execute_query(
+                GraphQLQueries.GET_EXPOSURE_DETAILS, variables
+            )
+            raise_gql_error(result)
+            edges = result["data"]["environment"]["definition"]["exposures"]["edges"]
+            if not edges:
+                return []
+            return [edge["node"] for edge in edges]
+        else:
+            raise ValueError("Either exposure_name or unique_ids must be provided")
