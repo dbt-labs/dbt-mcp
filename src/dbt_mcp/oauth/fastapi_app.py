@@ -143,7 +143,7 @@ def create_app(
         return next_dbt_platform_context
 
     @app.get("/")
-    async def oauth_callback(request: Request) -> RedirectResponse:
+    def oauth_callback(request: Request) -> RedirectResponse:
         logger.info("OAuth callback received")
         # Only handle OAuth callback when provider returns with code or error.
         params = request.query_params
@@ -189,7 +189,7 @@ def create_app(
             return RedirectResponse(url="/index.html#status=error", status_code=302)
 
     @app.post("/shutdown")
-    async def shutdown_server() -> dict[str, bool]:
+    def shutdown_server() -> dict[str, bool]:
         logger.info("Shutdown server received")
         server = app.state.server_ref
         if server is not None:
@@ -197,7 +197,7 @@ def create_app(
         return {"ok": True}
 
     @app.get("/projects")
-    async def projects() -> list[DbtPlatformProject]:
+    def projects() -> list[DbtPlatformProject]:
         if app.state.decoded_access_token is None:
             raise RuntimeError("Access token missing; OAuth flow not completed")
         access_token = app.state.decoded_access_token.access_token_response.access_token
@@ -221,12 +221,12 @@ def create_app(
         return projects
 
     @app.get("/dbt_platform_context")
-    async def get_dbt_platform_context() -> DbtPlatformContext:
+    def get_dbt_platform_context() -> DbtPlatformContext:
         logger.info("Selected project received")
         return _read_dbt_platform_context()
 
     @app.post("/selected_project")
-    async def set_selected_project(
+    def set_selected_project(
         selected_project_request: SelectedProjectRequest,
     ) -> DbtPlatformContext:
         logger.info("Selected project received")
