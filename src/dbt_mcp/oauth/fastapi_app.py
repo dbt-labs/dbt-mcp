@@ -103,8 +103,7 @@ def _fetch_jwks_and_verify_token(
         access_token,
         signing_key.key,
         algorithms=["RS256"],
-        # TODO: We can validate sub once the backend is fixed to return a string instead of an int
-        options={"verify_aud": False, "verify_sub": False},
+        options={"verify_aud": False},
     )
     return claims
 
@@ -179,7 +178,7 @@ def create_app(
                 decoded_claims=decoded_claims,
             )
             _update_dbt_platform_context(
-                DbtPlatformContext(user_id=decoded_claims["sub"])
+                DbtPlatformContext(user_id=int(decoded_claims["sub"]))
             )
             return RedirectResponse(
                 url="/index.html#status=success",
@@ -277,7 +276,7 @@ def create_app(
                 )
         dbt_platform_context = _update_dbt_platform_context(
             new_dbt_platform_context=DbtPlatformContext(
-                user_id=app.state.decoded_access_token.decoded_claims["sub"],
+                user_id=int(app.state.decoded_access_token.decoded_claims["sub"]),
                 dev_environment=dev_environment,
                 prod_environment=prod_environment,
                 host_prefix=account.host_prefix,
