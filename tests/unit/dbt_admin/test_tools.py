@@ -8,6 +8,7 @@ from dbt_mcp.dbt_admin.tools import (
     create_admin_api_tool_definitions,
     register_admin_api_tools,
 )
+from dbt_mcp.tools.config import DbtMcpContext
 
 
 @pytest.fixture
@@ -103,7 +104,7 @@ def test_register_admin_api_tools_all_tools(
     mock_get_prompt.return_value = "Test prompt"
     fastmcp, tools = mock_fastmcp
 
-    register_admin_api_tools(fastmcp, mock_config.admin_api_config, [])
+    register_admin_api_tools(fastmcp, [])
 
     # Should call register_tools with 9 tool definitions
     mock_register_tools.assert_called_once()
@@ -121,7 +122,7 @@ def test_register_admin_api_tools_with_disabled_tools(
     fastmcp, tools = mock_fastmcp
 
     disable_tools = ["list_jobs", "get_job", "trigger_job_run"]
-    register_admin_api_tools(fastmcp, mock_config.admin_api_config, disable_tools)
+    register_admin_api_tools(fastmcp, disable_tools)
 
     # Should still call register_tools with all 9 tool definitions
     # The exclude_tools parameter is passed to register_tools to handle filtering
@@ -137,12 +138,11 @@ def test_register_admin_api_tools_with_disabled_tools(
 def test_list_jobs_tool(mock_get_prompt, mock_config, mock_admin_client):
     mock_get_prompt.return_value = "List jobs prompt"
 
-    tool_definitions = create_admin_api_tool_definitions(
-        mock_admin_client, mock_config.admin_api_config
-    )
+    tool_definitions = create_admin_api_tool_definitions()
+    context = DbtMcpContext(admin_api_config=mock_config.admin_api_config, admin_api_client=mock_admin_client)
     list_jobs_tool = tool_definitions[0].fn  # First tool is list_jobs
 
-    result = list_jobs_tool(limit=10)
+    result = list_jobs_tool(ctx=context, limit=10)
 
     assert isinstance(result, list)
     mock_admin_client.list_jobs.assert_called_once_with(12345, limit=10)
@@ -152,12 +152,11 @@ def test_list_jobs_tool(mock_get_prompt, mock_config, mock_admin_client):
 def test_get_job_details_tool(mock_get_prompt, mock_config, mock_admin_client):
     mock_get_prompt.return_value = "Get job prompt"
 
-    tool_definitions = create_admin_api_tool_definitions(
-        mock_admin_client, mock_config.admin_api_config
-    )
+    tool_definitions = create_admin_api_tool_definitions()
+    context = DbtMcpContext(admin_api_config=mock_config.admin_api_config, admin_api_client=mock_admin_client)
     get_job_details_tool = tool_definitions[1].fn  # Second tool is get_job_details
 
-    result = get_job_details_tool(job_id=1)
+    result = get_job_details_tool(ctx=context, job_id=1)
 
     assert isinstance(result, dict)
     mock_admin_client.get_job_details.assert_called_once_with(12345, 1)
@@ -167,12 +166,13 @@ def test_get_job_details_tool(mock_get_prompt, mock_config, mock_admin_client):
 def test_trigger_job_run_tool(mock_get_prompt, mock_config, mock_admin_client):
     mock_get_prompt.return_value = "Trigger job run prompt"
 
-    tool_definitions = create_admin_api_tool_definitions(
-        mock_admin_client, mock_config.admin_api_config
-    )
+    tool_definitions = create_admin_api_tool_definitions()
+    context = DbtMcpContext(admin_api_config=mock_config.admin_api_config, admin_api_client=mock_admin_client)
     trigger_job_run_tool = tool_definitions[2].fn  # Third tool is trigger_job_run
 
-    result = trigger_job_run_tool(job_id=1, cause="Manual trigger", git_branch="main")
+    result = trigger_job_run_tool(
+        ctx=context, job_id=1, cause="Manual trigger", git_branch="main"
+    )
 
     assert isinstance(result, dict)
     mock_admin_client.trigger_job_run.assert_called_once_with(
@@ -184,12 +184,13 @@ def test_trigger_job_run_tool(mock_get_prompt, mock_config, mock_admin_client):
 def test_list_jobs_runs_tool(mock_get_prompt, mock_config, mock_admin_client):
     mock_get_prompt.return_value = "List runs prompt"
 
-    tool_definitions = create_admin_api_tool_definitions(
-        mock_admin_client, mock_config.admin_api_config
-    )
+    tool_definitions = create_admin_api_tool_definitions()
+    context = DbtMcpContext(admin_api_config=mock_config.admin_api_config, admin_api_client=mock_admin_client)
     list_jobs_runs_tool = tool_definitions[3].fn  # Fourth tool is list_jobs_runs
 
-    result = list_jobs_runs_tool(job_id=1, status=JobRunStatus.SUCCESS, limit=5)
+    result = list_jobs_runs_tool(
+        ctx=context, job_id=1, status=JobRunStatus.SUCCESS, limit=5
+    )
 
     assert isinstance(result, list)
     mock_admin_client.list_jobs_runs.assert_called_once_with(
@@ -201,14 +202,13 @@ def test_list_jobs_runs_tool(mock_get_prompt, mock_config, mock_admin_client):
 def test_get_job_run_details_tool(mock_get_prompt, mock_config, mock_admin_client):
     mock_get_prompt.return_value = "Get run prompt"
 
-    tool_definitions = create_admin_api_tool_definitions(
-        mock_admin_client, mock_config.admin_api_config
-    )
+    tool_definitions = create_admin_api_tool_definitions()
+    context = DbtMcpContext(admin_api_config=mock_config.admin_api_config, admin_api_client=mock_admin_client)
     get_job_run_details_tool = tool_definitions[
         4
     ].fn  # Fifth tool is get_job_run_details
 
-    result = get_job_run_details_tool(run_id=100, debug=True)
+    result = get_job_run_details_tool(ctx=context, run_id=100, debug=True)
 
     assert isinstance(result, dict)
     mock_admin_client.get_job_run_details.assert_called_once_with(
@@ -220,12 +220,11 @@ def test_get_job_run_details_tool(mock_get_prompt, mock_config, mock_admin_clien
 def test_cancel_job_run_tool(mock_get_prompt, mock_config, mock_admin_client):
     mock_get_prompt.return_value = "Cancel run prompt"
 
-    tool_definitions = create_admin_api_tool_definitions(
-        mock_admin_client, mock_config.admin_api_config
-    )
+    tool_definitions = create_admin_api_tool_definitions()
+    context = DbtMcpContext(admin_api_config=mock_config.admin_api_config, admin_api_client=mock_admin_client)
     cancel_job_run_tool = tool_definitions[5].fn  # Sixth tool is cancel_job_run
 
-    result = cancel_job_run_tool(run_id=100)
+    result = cancel_job_run_tool(ctx=context, run_id=100)
 
     assert isinstance(result, dict)
     mock_admin_client.cancel_job_run.assert_called_once_with(12345, 100)
@@ -235,12 +234,11 @@ def test_cancel_job_run_tool(mock_get_prompt, mock_config, mock_admin_client):
 def test_retry_job_run_tool(mock_get_prompt, mock_config, mock_admin_client):
     mock_get_prompt.return_value = "Retry run prompt"
 
-    tool_definitions = create_admin_api_tool_definitions(
-        mock_admin_client, mock_config.admin_api_config
-    )
+    tool_definitions = create_admin_api_tool_definitions()
+    context = DbtMcpContext(admin_api_config=mock_config.admin_api_config, admin_api_client=mock_admin_client)
     retry_job_run_tool = tool_definitions[6].fn  # Seventh tool is retry_job_run
 
-    result = retry_job_run_tool(run_id=100)
+    result = retry_job_run_tool(ctx=context, run_id=100)
 
     assert isinstance(result, dict)
     mock_admin_client.retry_job_run.assert_called_once_with(12345, 100)
@@ -250,14 +248,13 @@ def test_retry_job_run_tool(mock_get_prompt, mock_config, mock_admin_client):
 def test_list_job_run_artifacts_tool(mock_get_prompt, mock_config, mock_admin_client):
     mock_get_prompt.return_value = "List run artifacts prompt"
 
-    tool_definitions = create_admin_api_tool_definitions(
-        mock_admin_client, mock_config.admin_api_config
-    )
+    tool_definitions = create_admin_api_tool_definitions()
+    context = DbtMcpContext(admin_api_config=mock_config.admin_api_config, admin_api_client=mock_admin_client)
     list_job_run_artifacts_tool = tool_definitions[
         7
     ].fn  # Eighth tool is list_job_run_artifacts
 
-    result = list_job_run_artifacts_tool(run_id=100)
+    result = list_job_run_artifacts_tool(ctx=context, run_id=100)
 
     assert isinstance(result, list)
     mock_admin_client.list_job_run_artifacts.assert_called_once_with(12345, 100)
@@ -267,15 +264,14 @@ def test_list_job_run_artifacts_tool(mock_get_prompt, mock_config, mock_admin_cl
 def test_get_job_run_artifact_tool(mock_get_prompt, mock_config, mock_admin_client):
     mock_get_prompt.return_value = "Get run artifact prompt"
 
-    tool_definitions = create_admin_api_tool_definitions(
-        mock_admin_client, mock_config.admin_api_config
-    )
+    tool_definitions = create_admin_api_tool_definitions()
+    context = DbtMcpContext(admin_api_config=mock_config.admin_api_config, admin_api_client=mock_admin_client)
     get_job_run_artifact_tool = tool_definitions[
         8
     ].fn  # Ninth tool is get_job_run_artifact
 
     result = get_job_run_artifact_tool(
-        run_id=100, artifact_path="manifest.json", step=1
+        ctx=context, run_id=100, artifact_path="manifest.json", step=1
     )
 
     assert result is not None
@@ -290,12 +286,11 @@ def test_tools_handle_exceptions(mock_get_prompt, mock_config):
     mock_admin_client = Mock()
     mock_admin_client.list_jobs.side_effect = Exception("API Error")
 
-    tool_definitions = create_admin_api_tool_definitions(
-        mock_admin_client, mock_config.admin_api_config
-    )
+    tool_definitions = create_admin_api_tool_definitions()
+    context = DbtMcpContext(admin_api_config=mock_config.admin_api_config, admin_api_client=mock_admin_client)
     list_jobs_tool = tool_definitions[0].fn  # First tool is list_jobs
 
-    result = list_jobs_tool()
+    result = list_jobs_tool(ctx=context)
 
     assert isinstance(result, str)
     assert "API Error" in result
@@ -307,25 +302,24 @@ def test_tools_with_no_optional_parameters(
 ):
     mock_get_prompt.return_value = "Test prompt"
 
-    tool_definitions = create_admin_api_tool_definitions(
-        mock_admin_client, mock_config.admin_api_config
-    )
+    tool_definitions = create_admin_api_tool_definitions()
+    context = DbtMcpContext(admin_api_config=mock_config.admin_api_config, admin_api_client=mock_admin_client)
 
     # Test list_jobs with no parameters
     list_jobs_tool = tool_definitions[0].fn
-    result = list_jobs_tool()
+    result = list_jobs_tool(ctx=context)
     assert isinstance(result, list)
     mock_admin_client.list_jobs.assert_called_with(12345)
 
     # Test list_jobs_runs with no parameters
     list_jobs_runs_tool = tool_definitions[3].fn
-    result = list_jobs_runs_tool()
+    result = list_jobs_runs_tool(ctx=context)
     assert isinstance(result, list)
     mock_admin_client.list_jobs_runs.assert_called_with(12345)
 
     # Test get_job_run_details with default debug parameter
     get_job_run_details_tool = tool_definitions[4].fn
-    result = get_job_run_details_tool(run_id=100)
+    result = get_job_run_details_tool(ctx=context, run_id=100)
     assert isinstance(result, dict)
     # The debug parameter should be a Field object with default False
     call_args = mock_admin_client.get_job_run_details.call_args
@@ -341,12 +335,12 @@ def test_trigger_job_run_with_all_optional_params(
 ):
     mock_get_prompt.return_value = "Trigger job run prompt"
 
-    tool_definitions = create_admin_api_tool_definitions(
-        mock_admin_client, mock_config.admin_api_config
-    )
+    tool_definitions = create_admin_api_tool_definitions()
+    context = DbtMcpContext(admin_api_config=mock_config.admin_api_config, admin_api_client=mock_admin_client)
     trigger_job_run_tool = tool_definitions[2].fn  # Third tool is trigger_job_run
 
     result = trigger_job_run_tool(
+        ctx=context,
         job_id=1,
         cause="Manual trigger",
         git_branch="feature-branch",
