@@ -4,12 +4,14 @@ from pathlib import Path
 from typing import Annotated
 
 import yaml
+from filelock import FileLock
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
+from dbt_mcp.oauth.dbt_platform import DbtPlatformContext
 from dbt_mcp.oauth.login import login
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
 
 OAUTH_REDIRECT_STARTING_PORT = 6785
 OAUTH_CLIENT_ID = "34ec61e834cdffd9dd90a32231937821"
@@ -160,16 +162,12 @@ class Config(BaseModel):
     disable_tools: list[ToolName]
 
 
-def _create_mcp_yml(dbt_profiles_dir: str | None = None) -> Path:
+def _get_dbt_user_dir(dbt_profiles_dir: str | None = None) -> Path:
     # Respect DBT_PROFILES_DIR if set; otherwise default to ~/.dbt/mcp.yml
     if dbt_profiles_dir:
-        config_dir = Path(dbt_profiles_dir).expanduser()
+        return Path(dbt_profiles_dir).expanduser()
     else:
-        config_dir = Path.home() / ".dbt"
-    config_location = config_dir / "mcp.yml"
-    config_location.parent.mkdir(parents=True, exist_ok=True)
-    config_location.touch()
-    return config_location
+        return Path.home() / ".dbt"
 
 
 def _find_available_port(*, start_port: int, max_attempts: int = 20) -> int:
@@ -264,6 +262,28 @@ def validate_dbt_cli_settings(settings: DbtMcpSettings) -> list[str]:
     return errors
 
 
+def get_dbt_platform_context(settings: DbtMcpSettings) -> DbtPlatformContext:
+    # Some MCP hosts (Claude Desktop) tend to run multiple MCP servers instances.
+    # We need to lock so that only one can run the oauth flow.
+    dbt_user_dir = _get_dbt_user_dir(dbt_profiles_dir=settings.dbt_profiles_dir)
+    with FileLock(dbt_user_dir / "mcp.lock"):
+        config_location = dbt_user_dir / "mcp.yml"
+        if config_location.exists() and (
+            dbt_ctx := DbtPlatformContext.from_file(config_location)
+        ):
+            return dbt_ctx
+        config_location.parent.mkdir(parents=True, exist_ok=True)
+        config_location.touch()
+        # Find an available port for the local OAuth redirect server
+        selected_port = _find_available_port(start_port=OAUTH_REDIRECT_STARTING_PORT)
+        return login(
+            dbt_platform_url=f"https://{settings.actual_host}",
+            port=selected_port,
+            client_id=OAUTH_CLIENT_ID,
+            config_location=config_location,
+        )
+
+
 def load_config() -> Config:
     # Load settings from environment variables using pydantic_settings
     settings = DbtMcpSettings()  # type: ignore[call-arg]
@@ -272,22 +292,12 @@ def load_config() -> Config:
     # but there are no security concerns if you do.
     enable_oauth = os.environ.get("ENABLE_EXPERIMENAL_SECURE_OAUTH") == "true"
     if enable_oauth and dbt_platform_errors:
-        config_location = _create_mcp_yml(dbt_profiles_dir=settings.dbt_profiles_dir)
         actual_host = settings.actual_host
         if not actual_host:
             raise ValueError("DBT_HOST is a required environment variable")
+        dbt_platform_context = get_dbt_platform_context(settings)
 
-        # Find an available port for the local OAuth redirect server
-        selected_port = _find_available_port(start_port=OAUTH_REDIRECT_STARTING_PORT)
-        login_result = login(
-            dbt_platform_url=f"https://{actual_host}",
-            port=selected_port,
-            client_id=OAUTH_CLIENT_ID,
-            config_location=config_location,
-        )
-
-        # Override settings with settings attained from login
-        dbt_platform_context = login_result.dbt_platform_context
+        # Override settings with settings attained from login or mcp.yml
         settings.dbt_user_id = dbt_platform_context.user_id
         settings.dbt_dev_env_id = (
             dbt_platform_context.dev_environment.id
@@ -299,9 +309,7 @@ def load_config() -> Config:
             if dbt_platform_context.prod_environment
             else None
         )
-        settings.dbt_token = (
-            login_result.decoded_access_token.access_token_response.access_token
-        )
+        settings.dbt_token = dbt_platform_context.token
         settings.host_prefix = dbt_platform_context.host_prefix
         host_prefix_with_period = f"{dbt_platform_context.host_prefix}."
         if not actual_host.startswith(host_prefix_with_period):

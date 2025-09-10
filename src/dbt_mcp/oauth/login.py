@@ -6,20 +6,13 @@ from importlib import resources
 from pathlib import Path
 
 from authlib.integrations.requests_client import OAuth2Session
-from pydantic import BaseModel
 from uvicorn import Config, Server
 
 from dbt_mcp.oauth.dbt_platform import DbtPlatformContext
 from dbt_mcp.oauth.fastapi_app import create_app
 from dbt_mcp.oauth.logging import disable_server_logs
-from dbt_mcp.oauth.token import DecodedAccessToken
 
 logger = logging.getLogger(__name__)
-
-
-class LoginResult(BaseModel):
-    decoded_access_token: DecodedAccessToken
-    dbt_platform_context: DbtPlatformContext
 
 
 def login(
@@ -28,7 +21,7 @@ def login(
     port: int,
     client_id: str,
     config_location: Path,
-) -> LoginResult:
+) -> DbtPlatformContext:
     """Start OAuth login flow with PKCE using authlib and return
     the decoded access token
     """
@@ -87,13 +80,10 @@ def login(
         disable_server_logs()
         server.run()
 
-        if not app.state.decoded_access_token or not app.state.dbt_platform_context:
+        if not app.state.dbt_platform_context:
             raise ValueError("Undefined login state")
         logger.info("Login successful")
-        return LoginResult(
-            decoded_access_token=app.state.decoded_access_token,
-            dbt_platform_context=app.state.dbt_platform_context,
-        )
+        return app.state.dbt_platform_context
     except OSError as e:
         if e.errno == errno.EADDRINUSE:
             logger.error(f"Error: Port {port} is already in use.")

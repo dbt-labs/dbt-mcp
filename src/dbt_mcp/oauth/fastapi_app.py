@@ -121,15 +121,13 @@ def create_app(
     app.state.decoded_access_token = cast(DecodedAccessToken | None, None)
     app.state.server_ref = cast(Server | None, None)
     app.state.dbt_platform_context = cast(DbtPlatformContext | None, None)
-    app.state.state_to_verifier = cast(dict[str, str], state_to_verifier)
-
-    def _read_dbt_platform_context() -> DbtPlatformContext:
-        return DbtPlatformContext(**(yaml.safe_load(config_location.read_text())))
 
     def _update_dbt_platform_context(
         new_dbt_platform_context: DbtPlatformContext,
     ) -> DbtPlatformContext:
-        existing_dbt_platform_context = _read_dbt_platform_context()
+        existing_dbt_platform_context = DbtPlatformContext.from_file(config_location)
+        if existing_dbt_platform_context is None:
+            existing_dbt_platform_context = DbtPlatformContext()
         next_dbt_platform_context = existing_dbt_platform_context.override(
             new_dbt_platform_context
         )
@@ -157,7 +155,7 @@ def create_app(
             return RedirectResponse(url="/index.html#status=error", status_code=302)
         try:
             logger.info("Fetching access token")
-            code_verifier = app.state.state_to_verifier.pop(state, None)
+            code_verifier = state_to_verifier.pop(state, None)
             if not code_verifier:
                 logger.error("No code_verifier found for provided state")
                 return RedirectResponse(url="/index.html#status=error", status_code=302)
@@ -178,7 +176,9 @@ def create_app(
                 decoded_claims=decoded_claims,
             )
             _update_dbt_platform_context(
-                DbtPlatformContext(user_id=int(decoded_claims["sub"]))
+                DbtPlatformContext(
+                    decoded_access_token=app.state.decoded_access_token,
+                )
             )
             return RedirectResponse(
                 url="/index.html#status=success",
@@ -223,7 +223,7 @@ def create_app(
     @app.get("/dbt_platform_context")
     def get_dbt_platform_context() -> DbtPlatformContext:
         logger.info("Selected project received")
-        return _read_dbt_platform_context()
+        return DbtPlatformContext.from_file(config_location) or DbtPlatformContext()
 
     @app.post("/selected_project")
     def set_selected_project(
@@ -276,7 +276,7 @@ def create_app(
                 )
         dbt_platform_context = _update_dbt_platform_context(
             new_dbt_platform_context=DbtPlatformContext(
-                user_id=int(app.state.decoded_access_token.decoded_claims["sub"]),
+                decoded_access_token=app.state.decoded_access_token,
                 dev_environment=dev_environment,
                 prod_environment=prod_environment,
                 host_prefix=account.host_prefix,
