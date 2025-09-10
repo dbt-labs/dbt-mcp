@@ -1,7 +1,7 @@
 [project]
 name = "google-adk-dbt-agent"
 version = "0.1.0"
-description = "Google ADK agent for dbt MCP with local support"
+description = "Google ADK agent for dbt MCP"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
