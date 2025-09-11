@@ -65,10 +65,10 @@ class SemanticLayerFetcher:
         self.dimensions_cache: dict[str, list[DimensionToolResponse]] = {}
 
     @cache
-    def list_metrics(self) -> list[MetricToolResponse]:
+    def list_metrics(self, search: str | None = None) -> list[MetricToolResponse]:
         metrics_result = submit_request(
             self.config,
-            {"query": GRAPHQL_QUERIES["metrics"]},
+            {"query": GRAPHQL_QUERIES["metrics"], "variables": {"search": search}},
         )
         return [
             MetricToolResponse(
@@ -78,21 +78,26 @@ class SemanticLayerFetcher:
                 description=m.get("description"),
                 metadata=(m.get("config") or {}).get("meta", ""),
             )
-            for m in metrics_result["data"]["metrics"]
+            for m in metrics_result["data"]["metricsPaginated"]["items"]
         ]
 
-    def get_dimensions(self, metrics: list[str]) -> list[DimensionToolResponse]:
+    def get_dimensions(
+        self, metrics: list[str], search: str | None = None
+    ) -> list[DimensionToolResponse]:
         metrics_key = ",".join(sorted(metrics))
         if metrics_key not in self.dimensions_cache:
             dimensions_result = submit_request(
                 self.config,
                 {
                     "query": GRAPHQL_QUERIES["dimensions"],
-                    "variables": {"metrics": [{"name": m} for m in metrics]},
+                    "variables": {
+                        "metrics": [{"name": m} for m in metrics],
+                        "search": search,
+                    },
                 },
             )
             dimensions = []
-            for d in dimensions_result["data"]["dimensions"]:
+            for d in dimensions_result["data"]["dimensionsPaginated"]["items"]:
                 dimensions.append(
                     DimensionToolResponse(
                         name=d.get("name"),
@@ -106,14 +111,19 @@ class SemanticLayerFetcher:
             self.dimensions_cache[metrics_key] = dimensions
         return self.dimensions_cache[metrics_key]
 
-    def get_entities(self, metrics: list[str]) -> list[EntityToolResponse]:
+    def get_entities(
+        self, metrics: list[str], search: str | None = None
+    ) -> list[EntityToolResponse]:
         metrics_key = ",".join(sorted(metrics))
         if metrics_key not in self.entities_cache:
             entities_result = submit_request(
                 self.config,
                 {
                     "query": GRAPHQL_QUERIES["entities"],
-                    "variables": {"metrics": [{"name": m} for m in metrics]},
+                    "variables": {
+                        "metrics": [{"name": m} for m in metrics],
+                        "search": search,
+                    },
                 },
             )
             entities = [
@@ -122,7 +132,7 @@ class SemanticLayerFetcher:
                     type=e.get("type"),
                     description=e.get("description"),
                 )
-                for e in entities_result["data"]["entities"]
+                for e in entities_result["data"]["entitiesPaginated"]["items"]
             ]
             self.entities_cache[metrics_key] = entities
         return self.entities_cache[metrics_key]

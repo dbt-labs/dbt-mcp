@@ -7,3 +7,7 @@ that can be used with other tools to answer the question.
 Examples:
 - "What are the top 5 products by revenue?"
 - "How many users did we have last month?"
+
+<parameters>
+search: Optional string used to filter metrics by name using partial matches
+</parameters>
