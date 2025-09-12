@@ -20,7 +20,6 @@ class TokenProvider(Protocol):
 class OAuthTokenProvider:
     """
     Token provider for OAuth access token with periodic refresh.
-    Uses the centralized OAuthTokenManager for consistent token handling.
     """
 
     def __init__(
@@ -34,14 +33,11 @@ class OAuthTokenProvider:
         self.dbt_platform_url = dbt_platform_url
         self.context_manager = context_manager
         self.refresh_strategy = refresh_strategy or DefaultRefreshStrategy()
-
-        # Create OAuth client once in constructor
         self.token_url = f"{self.dbt_platform_url}/oauth/token"
         self.oauth_client = OAuth2Session(
             client_id=OAUTH_CLIENT_ID,
             token_endpoint=self.token_url,
         )
-
         self._refresh_task = asyncio.create_task(
             self._background_refresh_worker(), name="oauth-token-refresh"
         )

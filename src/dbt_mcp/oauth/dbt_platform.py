@@ -75,12 +75,6 @@ class DbtPlatformContext(BaseModel):
     prod_environment: DbtPlatformEnvironment | None = None
 
     @property
-    def token(self) -> str:
-        if not self.decoded_access_token:
-            raise ValueError("No decoded access token found")
-        return self.decoded_access_token.access_token_response.access_token
-
-    @property
     def user_id(self) -> int | None:
         return (
             int(self.decoded_access_token.decoded_claims["sub"])

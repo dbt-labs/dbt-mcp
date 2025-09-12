@@ -1,8 +1,3 @@
-"""
-Provider interfaces and implementations for dependency injection in OAuth token
-management.
-"""
-
 import asyncio
 import time
 from typing import Protocol
