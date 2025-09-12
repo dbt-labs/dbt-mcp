@@ -1,1 +1,1 @@
-List of model names to generate YAML documentation for (required)
+List of model names to generate YAML documentation for, search for the model names provided with and without extension provided by users(required)
