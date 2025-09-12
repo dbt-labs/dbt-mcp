@@ -2,6 +2,7 @@ from dbt_mcp.config.config import (
     AdminApiConfig,
     Config,
     DbtCliConfig,
+    DbtCodegenConfig,
     DiscoveryConfig,
     SemanticLayerConfig,
     SqlConfig,
@@ -28,6 +29,13 @@ mock_sql_config = SqlConfig(
 )
 
 mock_dbt_cli_config = DbtCliConfig(
+    project_dir="/test/project",
+    dbt_path="/path/to/dbt",
+    dbt_cli_timeout=10,
+    binary_type=BinaryType.DBT_CORE,
+)
+
+mock_dbt_codegen_config = DbtCodegenConfig(
     project_dir="/test/project",
     dbt_path="/path/to/dbt",
     dbt_cli_timeout=10,
@@ -65,6 +73,7 @@ mock_config = Config(
     tracking_config=mock_tracking_config,
     sql_config=mock_sql_config,
     dbt_cli_config=mock_dbt_cli_config,
+    dbt_codegen_config=mock_dbt_codegen_config,
     discovery_config=mock_discovery_config,
     semantic_layer_config=mock_semantic_layer_config,
     admin_api_config=mock_admin_api_config,

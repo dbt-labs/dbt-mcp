@@ -1,0 +1,1 @@
+Generate YAML documentation for dbt models including column names, data types, and optionally descriptions from upstream models. This tool introspects compiled models to create comprehensive documentation that can be added to schema.yml files.

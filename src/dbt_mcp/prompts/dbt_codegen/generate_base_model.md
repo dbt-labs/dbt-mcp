@@ -1,0 +1,1 @@
+Generate SQL for a base/staging model from a source table. This creates a standardized SQL select statement with all columns from the source, following best practices for staging models. The generated SQL can be saved as a new model file.

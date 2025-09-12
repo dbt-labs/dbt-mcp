@@ -1,0 +1,1 @@
+Generate import CTEs for a model based on its dependencies. This creates the 'with' statements that import all referenced models at the beginning of a SQL file, following dbt best practices for model structure and readability.

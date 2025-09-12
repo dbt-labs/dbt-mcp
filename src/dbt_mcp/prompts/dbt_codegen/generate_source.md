@@ -1,0 +1,1 @@
+Generate YAML for dbt sources by introspecting database schemas. This tool queries the actual database to create accurate source definitions with all tables and optionally their columns. Use this for initial source setup or when adding new tables to your project.

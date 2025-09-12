@@ -46,6 +46,13 @@ class DbtCliConfig(BaseModel):
     dbt_cli_timeout: int
     binary_type: BinaryType
 
+class DbtCodegenConfig(BaseModel):
+    project_dir: str
+    dbt_path: str
+    dbt_cli_timeout: int
+    binary_type: BinaryType
+
+
 
 class SqlConfig(BaseModel):
     host_prefix: str | None = None
@@ -93,6 +100,7 @@ class DbtMcpSettings(BaseSettings):
 
     # Disable tool settings
     disable_dbt_cli: bool = Field(False, alias="DISABLE_DBT_CLI")
+    disable_dbt_codegen: bool = Field(False, alias="DISABLE_DBT_CODEGEN")
     disable_semantic_layer: bool = Field(False, alias="DISABLE_SEMANTIC_LAYER")
     disable_discovery: bool = Field(False, alias="DISABLE_DISCOVERY")
     disable_remote: bool | None = Field(None, alias="DISABLE_REMOTE")
@@ -156,6 +164,7 @@ class Config(BaseModel):
     tracking_config: TrackingConfig
     sql_config: SqlConfig | None = None
     dbt_cli_config: DbtCliConfig | None = None
+    dbt_codegen_config: DbtCodegenConfig | None = None
     discovery_config: DiscoveryConfig | None = None
     semantic_layer_config: SemanticLayerConfig | None = None
     admin_api_config: AdminApiConfig | None = None
@@ -380,6 +389,16 @@ def create_config(settings: DbtMcpSettings) -> Config:
             binary_type=binary_type,
         )
 
+    dbt_codegen_config = None
+    if not settings.disable_dbt_codegen and settings.dbt_project_dir and settings.dbt_path:
+        binary_type = detect_binary_type(settings.dbt_path)
+        dbt_codegen_config = DbtCodegenConfig(
+            project_dir=settings.dbt_project_dir,
+            dbt_path=settings.dbt_path,
+            dbt_cli_timeout=settings.dbt_cli_timeout,
+            binary_type=binary_type,
+        )
+        
     discovery_config = None
     if (
         not settings.disable_discovery
@@ -451,6 +470,7 @@ def create_config(settings: DbtMcpSettings) -> Config:
         ),
         sql_config=sql_config,
         dbt_cli_config=dbt_cli_config,
+        dbt_codegen_config=dbt_codegen_config,
         discovery_config=discovery_config,
         semantic_layer_config=semantic_layer_config,
         admin_api_config=admin_api_config,

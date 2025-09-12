@@ -9,7 +9,7 @@ class Toolset(Enum):
     DISCOVERY = "discovery"
     DBT_CLI = "dbt_cli"
     ADMIN_API = "admin_api"
-
+    DBT_CODEGEN = "dbt_codegen"
 
 toolsets = {
     Toolset.SQL: {
@@ -54,4 +54,11 @@ toolsets = {
         ToolName.LIST_JOB_RUN_ARTIFACTS,
         ToolName.GET_JOB_RUN_ARTIFACT,
     },
+    Toolset.DBT_CODEGEN: {
+        ToolName.GENERATE_SOURCE,
+        ToolName.GENERATE_MODEL_YAML,
+        ToolName.GENERATE_BASE_MODEL,
+        ToolName.GENERATE_MODEL_IMPORT_CTES,
+    },
+    
 }
