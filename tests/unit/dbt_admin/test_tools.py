@@ -10,11 +10,21 @@ from dbt_mcp.dbt_admin.tools import (
 )
 
 
+class MockHeadersProvider:
+    """Mock headers provider for testing."""
+
+    def __init__(self, headers: dict[str, str]):
+        self._headers = headers
+
+    def get_headers(self) -> dict[str, str]:
+        return self._headers
+
+
 @pytest.fixture
 def mock_admin_config():
     return AdminApiConfig(
         account_id=12345,
-        headers={"Authorization": "Bearer test_token"},
+        headers_provider=MockHeadersProvider({"Authorization": "Bearer test_token"}),
         url="https://cloud.getdbt.com",
     )
 
@@ -26,6 +36,10 @@ def mock_config(mock_admin_config):
     return Config(
         tracking_config=mock_tracking_config,
         admin_api_config=mock_admin_config,
+        sql_config=None,
+        dbt_cli_config=None,
+        discovery_config=None,
+        semantic_layer_config=None,
         disable_tools=[],
     )
 

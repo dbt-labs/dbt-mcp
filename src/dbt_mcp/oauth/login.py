@@ -3,11 +3,12 @@ import logging
 import secrets
 import webbrowser
 from importlib import resources
-from pathlib import Path
 
 from authlib.integrations.requests_client import OAuth2Session
 from uvicorn import Config, Server
 
+from dbt_mcp.oauth.client_id import OAUTH_CLIENT_ID
+from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
 from dbt_mcp.oauth.dbt_platform import DbtPlatformContext
 from dbt_mcp.oauth.fastapi_app import create_app
 from dbt_mcp.oauth.logging import disable_server_logs
@@ -19,24 +20,19 @@ def login(
     *,
     dbt_platform_url: str,
     port: int,
-    client_id: str,
-    config_location: Path,
+    dbt_platform_context_manager: DbtPlatformContextManager,
 ) -> DbtPlatformContext:
     """Start OAuth login flow with PKCE using authlib and return
     the decoded access token
     """
-    # OAuth2 configuration
-    redirect_uri = f"http://localhost:{port}"
-    authorization_endpoint = f"{dbt_platform_url}/oauth/authorize"
-
     # 'offline_access' scope indicates that we want to request a refresh token
     # 'user_access' is equivalent to a PAT
     scope = "user_access offline_access"
 
     # Create OAuth2Session with PKCE support
     client = OAuth2Session(
-        client_id=client_id,
-        redirect_uri=redirect_uri,
+        client_id=OAUTH_CLIENT_ID,
+        redirect_uri=f"http://localhost:{port}",
         scope=scope,
         code_challenge_method="S256",
     )
@@ -46,7 +42,7 @@ def login(
 
     # Generate authorization URL with PKCE
     authorization_url, state = client.create_authorization_url(
-        url=authorization_endpoint,
+        url=f"{dbt_platform_url}/oauth/authorize",
         code_verifier=code_verifier,
     )
 
@@ -64,7 +60,7 @@ def login(
             state_to_verifier={state: code_verifier},
             dbt_platform_url=dbt_platform_url,
             static_dir=static_dir,
-            config_location=config_location,
+            dbt_platform_context_manager=dbt_platform_context_manager,
         )
         config = Config(
             app=app,

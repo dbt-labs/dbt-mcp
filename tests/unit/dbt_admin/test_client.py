@@ -10,11 +10,21 @@ from dbt_mcp.dbt_admin.client import (
 )
 
 
+class MockHeadersProvider:
+    """Mock headers provider for testing."""
+
+    def __init__(self, headers: dict[str, str]):
+        self._headers = headers
+
+    def get_headers(self) -> dict[str, str]:
+        return self._headers
+
+
 @pytest.fixture
 def admin_config():
     return AdminApiConfig(
         account_id=12345,
-        headers={"Authorization": "Bearer test_token"},
+        headers_provider=MockHeadersProvider({"Authorization": "Bearer test_token"}),
         url="https://cloud.getdbt.com",
     )
 
@@ -23,7 +33,7 @@ def admin_config():
 def admin_config_with_prefix():
     return AdminApiConfig(
         account_id=12345,
-        headers={"Authorization": "Bearer test_token"},
+        headers_provider=MockHeadersProvider({"Authorization": "Bearer test_token"}),
         url="https://eu1.cloud.getdbt.com",
     )
 
@@ -40,7 +50,9 @@ def client_with_prefix(admin_config_with_prefix):
 
 def test_client_initialization(client):
     assert client.config.account_id == 12345
-    assert client.config.headers == {"Authorization": "Bearer test_token"}
+    assert client.config.headers_provider.get_headers() == {
+        "Authorization": "Bearer test_token"
+    }
     assert client.config.url == "https://cloud.getdbt.com"
     assert client.headers["Authorization"] == "Bearer test_token"
     assert client.headers["Content-Type"] == "application/json"
