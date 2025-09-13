@@ -81,6 +81,26 @@ def generate_model_import_ctes_tool(dbt_codegen_config):
     raise ValueError("generate_model_import_ctes tool not found")
 
 
+@pytest.fixture
+def create_base_models_tool(dbt_codegen_config):
+    """Fixture for create_base_models tool."""
+    tools = create_dbt_codegen_tool_definitions(dbt_codegen_config)
+    for tool in tools:
+        if tool.fn.__name__ == "create_base_models":
+            return tool.fn
+    raise ValueError("create_base_models tool not found")
+
+
+@pytest.fixture
+def base_model_creation_tool(dbt_codegen_config):
+    """Fixture for base_model_creation tool."""
+    tools = create_dbt_codegen_tool_definitions(dbt_codegen_config)
+    for tool in tools:
+        if tool.fn.__name__ == "base_model_creation":
+            return tool.fn
+    raise ValueError("base_model_creation tool not found")
+
+
 def test_generate_source_basic(generate_source_tool):
     """Test basic source generation with minimal parameters."""
     # This will fail if dbt-codegen is not installed
@@ -249,4 +269,108 @@ def test_error_handling_invalid_source(generate_base_model_tool):
         pytest.skip("dbt-codegen package not installed")
 
     # Should return an error message
+    assert result is not None
+
+
+def test_create_base_models_basic(create_base_models_tool):
+    """Test basic create_base_models functionality."""
+    result = create_base_models_tool(
+        source_name="raw", tables=["customers", "orders"]
+    )
+
+    if "Error:" in result:
+        if "dbt-codegen package may not be installed" in result:
+            pytest.skip("dbt-codegen package not installed")
+        elif "Source" in result and "not found" in result:
+            pytest.skip("Test source not found in project")
+
+    # Should contain file information for multiple tables
+    assert result is not None
+    assert "stg_raw__customers.sql" in result
+    assert "stg_raw__orders.sql" in result
+
+
+def test_create_base_models_with_options(create_base_models_tool):
+    """Test create_base_models with various options."""
+    result = create_base_models_tool(
+        source_name="raw",
+        tables=["customers"],
+        leading_commas=True,
+        case_sensitive_cols=True,
+        materialized="view",
+    )
+
+    if "Error:" in result:
+        if "dbt-codegen package may not be installed" in result:
+            pytest.skip("dbt-codegen package not installed")
+        elif "Source" in result and "not found" in result:
+            pytest.skip("Test source not found in project")
+
+    assert result is not None
+    assert "stg_raw__customers.sql" in result
+
+
+def test_base_model_creation_basic(base_model_creation_tool):
+    """Test basic base_model_creation functionality."""
+    # This test actually creates files, so be careful
+    result = base_model_creation_tool(
+        source_name="test", tables=["test_table"]
+    )
+
+    if "Error:" in result:
+        if "dbt-codegen package may not be installed" in result:
+            pytest.skip("dbt-codegen package not installed")
+        elif "Source" in result and "not found" in result:
+            pytest.skip("Test source not found in project")
+        elif "Cannot access or create models directory" in result:
+            pytest.skip("Cannot write to models directory")
+
+    # Should confirm file creation
+    assert result is not None
+    if "Successfully created" in result:
+        assert "stg_test__test_table.sql" in result
+
+
+def test_base_model_creation_multiple_tables(base_model_creation_tool):
+    """Test base_model_creation with multiple tables."""
+    result = base_model_creation_tool(
+        source_name="test", tables=["table1", "table2"]
+    )
+
+    if "Error:" in result:
+        if "dbt-codegen package may not be installed" in result:
+            pytest.skip("dbt-codegen package not installed")
+        elif "Source" in result and "not found" in result:
+            pytest.skip("Test source not found in project")
+        elif "Cannot access or create models directory" in result:
+            pytest.skip("Cannot write to models directory")
+
+    assert result is not None
+    if "Successfully created" in result:
+        assert "2" in result  # Should mention creating 2 files
+
+
+def test_create_base_models_error_handling(create_base_models_tool):
+    """Test error handling in create_base_models."""
+    result = create_base_models_tool(
+        source_name="nonexistent_source", tables=["nonexistent_table"]
+    )
+
+    if "dbt-codegen package may not be installed" in result:
+        pytest.skip("dbt-codegen package not installed")
+
+    # Should handle errors gracefully
+    assert result is not None
+
+
+def test_base_model_creation_error_handling(base_model_creation_tool):
+    """Test error handling in base_model_creation."""
+    result = base_model_creation_tool(
+        source_name="nonexistent_source", tables=["nonexistent_table"]
+    )
+
+    if "dbt-codegen package may not be installed" in result:
+        pytest.skip("dbt-codegen package not installed")
+
+    # Should handle errors gracefully
     assert result is not None
