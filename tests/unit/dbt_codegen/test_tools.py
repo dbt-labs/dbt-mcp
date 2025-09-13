@@ -420,7 +420,9 @@ def test_create_base_models_error_propagation(monkeypatch: MonkeyPatch, mock_fas
     assert "Error running dbt-codegen macro" in result
 
 
-def test_base_model_creation(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, tmp_path):
+def test_base_model_creation(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, tmp_path
+):
     """Test base_model_creation function."""
     mock_calls = []
 
@@ -433,6 +435,7 @@ def test_base_model_creation(monkeypatch: MonkeyPatch, mock_process, mock_fastmc
 
     # Create a temporary config with the tmp_path as project_dir
     from tests.mocks.config import mock_dbt_codegen_config
+
     test_config = mock_dbt_codegen_config
     test_config.project_dir = str(tmp_path)
 
@@ -470,7 +473,9 @@ def test_base_model_creation(monkeypatch: MonkeyPatch, mock_process, mock_fastmc
     assert str(expected_file) in result
 
 
-def test_base_model_creation_multiple_files(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, tmp_path):
+def test_base_model_creation_multiple_files(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, tmp_path
+):
     """Test base_model_creation with multiple tables."""
     mock_calls = []
 
@@ -487,6 +492,7 @@ def test_base_model_creation_multiple_files(monkeypatch: MonkeyPatch, mock_proce
 
     # Use tmp_path for project directory
     from tests.mocks.config import mock_dbt_codegen_config
+
     test_config = mock_dbt_codegen_config
     test_config.project_dir = str(tmp_path)
 
@@ -539,15 +545,16 @@ def test_base_model_creation_error_handling(monkeypatch: MonkeyPatch, mock_fastm
     base_model_creation_tool = tools["base_model_creation"]
 
     # Call should return error
-    result = base_model_creation_tool(
-        source_name="nonexistent", tables=["table1"]
-    )
+    result = base_model_creation_tool(source_name="nonexistent", tables=["table1"])
 
     assert "Error running dbt-codegen macro" in result
 
 
-def test_base_model_creation_permission_error(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp):
+def test_base_model_creation_permission_error(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
+):
     """Test base_model_creation handles file permission errors."""
+
     def mock_popen(args, **kwargs):
         return mock_process(output="SELECT * FROM test")
 

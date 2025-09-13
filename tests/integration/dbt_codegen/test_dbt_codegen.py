@@ -274,9 +274,7 @@ def test_error_handling_invalid_source(generate_base_model_tool):
 
 def test_create_base_models_basic(create_base_models_tool):
     """Test basic create_base_models functionality."""
-    result = create_base_models_tool(
-        source_name="raw", tables=["customers", "orders"]
-    )
+    result = create_base_models_tool(source_name="raw", tables=["customers", "orders"])
 
     if "Error:" in result:
         if "dbt-codegen package may not be installed" in result:
@@ -313,9 +311,7 @@ def test_create_base_models_with_options(create_base_models_tool):
 def test_base_model_creation_basic(base_model_creation_tool):
     """Test basic base_model_creation functionality."""
     # This test actually creates files, so be careful
-    result = base_model_creation_tool(
-        source_name="test", tables=["test_table"]
-    )
+    result = base_model_creation_tool(source_name="test", tables=["test_table"])
 
     if "Error:" in result:
         if "dbt-codegen package may not be installed" in result:
@@ -333,9 +329,7 @@ def test_base_model_creation_basic(base_model_creation_tool):
 
 def test_base_model_creation_multiple_tables(base_model_creation_tool):
     """Test base_model_creation with multiple tables."""
-    result = base_model_creation_tool(
-        source_name="test", tables=["table1", "table2"]
-    )
+    result = base_model_creation_tool(source_name="test", tables=["table1", "table2"])
 
     if "Error:" in result:
         if "dbt-codegen package may not be installed" in result:

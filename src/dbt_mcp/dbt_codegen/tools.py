@@ -200,7 +200,9 @@ def create_dbt_codegen_tool_definitions(
 
             # Format the result
             filename = f"stg_{source_name}__{table}.sql"
-            results.append(f"File: {filename}\n{'-' * (len(filename) + 6)}\n{sql_content}")
+            results.append(
+                f"File: {filename}\n{'-' * (len(filename) + 6)}\n{sql_content}"
+            )
 
         return "\n\n".join(results)
 
@@ -256,7 +258,7 @@ def create_dbt_codegen_tool_definitions(
 
             try:
                 # Write the file
-                with open(filepath, 'w', encoding='utf-8') as f:
+                with open(filepath, "w", encoding="utf-8") as f:
                     f.write(sql_content)
 
                 created_files.append(filepath)
@@ -266,7 +268,9 @@ def create_dbt_codegen_tool_definitions(
 
         # Return success message
         files_list = "\n".join([f"  - {f}" for f in created_files])
-        return f"Successfully created {len(created_files)} base model files:\n{files_list}"
+        return (
+            f"Successfully created {len(created_files)} base model files:\n{files_list}"
+        )
 
     return [
         ToolDefinition(
