@@ -1,0 +1,1 @@
+List of specific table names to generate source definitions for (optional, generates all tables if not specified)
