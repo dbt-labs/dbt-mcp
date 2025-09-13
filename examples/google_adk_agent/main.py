@@ -24,8 +24,8 @@ async def main():
     toolset = McpToolset(
         connection_params=StdioConnectionParams(
             server_params=StdioServerParameters(
-                command="uvx",
-                args=["--env-file", f"{dbt_mcp_dir}/.env", "dbt-mcp"],
+                command="uv",
+                args=["run", "--directory", str(dbt_mcp_dir), "--env-file", f"{dbt_mcp_dir}/.env", "src/dbt_mcp/main.py"],
                 env=os.environ.copy(),
             )
         )
