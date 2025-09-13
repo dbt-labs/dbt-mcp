@@ -15,7 +15,9 @@ from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.annotations import create_tool_annotations
 
 
-def create_dbt_codegen_tool_definitions(config: DbtCodegenConfig) -> list[ToolDefinition]:
+def create_dbt_codegen_tool_definitions(
+    config: DbtCodegenConfig,
+) -> list[ToolDefinition]:
     def _run_codegen_operation(
         macro_name: str,
         args: dict[str, any] | None = None,
@@ -24,28 +26,28 @@ def create_dbt_codegen_tool_definitions(config: DbtCodegenConfig) -> list[ToolDe
         try:
             # Build the dbt run-operation command
             command = ["run-operation", macro_name]
-            
+
             # Add arguments if provided
             if args:
                 # Convert args to JSON string for dbt
                 args_json = json.dumps(args)
                 command.extend(["--args", args_json])
-            
+
             full_command = command.copy()
             # Add --quiet flag to reduce output verbosity
             main_command = full_command[0]
             command_args = full_command[1:] if len(full_command) > 1 else []
             full_command = [main_command, "--quiet", *command_args]
-            
+
             # We change the path only if this is an absolute path, otherwise we can have
             # problems with relative paths applied multiple times as DBT_PROJECT_DIR
             # is applied to dbt Core and Fusion as well (but not the dbt Cloud CLI)
             cwd_path = config.project_dir if os.path.isabs(config.project_dir) else None
-            
+
             # Add appropriate color disable flag based on binary type
             color_flag = get_color_disable_flag(config.binary_type)
             args_list = [config.dbt_path, color_flag, *full_command]
-            
+
             process = subprocess.Popen(
                 args=args_list,
                 cwd=cwd_path,
@@ -55,15 +57,15 @@ def create_dbt_codegen_tool_definitions(config: DbtCodegenConfig) -> list[ToolDe
                 text=True,
             )
             output, _ = process.communicate(timeout=config.dbt_cli_timeout)
-            
+
             # Return the output directly or handle errors
             if process.returncode != 0:
                 if "dbt found" in output and "resource" in output:
                     return f"Error: dbt-codegen package may not be installed. Run 'dbt deps' to install it.\n{output}"
                 return f"Error running dbt-codegen macro: {output}"
-            
+
             return output or "OK"
-            
+
         except subprocess.TimeoutExpired:
             return f"Timeout: dbt-codegen operation took longer than {config.dbt_cli_timeout} seconds."
         except Exception as e:
@@ -83,7 +85,8 @@ def create_dbt_codegen_tool_definitions(config: DbtCodegenConfig) -> list[ToolDe
             default=False, description=get_prompt("dbt_codegen/args/generate_columns")
         ),
         include_descriptions: bool = Field(
-            default=False, description=get_prompt("dbt_codegen/args/include_descriptions")
+            default=False,
+            description=get_prompt("dbt_codegen/args/include_descriptions"),
         ),
     ) -> str:
         args = {"schema_name": schema_name}
@@ -95,7 +98,7 @@ def create_dbt_codegen_tool_definitions(config: DbtCodegenConfig) -> list[ToolDe
             args["generate_columns"] = generate_columns
         if include_descriptions:
             args["include_descriptions"] = include_descriptions
-        
+
         return _run_codegen_operation("generate_source", args)
 
     def generate_model_yaml(
@@ -103,7 +106,8 @@ def create_dbt_codegen_tool_definitions(config: DbtCodegenConfig) -> list[ToolDe
             description=get_prompt("dbt_codegen/args/model_names")
         ),
         upstream_descriptions: bool = Field(
-            default=False, description=get_prompt("dbt_codegen/args/upstream_descriptions")
+            default=False,
+            description=get_prompt("dbt_codegen/args/upstream_descriptions"),
         ),
         include_data_types: bool = Field(
             default=True, description=get_prompt("dbt_codegen/args/include_data_types")
@@ -114,21 +118,20 @@ def create_dbt_codegen_tool_definitions(config: DbtCodegenConfig) -> list[ToolDe
             "upstream_descriptions": upstream_descriptions,
             "include_data_types": include_data_types,
         }
-        
+
         return _run_codegen_operation("generate_model_yaml", args)
 
     def generate_base_model(
         source_name: str = Field(
             description=get_prompt("dbt_codegen/args/source_name")
         ),
-        table_name: str = Field(
-            description=get_prompt("dbt_codegen/args/table_name")
-        ),
+        table_name: str = Field(description=get_prompt("dbt_codegen/args/table_name")),
         leading_commas: bool = Field(
             default=False, description=get_prompt("dbt_codegen/args/leading_commas")
         ),
         case_sensitive_cols: bool = Field(
-            default=False, description=get_prompt("dbt_codegen/args/case_sensitive_cols")
+            default=False,
+            description=get_prompt("dbt_codegen/args/case_sensitive_cols"),
         ),
         materialized: str | None = Field(
             default=None, description=get_prompt("dbt_codegen/args/materialized")
@@ -142,13 +145,11 @@ def create_dbt_codegen_tool_definitions(config: DbtCodegenConfig) -> list[ToolDe
         }
         if materialized:
             args["materialized"] = materialized
-        
+
         return _run_codegen_operation("generate_base_model", args)
 
     def generate_model_import_ctes(
-        model_name: str = Field(
-            description=get_prompt("dbt_codegen/args/model_name")
-        ),
+        model_name: str = Field(description=get_prompt("dbt_codegen/args/model_name")),
         leading_commas: bool = Field(
             default=False, description=get_prompt("dbt_codegen/args/leading_commas")
         ),
@@ -157,7 +158,7 @@ def create_dbt_codegen_tool_definitions(config: DbtCodegenConfig) -> list[ToolDe
             "model_name": model_name,
             "leading_commas": leading_commas,
         }
-        
+
         return _run_codegen_operation("generate_model_import_ctes", args)
 
     return [

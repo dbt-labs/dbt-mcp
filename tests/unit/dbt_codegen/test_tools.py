@@ -60,14 +60,14 @@ def test_generate_source_basic_schema(
     # Verify the command was called correctly
     assert mock_calls
     args_list = mock_calls[0]
-    
+
     # Check basic command structure
     assert args_list[0] == "/path/to/dbt"
     assert "--no-use-colors" in args_list
     assert "run-operation" in args_list
     assert "--quiet" in args_list
     assert "generate_source" in args_list
-    
+
     # Check that args were passed correctly
     assert "--args" in args_list
     args_index = args_list.index("--args")
@@ -105,7 +105,7 @@ def test_generate_source_with_all_parameters(
     args_list = mock_calls[0]
     args_index = args_list.index("--args")
     args_json = json.loads(args_list[args_index + 1])
-    
+
     assert args_json["schema_name"] == "raw_data"
     assert args_json["database_name"] == "analytics"
     assert args_json["table_names"] == ["users", "orders"]
@@ -113,9 +113,7 @@ def test_generate_source_with_all_parameters(
     assert args_json["include_descriptions"] is True
 
 
-def test_generate_model_yaml(
-    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
-):
+def test_generate_model_yaml(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp):
     """Test generate_model_yaml function."""
     mock_calls = []
 
@@ -140,7 +138,7 @@ def test_generate_model_yaml(
     assert mock_calls
     args_list = mock_calls[0]
     assert "generate_model_yaml" in args_list
-    
+
     args_index = args_list.index("--args")
     args_json = json.loads(args_list[args_index + 1])
     assert args_json["model_names"] == ["stg_users", "stg_orders"]
@@ -148,9 +146,7 @@ def test_generate_model_yaml(
     assert args_json["include_data_types"] is False
 
 
-def test_generate_base_model(
-    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
-):
+def test_generate_base_model(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp):
     """Test generate_base_model function."""
     mock_calls = []
 
@@ -177,7 +173,7 @@ def test_generate_base_model(
     assert mock_calls
     args_list = mock_calls[0]
     assert "generate_base_model" in args_list
-    
+
     args_index = args_list.index("--args")
     args_json = json.loads(args_list[args_index + 1])
     assert args_json["source_name"] == "raw_data"
@@ -213,23 +209,21 @@ def test_generate_model_import_ctes(
     assert mock_calls
     args_list = mock_calls[0]
     assert "generate_model_import_ctes" in args_list
-    
+
     args_index = args_list.index("--args")
     args_json = json.loads(args_list[args_index + 1])
     assert args_json["model_name"] == "fct_orders"
     assert args_json["leading_commas"] is False
 
 
-def test_codegen_error_handling_missing_package(
-    monkeypatch: MonkeyPatch, mock_fastmcp
-):
+def test_codegen_error_handling_missing_package(monkeypatch: MonkeyPatch, mock_fastmcp):
     """Test error handling when dbt-codegen package is not installed."""
     mock_calls = []
-    
+
     class MockProcessWithError:
         def __init__(self):
             self.returncode = 1
-        
+
         def communicate(self, timeout=None):
             return "dbt found 1 resource of type macro", None
 
@@ -245,21 +239,19 @@ def test_codegen_error_handling_missing_package(
 
     # Call should return error message about missing package
     result = generate_source_tool(schema_name="test_schema")
-    
+
     assert "dbt-codegen package may not be installed" in result
     assert "Run 'dbt deps'" in result
 
 
-def test_codegen_error_handling_general_error(
-    monkeypatch: MonkeyPatch, mock_fastmcp
-):
+def test_codegen_error_handling_general_error(monkeypatch: MonkeyPatch, mock_fastmcp):
     """Test general error handling."""
     mock_calls = []
-    
+
     class MockProcessWithError:
         def __init__(self):
             self.returncode = 1
-        
+
         def communicate(self, timeout=None):
             return "Some other error occurred", None
 
@@ -275,21 +267,17 @@ def test_codegen_error_handling_general_error(
 
     # Call should return the error
     result = generate_source_tool(schema_name="test_schema")
-    
+
     assert "Error running dbt-codegen macro" in result
     assert "Some other error occurred" in result
 
 
-def test_codegen_timeout_handling(
-    monkeypatch: MonkeyPatch, mock_fastmcp
-):
+def test_codegen_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
     """Test timeout handling for long-running operations."""
-    
+
     class MockProcessWithTimeout:
         def communicate(self, timeout=None):
-            raise subprocess.TimeoutExpired(
-                cmd=["dbt", "run-operation"], timeout=10
-            )
+            raise subprocess.TimeoutExpired(cmd=["dbt", "run-operation"], timeout=10)
 
     def mock_popen(*args, **kwargs):
         return MockProcessWithTimeout()
@@ -306,9 +294,7 @@ def test_codegen_timeout_handling(
     assert "10 seconds" in result
 
 
-def test_quiet_flag_placement(
-    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
-):
+def test_quiet_flag_placement(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp):
     """Test that --quiet flag is placed correctly in the command."""
     mock_calls = []
 
@@ -328,17 +314,15 @@ def test_quiet_flag_placement(
     # Verify --quiet is placed after run-operation
     assert mock_calls
     args_list = mock_calls[0]
-    
+
     run_op_index = args_list.index("run-operation")
     quiet_index = args_list.index("--quiet")
-    
+
     # --quiet should come right after run-operation
     assert quiet_index == run_op_index + 1
 
 
-def test_absolute_path_handling(
-    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
-):
+def test_absolute_path_handling(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp):
     """Test that absolute paths are handled correctly."""
     mock_calls = []
     captured_kwargs = {}
@@ -366,13 +350,13 @@ def test_all_tools_registered(mock_fastmcp):
     """Test that all expected tools are registered."""
     fastmcp, tools = mock_fastmcp
     register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    
+
     expected_tools = [
         "generate_source",
-        "generate_model_yaml", 
+        "generate_model_yaml",
         "generate_base_model",
         "generate_model_import_ctes",
     ]
-    
+
     for tool_name in expected_tools:
         assert tool_name in tools, f"Tool {tool_name} not registered"

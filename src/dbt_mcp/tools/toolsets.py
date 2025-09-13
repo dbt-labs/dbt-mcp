@@ -11,6 +11,7 @@ class Toolset(Enum):
     ADMIN_API = "admin_api"
     DBT_CODEGEN = "dbt_codegen"
 
+
 toolsets = {
     Toolset.SQL: {
         ToolName.TEXT_TO_SQL,
@@ -60,5 +61,4 @@ toolsets = {
         ToolName.GENERATE_BASE_MODEL,
         ToolName.GENERATE_MODEL_IMPORT_CTES,
     },
-    
 }

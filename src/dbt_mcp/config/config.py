@@ -46,12 +46,12 @@ class DbtCliConfig(BaseModel):
     dbt_cli_timeout: int
     binary_type: BinaryType
 
+
 class DbtCodegenConfig(BaseModel):
     project_dir: str
     dbt_path: str
     dbt_cli_timeout: int
     binary_type: BinaryType
-
 
 
 class SqlConfig(BaseModel):
@@ -390,7 +390,11 @@ def create_config(settings: DbtMcpSettings) -> Config:
         )
 
     dbt_codegen_config = None
-    if not settings.disable_dbt_codegen and settings.dbt_project_dir and settings.dbt_path:
+    if (
+        not settings.disable_dbt_codegen
+        and settings.dbt_project_dir
+        and settings.dbt_path
+    ):
         binary_type = detect_binary_type(settings.dbt_path)
         dbt_codegen_config = DbtCodegenConfig(
             project_dir=settings.dbt_project_dir,
@@ -398,7 +402,7 @@ def create_config(settings: DbtMcpSettings) -> Config:
             dbt_cli_timeout=settings.dbt_cli_timeout,
             binary_type=binary_type,
         )
-        
+
     discovery_config = None
     if (
         not settings.disable_discovery

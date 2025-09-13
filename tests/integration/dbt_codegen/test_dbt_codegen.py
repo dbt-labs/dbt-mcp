@@ -22,15 +22,17 @@ def dbt_codegen_config():
             return config.dbt_codegen_config
     except:
         pass
-    
+
     # Fall back to environment variables
     project_dir = os.getenv("DBT_PROJECT_DIR")
     dbt_path = os.getenv("DBT_PATH", "dbt")
     dbt_cli_timeout = os.getenv("DBT_CLI_TIMEOUT", "30")
-    
+
     if not project_dir:
-        pytest.skip("DBT_PROJECT_DIR environment variable is required for integration tests")
-    
+        pytest.skip(
+            "DBT_PROJECT_DIR environment variable is required for integration tests"
+        )
+
     return DbtCodegenConfig(
         project_dir=project_dir,
         dbt_path=dbt_path,
@@ -83,14 +85,14 @@ def test_generate_source_basic(generate_source_tool):
     """Test basic source generation with minimal parameters."""
     # This will fail if dbt-codegen is not installed
     result = generate_source_tool(schema_name="public")
-    
+
     # Check for error conditions
     if "Error:" in result:
         if "dbt-codegen package may not be installed" in result:
             pytest.skip("dbt-codegen package not installed")
         else:
             pytest.fail(f"Unexpected error: {result}")
-    
+
     # Basic validation - should return YAML-like content
     assert result is not None
     assert len(result) > 0
@@ -99,32 +101,28 @@ def test_generate_source_basic(generate_source_tool):
 def test_generate_source_with_columns(generate_source_tool):
     """Test source generation with column definitions."""
     result = generate_source_tool(
-        schema_name="public",
-        generate_columns=True,
-        include_descriptions=True
+        schema_name="public", generate_columns=True, include_descriptions=True
     )
-    
+
     if "Error:" in result:
         if "dbt-codegen package may not be installed" in result:
             pytest.skip("dbt-codegen package not installed")
         else:
             pytest.fail(f"Unexpected error: {result}")
-    
+
     assert result is not None
 
 
 def test_generate_source_with_specific_tables(generate_source_tool):
     """Test source generation for specific tables."""
     result = generate_source_tool(
-        schema_name="public",
-        table_names=["users", "orders"],
-        generate_columns=True
+        schema_name="public", table_names=["users", "orders"], generate_columns=True
     )
-    
+
     if "Error:" in result:
         if "dbt-codegen package may not be installed" in result:
             pytest.skip("dbt-codegen package not installed")
-    
+
     assert result is not None
 
 
@@ -133,15 +131,15 @@ def test_generate_model_yaml(generate_model_yaml_tool):
     # This assumes there's at least one model in the project
     result = generate_model_yaml_tool(
         model_names=["stg_customers"],  # Common example model
-        include_data_types=True
+        include_data_types=True,
     )
-    
+
     if "Error:" in result:
         if "dbt-codegen package may not be installed" in result:
             pytest.skip("dbt-codegen package not installed")
         elif "Model" in result and "not found" in result:
             pytest.skip("Test model not found in project")
-    
+
     assert result is not None
 
 
@@ -150,15 +148,15 @@ def test_generate_model_yaml_with_upstream(generate_model_yaml_tool):
     result = generate_model_yaml_tool(
         model_names=["stg_customers"],
         upstream_descriptions=True,
-        include_data_types=True
+        include_data_types=True,
     )
-    
+
     if "Error:" in result:
         if "dbt-codegen package may not be installed" in result:
             pytest.skip("dbt-codegen package not installed")
         elif "Model" in result and "not found" in result:
             pytest.skip("Test model not found in project")
-    
+
     assert result is not None
 
 
@@ -169,15 +167,15 @@ def test_generate_base_model(generate_base_model_tool):
         source_name="raw",  # Common source name
         table_name="customers",
         leading_commas=False,
-        materialized="view"
+        materialized="view",
     )
-    
+
     if "Error:" in result:
         if "dbt-codegen package may not be installed" in result:
             pytest.skip("dbt-codegen package not installed")
         elif "Source" in result and "not found" in result:
             pytest.skip("Test source not found in project")
-    
+
     # Should generate SQL with SELECT statement
     assert result is not None
 
@@ -188,15 +186,15 @@ def test_generate_base_model_with_case_sensitive(generate_base_model_tool):
         source_name="raw",
         table_name="customers",
         case_sensitive_cols=True,
-        leading_commas=True
+        leading_commas=True,
     )
-    
+
     if "Error:" in result:
         if "dbt-codegen package may not be installed" in result:
             pytest.skip("dbt-codegen package not installed")
         elif "Source" in result and "not found" in result:
             pytest.skip("Test source not found in project")
-    
+
     assert result is not None
 
 
@@ -204,15 +202,15 @@ def test_generate_model_import_ctes(generate_model_import_ctes_tool):
     """Test import CTE generation."""
     result = generate_model_import_ctes_tool(
         model_name="fct_orders",  # Common fact model
-        leading_commas=False
+        leading_commas=False,
     )
-    
+
     if "Error:" in result:
         if "dbt-codegen package may not be installed" in result:
             pytest.skip("dbt-codegen package not installed")
         elif "Model" in result and "not found" in result:
             pytest.skip("Test model not found in project")
-    
+
     assert result is not None
 
 
@@ -220,10 +218,10 @@ def test_error_handling_invalid_schema(generate_source_tool):
     """Test handling of invalid schema names."""
     # Use a schema that definitely doesn't exist
     result = generate_source_tool(schema_name="definitely_nonexistent_schema_12345")
-    
+
     if "dbt-codegen package may not be installed" in result:
         pytest.skip("dbt-codegen package not installed")
-    
+
     # Should return an error but not crash
     assert result is not None
 
@@ -233,10 +231,10 @@ def test_error_handling_invalid_model(generate_model_yaml_tool):
     result = generate_model_yaml_tool(
         model_names=["definitely_nonexistent_model_12345"]
     )
-    
+
     if "dbt-codegen package may not be installed" in result:
         pytest.skip("dbt-codegen package not installed")
-    
+
     # Should handle gracefully
     assert result is not None
 
@@ -244,12 +242,11 @@ def test_error_handling_invalid_model(generate_model_yaml_tool):
 def test_error_handling_invalid_source(generate_base_model_tool):
     """Test handling of invalid source references."""
     result = generate_base_model_tool(
-        source_name="nonexistent_source",
-        table_name="nonexistent_table"
+        source_name="nonexistent_source", table_name="nonexistent_table"
     )
-    
+
     if "dbt-codegen package may not be installed" in result:
         pytest.skip("dbt-codegen package not installed")
-    
+
     # Should return an error message
     assert result is not None
