@@ -1,9 +1,3 @@
-"""Integration tests for dbt-codegen MCP tools.
-
-These tests require a dbt project with dbt-codegen package installed.
-They test the end-to-end functionality of the dbt-codegen tools.
-"""
-
 import os
 import pytest
 
