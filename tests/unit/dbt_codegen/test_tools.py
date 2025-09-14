@@ -48,14 +48,22 @@ def test_generate_source_basic_schema(
         mock_calls.append(args)
         return mock_process()
 
+    # Patch subprocess BEFORE registering tools
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
-    fastmcp, tools = mock_fastmcp
+    # Now register tools with the mock in place
+    fastmcp, _ = mock_fastmcp
     register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    generate_source_tool = tools["generate_source"]
+    generate_source_tool = fastmcp.tools["generate_source"]
 
-    # Call with just schema_name
-    result = generate_source_tool(schema_name="raw_data")
+    # Call with just schema_name (provide all required args explicitly)
+    result = generate_source_tool(
+        schema_name="raw_data",
+        database_name=None,
+        table_names=None,
+        generate_columns=False,
+        include_descriptions=False
+    )
 
     # Verify the command was called correctly
     assert mock_calls
@@ -87,9 +95,9 @@ def test_generate_source_with_all_parameters(
 
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
-    fastmcp, tools = mock_fastmcp
+    fastmcp, _ = mock_fastmcp
     register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    generate_source_tool = tools["generate_source"]
+    generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call with all parameters
     result = generate_source_tool(
@@ -123,9 +131,9 @@ def test_generate_model_yaml(monkeypatch: MonkeyPatch, mock_process, mock_fastmc
 
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
-    fastmcp, tools = mock_fastmcp
+    fastmcp, _ = mock_fastmcp
     register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    generate_model_yaml_tool = tools["generate_model_yaml"]
+    generate_model_yaml_tool = fastmcp.tools["generate_model_yaml"]
 
     # Call the tool
     result = generate_model_yaml_tool(
@@ -156,9 +164,9 @@ def test_generate_base_model(monkeypatch: MonkeyPatch, mock_process, mock_fastmc
 
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
-    fastmcp, tools = mock_fastmcp
+    fastmcp, _ = mock_fastmcp
     register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    generate_base_model_tool = tools["generate_base_model"]
+    generate_base_model_tool = fastmcp.tools["generate_base_model"]
 
     # Call the tool
     result = generate_base_model_tool(
@@ -195,9 +203,9 @@ def test_generate_model_import_ctes(
 
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
-    fastmcp, tools = mock_fastmcp
+    fastmcp, _ = mock_fastmcp
     register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    generate_model_import_ctes_tool = tools["generate_model_import_ctes"]
+    generate_model_import_ctes_tool = fastmcp.tools["generate_model_import_ctes"]
 
     # Call the tool
     result = generate_model_import_ctes_tool(
@@ -233,12 +241,18 @@ def test_codegen_error_handling_missing_package(monkeypatch: MonkeyPatch, mock_f
 
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
-    fastmcp, tools = mock_fastmcp
+    fastmcp, _ = mock_fastmcp
     register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    generate_source_tool = tools["generate_source"]
+    generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call should return error message about missing package
-    result = generate_source_tool(schema_name="test_schema")
+    result = generate_source_tool(
+        schema_name="test_schema",
+        database_name=None,
+        table_names=None,
+        generate_columns=False,
+        include_descriptions=False
+    )
 
     assert "dbt-codegen package may not be installed" in result
     assert "Run 'dbt deps'" in result
@@ -261,12 +275,18 @@ def test_codegen_error_handling_general_error(monkeypatch: MonkeyPatch, mock_fas
 
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
-    fastmcp, tools = mock_fastmcp
+    fastmcp, _ = mock_fastmcp
     register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    generate_source_tool = tools["generate_source"]
+    generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call should return the error
-    result = generate_source_tool(schema_name="test_schema")
+    result = generate_source_tool(
+        schema_name="test_schema",
+        database_name=None,
+        table_names=None,
+        generate_columns=False,
+        include_descriptions=False
+    )
 
     assert "Error running dbt-codegen macro" in result
     assert "Some other error occurred" in result
@@ -284,12 +304,18 @@ def test_codegen_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
 
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
-    fastmcp, tools = mock_fastmcp
+    fastmcp, _ = mock_fastmcp
     register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    generate_source_tool = tools["generate_source"]
+    generate_source_tool = fastmcp.tools["generate_source"]
 
     # Test timeout case
-    result = generate_source_tool(schema_name="large_schema")
+    result = generate_source_tool(
+        schema_name="large_schema",
+        database_name=None,
+        table_names=None,
+        generate_columns=False,
+        include_descriptions=False
+    )
     assert "Timeout: dbt-codegen operation took longer than" in result
     assert "10 seconds" in result
 
@@ -304,12 +330,18 @@ def test_quiet_flag_placement(monkeypatch: MonkeyPatch, mock_process, mock_fastm
 
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
-    fastmcp, tools = mock_fastmcp
+    fastmcp, _ = mock_fastmcp
     register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    generate_source_tool = tools["generate_source"]
+    generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call the tool
-    result = generate_source_tool(schema_name="test")
+    result = generate_source_tool(
+        schema_name="test",
+        database_name=None,
+        table_names=None,
+        generate_columns=False,
+        include_descriptions=False
+    )
 
     # Verify --quiet is placed after run-operation
     assert mock_calls
@@ -334,12 +366,18 @@ def test_absolute_path_handling(monkeypatch: MonkeyPatch, mock_process, mock_fas
 
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
-    fastmcp, tools = mock_fastmcp
+    fastmcp, _ = mock_fastmcp
     register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    generate_source_tool = tools["generate_source"]
+    generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call the tool (mock config has /test/project which is absolute)
-    result = generate_source_tool(schema_name="test")
+    result = generate_source_tool(
+        schema_name="test",
+        database_name=None,
+        table_names=None,
+        generate_columns=False,
+        include_descriptions=False
+    )
 
     # Verify cwd was set for absolute path
     assert "cwd" in captured_kwargs
@@ -360,9 +398,9 @@ def test_create_base_models(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
 
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
-    fastmcp, tools = mock_fastmcp
+    fastmcp, _ = mock_fastmcp
     register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    create_base_models_tool = tools["create_base_models"]
+    create_base_models_tool = fastmcp.tools["create_base_models"]
 
     # Call the tool
     result = create_base_models_tool(
@@ -370,6 +408,7 @@ def test_create_base_models(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
         tables=["customers", "orders"],
         leading_commas=True,
         case_sensitive_cols=False,
+        materialized=None
     )
 
     # Should have called dbt twice (once for each table)
@@ -406,13 +445,17 @@ def test_create_base_models_error_propagation(monkeypatch: MonkeyPatch, mock_fas
 
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
-    fastmcp, tools = mock_fastmcp
+    fastmcp, _ = mock_fastmcp
     register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    create_base_models_tool = tools["create_base_models"]
+    create_base_models_tool = fastmcp.tools["create_base_models"]
 
     # Call should return error from first table
     result = create_base_models_tool(
-        source_name="nonexistent", tables=["table1", "table2"]
+        source_name="nonexistent",
+        tables=["table1", "table2"],
+        leading_commas=False,
+        case_sensitive_cols=False,
+        materialized=None
     )
 
     # Should stop at first error
@@ -439,15 +482,17 @@ def test_base_model_creation(
     test_config = mock_dbt_codegen_config
     test_config.project_dir = str(tmp_path)
 
-    fastmcp, tools = mock_fastmcp
+    fastmcp, _ = mock_fastmcp
     register_dbt_codegen_tools(fastmcp, test_config)
-    base_model_creation_tool = tools["base_model_creation"]
+    base_model_creation_tool = fastmcp.tools["base_model_creation"]
 
     # Call the tool
     result = base_model_creation_tool(
         source_name="raw",
         tables=["customers"],
-        materialized="view",
+        leading_commas=False,
+        case_sensitive_cols=False,
+        materialized="view"
     )
 
     # Should have called dbt once
@@ -496,14 +541,17 @@ def test_base_model_creation_multiple_files(
     test_config = mock_dbt_codegen_config
     test_config.project_dir = str(tmp_path)
 
-    fastmcp, tools = mock_fastmcp
+    fastmcp, _ = mock_fastmcp
     register_dbt_codegen_tools(fastmcp, test_config)
-    base_model_creation_tool = tools["base_model_creation"]
+    base_model_creation_tool = fastmcp.tools["base_model_creation"]
 
     # Call the tool
     result = base_model_creation_tool(
         source_name="raw",
         tables=["customers", "orders"],
+        leading_commas=False,
+        case_sensitive_cols=False,
+        materialized=None
     )
 
     # Should have called dbt twice
@@ -540,12 +588,18 @@ def test_base_model_creation_error_handling(monkeypatch: MonkeyPatch, mock_fastm
 
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
-    fastmcp, tools = mock_fastmcp
+    fastmcp, _ = mock_fastmcp
     register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    base_model_creation_tool = tools["base_model_creation"]
+    base_model_creation_tool = fastmcp.tools["base_model_creation"]
 
     # Call should return error
-    result = base_model_creation_tool(source_name="nonexistent", tables=["table1"])
+    result = base_model_creation_tool(
+        source_name="nonexistent",
+        tables=["table1"],
+        leading_commas=False,
+        case_sensitive_cols=False,
+        materialized="table"
+    )
 
     assert "Error running dbt-codegen macro" in result
 
@@ -564,11 +618,17 @@ def test_base_model_creation_permission_error(
     monkeypatch.setattr("subprocess.Popen", mock_popen)
     monkeypatch.setattr("os.makedirs", mock_makedirs)
 
-    fastmcp, tools = mock_fastmcp
+    fastmcp, _ = mock_fastmcp
     register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    base_model_creation_tool = tools["base_model_creation"]
+    base_model_creation_tool = fastmcp.tools["base_model_creation"]
 
-    result = base_model_creation_tool(source_name="test", tables=["table1"])
+    result = base_model_creation_tool(
+        source_name="test",
+        tables=["table1"],
+        leading_commas=False,
+        case_sensitive_cols=False,
+        materialized="table"
+    )
 
     assert "Error: Cannot access or create models directory" in result
     assert "Permission denied" in result
@@ -576,8 +636,9 @@ def test_base_model_creation_permission_error(
 
 def test_all_tools_registered(mock_fastmcp):
     """Test that all expected tools are registered."""
-    fastmcp, tools = mock_fastmcp
+    fastmcp, _ = mock_fastmcp
     register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
+    tools = fastmcp.tools
 
     expected_tools = [
         "generate_source",
