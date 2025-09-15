@@ -57,12 +57,12 @@ def test_generate_source_basic_schema(
     generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call with just schema_name (provide all required args explicitly)
-    result = generate_source_tool(
+    generate_source_tool(
         schema_name="raw_data",
         database_name=None,
         table_names=None,
         generate_columns=False,
-        include_descriptions=False
+        include_descriptions=False,
     )
 
     # Verify the command was called correctly
@@ -100,7 +100,7 @@ def test_generate_source_with_all_parameters(
     generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call with all parameters
-    result = generate_source_tool(
+    generate_source_tool(
         schema_name="raw_data",
         database_name="analytics",
         table_names=["users", "orders"],
@@ -136,7 +136,7 @@ def test_generate_model_yaml(monkeypatch: MonkeyPatch, mock_process, mock_fastmc
     generate_model_yaml_tool = fastmcp.tools["generate_model_yaml"]
 
     # Call the tool
-    result = generate_model_yaml_tool(
+    generate_model_yaml_tool(
         model_names=["stg_users", "stg_orders"],
         upstream_descriptions=True,
         include_data_types=False,
@@ -169,7 +169,7 @@ def test_generate_base_model(monkeypatch: MonkeyPatch, mock_process, mock_fastmc
     generate_base_model_tool = fastmcp.tools["generate_base_model"]
 
     # Call the tool
-    result = generate_base_model_tool(
+    generate_base_model_tool(
         source_name="raw_data",
         table_name="users",
         leading_commas=True,
@@ -208,7 +208,7 @@ def test_generate_model_import_ctes(
     generate_model_import_ctes_tool = fastmcp.tools["generate_model_import_ctes"]
 
     # Call the tool
-    result = generate_model_import_ctes_tool(
+    generate_model_import_ctes_tool(
         model_name="fct_orders",
         leading_commas=False,
     )
@@ -251,7 +251,7 @@ def test_codegen_error_handling_missing_package(monkeypatch: MonkeyPatch, mock_f
         database_name=None,
         table_names=None,
         generate_columns=False,
-        include_descriptions=False
+        include_descriptions=False,
     )
 
     assert "dbt-codegen package may not be installed" in result
@@ -285,7 +285,7 @@ def test_codegen_error_handling_general_error(monkeypatch: MonkeyPatch, mock_fas
         database_name=None,
         table_names=None,
         generate_columns=False,
-        include_descriptions=False
+        include_descriptions=False,
     )
 
     assert "Error running dbt-codegen macro" in result
@@ -314,7 +314,7 @@ def test_codegen_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
         database_name=None,
         table_names=None,
         generate_columns=False,
-        include_descriptions=False
+        include_descriptions=False,
     )
     assert "Timeout: dbt-codegen operation took longer than" in result
     assert "10 seconds" in result
@@ -335,12 +335,12 @@ def test_quiet_flag_placement(monkeypatch: MonkeyPatch, mock_process, mock_fastm
     generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call the tool
-    result = generate_source_tool(
+    generate_source_tool(
         schema_name="test",
         database_name=None,
         table_names=None,
         generate_columns=False,
-        include_descriptions=False
+        include_descriptions=False,
     )
 
     # Verify --quiet is placed after run-operation
@@ -371,12 +371,12 @@ def test_absolute_path_handling(monkeypatch: MonkeyPatch, mock_process, mock_fas
     generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call the tool (mock config has /test/project which is absolute)
-    result = generate_source_tool(
+    generate_source_tool(
         schema_name="test",
         database_name=None,
         table_names=None,
         generate_columns=False,
-        include_descriptions=False
+        include_descriptions=False,
     )
 
     # Verify cwd was set for absolute path
@@ -408,7 +408,7 @@ def test_create_base_models(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
         tables=["customers", "orders"],
         leading_commas=True,
         case_sensitive_cols=False,
-        materialized=None
+        materialized=None,
     )
 
     # Should have called dbt twice (once for each table)
@@ -455,7 +455,7 @@ def test_create_base_models_error_propagation(monkeypatch: MonkeyPatch, mock_fas
         tables=["table1", "table2"],
         leading_commas=False,
         case_sensitive_cols=False,
-        materialized=None
+        materialized=None,
     )
 
     # Should stop at first error
@@ -492,7 +492,7 @@ def test_base_model_creation(
         tables=["customers"],
         leading_commas=False,
         case_sensitive_cols=False,
-        materialized="view"
+        materialized="view",
     )
 
     # Should have called dbt once
@@ -551,7 +551,7 @@ def test_base_model_creation_multiple_files(
         tables=["customers", "orders"],
         leading_commas=False,
         case_sensitive_cols=False,
-        materialized=None
+        materialized=None,
     )
 
     # Should have called dbt twice
@@ -598,7 +598,7 @@ def test_base_model_creation_error_handling(monkeypatch: MonkeyPatch, mock_fastm
         tables=["table1"],
         leading_commas=False,
         case_sensitive_cols=False,
-        materialized="table"
+        materialized="table",
     )
 
     assert "Error running dbt-codegen macro" in result
@@ -627,7 +627,7 @@ def test_base_model_creation_permission_error(
         tables=["table1"],
         leading_commas=False,
         case_sensitive_cols=False,
-        materialized="table"
+        materialized="table",
     )
 
     assert "Error: Cannot access or create models directory" in result

@@ -14,7 +14,7 @@ def dbt_codegen_config():
         config = load_config()
         if config.dbt_codegen_config:
             return config.dbt_codegen_config
-    except:
+    except Exception:
         pass
 
     # Fall back to environment variables
@@ -99,9 +99,7 @@ def test_generate_source_basic(generate_source_tool):
     """Test basic source generation with minimal parameters."""
     # This will fail if dbt-codegen is not installed
     result = generate_source_tool(
-        schema_name="public",
-        generate_columns=False,
-        include_descriptions=False
+        schema_name="public", generate_columns=False, include_descriptions=False
     )
 
     # Check for error conditions
@@ -119,9 +117,7 @@ def test_generate_source_basic(generate_source_tool):
 def test_generate_source_with_columns(generate_source_tool):
     """Test source generation with column definitions."""
     result = generate_source_tool(
-        schema_name="public",
-        generate_columns=True,
-        include_descriptions=True
+        schema_name="public", generate_columns=True, include_descriptions=True
     )
 
     if "Error:" in result:
@@ -139,7 +135,7 @@ def test_generate_source_with_specific_tables(generate_source_tool):
         schema_name="public",
         table_names=["users", "orders"],
         generate_columns=True,
-        include_descriptions=False
+        include_descriptions=False,
     )
 
     if "Error:" in result:
@@ -155,7 +151,7 @@ def test_generate_model_yaml(generate_model_yaml_tool):
     result = generate_model_yaml_tool(
         model_names=["stg_customers"],
         upstream_descriptions=False,
-        include_data_types=True
+        include_data_types=True,
     )
 
     if "Error:" in result:
@@ -244,7 +240,7 @@ def test_error_handling_invalid_schema(generate_source_tool):
     result = generate_source_tool(
         schema_name="definitely_nonexistent_schema_12345",
         generate_columns=False,
-        include_descriptions=False
+        include_descriptions=False,
     )
 
     if "dbt-codegen package may not be installed" in result:
@@ -286,7 +282,7 @@ def test_create_base_models_basic(create_base_models_tool):
         source_name="raw",
         tables=["customers", "orders"],
         leading_commas=False,
-        case_sensitive_cols=False
+        case_sensitive_cols=False,
     )
 
     if "Error:" in result:
@@ -328,7 +324,7 @@ def test_base_model_creation_basic(base_model_creation_tool):
         source_name="test",
         tables=["test_table"],
         leading_commas=False,
-        case_sensitive_cols=False
+        case_sensitive_cols=False,
     )
 
     if "Error:" in result:
@@ -351,7 +347,7 @@ def test_base_model_creation_multiple_tables(base_model_creation_tool):
         source_name="test",
         tables=["table1", "table2"],
         leading_commas=False,
-        case_sensitive_cols=False
+        case_sensitive_cols=False,
     )
 
     if "Error:" in result:

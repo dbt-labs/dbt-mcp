@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 from collections.abc import Sequence
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -20,7 +21,7 @@ def create_dbt_codegen_tool_definitions(
 ) -> list[ToolDefinition]:
     def _run_codegen_operation(
         macro_name: str,
-        args: dict[str, any] | None = None,
+        args: dict[str, Any] | None = None,
     ) -> str:
         """Execute a dbt-codegen macro using dbt run-operation."""
         try:
@@ -94,10 +95,8 @@ def create_dbt_codegen_tool_definitions(
             args["database_name"] = database_name
         if table_names:
             args["table_names"] = table_names
-        if generate_columns:
-            args["generate_columns"] = generate_columns
-        if include_descriptions:
-            args["include_descriptions"] = include_descriptions
+        args["generate_columns"] = generate_columns
+        args["include_descriptions"] = include_descriptions
 
         return _run_codegen_operation("generate_source", args)
 
