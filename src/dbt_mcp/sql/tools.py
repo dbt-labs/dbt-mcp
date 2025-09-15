@@ -107,20 +107,13 @@ async def register_sql_tools(
 
     SQL tools are hosted remotely, so their definitions aren't found in this repo.
     """
-
-    is_local = config.host and config.host.startswith("localhost")
-    path = "/v1/mcp/" if is_local else "/api/ai/v1/mcp/"
-    scheme = "http://" if is_local else "https://"
-    host_prefix = f"{config.host_prefix}." if config.host_prefix else ""
-    url = f"{scheme}{host_prefix}{config.host}{path}"
     headers = {
-        "Authorization": f"Bearer {config.token}",
         "x-dbt-prod-environment-id": str(config.prod_environment_id),
         "x-dbt-dev-environment-id": str(config.dev_environment_id),
         "x-dbt-user-id": str(config.user_id),
-    }
+    } | config.headers_provider.get_headers()
     sql_tools_manager = SqlToolsManager()
-    session = await sql_tools_manager.get_remote_mcp_session(url, headers)
+    session = await sql_tools_manager.get_remote_mcp_session(config.url, headers)
     await session.initialize()
     sql_tools = await _get_sql_tools(session)
     logger.info(f"Loaded sql tools: {', '.join([tool.name for tool in sql_tools])}")

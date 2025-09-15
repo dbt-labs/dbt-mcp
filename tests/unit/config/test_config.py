@@ -189,18 +189,21 @@ class TestLoadConfig:
         assert config.tracking_config.host == "test.dbt.com"
         assert config.tracking_config.prod_environment_id == 123
         assert config.sql_config is not None
-        assert config.sql_config.host == "test.dbt.com"
+        assert "test.dbt.com" in config.sql_config.url
         assert config.dbt_cli_config is not None
         assert config.discovery_config is not None
         assert config.semantic_layer_config is not None
         assert config.admin_api_config is not None
         assert config.admin_api_config.url == "https://test.dbt.com"
-        assert config.admin_api_config.headers == {"Authorization": "Bearer test_token"}
+        assert config.admin_api_config.headers_provider.get_headers() == {
+            "Authorization": "Bearer test_token"
+        }
         assert config.admin_api_config.account_id == 123
         assert config.admin_api_config.prod_environment_id == 123
 
     def test_valid_config_all_services_disabled(self):
         env_vars = {
+            "DBT_TOKEN": "test_token",
             "DISABLE_DBT_CLI": "true",
             "DISABLE_SEMANTIC_LAYER": "true",
             "DISABLE_DISCOVERY": "true",
@@ -243,10 +246,12 @@ class TestLoadConfig:
         env_vars = {
             "DBT_HOST": "test.dbt.com",
             "DBT_PROD_ENV_ID": "123",
+            "DBT_PROJECT_DIR": "/test/project",
         }
 
         with pytest.raises(
-            ValueError, match="DBT_TOKEN environment variable is required"
+            ValueError,
+            match="Errors found in configuration:\n\nDBT_TOKEN environment variable is required when semantic layer, discovery, SQL or admin API tools are enabled.",
         ):
             self._load_config_with_env(env_vars)
 
@@ -280,11 +285,16 @@ class TestLoadConfig:
 
     def test_missing_required_project_dir_for_cli(self):
         env_vars = {
+            "DISABLE_SEMANTIC_LAYER": "true",
+            "DISABLE_DISCOVERY": "true",
+            "DISABLE_REMOTE": "true",
+            "DISABLE_ADMIN_API": "true",
             "DISABLE_DBT_CLI": "false",
         }
 
         with pytest.raises(
-            ValueError, match="DBT_PROJECT_DIR environment variable is required"
+            ValueError,
+            match="Errors found in configuration:\n\nDBT_PROJECT_DIR environment variable is required when dbt CLI tools are enabled.",
         ):
             self._load_config_with_env(env_vars)
 
@@ -382,6 +392,7 @@ class TestLoadConfig:
 
     def test_warn_error_options_default_setting(self):
         env_vars = {
+            "DBT_TOKEN": "test_token",
             "DISABLE_DBT_CLI": "true",
             "DISABLE_SEMANTIC_LAYER": "true",
             "DISABLE_DISCOVERY": "true",
@@ -403,6 +414,7 @@ class TestLoadConfig:
 
     def test_warn_error_options_not_overridden_if_set(self):
         env_vars = {
+            "DBT_TOKEN": "test_token",
             "DBT_WARN_ERROR_OPTIONS": "custom_options",
             "DISABLE_DBT_CLI": "true",
             "DISABLE_SEMANTIC_LAYER": "true",
@@ -425,6 +437,7 @@ class TestLoadConfig:
         mock_file_content = yaml.dump(user_data)
 
         env_vars = {
+            "DBT_TOKEN": "test_token",
             "HOME": "/fake/home",
             "DISABLE_DBT_CLI": "true",
             "DISABLE_SEMANTIC_LAYER": "true",
@@ -441,6 +454,7 @@ class TestLoadConfig:
 
     def test_local_user_id_loading_failure_handling(self):
         env_vars = {
+            "DBT_TOKEN": "test_token",
             "HOME": "/fake/home",
             "DISABLE_DBT_CLI": "true",
             "DISABLE_SEMANTIC_LAYER": "true",
@@ -536,6 +550,7 @@ class TestLoadConfig:
     def test_multiple_validation_errors(self):
         # Test that multiple validation errors are collected and reported
         env_vars = {
+            "DBT_TOKEN": "test_token",
             "DISABLE_DISCOVERY": "false",
             "DISABLE_REMOTE": "false",
             "DISABLE_DBT_CLI": "false",
@@ -547,7 +562,6 @@ class TestLoadConfig:
         error_message = str(exc_info.value)
         assert "DBT_HOST environment variable is required" in error_message
         assert "DBT_PROD_ENV_ID environment variable is required" in error_message
-        assert "DBT_TOKEN environment variable is required" in error_message
         assert "DBT_DEV_ENV_ID environment variable is required" in error_message
         assert "DBT_USER_ID environment variable is required" in error_message
         assert "DBT_PROJECT_DIR environment variable is required" in error_message

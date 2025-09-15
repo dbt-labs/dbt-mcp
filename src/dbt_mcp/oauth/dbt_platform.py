@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from pathlib import Path
+from typing import Any
 
-import yaml
 from pydantic import BaseModel
 
-from dbt_mcp.oauth.token import DecodedAccessToken
+from dbt_mcp.oauth.token import (
+    AccessTokenResponse,
+    DecodedAccessToken,
+    fetch_jwks_and_verify_token,
+)
 
 
 class DbtPlatformAccount(BaseModel):
@@ -49,26 +52,27 @@ class SelectedProjectRequest(BaseModel):
     project_id: int
 
 
+def dbt_platform_context_from_token_response(
+    token_response: dict[str, Any], dbt_platform_url: str
+) -> DbtPlatformContext:
+    new_access_token_response = AccessTokenResponse(**token_response)
+    decoded_claims = fetch_jwks_and_verify_token(
+        new_access_token_response.access_token, dbt_platform_url
+    )
+    decoded_access_token = DecodedAccessToken(
+        access_token_response=new_access_token_response,
+        decoded_claims=decoded_claims,
+    )
+    return DbtPlatformContext(
+        decoded_access_token=decoded_access_token,
+    )
+
+
 class DbtPlatformContext(BaseModel):
     decoded_access_token: DecodedAccessToken | None = None
     host_prefix: str | None = None
     dev_environment: DbtPlatformEnvironment | None = None
     prod_environment: DbtPlatformEnvironment | None = None
-
-    @classmethod
-    def from_file(cls, config_location: Path) -> DbtPlatformContext | None:
-        try:
-            return cls(**yaml.safe_load(config_location.read_text()))
-        except Exception:
-            return None
-
-    @property
-    def token(self) -> str | None:
-        return (
-            self.decoded_access_token.access_token_response.access_token
-            if self.decoded_access_token
-            else None
-        )
 
     @property
     def user_id(self) -> int | None:

@@ -1,13 +1,15 @@
 import logging
 import time
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import (
+    AbstractAsyncContextManager,
     asynccontextmanager,
 )
 from typing import Any
 
 from dbtlabs_vortex.producer import shutdown
 from mcp.server.fastmcp import FastMCP
+from mcp.server.lowlevel.server import LifespanResultT
 from mcp.types import (
     ContentBlock,
     TextContent,
@@ -24,35 +26,16 @@ from dbt_mcp.tracking.tracking import UsageTracker
 logger = logging.getLogger(__name__)
 
 
-@asynccontextmanager
-async def app_lifespan(server: FastMCP) -> AsyncIterator[None]:
-    logger.info("Starting MCP server")
-    try:
-        yield
-    except Exception as e:
-        logger.error(f"Error in MCP server: {e}")
-        raise e
-    finally:
-        logger.info("Shutting down MCP server")
-        try:
-            await SqlToolsManager.close()
-        except Exception:
-            logger.exception("Error closing SQL tools manager")
-        try:
-            shutdown()
-        except Exception:
-            logger.exception("Error shutting down MCP server")
-
-
 class DbtMCP(FastMCP):
     def __init__(
         self,
         config: Config,
         usage_tracker: UsageTracker,
+        lifespan: Callable[["DbtMCP"], AbstractAsyncContextManager[LifespanResultT]],
         *args: Any,
         **kwargs: Any,
     ) -> None:
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs, lifespan=lifespan)
         self.usage_tracker = usage_tracker
         self.config = config
 
@@ -98,6 +81,27 @@ class DbtMCP(FastMCP):
             error_message=None,
         )
         return result
+
+
+@asynccontextmanager
+async def app_lifespan(server: DbtMCP) -> AsyncIterator[None]:
+    logger.info("Starting MCP server")
+    try:
+        _ = server.config.token_provider.start_background_refresh()
+        yield
+    except Exception as e:
+        logger.error(f"Error in MCP server: {e}")
+        raise e
+    finally:
+        logger.info("Shutting down MCP server")
+        try:
+            await SqlToolsManager.close()
+        except Exception:
+            logger.exception("Error closing SQL tools manager")
+        try:
+            shutdown()
+        except Exception:
+            logger.exception("Error shutting down MCP server")
 
 
 async def create_dbt_mcp(config: Config) -> DbtMCP:

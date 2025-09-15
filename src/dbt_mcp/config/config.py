@@ -1,23 +1,35 @@
 import os
 import socket
+import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
 import yaml
 from filelock import FileLock
-from pydantic import BaseModel, Field, field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from dbt_mcp.config.headers import (
+    AdminApiHeadersProvider,
+    DiscoveryHeadersProvider,
+    HeadersProvider,
+    SemanticLayerHeadersProvider,
+    SqlHeadersProvider,
+    TokenProvider,
+)
 from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
+from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
 from dbt_mcp.oauth.dbt_platform import DbtPlatformContext
 from dbt_mcp.oauth.login import login
+from dbt_mcp.oauth.token_provider import OAuthTokenProvider, StaticTokenProvider
 from dbt_mcp.tools.tool_names import ToolName
 
 OAUTH_REDIRECT_STARTING_PORT = 6785
-OAUTH_CLIENT_ID = "34ec61e834cdffd9dd90a32231937821"
 
 
-class TrackingConfig(BaseModel):
+@dataclass
+class TrackingConfig:
     host: str | None = None
     host_prefix: str | None = None
     prod_environment_id: int | None = None
@@ -26,39 +38,43 @@ class TrackingConfig(BaseModel):
     local_user_id: str | None = None
 
 
-class SemanticLayerConfig(BaseModel):
+@dataclass
+class SemanticLayerConfig:
     url: str
     host: str
     prod_environment_id: int
     service_token: str
-    headers: dict[str, str]
+    headers_provider: HeadersProvider
 
 
-class DiscoveryConfig(BaseModel):
+@dataclass
+class DiscoveryConfig:
     url: str
-    headers: dict[str, str]
+    headers_provider: HeadersProvider
     environment_id: int
 
 
-class DbtCliConfig(BaseModel):
+@dataclass
+class DbtCliConfig:
     project_dir: str
     dbt_path: str
     dbt_cli_timeout: int
     binary_type: BinaryType
 
 
-class SqlConfig(BaseModel):
-    host_prefix: str | None = None
-    host: str
+@dataclass
+class SqlConfig:
     user_id: int
     dev_environment_id: int
     prod_environment_id: int
-    token: str
-
-
-class AdminApiConfig(BaseModel):
     url: str
-    headers: dict[str, str]
+    headers_provider: HeadersProvider
+
+
+@dataclass
+class AdminApiConfig:
+    url: str
+    headers_provider: HeadersProvider
     account_id: int
     prod_environment_id: int | None = None
 
@@ -152,14 +168,16 @@ class DbtMcpSettings(BaseSettings):
         return tool_names
 
 
-class Config(BaseModel):
+@dataclass
+class Config:
     tracking_config: TrackingConfig
-    sql_config: SqlConfig | None = None
-    dbt_cli_config: DbtCliConfig | None = None
-    discovery_config: DiscoveryConfig | None = None
-    semantic_layer_config: SemanticLayerConfig | None = None
-    admin_api_config: AdminApiConfig | None = None
     disable_tools: list[ToolName]
+    sql_config: SqlConfig | None
+    dbt_cli_config: DbtCliConfig | None
+    discovery_config: DiscoveryConfig | None
+    semantic_layer_config: SemanticLayerConfig | None
+    admin_api_config: AdminApiConfig | None
+    token_provider: TokenProvider
 
 
 def _get_dbt_user_dir(dbt_profiles_dir: str | None = None) -> Path:
@@ -262,40 +280,65 @@ def validate_dbt_cli_settings(settings: DbtMcpSettings) -> list[str]:
     return errors
 
 
-def get_dbt_platform_context(settings: DbtMcpSettings) -> DbtPlatformContext:
+def get_dbt_platform_context(
+    *,
+    dbt_user_dir: Path,
+    dbt_platform_url: str,
+    dbt_platform_context_manager: DbtPlatformContextManager,
+) -> DbtPlatformContext:
     # Some MCP hosts (Claude Desktop) tend to run multiple MCP servers instances.
     # We need to lock so that only one can run the oauth flow.
-    dbt_user_dir = _get_dbt_user_dir(dbt_profiles_dir=settings.dbt_profiles_dir)
     with FileLock(dbt_user_dir / "mcp.lock"):
-        config_location = dbt_user_dir / "mcp.yml"
-        if config_location.exists() and (
-            dbt_ctx := DbtPlatformContext.from_file(config_location)
+        if (
+            (dbt_ctx := dbt_platform_context_manager.read_context())
+            and dbt_ctx.decoded_access_token
+            and dbt_ctx.decoded_access_token.access_token_response.expires_at
+            > time.time() + 120  # 2 minutes buffer
         ):
             return dbt_ctx
-        config_location.parent.mkdir(parents=True, exist_ok=True)
-        config_location.touch()
         # Find an available port for the local OAuth redirect server
         selected_port = _find_available_port(start_port=OAUTH_REDIRECT_STARTING_PORT)
         return login(
-            dbt_platform_url=f"https://{settings.actual_host}",
+            dbt_platform_url=dbt_platform_url,
             port=selected_port,
-            client_id=OAUTH_CLIENT_ID,
-            config_location=config_location,
+            dbt_platform_context_manager=dbt_platform_context_manager,
         )
+
+
+def get_dbt_host(
+    settings: DbtMcpSettings, dbt_platform_context: DbtPlatformContext
+) -> str:
+    actual_host = settings.actual_host
+    if not actual_host:
+        raise ValueError("DBT_HOST is a required environment variable")
+    host_prefix_with_period = f"{dbt_platform_context.host_prefix}."
+    if not actual_host.startswith(host_prefix_with_period):
+        raise ValueError(
+            f"The DBT_HOST environment variable is expected to start with the {dbt_platform_context.host_prefix} custom subdomain."
+        )
+    # We have to remove the custom subdomain prefix
+    # so that the metadata and semantic-layer URLs can be constructed correctly.
+    return actual_host.removeprefix(host_prefix_with_period)
 
 
 def load_config() -> Config:
     # Load settings from environment variables using pydantic_settings
     settings = DbtMcpSettings()  # type: ignore[call-arg]
     dbt_platform_errors = validate_dbt_platform_settings(settings)
+    token_provider: TokenProvider
     # Oauth is exerimental but secure, so you shouldn't use it,
     # but there are no security concerns if you do.
     enable_oauth = os.environ.get("ENABLE_EXPERIMENAL_SECURE_OAUTH") == "true"
     if enable_oauth and dbt_platform_errors:
-        actual_host = settings.actual_host
-        if not actual_host:
-            raise ValueError("DBT_HOST is a required environment variable")
-        dbt_platform_context = get_dbt_platform_context(settings)
+        dbt_user_dir = _get_dbt_user_dir(dbt_profiles_dir=settings.dbt_profiles_dir)
+        config_location = dbt_user_dir / "mcp.yml"
+        dbt_platform_url = f"https://{settings.actual_host}"
+        dbt_platform_context_manager = DbtPlatformContextManager(config_location)
+        dbt_platform_context = get_dbt_platform_context(
+            dbt_platform_context_manager=dbt_platform_context_manager,
+            dbt_user_dir=dbt_user_dir,
+            dbt_platform_url=dbt_platform_url,
+        )
 
         # Override settings with settings attained from login or mcp.yml
         settings.dbt_user_id = dbt_platform_context.user_id
@@ -309,20 +352,25 @@ def load_config() -> Config:
             if dbt_platform_context.prod_environment
             else None
         )
-        settings.dbt_token = dbt_platform_context.token
         settings.host_prefix = dbt_platform_context.host_prefix
-        host_prefix_with_period = f"{dbt_platform_context.host_prefix}."
-        if not actual_host.startswith(host_prefix_with_period):
-            raise ValueError(
-                f"The DBT_HOST environment variable is expected to start with the {dbt_platform_context.host_prefix} custom subdomain."
-            )
-        # We have to remove the custom subdomain prefix
-        # so that the metadata and semantic-layer URLs can be constructed correctly.
-        settings.dbt_host = actual_host.removeprefix(host_prefix_with_period)
-    return create_config(settings)
+        settings.dbt_host = get_dbt_host(settings, dbt_platform_context)
+        if not dbt_platform_context.decoded_access_token:
+            raise ValueError("No decoded access token found in OAuth context")
+        settings.dbt_token = (
+            dbt_platform_context.decoded_access_token.access_token_response.access_token
+        )
+
+        token_provider = OAuthTokenProvider(
+            access_token_response=dbt_platform_context.decoded_access_token.access_token_response,
+            dbt_platform_url=dbt_platform_url,
+            context_manager=dbt_platform_context_manager,
+        )
+    else:
+        token_provider = StaticTokenProvider(token=settings.dbt_token)
+    return create_config(settings, token_provider)
 
 
-def create_config(settings: DbtMcpSettings) -> Config:
+def create_config(settings: DbtMcpSettings, token_provider: TokenProvider) -> Config:
     # Set default warn error options if not provided
     if settings.dbt_warn_error_options is None:
         warn_error_options = '{"error": ["NoNodesForSelectionCriteria"]}'
@@ -342,13 +390,19 @@ def create_config(settings: DbtMcpSettings) -> Config:
         and settings.actual_prod_environment_id
         and settings.actual_host
     ):
+        is_local = settings.actual_host and settings.actual_host.startswith("localhost")
+        path = "/v1/mcp/" if is_local else "/api/ai/v1/mcp/"
+        scheme = "http://" if is_local else "https://"
+        host_prefix = (
+            f"{settings.actual_host_prefix}." if settings.actual_host_prefix else ""
+        )
+        url = f"{scheme}{host_prefix}{settings.actual_host}{path}"
         sql_config = SqlConfig(
-            host_prefix=settings.actual_host_prefix,
             user_id=settings.dbt_user_id,
-            token=settings.dbt_token,
             dev_environment_id=settings.dbt_dev_env_id,
             prod_environment_id=settings.actual_prod_environment_id,
-            host=settings.actual_host,
+            url=url,
+            headers_provider=SqlHeadersProvider(token_provider=token_provider),
         )
 
     # For admin API tools, we need token, host, and account_id
@@ -365,7 +419,7 @@ def create_config(settings: DbtMcpSettings) -> Config:
             url = f"https://{settings.actual_host}"
         admin_api_config = AdminApiConfig(
             url=url,
-            headers={"Authorization": f"Bearer {settings.dbt_token}"},
+            headers_provider=AdminApiHeadersProvider(token_provider=token_provider),
             account_id=settings.dbt_account_id,
             prod_environment_id=settings.actual_prod_environment_id,
         )
@@ -393,10 +447,7 @@ def create_config(settings: DbtMcpSettings) -> Config:
             url = f"https://metadata.{settings.actual_host}/graphql"
         discovery_config = DiscoveryConfig(
             url=url,
-            headers={
-                "Authorization": f"Bearer {settings.dbt_token}",
-                "Content-Type": "application/json",
-            },
+            headers_provider=DiscoveryHeadersProvider(token_provider=token_provider),
             environment_id=settings.actual_prod_environment_id,
         )
 
@@ -423,10 +474,9 @@ def create_config(settings: DbtMcpSettings) -> Config:
             host=host,
             prod_environment_id=settings.actual_prod_environment_id,
             service_token=settings.dbt_token,
-            headers={
-                "Authorization": f"Bearer {settings.dbt_token}",
-                "x-dbt-partner-source": "dbt-mcp",
-            },
+            headers_provider=SemanticLayerHeadersProvider(
+                token_provider=token_provider
+            ),
         )
 
     # Load local user ID from dbt profile
@@ -449,10 +499,11 @@ def create_config(settings: DbtMcpSettings) -> Config:
             dbt_cloud_user_id=settings.dbt_user_id,
             local_user_id=local_user_id,
         ),
+        disable_tools=settings.disable_tools or [],
         sql_config=sql_config,
         dbt_cli_config=dbt_cli_config,
         discovery_config=discovery_config,
         semantic_layer_config=semantic_layer_config,
         admin_api_config=admin_api_config,
-        disable_tools=settings.disable_tools or [],
+        token_provider=token_provider,
     )

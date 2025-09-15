@@ -1,17 +1,14 @@
 import logging
-from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
-import jwt
 import requests
-import yaml
 from authlib.integrations.requests_client import OAuth2Session
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from jwt import PyJWKClient
 from uvicorn import Server
 
+from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
 from dbt_mcp.oauth.dbt_platform import (
     DbtPlatformAccount,
     DbtPlatformContext,
@@ -19,8 +16,11 @@ from dbt_mcp.oauth.dbt_platform import (
     DbtPlatformEnvironmentResponse,
     DbtPlatformProject,
     SelectedProjectRequest,
+    dbt_platform_context_from_token_response,
 )
-from dbt_mcp.oauth.token import AccessTokenResponse, DecodedAccessToken
+from dbt_mcp.oauth.token import (
+    DecodedAccessToken,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -93,52 +93,19 @@ def _get_all_environments_for_project(
     return environments
 
 
-def _fetch_jwks_and_verify_token(
-    access_token: str, dbt_platform_url: str
-) -> dict[str, Any]:
-    jwks_url = f"{dbt_platform_url}/.well-known/jwks.json"
-    jwks_client = PyJWKClient(jwks_url)
-    signing_key = jwks_client.get_signing_key_from_jwt(access_token)
-    claims = jwt.decode(
-        access_token,
-        signing_key.key,
-        algorithms=["RS256"],
-        options={"verify_aud": False},
-    )
-    return claims
-
-
 def create_app(
     *,
     oauth_client: OAuth2Session,
     state_to_verifier: dict[str, str],
     dbt_platform_url: str,
     static_dir: str,
-    config_location: Path,
+    dbt_platform_context_manager: DbtPlatformContextManager,
 ) -> FastAPI:
     app = FastAPI()
 
     app.state.decoded_access_token = cast(DecodedAccessToken | None, None)
     app.state.server_ref = cast(Server | None, None)
     app.state.dbt_platform_context = cast(DbtPlatformContext | None, None)
-
-    def _update_dbt_platform_context(
-        new_dbt_platform_context: DbtPlatformContext,
-    ) -> DbtPlatformContext:
-        existing_dbt_platform_context = DbtPlatformContext.from_file(config_location)
-        if existing_dbt_platform_context is None:
-            existing_dbt_platform_context = DbtPlatformContext()
-        next_dbt_platform_context = existing_dbt_platform_context.override(
-            new_dbt_platform_context
-        )
-        app.state.dbt_platform_context = next_dbt_platform_context
-        config_location.write_text(
-            data=yaml.safe_dump(
-                next_dbt_platform_context.model_dump(),
-                sort_keys=True,
-            )
-        )
-        return next_dbt_platform_context
 
     @app.get("/")
     def oauth_callback(request: Request) -> RedirectResponse:
@@ -154,32 +121,24 @@ def create_app(
             logger.error("Missing state in OAuth callback")
             return RedirectResponse(url="/index.html#status=error", status_code=302)
         try:
-            logger.info("Fetching access token")
             code_verifier = state_to_verifier.pop(state, None)
             if not code_verifier:
                 logger.error("No code_verifier found for provided state")
                 return RedirectResponse(url="/index.html#status=error", status_code=302)
-            access_token_response = AccessTokenResponse(
-                **oauth_client.fetch_token(
-                    url=f"{dbt_platform_url}/oauth/token",
-                    authorization_response=str(request.url),
-                    code_verifier=code_verifier,
-                )
+            logger.info("Fetching initial access token")
+            # Fetch the initial access token
+            token_response = oauth_client.fetch_token(
+                url=f"{dbt_platform_url}/oauth/token",
+                authorization_response=str(request.url),
+                code_verifier=code_verifier,
             )
-            logger.info("Access token fetched successfully")
-            decoded_claims = _fetch_jwks_and_verify_token(
-                access_token_response.access_token, dbt_platform_url
+            dbt_platform_context = dbt_platform_context_from_token_response(
+                token_response, dbt_platform_url
             )
-            logger.info("JWT token verified successfully")
-            app.state.decoded_access_token = DecodedAccessToken(
-                access_token_response=access_token_response,
-                decoded_claims=decoded_claims,
-            )
-            _update_dbt_platform_context(
-                DbtPlatformContext(
-                    decoded_access_token=app.state.decoded_access_token,
-                )
-            )
+            dbt_platform_context_manager.write_context_to_file(dbt_platform_context)
+            assert dbt_platform_context.decoded_access_token
+            app.state.decoded_access_token = dbt_platform_context.decoded_access_token
+            app.state.dbt_platform_context = dbt_platform_context
             return RedirectResponse(
                 url="/index.html#status=success",
                 status_code=302,
@@ -223,7 +182,7 @@ def create_app(
     @app.get("/dbt_platform_context")
     def get_dbt_platform_context() -> DbtPlatformContext:
         logger.info("Selected project received")
-        return DbtPlatformContext.from_file(config_location) or DbtPlatformContext()
+        return dbt_platform_context_manager.read_context() or DbtPlatformContext()
 
     @app.post("/selected_project")
     def set_selected_project(
@@ -274,7 +233,7 @@ def create_app(
                     name=environment.name,
                     deployment_type=environment.deployment_type,
                 )
-        dbt_platform_context = _update_dbt_platform_context(
+        dbt_platform_context = dbt_platform_context_manager.update_context(
             new_dbt_platform_context=DbtPlatformContext(
                 decoded_access_token=app.state.decoded_access_token,
                 dev_environment=dev_environment,
@@ -282,6 +241,7 @@ def create_app(
                 host_prefix=account.host_prefix,
             ),
         )
+        app.state.dbt_platform_context = dbt_platform_context
         return dbt_platform_context
 
     app.mount(

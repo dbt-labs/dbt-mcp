@@ -7,7 +7,14 @@ from dbt_mcp.config.config import (
     SqlConfig,
     TrackingConfig,
 )
+from dbt_mcp.config.headers import (
+    AdminApiHeadersProvider,
+    DiscoveryHeadersProvider,
+    SemanticLayerHeadersProvider,
+    SqlHeadersProvider,
+)
 from dbt_mcp.dbt_cli.binary_type import BinaryType
+from dbt_mcp.oauth.token_provider import StaticTokenProvider
 
 mock_tracking_config = TrackingConfig(
     host="http://localhost:8000",
@@ -19,12 +26,13 @@ mock_tracking_config = TrackingConfig(
 )
 
 mock_sql_config = SqlConfig(
-    host_prefix=None,
+    url="http://localhost:8000",
     prod_environment_id=1,
     dev_environment_id=1,
     user_id=1,
-    token="token",
-    host="http://localhost/mcp",
+    headers_provider=SqlHeadersProvider(
+        token_provider=StaticTokenProvider(token="token")
+    ),
 )
 
 mock_dbt_cli_config = DbtCliConfig(
@@ -36,10 +44,9 @@ mock_dbt_cli_config = DbtCliConfig(
 
 mock_discovery_config = DiscoveryConfig(
     url="http://localhost:8000",
-    headers={
-        "Authorization": "Bearer token",
-        "Content-Type": "application/json",
-    },
+    headers_provider=DiscoveryHeadersProvider(
+        token_provider=StaticTokenProvider(token="token")
+    ),
     environment_id=1,
 )
 
@@ -47,18 +54,18 @@ mock_semantic_layer_config = SemanticLayerConfig(
     host="localhost",
     service_token="token",
     url="http://localhost:8000",
-    headers={
-        "Authorization": "Bearer token",
-        "Content-Type": "application/json",
-    },
+    headers_provider=SemanticLayerHeadersProvider(
+        token_provider=StaticTokenProvider(token="token")
+    ),
     prod_environment_id=1,
 )
 
 mock_admin_api_config = AdminApiConfig(
     url="http://localhost:8000",
-    headers={"Authorization": "Bearer token"},
-    account_id=1,
-    prod_environment_id=1,
+    headers_provider=AdminApiHeadersProvider(
+        token_provider=StaticTokenProvider(token="token")
+    ),
+    account_id=12345,
 )
 
 mock_config = Config(
@@ -69,4 +76,5 @@ mock_config = Config(
     semantic_layer_config=mock_semantic_layer_config,
     admin_api_config=mock_admin_api_config,
     disable_tools=[],
+    token_provider=StaticTokenProvider(token="token"),
 )
