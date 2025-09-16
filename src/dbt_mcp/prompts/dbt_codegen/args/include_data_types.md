@@ -1,0 +1,1 @@
+Whether to include data types in the model column definitions (optional, default true)

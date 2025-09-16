@@ -1,0 +1,1 @@
+Whether to include placeholder descriptions in the generated YAML (optional, default false)
