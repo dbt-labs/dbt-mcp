@@ -73,6 +73,7 @@ class DbtPlatformContext(BaseModel):
     host_prefix: str | None = None
     dev_environment: DbtPlatformEnvironment | None = None
     prod_environment: DbtPlatformEnvironment | None = None
+    account_id: int | None = None
 
     @property
     def user_id(self) -> int | None:
@@ -89,4 +90,5 @@ class DbtPlatformContext(BaseModel):
             decoded_access_token=other.decoded_access_token
             or self.decoded_access_token,
             host_prefix=other.host_prefix or self.host_prefix,
+            account_id=other.account_id or self.account_id,
         )

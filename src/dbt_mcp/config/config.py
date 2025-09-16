@@ -352,6 +352,7 @@ def load_config() -> Config:
             if dbt_platform_context.prod_environment
             else None
         )
+        settings.dbt_account_id = dbt_platform_context.account_id
         settings.host_prefix = dbt_platform_context.host_prefix
         settings.dbt_host = get_dbt_host(settings, dbt_platform_context)
         if not dbt_platform_context.decoded_access_token:

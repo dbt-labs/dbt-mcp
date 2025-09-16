@@ -239,6 +239,7 @@ def create_app(
                 dev_environment=dev_environment,
                 prod_environment=prod_environment,
                 host_prefix=account.host_prefix,
+                account_id=account.id,
             ),
         )
         app.state.dbt_platform_context = dbt_platform_context
