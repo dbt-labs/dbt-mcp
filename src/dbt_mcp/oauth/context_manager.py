@@ -20,10 +20,20 @@ class DbtPlatformContextManager:
         """Read the current context from file with proper locking."""
         if not self.config_location.exists():
             return None
-        content = self.config_location.read_text()
-        if not content.strip():
-            return None
-        return DbtPlatformContext(**yaml.safe_load(content))
+        try:
+            content = self.config_location.read_text()
+            if not content.strip():
+                return None
+            parsed_content = yaml.safe_load(content)
+            if parsed_content is None or not isinstance(parsed_content, dict):
+                logger.warning("dbt Platform Context YAML file is invalid")
+                return None
+            return DbtPlatformContext(**parsed_content)
+        except yaml.YAMLError as e:
+            logger.error(f"Failed to parse YAML from {self.config_location}: {e}")
+        except Exception as e:
+            logger.error(f"Failed to read context from {self.config_location}: {e}")
+        return None
 
     def update_context(
         self, new_dbt_platform_context: DbtPlatformContext
