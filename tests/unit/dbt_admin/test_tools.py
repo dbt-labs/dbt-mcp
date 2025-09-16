@@ -188,12 +188,10 @@ def test_get_job_run_details_tool(mock_get_prompt, mock_admin_client):
         4
     ].fn  # Fifth tool is get_job_run_details
 
-    result = get_job_run_details_tool(run_id=100, debug=True)
+    result = get_job_run_details_tool(run_id=100)
 
     assert isinstance(result, dict)
-    mock_admin_client.get_job_run_details.assert_called_once_with(
-        12345, 100, debug=True
-    )
+    mock_admin_client.get_job_run_details.assert_called_once_with(12345, 100)
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
@@ -301,16 +299,11 @@ def test_tools_with_no_optional_parameters(mock_get_prompt, mock_admin_client):
     assert isinstance(result, list)
     mock_admin_client.list_jobs_runs.assert_called_with(12345)
 
-    # Test get_job_run_details with default debug parameter
+    # Test get_job_run_details
     get_job_run_details_tool = tool_definitions[4].fn
     result = get_job_run_details_tool(run_id=100)
     assert isinstance(result, dict)
-    # The debug parameter should be a Field object with default False
-    call_args = mock_admin_client.get_job_run_details.call_args
-    assert call_args[0] == (12345, 100)
-    debug_field = call_args[1]["debug"]
-    # Check that it's a Field with the correct default
-    assert hasattr(debug_field, "default") and debug_field.default is False
+    mock_admin_client.get_job_run_details.assert_called_with(12345, 100)
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")

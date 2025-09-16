@@ -4,7 +4,6 @@ from enum import Enum
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
-from pydantic import Field
 
 from dbt_mcp.config.config import AdminApiConfig
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
@@ -126,16 +125,10 @@ def create_admin_api_tool_definitions(
 
     def get_job_run_details(
         run_id: int,
-        debug: bool = Field(
-            default=False,
-            description="Set to True only if the person is explicitely asking for debug level logs. Otherwise, do not set if just the logs are asked.",
-        ),
     ) -> dict[str, Any] | str:
         """Get details for a specific job run."""
         try:
-            return admin_client.get_job_run_details(
-                admin_api_config.account_id, run_id, debug=debug
-            )
+            return admin_client.get_job_run_details(admin_api_config.account_id, run_id)
         except Exception as e:
             logger.error(f"Error getting run {run_id}: {e}")
             return str(e)
