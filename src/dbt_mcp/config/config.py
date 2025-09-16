@@ -101,6 +101,7 @@ class DbtMcpSettings(BaseSettings):
     disable_tools: Annotated[list[ToolName] | None, NoDecode] = Field(
         None, alias="DISABLE_TOOLS"
     )
+    do_not_track: bool = Field(False, alias="DO_NOT_TRACK")
 
     @property
     def actual_host(self) -> str | None:
@@ -160,6 +161,7 @@ class Config(BaseModel):
     semantic_layer_config: SemanticLayerConfig | None = None
     admin_api_config: AdminApiConfig | None = None
     disable_tools: list[ToolName]
+    do_not_track: bool = False
 
 
 def _get_dbt_user_dir(dbt_profiles_dir: str | None = None) -> Path:
@@ -455,4 +457,5 @@ def create_config(settings: DbtMcpSettings) -> Config:
         semantic_layer_config=semantic_layer_config,
         admin_api_config=admin_api_config,
         disable_tools=settings.disable_tools or [],
+        do_not_track=settings.do_not_track,
     )

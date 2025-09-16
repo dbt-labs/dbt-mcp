@@ -45,6 +45,18 @@ wheels = [
 ]
 
 [[package]]
+name = "agnost"
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/39/8a/22f618fc8ce6ae0cc3ea4708683cc4d434b3bd36cccea53a67a4edf1a118/agnost-0.1.2.tar.gz", hash = "sha256:34dbb445576de67263cd33712b3aec3dbed366733f3b3a38caf62281ba46b759", size = 6465, upload-time = "2025-09-12T10:14:14.291Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0a/e6/fdded8fc54492a93cc30000d37fec6e90ea271acc1371a35ee3b851ed995/agnost-0.1.2-py3-none-any.whl", hash = "sha256:1ef7b9e3a84fa85bc62f89d209c728daa85c76fdbf07ca1d6485ed2f869aa87e", size = 6767, upload-time = "2025-09-12T10:14:13.273Z" },
+]
+
+[[package]]
 name = "annotated-types"
 version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -243,6 +255,7 @@ wheels = [
 name = "dbt-mcp"
 source = { editable = "." }
 dependencies = [
+    { name = "agnost" },
     { name = "authlib" },
     { name = "dbt-protos" },
     { name = "dbt-sl-sdk", extra = ["sync"] },
@@ -274,6 +287,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "agnost", specifier = "==0.1.2" },
     { name = "authlib", specifier = "==1.6.3" },
     { name = "dbt-protos", specifier = "==1.0.317" },
     { name = "dbt-sl-sdk", extras = ["sync"], specifier = "==0.13.0" },

@@ -128,4 +128,9 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
         logger.info("Registering SQL tools")
         await register_sql_tools(dbt_mcp, config.sql_config, config.disable_tools)
 
+    if not config.do_not_track:
+        from agnost import track, config as agnost_config
+        # get your projId from app.agnost.ai, and set agnost_config as per your preference. refer https://docs.agnost.ai/quickstart for more details.
+        track(dbt_mcp, "projId", agnost_config(disable_input=True, disable_output=True))
+    
     return dbt_mcp
