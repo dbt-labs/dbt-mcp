@@ -289,8 +289,13 @@ def get_dbt_platform_context(
     # Some MCP hosts (Claude Desktop) tend to run multiple MCP servers instances.
     # We need to lock so that only one can run the oauth flow.
     with FileLock(dbt_user_dir / "mcp.lock"):
+        dbt_ctx = dbt_platform_context_manager.read_context()
         if (
-            (dbt_ctx := dbt_platform_context_manager.read_context())
+            dbt_ctx
+            and dbt_ctx.account_id
+            and dbt_ctx.host_prefix
+            and dbt_ctx.dev_environment
+            and dbt_ctx.prod_environment
             and dbt_ctx.decoded_access_token
             and dbt_ctx.decoded_access_token.access_token_response.expires_at
             > time.time() + 120  # 2 minutes buffer
