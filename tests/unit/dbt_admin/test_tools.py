@@ -2,32 +2,12 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from dbt_mcp.config.config import AdminApiConfig, Config
 from dbt_mcp.dbt_admin.tools import (
     JobRunStatus,
     create_admin_api_tool_definitions,
     register_admin_api_tools,
 )
-
-
-@pytest.fixture
-def mock_admin_config():
-    return AdminApiConfig(
-        account_id=12345,
-        headers={"Authorization": "Bearer test_token"},
-        url="https://cloud.getdbt.com",
-    )
-
-
-@pytest.fixture
-def mock_config(mock_admin_config):
-    from tests.mocks.config import mock_tracking_config
-
-    return Config(
-        tracking_config=mock_tracking_config,
-        admin_api_config=mock_admin_config,
-        disable_tools=[],
-    )
+from tests.mocks.config import mock_config
 
 
 @pytest.fixture
@@ -98,7 +78,7 @@ def mock_admin_client():
 @patch("dbt_mcp.dbt_admin.tools.register_tools")
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
 def test_register_admin_api_tools_all_tools(
-    mock_get_prompt, mock_register_tools, mock_config, mock_fastmcp
+    mock_get_prompt, mock_register_tools, mock_fastmcp
 ):
     mock_get_prompt.return_value = "Test prompt"
     fastmcp, tools = mock_fastmcp
@@ -115,7 +95,7 @@ def test_register_admin_api_tools_all_tools(
 @patch("dbt_mcp.dbt_admin.tools.register_tools")
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
 def test_register_admin_api_tools_with_disabled_tools(
-    mock_get_prompt, mock_register_tools, mock_config, mock_fastmcp
+    mock_get_prompt, mock_register_tools, mock_fastmcp
 ):
     mock_get_prompt.return_value = "Test prompt"
     fastmcp, tools = mock_fastmcp
@@ -134,7 +114,7 @@ def test_register_admin_api_tools_with_disabled_tools(
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
-def test_list_jobs_tool(mock_get_prompt, mock_config, mock_admin_client):
+def test_list_jobs_tool(mock_get_prompt, mock_admin_client):
     mock_get_prompt.return_value = "List jobs prompt"
 
     tool_definitions = create_admin_api_tool_definitions(
@@ -149,7 +129,7 @@ def test_list_jobs_tool(mock_get_prompt, mock_config, mock_admin_client):
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
-def test_get_job_details_tool(mock_get_prompt, mock_config, mock_admin_client):
+def test_get_job_details_tool(mock_get_prompt, mock_admin_client):
     mock_get_prompt.return_value = "Get job prompt"
 
     tool_definitions = create_admin_api_tool_definitions(
@@ -164,7 +144,7 @@ def test_get_job_details_tool(mock_get_prompt, mock_config, mock_admin_client):
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
-def test_trigger_job_run_tool(mock_get_prompt, mock_config, mock_admin_client):
+def test_trigger_job_run_tool(mock_get_prompt, mock_admin_client):
     mock_get_prompt.return_value = "Trigger job run prompt"
 
     tool_definitions = create_admin_api_tool_definitions(
@@ -181,7 +161,7 @@ def test_trigger_job_run_tool(mock_get_prompt, mock_config, mock_admin_client):
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
-def test_list_jobs_runs_tool(mock_get_prompt, mock_config, mock_admin_client):
+def test_list_jobs_runs_tool(mock_get_prompt, mock_admin_client):
     mock_get_prompt.return_value = "List runs prompt"
 
     tool_definitions = create_admin_api_tool_definitions(
@@ -198,7 +178,7 @@ def test_list_jobs_runs_tool(mock_get_prompt, mock_config, mock_admin_client):
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
-def test_get_job_run_details_tool(mock_get_prompt, mock_config, mock_admin_client):
+def test_get_job_run_details_tool(mock_get_prompt, mock_admin_client):
     mock_get_prompt.return_value = "Get run prompt"
 
     tool_definitions = create_admin_api_tool_definitions(
@@ -215,7 +195,7 @@ def test_get_job_run_details_tool(mock_get_prompt, mock_config, mock_admin_clien
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
-def test_cancel_job_run_tool(mock_get_prompt, mock_config, mock_admin_client):
+def test_cancel_job_run_tool(mock_get_prompt, mock_admin_client):
     mock_get_prompt.return_value = "Cancel run prompt"
 
     tool_definitions = create_admin_api_tool_definitions(
@@ -230,7 +210,7 @@ def test_cancel_job_run_tool(mock_get_prompt, mock_config, mock_admin_client):
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
-def test_retry_job_run_tool(mock_get_prompt, mock_config, mock_admin_client):
+def test_retry_job_run_tool(mock_get_prompt, mock_admin_client):
     mock_get_prompt.return_value = "Retry run prompt"
 
     tool_definitions = create_admin_api_tool_definitions(
@@ -245,7 +225,7 @@ def test_retry_job_run_tool(mock_get_prompt, mock_config, mock_admin_client):
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
-def test_list_job_run_artifacts_tool(mock_get_prompt, mock_config, mock_admin_client):
+def test_list_job_run_artifacts_tool(mock_get_prompt, mock_admin_client):
     mock_get_prompt.return_value = "List run artifacts prompt"
 
     tool_definitions = create_admin_api_tool_definitions(
@@ -262,7 +242,7 @@ def test_list_job_run_artifacts_tool(mock_get_prompt, mock_config, mock_admin_cl
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
-def test_get_job_run_artifact_tool(mock_get_prompt, mock_config, mock_admin_client):
+def test_get_job_run_artifact_tool(mock_get_prompt, mock_admin_client):
     mock_get_prompt.return_value = "Get run artifact prompt"
 
     tool_definitions = create_admin_api_tool_definitions(
@@ -283,7 +263,7 @@ def test_get_job_run_artifact_tool(mock_get_prompt, mock_config, mock_admin_clie
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
-def test_tools_handle_exceptions(mock_get_prompt, mock_config):
+def test_tools_handle_exceptions(mock_get_prompt):
     mock_get_prompt.return_value = "Test prompt"
     mock_admin_client = Mock()
     mock_admin_client.list_jobs.side_effect = Exception("API Error")
@@ -300,9 +280,7 @@ def test_tools_handle_exceptions(mock_get_prompt, mock_config):
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
-def test_tools_with_no_optional_parameters(
-    mock_get_prompt, mock_config, mock_admin_client
-):
+def test_tools_with_no_optional_parameters(mock_get_prompt, mock_admin_client):
     mock_get_prompt.return_value = "Test prompt"
 
     tool_definitions = create_admin_api_tool_definitions(
@@ -329,9 +307,7 @@ def test_tools_with_no_optional_parameters(
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
-def test_trigger_job_run_with_all_optional_params(
-    mock_get_prompt, mock_config, mock_admin_client
-):
+def test_trigger_job_run_with_all_optional_params(mock_get_prompt, mock_admin_client):
     mock_get_prompt.return_value = "Trigger job run prompt"
 
     tool_definitions = create_admin_api_tool_definitions(

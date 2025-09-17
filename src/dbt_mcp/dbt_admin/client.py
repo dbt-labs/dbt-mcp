@@ -23,7 +23,7 @@ class DbtAdminAPIClient:
         self.headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
-        } | config.headers
+        } | config.headers_provider.get_headers()
 
     def _make_request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
         """Make a request to the dbt API."""
@@ -225,7 +225,7 @@ class DbtAdminAPIClient:
 
         get_artifact_header = {
             "Accept": "*/*",
-        } | self.config.headers
+        } | self.config.headers_provider.get_headers()
 
         response = requests.get(
             f"{self.config.url}/api/v2/accounts/{account_id}/runs/{run_id}/artifacts/{artifact_path}",

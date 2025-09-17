@@ -2,7 +2,7 @@
   "configurations": [
     {
       "name": "debug dbt-mcp",
-      "program": "${workspaceFolder}/dbt_mcp/main.py",
+      "program": "${workspaceFolder}/src/dbt_mcp/main.py",
       "request": "launch",
       "type": "debugpy"
     }
