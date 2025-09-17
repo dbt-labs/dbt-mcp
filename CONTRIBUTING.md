@@ -30,11 +30,35 @@ This repo has automated tests which can be run with `task test:unit`. Additional
 {
   "mcpServers": {
     "dbt": {
-      "command": "<path-to-this-directory>/.venv/bin/mcp",
+      "command": "<path-to-this-uv>",
       "args": [
         "run",
-        "<path-to-this-directory>/src/dbt_mcp/main.py"
+        "--env-file",
+        "<path-to-this-directory>/dbt-mcp/.env",
+        "<path-to-this-directory>/dbt-mcp/.venv/bin/mcp",
+        "run",
+        "<path-to-this-directory>/dbt-mcp/src/dbt_mcp/main.py"
       ]
+    }
+  }
+}
+```
+
+Or, if you would like to test with Oauth, use a configuration like this:
+
+```
+{
+  "mcpServers": {
+    "dbt": {
+      "command": "<path-to-this-directory>/dbt-mcp/.venv/bin/mcp",
+      "args": [
+        "run",
+        "<path-to-this-directory>/dbt-mcp/src/dbt_mcp/main.py"
+      ],
+      "env": {
+        "DBT_HOST": "<dbt-host-with-custom-subdomain>",
+        "ENABLE_EXPERIMENAL_SECURE_OAUTH": "true",
+      }
     }
   }
 }
