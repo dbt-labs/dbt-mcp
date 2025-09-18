@@ -140,7 +140,7 @@ def _get_dbt_user_dir(dbt_profiles_dir: str | None = None) -> Path:
         return Path.home() / ".dbt"
 
 
-def get_dbt_platform_context(
+async def get_dbt_platform_context(
     *,
     dbt_user_dir: Path,
     dbt_platform_url: str,
@@ -163,7 +163,7 @@ def get_dbt_platform_context(
             return dbt_ctx
         # Find an available port for the local OAuth redirect server
         selected_port = _find_available_port(start_port=OAUTH_REDIRECT_STARTING_PORT)
-        return login(
+        return await login(
             dbt_platform_url=dbt_platform_url,
             port=selected_port,
             dbt_platform_context_manager=dbt_platform_context_manager,
@@ -264,7 +264,7 @@ class CredentialsProvider:
         self.settings = settings
         self.token_provider: TokenProvider | None = None
 
-    def get_credentials(self) -> tuple[DbtMcpSettings, TokenProvider]:
+    async def get_credentials(self) -> tuple[DbtMcpSettings, TokenProvider]:
         if self.token_provider is not None:
             # If token provider is already set, just return the cached values
             return self.settings, self.token_provider
@@ -280,7 +280,7 @@ class CredentialsProvider:
             config_location = dbt_user_dir / "mcp.yml"
             dbt_platform_url = f"https://{self.settings.actual_host}"
             dbt_platform_context_manager = DbtPlatformContextManager(config_location)
-            dbt_platform_context = get_dbt_platform_context(
+            dbt_platform_context = await get_dbt_platform_context(
                 dbt_platform_context_manager=dbt_platform_context_manager,
                 dbt_user_dir=dbt_user_dir,
                 dbt_platform_url=dbt_platform_url,

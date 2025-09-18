@@ -47,8 +47,8 @@ class SemanticLayerConfigProvider:
     def __init__(self, credentials_provider: CredentialsProvider):
         self.credentials_provider = credentials_provider
 
-    def get_config(self) -> SemanticLayerConfig:
-        settings, token_provider = self.credentials_provider.get_credentials()
+    async def get_config(self) -> SemanticLayerConfig:
+        settings, token_provider = await self.credentials_provider.get_credentials()
         assert (
             settings.actual_host
             and settings.actual_prod_environment_id
@@ -80,8 +80,8 @@ class DiscoveryConfigProvider:
     def __init__(self, credentials_provider: CredentialsProvider):
         self.credentials_provider = credentials_provider
 
-    def get_config(self) -> DiscoveryConfig:
-        settings, token_provider = self.credentials_provider.get_credentials()
+    async def get_config(self) -> DiscoveryConfig:
+        settings, token_provider = await self.credentials_provider.get_credentials()
         assert (
             settings.actual_host
             and settings.actual_prod_environment_id
@@ -103,8 +103,8 @@ class AdminApiConfigProvider:
     def __init__(self, credentials_provider: CredentialsProvider):
         self.credentials_provider = credentials_provider
 
-    def get_config(self) -> AdminApiConfig:
-        settings, token_provider = self.credentials_provider.get_credentials()
+    async def get_config(self) -> AdminApiConfig:
+        settings, token_provider = await self.credentials_provider.get_credentials()
         assert settings.dbt_token and settings.actual_host and settings.dbt_account_id
         if settings.actual_host_prefix:
             url = f"https://{settings.actual_host_prefix}.{settings.actual_host}"
@@ -123,8 +123,8 @@ class SqlConfigProvider:
     def __init__(self, credentials_provider: CredentialsProvider):
         self.credentials_provider = credentials_provider
 
-    def get_config(self) -> SqlConfig:
-        settings, token_provider = self.credentials_provider.get_credentials()
+    async def get_config(self) -> SqlConfig:
+        settings, token_provider = await self.credentials_provider.get_credentials()
         assert (
             settings.dbt_user_id
             and settings.dbt_token
