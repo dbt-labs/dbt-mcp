@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 
 from dbt_mcp.config.headers import (
+    AdminApiHeadersProvider,
+    DiscoveryHeadersProvider,
     HeadersProvider,
     SemanticLayerHeadersProvider,
 )
@@ -14,6 +16,21 @@ class SemanticLayerConfig:
     prod_environment_id: int
     service_token: str
     headers_provider: HeadersProvider
+
+
+@dataclass
+class DiscoveryConfig:
+    url: str
+    headers_provider: HeadersProvider
+    environment_id: int
+
+
+@dataclass
+class AdminApiConfig:
+    url: str
+    headers_provider: HeadersProvider
+    account_id: int
+    prod_environment_id: int | None = None
 
 
 class SemanticLayerConfigProvider:
@@ -46,4 +63,47 @@ class SemanticLayerConfigProvider:
             headers_provider=SemanticLayerHeadersProvider(
                 token_provider=token_provider
             ),
+        )
+
+
+class DiscoveryConfigProvider:
+    def __init__(self, credentials_provider: CredentialsProvider):
+        self.credentials_provider = credentials_provider
+
+    def get_config(self) -> DiscoveryConfig:
+        settings, token_provider = self.credentials_provider.get_credentials()
+        assert (
+            settings.actual_host
+            and settings.actual_prod_environment_id
+            and settings.dbt_token
+        )
+        if settings.actual_host_prefix:
+            url = f"https://{settings.actual_host_prefix}.metadata.{settings.actual_host}/graphql"
+        else:
+            url = f"https://metadata.{settings.actual_host}/graphql"
+
+        return DiscoveryConfig(
+            url=url,
+            headers_provider=DiscoveryHeadersProvider(token_provider=token_provider),
+            environment_id=settings.actual_prod_environment_id,
+        )
+
+
+class AdminApiConfigProvider:
+    def __init__(self, credentials_provider: CredentialsProvider):
+        self.credentials_provider = credentials_provider
+
+    def get_config(self) -> AdminApiConfig:
+        settings, token_provider = self.credentials_provider.get_credentials()
+        assert settings.dbt_token and settings.actual_host and settings.dbt_account_id
+        if settings.actual_host_prefix:
+            url = f"https://{settings.actual_host_prefix}.{settings.actual_host}"
+        else:
+            url = f"https://{settings.actual_host}"
+
+        return AdminApiConfig(
+            url=url,
+            headers_provider=AdminApiHeadersProvider(token_provider=token_provider),
+            account_id=settings.dbt_account_id,
+            prod_environment_id=settings.actual_prod_environment_id,
         )

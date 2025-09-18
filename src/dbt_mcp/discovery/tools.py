@@ -3,7 +3,7 @@ from collections.abc import Sequence
 
 from mcp.server.fastmcp import FastMCP
 
-from dbt_mcp.config.config import DiscoveryConfig
+from dbt_mcp.config.config_providers import DiscoveryConfigProvider
 from dbt_mcp.discovery.client import ExposuresFetcher, MetadataAPIClient, ModelsFetcher
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.annotations import create_tool_annotations
@@ -14,17 +14,12 @@ from dbt_mcp.tools.tool_names import ToolName
 logger = logging.getLogger(__name__)
 
 
-def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefinition]:
-    api_client = MetadataAPIClient(
-        url=config.url,
-        headers=config.headers_provider.get_headers(),
-    )
-    models_fetcher = ModelsFetcher(
-        api_client=api_client, environment_id=config.environment_id
-    )
-    exposures_fetcher = ExposuresFetcher(
-        api_client=api_client, environment_id=config.environment_id
-    )
+def create_discovery_tool_definitions(
+    config_provider: DiscoveryConfigProvider,
+) -> list[ToolDefinition]:
+    api_client = MetadataAPIClient(config_provider=config_provider)
+    models_fetcher = ModelsFetcher(api_client=api_client)
+    exposures_fetcher = ExposuresFetcher(api_client=api_client)
 
     def get_mart_models() -> list[dict] | str:
         try:
@@ -173,11 +168,11 @@ def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefin
 
 def register_discovery_tools(
     dbt_mcp: FastMCP,
-    config: DiscoveryConfig,
+    config_provider: DiscoveryConfigProvider,
     exclude_tools: Sequence[ToolName] = [],
 ) -> None:
     register_tools(
         dbt_mcp,
-        create_discovery_tool_definitions(config),
+        create_discovery_tool_definitions(config_provider),
         exclude_tools,
     )

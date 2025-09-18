@@ -4,7 +4,7 @@ from typing import Any
 
 import requests
 
-from dbt_mcp.config.config import AdminApiConfig
+from dbt_mcp.config.config_providers import AdminApiConfig, AdminApiConfigProvider
 
 logger = logging.getLogger(__name__)
 
@@ -18,12 +18,19 @@ class AdminAPIError(Exception):
 class DbtAdminAPIClient:
     """Client for interacting with the dbt Admin API."""
 
-    def __init__(self, config: AdminApiConfig):
-        self.config = config
-        self.headers = {
+    def __init__(self, config_provider: AdminApiConfigProvider):
+        self.config_provider = config_provider
+
+    @property
+    def config(self) -> AdminApiConfig:
+        return self.config_provider.get_config()
+
+    @property
+    def headers(self) -> dict[str, str]:
+        return {
             "Content-Type": "application/json",
             "Accept": "application/json",
-        } | config.headers_provider.get_headers()
+        } | self.config.headers_provider.get_headers()
 
     def _make_request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
         """Make a request to the dbt API."""

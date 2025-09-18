@@ -4,10 +4,12 @@ from pathlib import Path
 
 import yaml
 
-from dbt_mcp.config.config_providers import SemanticLayerConfigProvider
+from dbt_mcp.config.config_providers import (
+    AdminApiConfigProvider,
+    DiscoveryConfigProvider,
+    SemanticLayerConfigProvider,
+)
 from dbt_mcp.config.headers import (
-    AdminApiHeadersProvider,
-    DiscoveryHeadersProvider,
     HeadersProvider,
     SqlHeadersProvider,
 )
@@ -24,13 +26,6 @@ class TrackingConfig:
     dev_environment_id: int | None = None
     dbt_cloud_user_id: int | None = None
     local_user_id: str | None = None
-
-
-@dataclass
-class DiscoveryConfig:
-    url: str
-    headers_provider: HeadersProvider
-    environment_id: int
 
 
 @dataclass
@@ -51,22 +46,14 @@ class SqlConfig:
 
 
 @dataclass
-class AdminApiConfig:
-    url: str
-    headers_provider: HeadersProvider
-    account_id: int
-    prod_environment_id: int | None = None
-
-
-@dataclass
 class Config:
     tracking_config: TrackingConfig
     disable_tools: list[ToolName]
     sql_config: SqlConfig | None
     dbt_cli_config: DbtCliConfig | None
-    discovery_config: DiscoveryConfig | None
+    discovery_config_provider: DiscoveryConfigProvider | None
     semantic_layer_config_provider: SemanticLayerConfigProvider | None
-    admin_api_config: AdminApiConfig | None
+    admin_api_config_provider: AdminApiConfigProvider | None
 
 
 def load_config() -> Config:
@@ -88,6 +75,7 @@ def load_config() -> Config:
         and settings.actual_prod_environment_id
         and settings.actual_host
     ):
+        _, token_provider = credentials_provider.get_credentials()
         is_local = settings.actual_host and settings.actual_host.startswith("localhost")
         path = "/v1/mcp/" if is_local else "/api/ai/v1/mcp/"
         scheme = "http://" if is_local else "https://"
@@ -103,23 +91,10 @@ def load_config() -> Config:
             headers_provider=SqlHeadersProvider(token_provider=token_provider),
         )
 
-    # For admin API tools, we need token, host, and account_id
-    admin_api_config = None
-    if (
-        not settings.disable_admin_api
-        and settings.dbt_token
-        and settings.actual_host
-        and settings.dbt_account_id
-    ):
-        if settings.actual_host_prefix:
-            url = f"https://{settings.actual_host_prefix}.{settings.actual_host}"
-        else:
-            url = f"https://{settings.actual_host}"
-        admin_api_config = AdminApiConfig(
-            url=url,
-            headers_provider=AdminApiHeadersProvider(token_provider=token_provider),
-            account_id=settings.dbt_account_id,
-            prod_environment_id=settings.actual_prod_environment_id,
+    admin_api_config_provider = None
+    if not settings.disable_admin_api:
+        admin_api_config_provider = AdminApiConfigProvider(
+            credentials_provider=credentials_provider,
         )
 
     dbt_cli_config = None
@@ -132,21 +107,10 @@ def load_config() -> Config:
             binary_type=binary_type,
         )
 
-    discovery_config = None
-    if (
-        not settings.disable_discovery
-        and settings.actual_host
-        and settings.actual_prod_environment_id
-        and settings.dbt_token
-    ):
-        if settings.actual_host_prefix:
-            url = f"https://{settings.actual_host_prefix}.metadata.{settings.actual_host}/graphql"
-        else:
-            url = f"https://metadata.{settings.actual_host}/graphql"
-        discovery_config = DiscoveryConfig(
-            url=url,
-            headers_provider=DiscoveryHeadersProvider(token_provider=token_provider),
-            environment_id=settings.actual_prod_environment_id,
+    discovery_config_provider = None
+    if not settings.disable_discovery:
+        discovery_config_provider = DiscoveryConfigProvider(
+            credentials_provider=credentials_provider,
         )
 
     semantic_layer_config_provider = None
@@ -178,7 +142,7 @@ def load_config() -> Config:
         disable_tools=settings.disable_tools or [],
         sql_config=sql_config,
         dbt_cli_config=dbt_cli_config,
-        discovery_config=discovery_config,
+        discovery_config_provider=discovery_config_provider,
         semantic_layer_config_provider=semantic_layer_config_provider,
-        admin_api_config=admin_api_config,
+        admin_api_config_provider=admin_api_config_provider,
     )

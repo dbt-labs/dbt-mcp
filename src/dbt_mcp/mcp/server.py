@@ -119,17 +119,21 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
             config.disable_tools,
         )
 
-    if config.discovery_config:
+    if config.discovery_config_provider:
         logger.info("Registering discovery tools")
-        register_discovery_tools(dbt_mcp, config.discovery_config, config.disable_tools)
+        register_discovery_tools(
+            dbt_mcp, config.discovery_config_provider, config.disable_tools
+        )
 
     if config.dbt_cli_config:
         logger.info("Registering dbt cli tools")
         register_dbt_cli_tools(dbt_mcp, config.dbt_cli_config, config.disable_tools)
 
-    if config.admin_api_config:
+    if config.admin_api_config_provider:
         logger.info("Registering dbt admin API tools")
-        register_admin_api_tools(dbt_mcp, config.admin_api_config, config.disable_tools)
+        register_admin_api_tools(
+            dbt_mcp, config.admin_api_config_provider, config.disable_tools
+        )
 
     if config.sql_config:
         logger.info("Registering SQL tools")

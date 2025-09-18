@@ -3,6 +3,7 @@ from typing import Literal, TypedDict
 
 import requests
 
+from dbt_mcp.config.config_providers import DiscoveryConfigProvider
 from dbt_mcp.gql.errors import raise_gql_error
 
 PAGE_SIZE = 100
@@ -321,15 +322,17 @@ class GraphQLQueries:
 
 
 class MetadataAPIClient:
-    def __init__(self, *, url: str, headers: dict[str, str]):
-        self.url = url
-        self.headers = headers
+    def __init__(self, config_provider: DiscoveryConfigProvider):
+        self.config_provider = config_provider
 
     def execute_query(self, query: str, variables: dict) -> dict:
+        config = self.config_provider.get_config()
+        url = config.url
+        headers = config.headers_provider.get_headers()
         response = requests.post(
-            url=self.url,
+            url=url,
             json={"query": query, "variables": variables},
-            headers=self.headers,
+            headers=headers,
         )
         return response.json()
 
@@ -339,9 +342,12 @@ class ModelFilter(TypedDict, total=False):
 
 
 class ModelsFetcher:
-    def __init__(self, api_client: MetadataAPIClient, environment_id: int):
+    def __init__(self, api_client: MetadataAPIClient):
         self.api_client = api_client
-        self.environment_id = environment_id
+
+    @property
+    def environment_id(self) -> int:
+        return self.api_client.config_provider.get_config().environment_id
 
     def _parse_response_to_json(self, result: dict) -> list[dict]:
         raise_gql_error(result)
@@ -469,9 +475,12 @@ class ModelsFetcher:
 
 
 class ExposuresFetcher:
-    def __init__(self, api_client: MetadataAPIClient, environment_id: int):
+    def __init__(self, api_client: MetadataAPIClient):
         self.api_client = api_client
-        self.environment_id = environment_id
+
+    @property
+    def environment_id(self) -> int:
+        return self.api_client.config_provider.get_config().environment_id
 
     def _parse_response_to_json(self, result: dict) -> list[dict]:
         raise_gql_error(result)
