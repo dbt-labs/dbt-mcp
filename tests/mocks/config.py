@@ -5,9 +5,13 @@ from dbt_mcp.config.config import (
 )
 from dbt_mcp.config.config_providers import (
     AdminApiConfig,
+    AdminApiConfigProvider,
     DiscoveryConfig,
+    DiscoveryConfigProvider,
     SemanticLayerConfig,
+    SemanticLayerConfigProvider,
     SqlConfig,
+    SqlConfigProvider,
 )
 from dbt_mcp.config.headers import (
     AdminApiHeadersProvider,
@@ -72,22 +76,34 @@ mock_admin_api_config = AdminApiConfig(
 
 
 # Create mock config providers
-class MockSqlConfigProvider:
+class MockSqlConfigProvider(SqlConfigProvider):
+    def __init__(self):
+        pass  # Skip the base class __init__
+
     async def get_config(self):
         return mock_sql_config
 
 
-class MockDiscoveryConfigProvider:
+class MockDiscoveryConfigProvider(DiscoveryConfigProvider):
+    def __init__(self):
+        pass  # Skip the base class __init__
+
     async def get_config(self):
         return mock_discovery_config
 
 
-class MockSemanticLayerConfigProvider:
+class MockSemanticLayerConfigProvider(SemanticLayerConfigProvider):
+    def __init__(self):
+        pass  # Skip the base class __init__
+
     async def get_config(self):
         return mock_semantic_layer_config
 
 
-class MockAdminApiConfigProvider:
+class MockAdminApiConfigProvider(AdminApiConfigProvider):
+    def __init__(self):
+        pass  # Skip the base class __init__
+
     async def get_config(self):
         return mock_admin_api_config
 
@@ -102,8 +118,4 @@ mock_config = Config(
     disable_tools=[],
 )
 
-# For backward compatibility with tests that expect direct config access
-mock_config.admin_api_config = mock_admin_api_config
-mock_config.sql_config = mock_sql_config
-mock_config.discovery_config = mock_discovery_config
-mock_config.semantic_layer_config = mock_semantic_layer_config
+# Note: Direct config access has been removed. Use config_provider.get_config() instead.

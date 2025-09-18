@@ -101,7 +101,7 @@ async def test_register_admin_api_tools_all_tools(
     mock_get_prompt.return_value = "Test prompt"
     fastmcp, tools = mock_fastmcp
 
-    register_admin_api_tools(fastmcp, mock_config.admin_api_config, [])
+    register_admin_api_tools(fastmcp, mock_config.admin_api_config_provider, [])
 
     # Should call register_tools with 9 tool definitions
     mock_register_tools.assert_called_once()
@@ -119,7 +119,9 @@ async def test_register_admin_api_tools_with_disabled_tools(
     fastmcp, tools = mock_fastmcp
 
     disable_tools = ["list_jobs", "get_job", "trigger_job_run"]
-    register_admin_api_tools(fastmcp, mock_config.admin_api_config, disable_tools)
+    register_admin_api_tools(
+        fastmcp, mock_config.admin_api_config_provider, disable_tools
+    )
 
     # Should still call register_tools with all 9 tool definitions
     # The exclude_tools parameter is passed to register_tools to handle filtering
