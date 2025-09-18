@@ -273,10 +273,9 @@ def test_tools_handle_exceptions(mock_get_prompt):
     )
     list_jobs_tool = tool_definitions[0].fn  # First tool is list_jobs
 
-    result = list_jobs_tool()
-
-    assert isinstance(result, str)
-    assert "API Error" in result
+    with pytest.raises(Exception) as exc_info:
+        list_jobs_tool()
+    assert "API Error" in str(exc_info.value)
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
