@@ -1,20 +1,33 @@
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
 
 from dbt_mcp.discovery.client import ExposuresFetcher, MetadataAPIClient
 
 
 @pytest.fixture
 def mock_api_client():
-    return Mock(spec=MetadataAPIClient)
+    mock_client = Mock(spec=MetadataAPIClient)
+    # Add config_provider mock that returns environment_id
+    mock_config_provider = Mock()
+    mock_config = Mock()
+    mock_config.environment_id = 123
+
+    # Make get_config async
+    async def mock_get_config():
+        return mock_config
+
+    mock_config_provider.get_config = mock_get_config
+    mock_client.config_provider = mock_config_provider
+    return mock_client
 
 
 @pytest.fixture
 def exposures_fetcher(mock_api_client):
-    return ExposuresFetcher(api_client=mock_api_client, environment_id=123)
+    return ExposuresFetcher(api_client=mock_api_client)
 
 
-def test_fetch_exposures_single_page(exposures_fetcher, mock_api_client):
+async def test_fetch_exposures_single_page(exposures_fetcher, mock_api_client):
     mock_response = {
         "data": {
             "environment": {
@@ -50,7 +63,7 @@ def test_fetch_exposures_single_page(exposures_fetcher, mock_api_client):
     mock_api_client.execute_query.return_value = mock_response
 
     with patch("dbt_mcp.discovery.client.raise_gql_error"):
-        result = exposures_fetcher.fetch_exposures()
+        result = await exposures_fetcher.fetch_exposures()
 
     assert len(result) == 1
     assert result[0]["name"] == "test_exposure"
@@ -71,7 +84,7 @@ def test_fetch_exposures_single_page(exposures_fetcher, mock_api_client):
     assert args[1]["first"] == 100
 
 
-def test_fetch_exposures_multiple_pages(exposures_fetcher, mock_api_client):
+async def test_fetch_exposures_multiple_pages(exposures_fetcher, mock_api_client):
     page1_response = {
         "data": {
             "environment": {
@@ -137,7 +150,7 @@ def test_fetch_exposures_multiple_pages(exposures_fetcher, mock_api_client):
     mock_api_client.execute_query.side_effect = [page1_response, page2_response]
 
     with patch("dbt_mcp.discovery.client.raise_gql_error"):
-        result = exposures_fetcher.fetch_exposures()
+        result = await exposures_fetcher.fetch_exposures()
 
     assert len(result) == 2
     assert result[0]["name"] == "exposure1"
@@ -160,7 +173,7 @@ def test_fetch_exposures_multiple_pages(exposures_fetcher, mock_api_client):
     assert second_call[0][1]["after"] == "cursor123"
 
 
-def test_fetch_exposures_empty_response(exposures_fetcher, mock_api_client):
+async def test_fetch_exposures_empty_response(exposures_fetcher, mock_api_client):
     mock_response = {
         "data": {
             "environment": {
@@ -177,13 +190,15 @@ def test_fetch_exposures_empty_response(exposures_fetcher, mock_api_client):
     mock_api_client.execute_query.return_value = mock_response
 
     with patch("dbt_mcp.discovery.client.raise_gql_error"):
-        result = exposures_fetcher.fetch_exposures()
+        result = await exposures_fetcher.fetch_exposures()
 
     assert len(result) == 0
     assert isinstance(result, list)
 
 
-def test_fetch_exposures_handles_malformed_edges(exposures_fetcher, mock_api_client):
+async def test_fetch_exposures_handles_malformed_edges(
+    exposures_fetcher, mock_api_client
+):
     mock_response = {
         "data": {
             "environment": {
@@ -235,7 +250,7 @@ def test_fetch_exposures_handles_malformed_edges(exposures_fetcher, mock_api_cli
     mock_api_client.execute_query.return_value = mock_response
 
     with patch("dbt_mcp.discovery.client.raise_gql_error"):
-        result = exposures_fetcher.fetch_exposures()
+        result = await exposures_fetcher.fetch_exposures()
 
     # Should only get the valid exposures (malformed edges should be filtered out)
     assert len(result) == 2
@@ -243,7 +258,7 @@ def test_fetch_exposures_handles_malformed_edges(exposures_fetcher, mock_api_cli
     assert result[1]["name"] == "another_valid_exposure"
 
 
-def test_fetch_exposure_details_by_unique_ids_single(
+async def test_fetch_exposure_details_by_unique_ids_single(
     exposures_fetcher, mock_api_client
 ):
     mock_response = {
@@ -283,7 +298,7 @@ def test_fetch_exposure_details_by_unique_ids_single(
     mock_api_client.execute_query.return_value = mock_response
 
     with patch("dbt_mcp.discovery.client.raise_gql_error"):
-        result = exposures_fetcher.fetch_exposure_details(
+        result = await exposures_fetcher.fetch_exposure_details(
             unique_ids=["exposure.analytics.customer_dashboard"]
         )
 
@@ -312,7 +327,7 @@ def test_fetch_exposure_details_by_unique_ids_single(
     assert args[1]["filter"] == {"uniqueIds": ["exposure.analytics.customer_dashboard"]}
 
 
-def test_fetch_exposure_details_by_unique_ids_multiple(
+async def test_fetch_exposure_details_by_unique_ids_multiple(
     exposures_fetcher, mock_api_client
 ):
     mock_response = {
@@ -363,7 +378,7 @@ def test_fetch_exposure_details_by_unique_ids_multiple(
     mock_api_client.execute_query.return_value = mock_response
 
     with patch("dbt_mcp.discovery.client.raise_gql_error"):
-        result = exposures_fetcher.fetch_exposure_details(
+        result = await exposures_fetcher.fetch_exposure_details(
             unique_ids=[
                 "exposure.analytics.customer_dashboard",
                 "exposure.sales.sales_report",
@@ -397,7 +412,7 @@ def test_fetch_exposure_details_by_unique_ids_multiple(
     }
 
 
-def test_fetch_exposure_details_by_name(exposures_fetcher, mock_api_client):
+async def test_fetch_exposure_details_by_name(exposures_fetcher, mock_api_client):
     # Mock the response for fetch_exposures (which gets called when filtering by name)
     mock_exposures_response = {
         "data": {
@@ -448,7 +463,9 @@ def test_fetch_exposure_details_by_name(exposures_fetcher, mock_api_client):
     mock_api_client.execute_query.return_value = mock_exposures_response
 
     with patch("dbt_mcp.discovery.client.raise_gql_error"):
-        result = exposures_fetcher.fetch_exposure_details(exposure_name="sales_report")
+        result = await exposures_fetcher.fetch_exposure_details(
+            exposure_name="sales_report"
+        )
 
     assert isinstance(result, list)
     assert len(result) == 1
@@ -469,7 +486,7 @@ def test_fetch_exposure_details_by_name(exposures_fetcher, mock_api_client):
     assert args[1]["first"] == 100  # PAGE_SIZE for fetch_exposures
 
 
-def test_fetch_exposure_details_not_found(exposures_fetcher, mock_api_client):
+async def test_fetch_exposure_details_not_found(exposures_fetcher, mock_api_client):
     mock_response = {
         "data": {"environment": {"definition": {"exposures": {"edges": []}}}}
     }
@@ -477,40 +494,42 @@ def test_fetch_exposure_details_not_found(exposures_fetcher, mock_api_client):
     mock_api_client.execute_query.return_value = mock_response
 
     with patch("dbt_mcp.discovery.client.raise_gql_error"):
-        result = exposures_fetcher.fetch_exposure_details(
+        result = await exposures_fetcher.fetch_exposure_details(
             unique_ids=["exposure.nonexistent.exposure"]
         )
 
     assert result == []
 
 
-def test_get_exposure_filters_unique_ids(exposures_fetcher):
+async def test_get_exposure_filters_unique_ids(exposures_fetcher):
     filters = exposures_fetcher._get_exposure_filters(
         unique_ids=["exposure.test.test_exposure"]
     )
     assert filters == {"uniqueIds": ["exposure.test.test_exposure"]}
 
 
-def test_get_exposure_filters_multiple_unique_ids(exposures_fetcher):
+async def test_get_exposure_filters_multiple_unique_ids(exposures_fetcher):
     filters = exposures_fetcher._get_exposure_filters(
         unique_ids=["exposure.test.test1", "exposure.test.test2"]
     )
     assert filters == {"uniqueIds": ["exposure.test.test1", "exposure.test.test2"]}
 
 
-def test_get_exposure_filters_name_raises_error(exposures_fetcher):
+async def test_get_exposure_filters_name_raises_error(exposures_fetcher):
     with pytest.raises(ValueError, match="ExposureFilter only supports uniqueIds"):
         exposures_fetcher._get_exposure_filters(exposure_name="test_exposure")
 
 
-def test_get_exposure_filters_no_params(exposures_fetcher):
+async def test_get_exposure_filters_no_params(exposures_fetcher):
     with pytest.raises(
         ValueError, match="unique_ids must be provided for exposure filtering"
     ):
         exposures_fetcher._get_exposure_filters()
 
 
-def test_fetch_exposure_details_by_name_not_found(exposures_fetcher, mock_api_client):
+async def test_fetch_exposure_details_by_name_not_found(
+    exposures_fetcher, mock_api_client
+):
     # Mock empty response for fetch_exposures
     mock_response = {
         "data": {
@@ -528,7 +547,7 @@ def test_fetch_exposure_details_by_name_not_found(exposures_fetcher, mock_api_cl
     mock_api_client.execute_query.return_value = mock_response
 
     with patch("dbt_mcp.discovery.client.raise_gql_error"):
-        result = exposures_fetcher.fetch_exposure_details(
+        result = await exposures_fetcher.fetch_exposure_details(
             exposure_name="nonexistent_exposure"
         )
 

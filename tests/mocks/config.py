@@ -1,11 +1,13 @@
 from dbt_mcp.config.config import (
-    AdminApiConfig,
     Config,
     DbtCliConfig,
+    TrackingConfig,
+)
+from dbt_mcp.config.config_providers import (
+    AdminApiConfig,
     DiscoveryConfig,
     SemanticLayerConfig,
     SqlConfig,
-    TrackingConfig,
 )
 from dbt_mcp.config.headers import (
     AdminApiHeadersProvider,
@@ -68,13 +70,40 @@ mock_admin_api_config = AdminApiConfig(
     account_id=12345,
 )
 
+
+# Create mock config providers
+class MockSqlConfigProvider:
+    async def get_config(self):
+        return mock_sql_config
+
+
+class MockDiscoveryConfigProvider:
+    async def get_config(self):
+        return mock_discovery_config
+
+
+class MockSemanticLayerConfigProvider:
+    async def get_config(self):
+        return mock_semantic_layer_config
+
+
+class MockAdminApiConfigProvider:
+    async def get_config(self):
+        return mock_admin_api_config
+
+
 mock_config = Config(
     tracking_config=mock_tracking_config,
-    sql_config=mock_sql_config,
+    sql_config_provider=MockSqlConfigProvider(),
     dbt_cli_config=mock_dbt_cli_config,
-    discovery_config=mock_discovery_config,
-    semantic_layer_config=mock_semantic_layer_config,
-    admin_api_config=mock_admin_api_config,
+    discovery_config_provider=MockDiscoveryConfigProvider(),
+    semantic_layer_config_provider=MockSemanticLayerConfigProvider(),
+    admin_api_config_provider=MockAdminApiConfigProvider(),
     disable_tools=[],
-    token_provider=StaticTokenProvider(token="token"),
 )
+
+# For backward compatibility with tests that expect direct config access
+mock_config.admin_api_config = mock_admin_api_config
+mock_config.sql_config = mock_sql_config
+mock_config.discovery_config = mock_discovery_config
+mock_config.semantic_layer_config = mock_semantic_layer_config
