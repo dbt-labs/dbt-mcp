@@ -9,9 +9,10 @@ from dbtsl.api.shared.query_params import (
     OrderByMetric,
     OrderBySpec,
 )
+from dbtsl.client.sync import SyncSemanticLayerClient
 from dbtsl.error import QueryFailedError
 
-from dbt_mcp.config.config import SemanticLayerConfig
+from dbt_mcp.config.config_providers import SemanticLayerConfigProvider
 from dbt_mcp.semantic_layer.gql.gql import GRAPHQL_QUERIES
 from dbt_mcp.semantic_layer.gql.gql_request import submit_request
 from dbt_mcp.semantic_layer.levenshtein import get_misspellings
@@ -56,18 +57,25 @@ class SemanticLayerClientProtocol(Protocol):
 class SemanticLayerFetcher:
     def __init__(
         self,
-        sl_client: SemanticLayerClientProtocol,
-        config: SemanticLayerConfig,
+        config_provider: SemanticLayerConfigProvider,
     ):
-        self.sl_client = sl_client
-        self.config = config
+        self.config_provider = config_provider
         self.entities_cache: dict[str, list[EntityToolResponse]] = {}
         self.dimensions_cache: dict[str, list[DimensionToolResponse]] = {}
+
+    @property
+    def sl_client(self) -> SemanticLayerClientProtocol:
+        config = self.config_provider.get_config()
+        return SyncSemanticLayerClient(
+            environment_id=config.prod_environment_id,
+            auth_token=config.service_token,
+            host=config.host,
+        )
 
     @cache
     def list_metrics(self, search: str | None = None) -> list[MetricToolResponse]:
         metrics_result = submit_request(
-            self.config,
+            self.config_provider.get_config(),
             {"query": GRAPHQL_QUERIES["metrics"], "variables": {"search": search}},
         )
         return [
@@ -87,7 +95,7 @@ class SemanticLayerFetcher:
         metrics_key = ",".join(sorted(metrics))
         if metrics_key not in self.dimensions_cache:
             dimensions_result = submit_request(
-                self.config,
+                self.config_provider.get_config(),
                 {
                     "query": GRAPHQL_QUERIES["dimensions"],
                     "variables": {
@@ -117,7 +125,7 @@ class SemanticLayerFetcher:
         metrics_key = ",".join(sorted(metrics))
         if metrics_key not in self.entities_cache:
             entities_result = submit_request(
-                self.config,
+                self.config_provider.get_config(),
                 {
                     "query": GRAPHQL_QUERIES["entities"],
                     "variables": {

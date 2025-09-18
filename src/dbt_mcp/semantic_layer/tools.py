@@ -2,13 +2,11 @@ import logging
 from collections.abc import Sequence
 
 from dbtsl.api.shared.query_params import GroupByParam
-from dbtsl.client.sync import SyncSemanticLayerClient
 from mcp.server.fastmcp import FastMCP
 
-from dbt_mcp.config.config import SemanticLayerConfig
+from dbt_mcp.config.config_providers import SemanticLayerConfigProvider
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.semantic_layer.client import (
-    SemanticLayerClientProtocol,
     SemanticLayerFetcher,
 )
 from dbt_mcp.semantic_layer.types import (
@@ -28,11 +26,10 @@ logger = logging.getLogger(__name__)
 
 
 def create_sl_tool_definitions(
-    config: SemanticLayerConfig, sl_client: SemanticLayerClientProtocol
+    config_provider: SemanticLayerConfigProvider,
 ) -> list[ToolDefinition]:
     semantic_layer_fetcher = SemanticLayerFetcher(
-        sl_client=sl_client,
-        config=config,
+        config_provider=config_provider,
     )
 
     def list_metrics(search: str | None = None) -> list[MetricToolResponse] | str:
@@ -157,18 +154,11 @@ def create_sl_tool_definitions(
 
 def register_sl_tools(
     dbt_mcp: FastMCP,
-    config: SemanticLayerConfig,
+    config_provider: SemanticLayerConfigProvider,
     exclude_tools: Sequence[ToolName] = [],
 ) -> None:
     register_tools(
         dbt_mcp,
-        create_sl_tool_definitions(
-            config,
-            SyncSemanticLayerClient(
-                environment_id=config.prod_environment_id,
-                auth_token=config.service_token,
-                host=config.host,
-            ),
-        ),
+        create_sl_tool_definitions(config_provider),
         exclude_tools,
     )

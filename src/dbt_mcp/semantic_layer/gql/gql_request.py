@@ -1,6 +1,6 @@
 import requests
 
-from dbt_mcp.config.config import SemanticLayerConfig
+from dbt_mcp.config.config_providers import SemanticLayerConfig
 from dbt_mcp.gql.errors import raise_gql_error
 
 
