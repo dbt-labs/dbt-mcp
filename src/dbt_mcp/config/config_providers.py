@@ -5,6 +5,7 @@ from dbt_mcp.config.headers import (
     DiscoveryHeadersProvider,
     HeadersProvider,
     SemanticLayerHeadersProvider,
+    SqlHeadersProvider,
 )
 from dbt_mcp.config.settings import CredentialsProvider
 
@@ -31,6 +32,15 @@ class AdminApiConfig:
     headers_provider: HeadersProvider
     account_id: int
     prod_environment_id: int | None = None
+
+
+@dataclass
+class SqlConfig:
+    user_id: int
+    dev_environment_id: int
+    prod_environment_id: int
+    url: str
+    headers_provider: HeadersProvider
 
 
 class SemanticLayerConfigProvider:
@@ -106,4 +116,34 @@ class AdminApiConfigProvider:
             headers_provider=AdminApiHeadersProvider(token_provider=token_provider),
             account_id=settings.dbt_account_id,
             prod_environment_id=settings.actual_prod_environment_id,
+        )
+
+
+class SqlConfigProvider:
+    def __init__(self, credentials_provider: CredentialsProvider):
+        self.credentials_provider = credentials_provider
+
+    def get_config(self) -> SqlConfig:
+        settings, token_provider = self.credentials_provider.get_credentials()
+        assert (
+            settings.dbt_user_id
+            and settings.dbt_token
+            and settings.dbt_dev_env_id
+            and settings.actual_prod_environment_id
+            and settings.actual_host
+        )
+        is_local = settings.actual_host and settings.actual_host.startswith("localhost")
+        path = "/v1/mcp/" if is_local else "/api/ai/v1/mcp/"
+        scheme = "http://" if is_local else "https://"
+        host_prefix = (
+            f"{settings.actual_host_prefix}." if settings.actual_host_prefix else ""
+        )
+        url = f"{scheme}{host_prefix}{settings.actual_host}{path}"
+
+        return SqlConfig(
+            user_id=settings.dbt_user_id,
+            dev_environment_id=settings.dbt_dev_env_id,
+            prod_environment_id=settings.actual_prod_environment_id,
+            url=url,
+            headers_provider=SqlHeadersProvider(token_provider=token_provider),
         )

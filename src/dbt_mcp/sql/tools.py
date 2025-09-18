@@ -26,7 +26,7 @@ from pydantic import Field, WithJsonSchema, create_model
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
-from dbt_mcp.config.config import SqlConfig
+from dbt_mcp.config.config_providers import SqlConfigProvider
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset, toolsets
 
@@ -99,7 +99,7 @@ class SqlToolsManager:
 
 async def register_sql_tools(
     dbt_mcp: FastMCP,
-    config: SqlConfig,
+    config_provider: SqlConfigProvider,
     exclude_tools: Sequence[ToolName] = [],
 ) -> None:
     """
@@ -107,6 +107,7 @@ async def register_sql_tools(
 
     SQL tools are hosted remotely, so their definitions aren't found in this repo.
     """
+    config = config_provider.get_config()
     headers = {
         "x-dbt-prod-environment-id": str(config.prod_environment_id),
         "x-dbt-dev-environment-id": str(config.dev_environment_id),

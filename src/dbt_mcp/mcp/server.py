@@ -135,8 +135,10 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
             dbt_mcp, config.admin_api_config_provider, config.disable_tools
         )
 
-    if config.sql_config:
+    if config.sql_config_provider:
         logger.info("Registering SQL tools")
-        await register_sql_tools(dbt_mcp, config.sql_config, config.disable_tools)
+        await register_sql_tools(
+            dbt_mcp, config.sql_config_provider, config.disable_tools
+        )
 
     return dbt_mcp

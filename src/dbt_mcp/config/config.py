@@ -8,10 +8,7 @@ from dbt_mcp.config.config_providers import (
     AdminApiConfigProvider,
     DiscoveryConfigProvider,
     SemanticLayerConfigProvider,
-)
-from dbt_mcp.config.headers import (
-    HeadersProvider,
-    SqlHeadersProvider,
+    SqlConfigProvider,
 )
 from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
 from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
@@ -37,19 +34,10 @@ class DbtCliConfig:
 
 
 @dataclass
-class SqlConfig:
-    user_id: int
-    dev_environment_id: int
-    prod_environment_id: int
-    url: str
-    headers_provider: HeadersProvider
-
-
-@dataclass
 class Config:
     tracking_config: TrackingConfig
     disable_tools: list[ToolName]
-    sql_config: SqlConfig | None
+    sql_config_provider: SqlConfigProvider | None
     dbt_cli_config: DbtCliConfig | None
     discovery_config_provider: DiscoveryConfigProvider | None
     semantic_layer_config_provider: SemanticLayerConfigProvider | None
@@ -66,29 +54,10 @@ def load_config() -> Config:
         os.environ["DBT_WARN_ERROR_OPTIONS"] = warn_error_options
 
     # Build configurations
-    sql_config = None
-    if (
-        not settings.actual_disable_sql
-        and settings.dbt_user_id
-        and settings.dbt_token
-        and settings.dbt_dev_env_id
-        and settings.actual_prod_environment_id
-        and settings.actual_host
-    ):
-        _, token_provider = credentials_provider.get_credentials()
-        is_local = settings.actual_host and settings.actual_host.startswith("localhost")
-        path = "/v1/mcp/" if is_local else "/api/ai/v1/mcp/"
-        scheme = "http://" if is_local else "https://"
-        host_prefix = (
-            f"{settings.actual_host_prefix}." if settings.actual_host_prefix else ""
-        )
-        url = f"{scheme}{host_prefix}{settings.actual_host}{path}"
-        sql_config = SqlConfig(
-            user_id=settings.dbt_user_id,
-            dev_environment_id=settings.dbt_dev_env_id,
-            prod_environment_id=settings.actual_prod_environment_id,
-            url=url,
-            headers_provider=SqlHeadersProvider(token_provider=token_provider),
+    sql_config_provider = None
+    if not settings.actual_disable_sql:
+        sql_config_provider = SqlConfigProvider(
+            credentials_provider=credentials_provider,
         )
 
     admin_api_config_provider = None
@@ -140,7 +109,7 @@ def load_config() -> Config:
             local_user_id=local_user_id,
         ),
         disable_tools=settings.disable_tools or [],
-        sql_config=sql_config,
+        sql_config_provider=sql_config_provider,
         dbt_cli_config=dbt_cli_config,
         discovery_config_provider=discovery_config_provider,
         semantic_layer_config_provider=semantic_layer_config_provider,
