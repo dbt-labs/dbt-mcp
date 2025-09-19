@@ -3,7 +3,7 @@ from collections.abc import Sequence
 
 from mcp.server.fastmcp import FastMCP
 
-from dbt_mcp.config.config import DiscoveryConfig
+from dbt_mcp.config.config_providers import DiscoveryConfigProvider
 from dbt_mcp.discovery.client import ExposuresFetcher, MetadataAPIClient, ModelsFetcher
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.annotations import create_tool_annotations
@@ -14,76 +14,73 @@ from dbt_mcp.tools.tool_names import ToolName
 logger = logging.getLogger(__name__)
 
 
-def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefinition]:
-    api_client = MetadataAPIClient(
-        url=config.url,
-        headers=config.headers_provider.get_headers(),
-    )
-    models_fetcher = ModelsFetcher(
-        api_client=api_client, environment_id=config.environment_id
-    )
-    exposures_fetcher = ExposuresFetcher(
-        api_client=api_client, environment_id=config.environment_id
-    )
+def create_discovery_tool_definitions(
+    config_provider: DiscoveryConfigProvider,
+) -> list[ToolDefinition]:
+    api_client = MetadataAPIClient(config_provider=config_provider)
+    models_fetcher = ModelsFetcher(api_client=api_client)
+    exposures_fetcher = ExposuresFetcher(api_client=api_client)
 
-    def get_mart_models() -> list[dict] | str:
+    async def get_mart_models() -> list[dict] | str:
         try:
-            mart_models = models_fetcher.fetch_models(
+            mart_models = await models_fetcher.fetch_models(
                 model_filter={"modelingLayer": "marts"}
             )
             return [m for m in mart_models if m["name"] != "metricflow_time_spine"]
         except Exception as e:
             return str(e)
 
-    def get_all_models() -> list[dict] | str:
+    async def get_all_models() -> list[dict] | str:
         try:
-            return models_fetcher.fetch_models()
+            return await models_fetcher.fetch_models()
         except Exception as e:
             return str(e)
 
-    def get_model_details(
+    async def get_model_details(
         model_name: str | None = None, unique_id: str | None = None
     ) -> dict | str:
         try:
-            return models_fetcher.fetch_model_details(model_name, unique_id)
+            return await models_fetcher.fetch_model_details(model_name, unique_id)
         except Exception as e:
             return str(e)
 
-    def get_model_parents(
+    async def get_model_parents(
         model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict] | str:
         try:
-            return models_fetcher.fetch_model_parents(model_name, unique_id)
+            return await models_fetcher.fetch_model_parents(model_name, unique_id)
         except Exception as e:
             return str(e)
 
-    def get_model_children(
+    async def get_model_children(
         model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict] | str:
         try:
-            return models_fetcher.fetch_model_children(model_name, unique_id)
+            return await models_fetcher.fetch_model_children(model_name, unique_id)
         except Exception as e:
             return str(e)
 
-    def get_model_health(
+    async def get_model_health(
         model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict] | str:
         try:
-            return models_fetcher.fetch_model_health(model_name, unique_id)
+            return await models_fetcher.fetch_model_health(model_name, unique_id)
         except Exception as e:
             return str(e)
 
-    def get_exposures() -> list[dict] | str:
+    async def get_exposures() -> list[dict] | str:
         try:
-            return exposures_fetcher.fetch_exposures()
+            return await exposures_fetcher.fetch_exposures()
         except Exception as e:
             return str(e)
 
-    def get_exposure_details(
+    async def get_exposure_details(
         exposure_name: str | None = None, unique_ids: list[str] | None = None
     ) -> list[dict] | str:
         try:
-            return exposures_fetcher.fetch_exposure_details(exposure_name, unique_ids)
+            return await exposures_fetcher.fetch_exposure_details(
+                exposure_name, unique_ids
+            )
         except Exception as e:
             return str(e)
 
@@ -173,11 +170,11 @@ def create_discovery_tool_definitions(config: DiscoveryConfig) -> list[ToolDefin
 
 def register_discovery_tools(
     dbt_mcp: FastMCP,
-    config: DiscoveryConfig,
+    config_provider: DiscoveryConfigProvider,
     exclude_tools: Sequence[ToolName] = [],
 ) -> None:
     register_tools(
         dbt_mcp,
-        create_discovery_tool_definitions(config),
+        create_discovery_tool_definitions(config_provider),
         exclude_tools,
     )

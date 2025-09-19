@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 class TokenProvider(Protocol):
     def get_token(self) -> str: ...
-    def start_background_refresh(self) -> asyncio.Task[None]: ...
 
 
 class OAuthTokenProvider:
@@ -39,6 +38,7 @@ class OAuthTokenProvider:
             client_id=OAUTH_CLIENT_ID,
             token_endpoint=self.token_url,
         )
+        self.refresh_started = False
 
     def _get_access_token_response(self) -> AccessTokenResponse:
         dbt_platform_context = self.context_manager.read_context()
@@ -47,6 +47,9 @@ class OAuthTokenProvider:
         return dbt_platform_context.decoded_access_token.access_token_response
 
     def get_token(self) -> str:
+        if not self.refresh_started:
+            self.start_background_refresh()
+            self.refresh_started = True
         return self.access_token_response.access_token
 
     def start_background_refresh(self) -> asyncio.Task[None]:
@@ -98,6 +101,3 @@ class StaticTokenProvider:
         if not self.token:
             raise ValueError("No token provided")
         return self.token
-
-    def start_background_refresh(self) -> asyncio.Task[None]:
-        return asyncio.create_task(asyncio.sleep(0))

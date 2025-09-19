@@ -1,11 +1,17 @@
 from dbt_mcp.config.config import (
-    AdminApiConfig,
     Config,
     DbtCliConfig,
-    DiscoveryConfig,
-    SemanticLayerConfig,
-    SqlConfig,
     TrackingConfig,
+)
+from dbt_mcp.config.config_providers import (
+    AdminApiConfig,
+    AdminApiConfigProvider,
+    DiscoveryConfig,
+    DiscoveryConfigProvider,
+    SemanticLayerConfig,
+    SemanticLayerConfigProvider,
+    SqlConfig,
+    SqlConfigProvider,
 )
 from dbt_mcp.config.headers import (
     AdminApiHeadersProvider,
@@ -68,13 +74,48 @@ mock_admin_api_config = AdminApiConfig(
     account_id=12345,
 )
 
+
+# Create mock config providers
+class MockSqlConfigProvider(SqlConfigProvider):
+    def __init__(self):
+        pass  # Skip the base class __init__
+
+    async def get_config(self):
+        return mock_sql_config
+
+
+class MockDiscoveryConfigProvider(DiscoveryConfigProvider):
+    def __init__(self):
+        pass  # Skip the base class __init__
+
+    async def get_config(self):
+        return mock_discovery_config
+
+
+class MockSemanticLayerConfigProvider(SemanticLayerConfigProvider):
+    def __init__(self):
+        pass  # Skip the base class __init__
+
+    async def get_config(self):
+        return mock_semantic_layer_config
+
+
+class MockAdminApiConfigProvider(AdminApiConfigProvider):
+    def __init__(self):
+        pass  # Skip the base class __init__
+
+    async def get_config(self):
+        return mock_admin_api_config
+
+
 mock_config = Config(
     tracking_config=mock_tracking_config,
-    sql_config=mock_sql_config,
+    sql_config_provider=MockSqlConfigProvider(),
     dbt_cli_config=mock_dbt_cli_config,
-    discovery_config=mock_discovery_config,
-    semantic_layer_config=mock_semantic_layer_config,
-    admin_api_config=mock_admin_api_config,
+    discovery_config_provider=MockDiscoveryConfigProvider(),
+    semantic_layer_config_provider=MockSemanticLayerConfigProvider(),
+    admin_api_config_provider=MockAdminApiConfigProvider(),
     disable_tools=[],
-    token_provider=StaticTokenProvider(token="token"),
 )
+
+# Note: Direct config access has been removed. Use config_provider.get_config() instead.

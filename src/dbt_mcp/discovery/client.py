@@ -3,6 +3,7 @@ from typing import Literal, TypedDict
 
 import requests
 
+from dbt_mcp.config.config_providers import DiscoveryConfigProvider
 from dbt_mcp.gql.errors import raise_gql_error
 
 PAGE_SIZE = 100
@@ -321,15 +322,17 @@ class GraphQLQueries:
 
 
 class MetadataAPIClient:
-    def __init__(self, *, url: str, headers: dict[str, str]):
-        self.url = url
-        self.headers = headers
+    def __init__(self, config_provider: DiscoveryConfigProvider):
+        self.config_provider = config_provider
 
-    def execute_query(self, query: str, variables: dict) -> dict:
+    async def execute_query(self, query: str, variables: dict) -> dict:
+        config = await self.config_provider.get_config()
+        url = config.url
+        headers = config.headers_provider.get_headers()
         response = requests.post(
-            url=self.url,
+            url=url,
             json={"query": query, "variables": variables},
-            headers=self.headers,
+            headers=headers,
         )
         return response.json()
 
@@ -339,9 +342,12 @@ class ModelFilter(TypedDict, total=False):
 
 
 class ModelsFetcher:
-    def __init__(self, api_client: MetadataAPIClient, environment_id: int):
+    def __init__(self, api_client: MetadataAPIClient):
         self.api_client = api_client
-        self.environment_id = environment_id
+
+    async def get_environment_id(self) -> int:
+        config = await self.api_client.config_provider.get_config()
+        return config.environment_id
 
     def _parse_response_to_json(self, result: dict) -> list[dict]:
         raise_gql_error(result)
@@ -370,20 +376,22 @@ class ModelsFetcher:
         else:
             raise ValueError("Either model_name or unique_id must be provided")
 
-    def fetch_models(self, model_filter: ModelFilter | None = None) -> list[dict]:
+    async def fetch_models(self, model_filter: ModelFilter | None = None) -> list[dict]:
         has_next_page = True
         after_cursor: str = ""
         all_edges: list[dict] = []
         while has_next_page and len(all_edges) < MAX_NUM_MODELS:
             variables = {
-                "environmentId": self.environment_id,
+                "environmentId": await self.get_environment_id(),
                 "after": after_cursor,
                 "first": PAGE_SIZE,
                 "modelsFilter": model_filter or {},
                 "sort": {"field": "queryUsageCount", "direction": "desc"},
             }
 
-            result = self.api_client.execute_query(GraphQLQueries.GET_MODELS, variables)
+            result = await self.api_client.execute_query(
+                GraphQLQueries.GET_MODELS, variables
+            )
             all_edges.extend(self._parse_response_to_json(result))
 
             previous_after_cursor = after_cursor
@@ -395,16 +403,16 @@ class ModelsFetcher:
 
         return all_edges
 
-    def fetch_model_details(
+    async def fetch_model_details(
         self, model_name: str | None = None, unique_id: str | None = None
     ) -> dict:
         model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
-            "environmentId": self.environment_id,
+            "environmentId": await self.get_environment_id(),
             "modelsFilter": model_filters,
             "first": 1,
         }
-        result = self.api_client.execute_query(
+        result = await self.api_client.execute_query(
             GraphQLQueries.GET_MODEL_DETAILS, variables
         )
         raise_gql_error(result)
@@ -413,16 +421,16 @@ class ModelsFetcher:
             return {}
         return edges[0]["node"]
 
-    def fetch_model_parents(
+    async def fetch_model_parents(
         self, model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict]:
         model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
-            "environmentId": self.environment_id,
+            "environmentId": await self.get_environment_id(),
             "modelsFilter": model_filters,
             "first": 1,
         }
-        result = self.api_client.execute_query(
+        result = await self.api_client.execute_query(
             GraphQLQueries.GET_MODEL_PARENTS, variables
         )
         raise_gql_error(result)
@@ -431,16 +439,16 @@ class ModelsFetcher:
             return []
         return edges[0]["node"]["parents"]
 
-    def fetch_model_children(
+    async def fetch_model_children(
         self, model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict]:
         model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
-            "environmentId": self.environment_id,
+            "environmentId": await self.get_environment_id(),
             "modelsFilter": model_filters,
             "first": 1,
         }
-        result = self.api_client.execute_query(
+        result = await self.api_client.execute_query(
             GraphQLQueries.GET_MODEL_CHILDREN, variables
         )
         raise_gql_error(result)
@@ -449,16 +457,16 @@ class ModelsFetcher:
             return []
         return edges[0]["node"]["children"]
 
-    def fetch_model_health(
+    async def fetch_model_health(
         self, model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict]:
         model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
-            "environmentId": self.environment_id,
+            "environmentId": await self.get_environment_id(),
             "modelsFilter": model_filters,
             "first": 1,
         }
-        result = self.api_client.execute_query(
+        result = await self.api_client.execute_query(
             GraphQLQueries.GET_MODEL_HEALTH, variables
         )
         raise_gql_error(result)
@@ -469,9 +477,12 @@ class ModelsFetcher:
 
 
 class ExposuresFetcher:
-    def __init__(self, api_client: MetadataAPIClient, environment_id: int):
+    def __init__(self, api_client: MetadataAPIClient):
         self.api_client = api_client
-        self.environment_id = environment_id
+
+    async def get_environment_id(self) -> int:
+        config = await self.api_client.config_provider.get_config()
+        return config.environment_id
 
     def _parse_response_to_json(self, result: dict) -> list[dict]:
         raise_gql_error(result)
@@ -490,20 +501,20 @@ class ExposuresFetcher:
             parsed_edges.append(node)
         return parsed_edges
 
-    def fetch_exposures(self) -> list[dict]:
+    async def fetch_exposures(self) -> list[dict]:
         has_next_page = True
         after_cursor: str | None = None
         all_edges: list[dict] = []
 
         while has_next_page:
             variables: dict[str, int | str] = {
-                "environmentId": self.environment_id,
+                "environmentId": await self.get_environment_id(),
                 "first": PAGE_SIZE,
             }
             if after_cursor:
                 variables["after"] = after_cursor
 
-            result = self.api_client.execute_query(
+            result = await self.api_client.execute_query(
                 GraphQLQueries.GET_EXPOSURES, variables
             )
             new_edges = self._parse_response_to_json(result)
@@ -529,13 +540,13 @@ class ExposuresFetcher:
         else:
             raise ValueError("unique_ids must be provided for exposure filtering")
 
-    def fetch_exposure_details(
+    async def fetch_exposure_details(
         self, exposure_name: str | None = None, unique_ids: list[str] | None = None
     ) -> list[dict]:
         if exposure_name and not unique_ids:
             # Since ExposureFilter doesn't support filtering by name,
             # we need to fetch all exposures and find the one with matching name
-            all_exposures = self.fetch_exposures()
+            all_exposures = await self.fetch_exposures()
             for exposure in all_exposures:
                 if exposure.get("name") == exposure_name:
                     return [exposure]
@@ -543,11 +554,11 @@ class ExposuresFetcher:
         elif unique_ids:
             exposure_filters = self._get_exposure_filters(unique_ids=unique_ids)
             variables = {
-                "environmentId": self.environment_id,
+                "environmentId": await self.get_environment_id(),
                 "filter": exposure_filters,
                 "first": len(unique_ids),  # Request as many as we're filtering for
             }
-            result = self.api_client.execute_query(
+            result = await self.api_client.execute_query(
                 GraphQLQueries.GET_EXPOSURE_DETAILS, variables
             )
             raise_gql_error(result)
