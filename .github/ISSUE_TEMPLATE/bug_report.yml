@@ -45,9 +45,8 @@ body:
       description: Please provide details about your environment
       placeholder: |
         - OS: [e.g. macOS, Linux, Windows]
-        - Python version: [e.g. 3.9, 3.10, 3.11]
-        - dbt version: [e.g. 1.6.0]
-        - MCP version: [if applicable]
+        - dbt CLI executable (for CLI tools): [e.g. dbt Core, Fusion, Cloud CLI]
+        - MCP client: [e.g. Cursor, Claude Desktop, OpenAI SDK...]
     validations:
       required: false
   - type: textarea
