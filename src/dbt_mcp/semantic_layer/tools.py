@@ -35,27 +35,18 @@ def create_sl_tool_definitions(
         config=config,
     )
 
-    def list_metrics(search: str | None = None) -> list[MetricToolResponse] | str:
-        try:
-            return semantic_layer_fetcher.list_metrics(search=search)
-        except Exception as e:
-            return str(e)
+    def list_metrics(search: str | None = None) -> list[MetricToolResponse]:
+        return semantic_layer_fetcher.list_metrics(search=search)
 
     def get_dimensions(
         metrics: list[str], search: str | None = None
-    ) -> list[DimensionToolResponse] | str:
-        try:
-            return semantic_layer_fetcher.get_dimensions(metrics=metrics, search=search)
-        except Exception as e:
-            return str(e)
+    ) -> list[DimensionToolResponse]:
+        return semantic_layer_fetcher.get_dimensions(metrics=metrics, search=search)
 
     def get_entities(
         metrics: list[str], search: str | None = None
-    ) -> list[EntityToolResponse] | str:
-        try:
-            return semantic_layer_fetcher.get_entities(metrics=metrics, search=search)
-        except Exception as e:
-            return str(e)
+    ) -> list[EntityToolResponse]:
+        return semantic_layer_fetcher.get_entities(metrics=metrics, search=search)
 
     def query_metrics(
         metrics: list[str],
@@ -64,20 +55,17 @@ def create_sl_tool_definitions(
         where: str | None = None,
         limit: int | None = None,
     ) -> str:
-        try:
-            result = semantic_layer_fetcher.query_metrics(
-                metrics=metrics,
-                group_by=group_by,
-                order_by=order_by,
-                where=where,
-                limit=limit,
-            )
-            if isinstance(result, QueryMetricsSuccess):
-                return result.result
-            else:
-                return result.error
-        except Exception as e:
-            return str(e)
+        result = semantic_layer_fetcher.query_metrics(
+            metrics=metrics,
+            group_by=group_by,
+            order_by=order_by,
+            where=where,
+            limit=limit,
+        )
+        if isinstance(result, QueryMetricsSuccess):
+            return result.result
+        else:
+            return result.error
 
     def get_metrics_compiled_sql(
         metrics: list[str],
@@ -86,20 +74,17 @@ def create_sl_tool_definitions(
         where: str | None = None,
         limit: int | None = None,
     ) -> str:
-        try:
-            result = semantic_layer_fetcher.get_metrics_compiled_sql(
-                metrics=metrics,
-                group_by=group_by,
-                order_by=order_by,
-                where=where,
-                limit=limit,
-            )
-            if isinstance(result, GetMetricsCompiledSqlSuccess):
-                return result.sql
-            else:
-                return result.error
-        except Exception as e:
-            return str(e)
+        result = semantic_layer_fetcher.get_metrics_compiled_sql(
+            metrics=metrics,
+            group_by=group_by,
+            order_by=order_by,
+            where=where,
+            limit=limit,
+        )
+        if isinstance(result, GetMetricsCompiledSqlSuccess):
+            return result.sql
+        else:
+            return result.error
 
     return [
         ToolDefinition(
