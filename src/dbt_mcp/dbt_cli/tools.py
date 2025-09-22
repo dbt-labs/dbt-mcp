@@ -61,7 +61,9 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             cwd_path = config.project_dir if os.path.isabs(config.project_dir) else None
 
             # Add appropriate color disable flag based on binary type
-            color_flag = get_color_disable_flag(config.binary_type)
+            color_flag = get_color_disable_flag(
+                config.binary_type, config.dbt_no_color_flag
+            )
             args = [config.dbt_path, color_flag, *full_command]
 
             process = subprocess.Popen(
