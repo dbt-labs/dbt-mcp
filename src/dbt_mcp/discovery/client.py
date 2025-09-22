@@ -130,7 +130,7 @@ class GraphQLQueries:
                             node {
                                 name
                                 uniqueId
-                                rawCode
+                                compiledCode
                                 description
                                 database
                                 schema
