@@ -4,7 +4,10 @@ from collections.abc import Sequence
 from dbtsl.api.shared.query_params import GroupByParam
 from mcp.server.fastmcp import FastMCP
 
-from dbt_mcp.config.config_providers import SemanticLayerConfigProvider
+from dbt_mcp.config.config_providers import (
+    ConfigProvider,
+    SemanticLayerConfig,
+)
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.semantic_layer.client import (
     SemanticLayerFetcher,
@@ -26,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_sl_tool_definitions(
-    config_provider: SemanticLayerConfigProvider,
+    config_provider: ConfigProvider[SemanticLayerConfig],
 ) -> list[ToolDefinition]:
     semantic_layer_fetcher = SemanticLayerFetcher(
         config_provider=config_provider,
@@ -158,7 +161,7 @@ def create_sl_tool_definitions(
 
 def register_sl_tools(
     dbt_mcp: FastMCP,
-    config_provider: SemanticLayerConfigProvider,
+    config_provider: ConfigProvider[SemanticLayerConfig],
     exclude_tools: Sequence[ToolName] = [],
 ) -> None:
     register_tools(

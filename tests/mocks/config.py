@@ -5,13 +5,13 @@ from dbt_mcp.config.config import (
 )
 from dbt_mcp.config.config_providers import (
     AdminApiConfig,
-    AdminApiConfigProvider,
+    DefaultAdminApiConfigProvider,
+    DefaultDiscoveryConfigProvider,
+    DefaultSemanticLayerConfigProvider,
+    DefaultSqlConfigProvider,
     DiscoveryConfig,
-    DiscoveryConfigProvider,
     SemanticLayerConfig,
-    SemanticLayerConfigProvider,
     SqlConfig,
-    SqlConfigProvider,
 )
 from dbt_mcp.config.headers import (
     AdminApiHeadersProvider,
@@ -76,7 +76,7 @@ mock_admin_api_config = AdminApiConfig(
 
 
 # Create mock config providers
-class MockSqlConfigProvider(SqlConfigProvider):
+class MockSqlConfigProvider(DefaultSqlConfigProvider):
     def __init__(self):
         pass  # Skip the base class __init__
 
@@ -84,7 +84,7 @@ class MockSqlConfigProvider(SqlConfigProvider):
         return mock_sql_config
 
 
-class MockDiscoveryConfigProvider(DiscoveryConfigProvider):
+class MockDiscoveryConfigProvider(DefaultDiscoveryConfigProvider):
     def __init__(self):
         pass  # Skip the base class __init__
 
@@ -92,7 +92,7 @@ class MockDiscoveryConfigProvider(DiscoveryConfigProvider):
         return mock_discovery_config
 
 
-class MockSemanticLayerConfigProvider(SemanticLayerConfigProvider):
+class MockSemanticLayerConfigProvider(DefaultSemanticLayerConfigProvider):
     def __init__(self):
         pass  # Skip the base class __init__
 
@@ -100,7 +100,7 @@ class MockSemanticLayerConfigProvider(SemanticLayerConfigProvider):
         return mock_semantic_layer_config
 
 
-class MockAdminApiConfigProvider(AdminApiConfigProvider):
+class MockAdminApiConfigProvider(DefaultAdminApiConfigProvider):
     def __init__(self):
         pass  # Skip the base class __init__
 

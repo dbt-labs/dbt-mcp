@@ -11,7 +11,7 @@ from dbtsl.api.shared.query_params import (
 from dbtsl.client.sync import SyncSemanticLayerClient
 from dbtsl.error import QueryFailedError
 
-from dbt_mcp.config.config_providers import SemanticLayerConfigProvider
+from dbt_mcp.config.config_providers import ConfigProvider, SemanticLayerConfig
 from dbt_mcp.semantic_layer.gql.gql import GRAPHQL_QUERIES
 from dbt_mcp.semantic_layer.gql.gql_request import submit_request
 from dbt_mcp.semantic_layer.levenshtein import get_misspellings
@@ -56,7 +56,7 @@ class SemanticLayerClientProtocol(Protocol):
 class SemanticLayerFetcher:
     def __init__(
         self,
-        config_provider: SemanticLayerConfigProvider,
+        config_provider: ConfigProvider[SemanticLayerConfig],
     ):
         self.config_provider = config_provider
         self.entities_cache: dict[str, list[EntityToolResponse]] = {}

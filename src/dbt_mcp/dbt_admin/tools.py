@@ -5,7 +5,10 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from dbt_mcp.config.config_providers import AdminApiConfigProvider
+from dbt_mcp.config.config_providers import (
+    AdminApiConfig,
+    ConfigProvider,
+)
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.annotations import create_tool_annotations
@@ -38,7 +41,8 @@ STATUS_MAP = {
 
 
 def create_admin_api_tool_definitions(
-    admin_client: DbtAdminAPIClient, admin_api_config_provider: AdminApiConfigProvider
+    admin_client: DbtAdminAPIClient,
+    admin_api_config_provider: ConfigProvider[AdminApiConfig],
 ) -> list[ToolDefinition]:
     async def list_jobs(
         # TODO: add support for project_id in the future
@@ -286,7 +290,7 @@ def create_admin_api_tool_definitions(
 
 def register_admin_api_tools(
     dbt_mcp: FastMCP,
-    admin_config_provider: AdminApiConfigProvider,
+    admin_config_provider: ConfigProvider[AdminApiConfig],
     exclude_tools: Sequence[ToolName] = [],
 ) -> None:
     """Register dbt Admin API tools."""

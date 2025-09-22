@@ -3,7 +3,7 @@ from typing import Literal, TypedDict
 
 import requests
 
-from dbt_mcp.config.config_providers import DiscoveryConfigProvider
+from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.gql.errors import raise_gql_error
 
 PAGE_SIZE = 100
@@ -322,7 +322,7 @@ class GraphQLQueries:
 
 
 class MetadataAPIClient:
-    def __init__(self, config_provider: DiscoveryConfigProvider):
+    def __init__(self, config_provider: ConfigProvider[DiscoveryConfig]):
         self.config_provider = config_provider
 
     async def execute_query(self, query: str, variables: dict) -> dict:

@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from dbt_mcp.config.config_providers import DiscoveryConfigProvider
+from dbt_mcp.config.config_providers import DefaultDiscoveryConfigProvider
 from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
 from dbt_mcp.discovery.client import (
     ExposuresFetcher,
@@ -28,7 +28,7 @@ def api_client() -> MetadataAPIClient:
     # DbtMcpSettings will automatically pick up from environment variables
     settings = DbtMcpSettings()  # type: ignore
     credentials_provider = CredentialsProvider(settings)
-    config_provider = DiscoveryConfigProvider(credentials_provider)
+    config_provider = DefaultDiscoveryConfigProvider(credentials_provider)
 
     return MetadataAPIClient(config_provider)
 

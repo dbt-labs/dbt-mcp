@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from dbt_mcp.config.headers import (
@@ -43,7 +44,12 @@ class SqlConfig:
     headers_provider: HeadersProvider
 
 
-class SemanticLayerConfigProvider:
+class ConfigProvider[ConfigType](ABC):
+    @abstractmethod
+    async def get_config(self) -> ConfigType: ...
+
+
+class DefaultSemanticLayerConfigProvider(ConfigProvider[SemanticLayerConfig]):
     def __init__(self, credentials_provider: CredentialsProvider):
         self.credentials_provider = credentials_provider
 
@@ -76,7 +82,7 @@ class SemanticLayerConfigProvider:
         )
 
 
-class DiscoveryConfigProvider:
+class DefaultDiscoveryConfigProvider(ConfigProvider[DiscoveryConfig]):
     def __init__(self, credentials_provider: CredentialsProvider):
         self.credentials_provider = credentials_provider
 
@@ -99,7 +105,7 @@ class DiscoveryConfigProvider:
         )
 
 
-class AdminApiConfigProvider:
+class DefaultAdminApiConfigProvider(ConfigProvider[AdminApiConfig]):
     def __init__(self, credentials_provider: CredentialsProvider):
         self.credentials_provider = credentials_provider
 
@@ -119,7 +125,7 @@ class AdminApiConfigProvider:
         )
 
 
-class SqlConfigProvider:
+class DefaultSqlConfigProvider(ConfigProvider[SqlConfig]):
     def __init__(self, credentials_provider: CredentialsProvider):
         self.credentials_provider = credentials_provider
 

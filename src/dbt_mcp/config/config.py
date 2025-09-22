@@ -5,10 +5,10 @@ from pathlib import Path
 import yaml
 
 from dbt_mcp.config.config_providers import (
-    AdminApiConfigProvider,
-    DiscoveryConfigProvider,
-    SemanticLayerConfigProvider,
-    SqlConfigProvider,
+    DefaultAdminApiConfigProvider,
+    DefaultDiscoveryConfigProvider,
+    DefaultSemanticLayerConfigProvider,
+    DefaultSqlConfigProvider,
 )
 from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
 from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
@@ -37,11 +37,11 @@ class DbtCliConfig:
 class Config:
     tracking_config: TrackingConfig
     disable_tools: list[ToolName]
-    sql_config_provider: SqlConfigProvider | None
+    sql_config_provider: DefaultSqlConfigProvider | None
     dbt_cli_config: DbtCliConfig | None
-    discovery_config_provider: DiscoveryConfigProvider | None
-    semantic_layer_config_provider: SemanticLayerConfigProvider | None
-    admin_api_config_provider: AdminApiConfigProvider | None
+    discovery_config_provider: DefaultDiscoveryConfigProvider | None
+    semantic_layer_config_provider: DefaultSemanticLayerConfigProvider | None
+    admin_api_config_provider: DefaultAdminApiConfigProvider | None
 
 
 def load_config() -> Config:
@@ -56,13 +56,13 @@ def load_config() -> Config:
     # Build configurations
     sql_config_provider = None
     if not settings.actual_disable_sql:
-        sql_config_provider = SqlConfigProvider(
+        sql_config_provider = DefaultSqlConfigProvider(
             credentials_provider=credentials_provider,
         )
 
     admin_api_config_provider = None
     if not settings.disable_admin_api:
-        admin_api_config_provider = AdminApiConfigProvider(
+        admin_api_config_provider = DefaultAdminApiConfigProvider(
             credentials_provider=credentials_provider,
         )
 
@@ -78,13 +78,13 @@ def load_config() -> Config:
 
     discovery_config_provider = None
     if not settings.disable_discovery:
-        discovery_config_provider = DiscoveryConfigProvider(
+        discovery_config_provider = DefaultDiscoveryConfigProvider(
             credentials_provider=credentials_provider,
         )
 
     semantic_layer_config_provider = None
     if not settings.disable_semantic_layer:
-        semantic_layer_config_provider = SemanticLayerConfigProvider(
+        semantic_layer_config_provider = DefaultSemanticLayerConfigProvider(
             credentials_provider=credentials_provider,
         )
 

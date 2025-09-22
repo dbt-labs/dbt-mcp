@@ -4,7 +4,10 @@ from typing import Any
 
 import requests
 
-from dbt_mcp.config.config_providers import AdminApiConfig, AdminApiConfigProvider
+from dbt_mcp.config.config_providers import (
+    AdminApiConfig,
+    ConfigProvider,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +21,7 @@ class AdminAPIError(Exception):
 class DbtAdminAPIClient:
     """Client for interacting with the dbt Admin API."""
 
-    def __init__(self, config_provider: AdminApiConfigProvider):
+    def __init__(self, config_provider: ConfigProvider[AdminApiConfig]):
         self.config_provider = config_provider
 
     async def get_config(self) -> AdminApiConfig:

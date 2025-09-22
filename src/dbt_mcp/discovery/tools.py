@@ -3,7 +3,10 @@ from collections.abc import Sequence
 
 from mcp.server.fastmcp import FastMCP
 
-from dbt_mcp.config.config_providers import DiscoveryConfigProvider
+from dbt_mcp.config.config_providers import (
+    ConfigProvider,
+    DiscoveryConfig,
+)
 from dbt_mcp.discovery.client import ExposuresFetcher, MetadataAPIClient, ModelsFetcher
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.annotations import create_tool_annotations
@@ -15,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_discovery_tool_definitions(
-    config_provider: DiscoveryConfigProvider,
+    config_provider: ConfigProvider[DiscoveryConfig],
 ) -> list[ToolDefinition]:
     api_client = MetadataAPIClient(config_provider=config_provider)
     models_fetcher = ModelsFetcher(api_client=api_client)
@@ -170,7 +173,7 @@ def create_discovery_tool_definitions(
 
 def register_discovery_tools(
     dbt_mcp: FastMCP,
-    config_provider: DiscoveryConfigProvider,
+    config_provider: ConfigProvider[DiscoveryConfig],
     exclude_tools: Sequence[ToolName] = [],
 ) -> None:
     register_tools(
