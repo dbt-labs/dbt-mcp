@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Allow setting the "no color flag" when we can't detect the CLI type
+time: 2025-09-22T15:19:43.245974+02:00

@@ -43,7 +43,9 @@ def detect_binary_type(file_path: str) -> BinaryType:
     return BinaryType.FUSION
 
 
-def get_color_disable_flag(binary_type: BinaryType) -> str:
+def get_color_disable_flag(
+    binary_type: BinaryType, no_color_flag: str | None = None
+) -> str:
     """
     Get the appropriate color disable flag for the given binary type.
 
@@ -53,6 +55,10 @@ def get_color_disable_flag(binary_type: BinaryType) -> str:
     Returns:
         str: The color disable flag to use
     """
+
+    if no_color_flag:
+        return no_color_flag
+
     if binary_type == BinaryType.DBT_CLOUD_CLI:
         return "--no-color"
     else:  # DBT_CORE or FUSION

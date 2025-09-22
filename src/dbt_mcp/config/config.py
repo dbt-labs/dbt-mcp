@@ -60,6 +60,7 @@ class DbtCliConfig:
     dbt_path: str
     dbt_cli_timeout: int
     binary_type: BinaryType
+    dbt_no_color_flag: str | None = None
 
 
 @dataclass
@@ -106,6 +107,7 @@ class DbtMcpSettings(BaseSettings):
     dbt_cli_timeout: int = Field(10, alias="DBT_CLI_TIMEOUT")
     dbt_warn_error_options: str | None = Field(None, alias="DBT_WARN_ERROR_OPTIONS")
     dbt_profiles_dir: str | None = Field(None, alias="DBT_PROFILES_DIR")
+    dbt_color_disable_flag: str | None = Field(None, alias="DBT_COLOR_DISABLE_FLAG")
 
     # Disable tool settings
     disable_dbt_cli: bool = Field(False, alias="DISABLE_DBT_CLI")
@@ -438,6 +440,7 @@ def create_config(settings: DbtMcpSettings, token_provider: TokenProvider) -> Co
             dbt_path=settings.dbt_path,
             dbt_cli_timeout=settings.dbt_cli_timeout,
             binary_type=binary_type,
+            dbt_no_color_flag=settings.dbt_color_disable_flag,
         )
 
     discovery_config = None
