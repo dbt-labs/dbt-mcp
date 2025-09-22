@@ -23,7 +23,7 @@ def detect_binary_type(file_path: str) -> BinaryType:
     """
     try:
         with open(file_path, "rb") as f:
-            content = f.read(1024 * 1024)
+            content = f.read(1024 * 1024 * 10)
     except Exception as e:
         raise Exception(f"Cannot read binary file {file_path}: {e}")
 
@@ -36,7 +36,7 @@ def detect_binary_type(file_path: str) -> BinaryType:
         return BinaryType.DBT_CORE
 
     # Go build ID (dbt Cloud CLI)
-    if b"Go build ID:" in content:
+    if b"Go build" in content:
         return BinaryType.DBT_CLOUD_CLI
 
     # Default to Fusion for everything else (Rust)
