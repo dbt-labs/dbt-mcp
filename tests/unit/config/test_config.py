@@ -8,6 +8,7 @@ from dbt_mcp.config.config import (
     DbtMcpSettings,
     load_config,
 )
+from dbt_mcp.config.settings import DEFAULT_DBT_CLI_TIMEOUT
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.tools.tool_names import ToolName
 
@@ -47,7 +48,7 @@ class TestDbtMcpSettings:
         with patch.dict(os.environ, clean_env, clear=True):
             settings = DbtMcpSettings(_env_file=None)
             assert settings.dbt_path == "dbt"
-            assert settings.dbt_cli_timeout == 10
+            assert settings.dbt_cli_timeout == DEFAULT_DBT_CLI_TIMEOUT
             assert settings.disable_dbt_cli is False
             assert settings.disable_semantic_layer is False
             assert settings.disable_discovery is False

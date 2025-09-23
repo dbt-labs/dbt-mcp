@@ -21,6 +21,7 @@ from dbt_mcp.oauth.token_provider import (
 from dbt_mcp.tools.tool_names import ToolName
 
 OAUTH_REDIRECT_STARTING_PORT = 6785
+DEFAULT_DBT_CLI_TIMEOUT = 60
 
 
 class DbtMcpSettings(BaseSettings):
@@ -47,7 +48,7 @@ class DbtMcpSettings(BaseSettings):
     # dbt CLI settings
     dbt_project_dir: str | None = Field(None, alias="DBT_PROJECT_DIR")
     dbt_path: str = Field("dbt", alias="DBT_PATH")
-    dbt_cli_timeout: int = Field(10, alias="DBT_CLI_TIMEOUT")
+    dbt_cli_timeout: int = Field(DEFAULT_DBT_CLI_TIMEOUT, alias="DBT_CLI_TIMEOUT")
     dbt_warn_error_options: str | None = Field(None, alias="DBT_WARN_ERROR_OPTIONS")
     dbt_profiles_dir: str | None = Field(None, alias="DBT_PROFILES_DIR")
 
