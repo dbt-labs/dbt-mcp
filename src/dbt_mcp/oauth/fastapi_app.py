@@ -6,6 +6,7 @@ from authlib.integrations.requests_client import OAuth2Session
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.types import Receive, Scope, Send
 from uvicorn import Server
 
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
@@ -23,6 +24,27 @@ from dbt_mcp.oauth.token import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class NoCacheStaticFiles(StaticFiles):
+    """
+    Custom StaticFiles class that adds cache-control headers to prevent caching.
+    """
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        # Create a wrapper for the send function to modify headers
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                # Add no-cache headers to prevent client-side caching
+                headers = dict(message.get("headers", []))
+                headers[b"cache-control"] = b"no-cache, no-store, must-revalidate"
+                headers[b"pragma"] = b"no-cache"
+                headers[b"expires"] = b"0"
+                message["headers"] = list(headers.items())
+            await send(message)
+
+        # Call the parent class with our modified send function
+        await super().__call__(scope, receive, send_wrapper)
 
 
 def _get_all_accounts(
@@ -247,7 +269,7 @@ def create_app(
 
     app.mount(
         path="/",
-        app=StaticFiles(directory=static_dir, html=True),
+        app=NoCacheStaticFiles(directory=static_dir, html=True),
     )
 
     return app

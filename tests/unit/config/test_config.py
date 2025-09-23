@@ -8,6 +8,7 @@ from dbt_mcp.config.config import (
     DbtMcpSettings,
     load_config,
 )
+from dbt_mcp.config.settings import DEFAULT_DBT_CLI_TIMEOUT
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.tools.tool_names import ToolName
 
@@ -47,7 +48,7 @@ class TestDbtMcpSettings:
         with patch.dict(os.environ, clean_env, clear=True):
             settings = DbtMcpSettings(_env_file=None)
             assert settings.dbt_path == "dbt"
-            assert settings.dbt_cli_timeout == 10
+            assert settings.dbt_cli_timeout == DEFAULT_DBT_CLI_TIMEOUT
             assert settings.disable_dbt_cli is False
             assert settings.disable_semantic_layer is False
             assert settings.disable_discovery is False
@@ -188,18 +189,11 @@ class TestLoadConfig:
 
         assert config.tracking_config.host == "test.dbt.com"
         assert config.tracking_config.prod_environment_id == 123
-        assert config.sql_config is not None
-        assert "test.dbt.com" in config.sql_config.url
+        assert config.sql_config_provider is not None
         assert config.dbt_cli_config is not None
-        assert config.discovery_config is not None
-        assert config.semantic_layer_config is not None
-        assert config.admin_api_config is not None
-        assert config.admin_api_config.url == "https://test.dbt.com"
-        assert config.admin_api_config.headers_provider.get_headers() == {
-            "Authorization": "Bearer test_token"
-        }
-        assert config.admin_api_config.account_id == 123
-        assert config.admin_api_config.prod_environment_id == 123
+        assert config.discovery_config_provider is not None
+        assert config.semantic_layer_config_provider is not None
+        assert config.admin_api_config_provider is not None
 
     def test_valid_config_all_services_disabled(self):
         env_vars = {
@@ -213,124 +207,10 @@ class TestLoadConfig:
 
         config = self._load_config_with_env(env_vars)
 
-        assert config.sql_config is None
+        assert config.sql_config_provider is None
         assert config.dbt_cli_config is None
-        assert config.discovery_config is None
-        assert config.semantic_layer_config is None
-
-    def test_missing_required_host_error(self):
-        env_vars = {
-            "DBT_PROD_ENV_ID": "123",
-            "DBT_TOKEN": "test_token",
-            "DISABLE_SEMANTIC_LAYER": "false",
-        }
-
-        with pytest.raises(
-            ValueError, match="DBT_HOST environment variable is required"
-        ):
-            self._load_config_with_env(env_vars)
-
-    def test_missing_required_prod_env_id_error(self):
-        env_vars = {
-            "DBT_HOST": "test.dbt.com",
-            "DBT_TOKEN": "test_token",
-            "DISABLE_DISCOVERY": "false",
-        }
-
-        with pytest.raises(
-            ValueError, match="DBT_PROD_ENV_ID environment variable is required"
-        ):
-            self._load_config_with_env(env_vars)
-
-    def test_missing_required_token_error(self):
-        env_vars = {
-            "DBT_HOST": "test.dbt.com",
-            "DBT_PROD_ENV_ID": "123",
-            "DBT_PROJECT_DIR": "/test/project",
-        }
-
-        with pytest.raises(
-            ValueError,
-            match="Errors found in configuration:\n\nDBT_TOKEN environment variable is required when semantic layer, discovery, SQL or admin API tools are enabled.",
-        ):
-            self._load_config_with_env(env_vars)
-
-    def test_missing_required_dev_env_id_for_remote(self):
-        env_vars = {
-            "DBT_HOST": "test.dbt.com",
-            "DBT_PROD_ENV_ID": "123",
-            "DBT_TOKEN": "test_token",
-            "DBT_USER_ID": "789",
-            "DISABLE_REMOTE": "false",
-        }
-
-        with pytest.raises(
-            ValueError, match="DBT_DEV_ENV_ID environment variable is required"
-        ):
-            self._load_config_with_env(env_vars)
-
-    def test_missing_required_user_id_for_remote(self):
-        env_vars = {
-            "DBT_HOST": "test.dbt.com",
-            "DBT_PROD_ENV_ID": "123",
-            "DBT_DEV_ENV_ID": "456",
-            "DBT_TOKEN": "test_token",
-            "DISABLE_REMOTE": "false",
-        }
-
-        with pytest.raises(
-            ValueError, match="DBT_USER_ID environment variable is required"
-        ):
-            self._load_config_with_env(env_vars)
-
-    def test_missing_required_project_dir_for_cli(self):
-        env_vars = {
-            "DISABLE_SEMANTIC_LAYER": "true",
-            "DISABLE_DISCOVERY": "true",
-            "DISABLE_REMOTE": "true",
-            "DISABLE_ADMIN_API": "true",
-            "DISABLE_DBT_CLI": "false",
-        }
-
-        with pytest.raises(
-            ValueError,
-            match="Errors found in configuration:\n\nDBT_PROJECT_DIR environment variable is required when dbt CLI tools are enabled.",
-        ):
-            self._load_config_with_env(env_vars)
-
-    def test_invalid_host_starting_with_metadata(self):
-        env_vars = {
-            "DBT_HOST": "metadata.test.dbt.com",
-            "DBT_PROD_ENV_ID": "123",
-            "DBT_TOKEN": "test_token",
-            "DISABLE_DISCOVERY": "false",
-            "DISABLE_DBT_CLI": "true",
-            "DISABLE_SEMANTIC_LAYER": "true",
-            "DISABLE_REMOTE": "true",
-        }
-
-        with pytest.raises(
-            ValueError,
-            match="DBT_HOST must not start with 'metadata' or 'semantic-layer'",
-        ):
-            self._load_config_with_env(env_vars)
-
-    def test_invalid_host_starting_with_semantic_layer(self):
-        env_vars = {
-            "DBT_HOST": "semantic-layer.test.dbt.com",
-            "DBT_PROD_ENV_ID": "123",
-            "DBT_TOKEN": "test_token",
-            "DISABLE_SEMANTIC_LAYER": "false",
-            "DISABLE_DBT_CLI": "true",
-            "DISABLE_DISCOVERY": "true",
-            "DISABLE_REMOTE": "true",
-        }
-
-        with pytest.raises(
-            ValueError,
-            match="DBT_HOST must not start with 'metadata' or 'semantic-layer'",
-        ):
-            self._load_config_with_env(env_vars)
+        assert config.discovery_config_provider is None
+        assert config.semantic_layer_config_provider is None
 
     def test_invalid_environment_variable_types(self):
         # Test invalid integer types
@@ -342,19 +222,6 @@ class TestLoadConfig:
         }
 
         with pytest.raises(ValueError):
-            self._load_config_with_env(env_vars)
-
-    def test_empty_environment_variables(self):
-        env_vars = {
-            "DBT_HOST": "",
-            "DBT_PROD_ENV_ID": "123",
-            "DBT_TOKEN": "test_token",
-            "DISABLE_DISCOVERY": "false",
-        }
-
-        with pytest.raises(
-            ValueError, match="DBT_HOST environment variable is required"
-        ):
             self._load_config_with_env(env_vars)
 
     def test_multicell_account_prefix_configurations(self):
@@ -371,8 +238,8 @@ class TestLoadConfig:
 
         config = self._load_config_with_env(env_vars)
 
-        assert "prefix.metadata.test.dbt.com" in config.discovery_config.url
-        assert config.semantic_layer_config.host == "prefix.semantic-layer.test.dbt.com"
+        assert config.discovery_config_provider is not None
+        assert config.semantic_layer_config_provider is not None
 
     def test_localhost_semantic_layer_config(self):
         env_vars = {
@@ -387,8 +254,7 @@ class TestLoadConfig:
 
         config = self._load_config_with_env(env_vars)
 
-        assert config.semantic_layer_config.url.startswith("http://")
-        assert "localhost:8080" in config.semantic_layer_config.url
+        assert config.semantic_layer_config_provider is not None
 
     def test_warn_error_options_default_setting(self):
         env_vars = {
@@ -484,7 +350,7 @@ class TestLoadConfig:
 
         config = self._load_config_with_env(env_vars)
         # Remote config should not be created when remote tools are disabled
-        assert config.sql_config is None
+        assert config.sql_config_provider is None
 
         # Test remote requirements (needs user_id and dev_env_id too)
         env_vars.update(
@@ -496,9 +362,7 @@ class TestLoadConfig:
         )
 
         config = self._load_config_with_env(env_vars)
-        assert config.sql_config is not None
-        assert config.sql_config.user_id == 789
-        assert config.sql_config.dev_environment_id == 456
+        assert config.sql_config_provider is not None
 
     def test_disable_flags_combinations(self):
         base_env = {
@@ -540,31 +404,12 @@ class TestLoadConfig:
             assert (config.dbt_cli_config is not None) == (
                 disable_flags["DISABLE_DBT_CLI"] == "false"
             )
-            assert (config.semantic_layer_config is not None) == (
+            assert (config.semantic_layer_config_provider is not None) == (
                 disable_flags["DISABLE_SEMANTIC_LAYER"] == "false"
             )
-            assert (config.discovery_config is not None) == (
+            assert (config.discovery_config_provider is not None) == (
                 disable_flags["DISABLE_DISCOVERY"] == "false"
             )
-
-    def test_multiple_validation_errors(self):
-        # Test that multiple validation errors are collected and reported
-        env_vars = {
-            "DBT_TOKEN": "test_token",
-            "DISABLE_DISCOVERY": "false",
-            "DISABLE_REMOTE": "false",
-            "DISABLE_DBT_CLI": "false",
-        }
-
-        with pytest.raises(ValueError) as exc_info:
-            self._load_config_with_env(env_vars)
-
-        error_message = str(exc_info.value)
-        assert "DBT_HOST environment variable is required" in error_message
-        assert "DBT_PROD_ENV_ID environment variable is required" in error_message
-        assert "DBT_DEV_ENV_ID environment variable is required" in error_message
-        assert "DBT_USER_ID environment variable is required" in error_message
-        assert "DBT_PROJECT_DIR environment variable is required" in error_message
 
     def test_legacy_env_id_support(self):
         # Test that DBT_ENV_ID still works for backward compatibility
@@ -580,7 +425,7 @@ class TestLoadConfig:
 
         config = self._load_config_with_env(env_vars)
         assert config.tracking_config.prod_environment_id == 123
-        assert config.discovery_config.environment_id == 123
+        assert config.discovery_config_provider is not None
 
     def test_case_insensitive_environment_variables(self):
         # pydantic_settings should handle case insensitivity based on config

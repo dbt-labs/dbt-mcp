@@ -4,7 +4,10 @@ from typing import Any
 
 import requests
 
-from dbt_mcp.config.config import AdminApiConfig
+from dbt_mcp.config.config_providers import (
+    AdminApiConfig,
+    ConfigProvider,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,19 +21,29 @@ class AdminAPIError(Exception):
 class DbtAdminAPIClient:
     """Client for interacting with the dbt Admin API."""
 
-    def __init__(self, config: AdminApiConfig):
-        self.config = config
-        self.headers = {
+    def __init__(self, config_provider: ConfigProvider[AdminApiConfig]):
+        self.config_provider = config_provider
+
+    async def get_config(self) -> AdminApiConfig:
+        return await self.config_provider.get_config()
+
+    async def get_headers(self) -> dict[str, str]:
+        config = await self.get_config()
+        return {
             "Content-Type": "application/json",
             "Accept": "application/json",
         } | config.headers_provider.get_headers()
 
-    def _make_request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
+    async def _make_request(
+        self, method: str, endpoint: str, **kwargs
+    ) -> dict[str, Any]:
         """Make a request to the dbt API."""
-        url = f"{self.config.url}{endpoint}"
+        config = await self.get_config()
+        url = f"{config.url}{endpoint}"
+        headers = await self.get_headers()
 
         try:
-            response = requests.request(method, url, headers=self.headers, **kwargs)
+            response = requests.request(method, url, headers=headers, **kwargs)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
@@ -38,9 +51,9 @@ class DbtAdminAPIClient:
             raise AdminAPIError(f"API request failed: {e}")
 
     @cache
-    def list_jobs(self, account_id: int, **params) -> list[dict[str, Any]]:
+    async def list_jobs(self, account_id: int, **params) -> list[dict[str, Any]]:
         """List jobs for an account."""
-        result = self._make_request(
+        result = await self._make_request(
             "GET",
             f"/api/v2/accounts/{account_id}/jobs/?include_related=['most_recent_run','most_recent_completed_run']",
             params=params,
@@ -105,28 +118,28 @@ class DbtAdminAPIClient:
 
         return filtered_data
 
-    def get_job_details(self, account_id: int, job_id: int) -> dict[str, Any]:
+    async def get_job_details(self, account_id: int, job_id: int) -> dict[str, Any]:
         """Get details for a specific job."""
-        result = self._make_request(
+        result = await self._make_request(
             "GET",
             f"/api/v2/accounts/{account_id}/jobs/{job_id}/?include_related=['most_recent_run','most_recent_completed_run']",
         )
         return result.get("data", {})
 
-    def trigger_job_run(
+    async def trigger_job_run(
         self, account_id: int, job_id: int, cause: str, **kwargs
     ) -> dict[str, Any]:
         """Trigger a job run."""
         data = {"cause": cause, **kwargs}
-        result = self._make_request(
+        result = await self._make_request(
             "POST", f"/api/v2/accounts/{account_id}/jobs/{job_id}/run/", json=data
         )
         return result.get("data", {})
 
-    def list_jobs_runs(self, account_id: int, **params) -> list[dict[str, Any]]:
+    async def list_jobs_runs(self, account_id: int, **params) -> list[dict[str, Any]]:
         """List runs for an account."""
         extra_info = "?include_related=['job']"
-        result = self._make_request(
+        result = await self._make_request(
             "GET", f"/api/v2/accounts/{account_id}/runs/{extra_info}", params=params
         )
 
@@ -164,11 +177,11 @@ class DbtAdminAPIClient:
 
         return data
 
-    def get_job_run_details(self, account_id: int, run_id: int) -> dict[str, Any]:
+    async def get_job_run_details(self, account_id: int, run_id: int) -> dict[str, Any]:
         """Get details for a specific job run."""
 
         incl = "?include_related=['run_steps']"
-        result = self._make_request(
+        result = await self._make_request(
             "GET", f"/api/v2/accounts/{account_id}/runs/{run_id}/{incl}"
         )
         data = result.get("data", {})
@@ -180,23 +193,23 @@ class DbtAdminAPIClient:
 
         return data
 
-    def cancel_job_run(self, account_id: int, run_id: int) -> dict[str, Any]:
+    async def cancel_job_run(self, account_id: int, run_id: int) -> dict[str, Any]:
         """Cancel a job run."""
-        result = self._make_request(
+        result = await self._make_request(
             "POST", f"/api/v2/accounts/{account_id}/runs/{run_id}/cancel/"
         )
         return result.get("data", {})
 
-    def retry_job_run(self, account_id: int, run_id: int) -> dict[str, Any]:
+    async def retry_job_run(self, account_id: int, run_id: int) -> dict[str, Any]:
         """Retry a failed job run."""
-        result = self._make_request(
+        result = await self._make_request(
             "POST", f"/api/v2/accounts/{account_id}/runs/{run_id}/retry/"
         )
         return result.get("data", {})
 
-    def list_job_run_artifacts(self, account_id: int, run_id: int) -> list[str]:
+    async def list_job_run_artifacts(self, account_id: int, run_id: int) -> list[str]:
         """List artifacts for a job run."""
-        result = self._make_request(
+        result = await self._make_request(
             "GET", f"/api/v2/accounts/{account_id}/runs/{run_id}/artifacts/"
         )
         data = result.get("data", [])
@@ -211,7 +224,7 @@ class DbtAdminAPIClient:
         ]
         return filtered_data
 
-    def get_job_run_artifact(
+    async def get_job_run_artifact(
         self,
         account_id: int,
         run_id: int,
@@ -223,12 +236,13 @@ class DbtAdminAPIClient:
         if step:
             params["step"] = step
 
+        config = await self.get_config()
         get_artifact_header = {
             "Accept": "*/*",
-        } | self.config.headers_provider.get_headers()
+        } | config.headers_provider.get_headers()
 
         response = requests.get(
-            f"{self.config.url}/api/v2/accounts/{account_id}/runs/{run_id}/artifacts/{artifact_path}",
+            f"{config.url}/api/v2/accounts/{account_id}/runs/{run_id}/artifacts/{artifact_path}",
             headers=get_artifact_header,
             params=params,
         )

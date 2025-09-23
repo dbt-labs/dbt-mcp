@@ -13,6 +13,10 @@ on:
           - major
           - minor
           - patch
+      prerelease:
+        type: string
+        description: Optional pre-release tag (e.g. alpha.1, beta.1, rc.1). Leave empty for stable.
+        default: ""
 
 jobs:
   create-release-pr:
@@ -22,11 +26,40 @@ jobs:
 
       - uses: ./.github/actions/setup-python
 
+      - name: Compute next dir for bump
+        id: changie-next
+        uses: miniscruff/changie-action@6dcc2533cac0495148ed4046c438487e4dceaa23
+        with:
+          version: latest
+          args: next ${{ inputs.bump }}
+
+      - name: Prepare batch args
+        id: prepare-batch
+        shell: bash
+        run: |
+          PR="${{ inputs.prerelease }}"
+          BUMP="${{ inputs.bump }}"
+          NEXT_DIR="${{ steps.changie-next.outputs.output }}"
+
+          if [[ -n "$PR" ]]; then
+            if [[ ! "$PR" =~ ^(alpha|beta|rc)\.[0-9]+$ ]]; then
+              echo "Invalid prerelease format: $PR (expected alpha.N, beta.N, rc.N)" >&2
+              exit 1
+            fi
+            echo "args=batch $BUMP --move-dir $NEXT_DIR --prerelease $PR" >> "$GITHUB_OUTPUT"
+          else
+            if [[ -d "$NEXT_DIR" ]]; then
+              echo "args=batch $BUMP --include $NEXT_DIR --remove-prereleases" >> "$GITHUB_OUTPUT"
+            else
+              echo "args=batch $BUMP" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
       - name: Batch changes
         uses: miniscruff/changie-action@6dcc2533cac0495148ed4046c438487e4dceaa23
         with:
           version: latest
-          args: batch ${{ inputs.bump }}
+          args: ${{ steps.prepare-batch.outputs.args }}
 
       - name: Merge
         uses: miniscruff/changie-action@6dcc2533cac0495148ed4046c438487e4dceaa23

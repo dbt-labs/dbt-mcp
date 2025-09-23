@@ -16,7 +16,7 @@ from dbt_mcp.oauth.logging import disable_server_logs
 logger = logging.getLogger(__name__)
 
 
-def login(
+async def login(
     *,
     dbt_platform_url: str,
     port: int,
@@ -74,7 +74,7 @@ def login(
         webbrowser.open(authorization_url)
         # Logs have to be disabled because they mess up stdio MCP communication
         disable_server_logs()
-        server.run()
+        await server.serve()
 
         if not app.state.dbt_platform_context:
             raise ValueError("Undefined login state")
