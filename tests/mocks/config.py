@@ -58,7 +58,7 @@ mock_discovery_config = DiscoveryConfig(
 
 mock_semantic_layer_config = SemanticLayerConfig(
     host="localhost",
-    service_token="token",
+    token="token",
     url="http://localhost:8000",
     headers_provider=SemanticLayerHeadersProvider(
         token_provider=StaticTokenProvider(token="token")
