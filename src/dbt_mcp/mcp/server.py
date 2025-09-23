@@ -87,7 +87,6 @@ class DbtMCP(FastMCP):
 async def app_lifespan(server: DbtMCP) -> AsyncIterator[None]:
     logger.info("Starting MCP server")
     try:
-        _ = server.config.token_provider.start_background_refresh()
         yield
     except Exception as e:
         logger.error(f"Error in MCP server: {e}")
@@ -112,24 +111,34 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
         lifespan=app_lifespan,
     )
 
-    if config.semantic_layer_config:
+    if config.semantic_layer_config_provider:
         logger.info("Registering semantic layer tools")
-        register_sl_tools(dbt_mcp, config.semantic_layer_config, config.disable_tools)
+        register_sl_tools(
+            dbt_mcp,
+            config.semantic_layer_config_provider,
+            config.disable_tools,
+        )
 
-    if config.discovery_config:
+    if config.discovery_config_provider:
         logger.info("Registering discovery tools")
-        register_discovery_tools(dbt_mcp, config.discovery_config, config.disable_tools)
+        register_discovery_tools(
+            dbt_mcp, config.discovery_config_provider, config.disable_tools
+        )
 
     if config.dbt_cli_config:
         logger.info("Registering dbt cli tools")
         register_dbt_cli_tools(dbt_mcp, config.dbt_cli_config, config.disable_tools)
 
-    if config.admin_api_config:
+    if config.admin_api_config_provider:
         logger.info("Registering dbt admin API tools")
-        register_admin_api_tools(dbt_mcp, config.admin_api_config, config.disable_tools)
+        register_admin_api_tools(
+            dbt_mcp, config.admin_api_config_provider, config.disable_tools
+        )
 
-    if config.sql_config:
+    if config.sql_config_provider:
         logger.info("Registering SQL tools")
-        await register_sql_tools(dbt_mcp, config.sql_config, config.disable_tools)
+        await register_sql_tools(
+            dbt_mcp, config.sql_config_provider, config.disable_tools
+        )
 
     return dbt_mcp

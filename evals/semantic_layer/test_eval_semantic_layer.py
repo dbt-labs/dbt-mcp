@@ -3,7 +3,6 @@ from typing import Any
 
 import pytest
 from dbtsl.api.shared.query_params import GroupByParam
-from dbtsl.client.sync import SyncSemanticLayerClient
 from openai import OpenAI
 from openai.types.responses import (
     FunctionToolParam,
@@ -72,7 +71,7 @@ def deep_equal(dict1: Any, dict2: Any) -> bool:
         return dict1 == dict2
 
 
-def expect_query_metrics_tool_call(
+async def expect_query_metrics_tool_call(
     messages: list,
     tools: list[FunctionToolParam],
     expected_metrics: list[str],
@@ -110,17 +109,11 @@ def expect_query_metrics_tool_call(
     else:
         assert args_dict.get("limit", None) is None
 
-    sl_config = config.semantic_layer_config
-    assert sl_config is not None
+    assert config.semantic_layer_config_provider is not None
     semantic_layer_fetcher = SemanticLayerFetcher(
-        sl_client=SyncSemanticLayerClient(
-            environment_id=sl_config.prod_environment_id,
-            auth_token=sl_config.service_token,
-            host=sl_config.host,
-        ),
-        config=sl_config,
+        config_provider=config.semantic_layer_config_provider,
     )
-    tool_response = semantic_layer_fetcher.query_metrics(
+    tool_response = await semantic_layer_fetcher.query_metrics(
         metrics=args_dict["metrics"],
         group_by=[
             GroupByParam(name=g["name"], type=g["type"], grain=g.get("grain"))
@@ -192,9 +185,10 @@ async def test_semantic_layer_fulfillment_query():
         "get_dimensions",
         '{"metrics":["orders"]}',
     )
-    expect_query_metrics_tool_call(
+    await expect_query_metrics_tool_call(
         messages,
         tools,
+        expected_metrics=["orders"],
     )
 
 
@@ -221,7 +215,7 @@ async def test_semantic_layer_food_revenue_per_month():
         "get_entities",
         '{"metrics":["food_revenue"]}',
     )
-    expect_query_metrics_tool_call(
+    await expect_query_metrics_tool_call(
         messages=messages,
         tools=tools,
         expected_metrics=["food_revenue"],
@@ -257,7 +251,7 @@ async def test_semantic_layer_what_percentage_of_orders_were_large():
         "list_metrics",
         "{}",
     )
-    expect_query_metrics_tool_call(
+    await expect_query_metrics_tool_call(
         messages=messages,
         tools=tools,
         expected_metrics=["orders", "large_orders"],
