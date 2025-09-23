@@ -15,7 +15,10 @@ from openai.types.responses.response_input_param import FunctionCallOutput
 from client.tools import get_tools
 from dbt_mcp.config.config import load_config
 from dbt_mcp.mcp.server import create_dbt_mcp
-from dbt_mcp.semantic_layer.client import SemanticLayerFetcher
+from dbt_mcp.semantic_layer.client import (
+    DefaultSemanticLayerClientProvider,
+    SemanticLayerFetcher,
+)
 from dbt_mcp.semantic_layer.types import OrderByParam, QueryMetricsSuccess
 
 LLM_MODEL = "gpt-4o-mini"
@@ -112,6 +115,9 @@ async def expect_query_metrics_tool_call(
     assert config.semantic_layer_config_provider is not None
     semantic_layer_fetcher = SemanticLayerFetcher(
         config_provider=config.semantic_layer_config_provider,
+        client_provider=DefaultSemanticLayerClientProvider(
+            config_provider=config.semantic_layer_config_provider,
+        ),
     )
     tool_response = await semantic_layer_fetcher.query_metrics(
         metrics=args_dict["metrics"],

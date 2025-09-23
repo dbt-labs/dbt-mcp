@@ -10,6 +10,7 @@ from dbt_mcp.config.config_providers import (
 )
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.semantic_layer.client import (
+    SemanticLayerClientProvider,
     SemanticLayerFetcher,
 )
 from dbt_mcp.semantic_layer.types import (
@@ -30,9 +31,11 @@ logger = logging.getLogger(__name__)
 
 def create_sl_tool_definitions(
     config_provider: ConfigProvider[SemanticLayerConfig],
+    client_provider: SemanticLayerClientProvider,
 ) -> list[ToolDefinition]:
     semantic_layer_fetcher = SemanticLayerFetcher(
         config_provider=config_provider,
+        client_provider=client_provider,
     )
 
     async def list_metrics(search: str | None = None) -> list[MetricToolResponse] | str:
@@ -162,10 +165,11 @@ def create_sl_tool_definitions(
 def register_sl_tools(
     dbt_mcp: FastMCP,
     config_provider: ConfigProvider[SemanticLayerConfig],
+    client_provider: SemanticLayerClientProvider,
     exclude_tools: Sequence[ToolName] = [],
 ) -> None:
     register_tools(
         dbt_mcp,
-        create_sl_tool_definitions(config_provider),
+        create_sl_tool_definitions(config_provider, client_provider),
         exclude_tools,
     )

@@ -53,22 +53,33 @@ class SemanticLayerClientProtocol(Protocol):
     ) -> str: ...
 
 
-class SemanticLayerFetcher:
-    def __init__(
-        self,
-        config_provider: ConfigProvider[SemanticLayerConfig],
-    ):
-        self.config_provider = config_provider
-        self.entities_cache: dict[str, list[EntityToolResponse]] = {}
-        self.dimensions_cache: dict[str, list[DimensionToolResponse]] = {}
+class SemanticLayerClientProvider(Protocol):
+    async def get_client(self) -> SemanticLayerClientProtocol: ...
 
-    async def get_sl_client(self) -> SemanticLayerClientProtocol:
+
+class DefaultSemanticLayerClientProvider:
+    def __init__(self, config_provider: ConfigProvider[SemanticLayerConfig]):
+        self.config_provider = config_provider
+
+    async def get_client(self) -> SemanticLayerClientProtocol:
         config = await self.config_provider.get_config()
         return SyncSemanticLayerClient(
             environment_id=config.prod_environment_id,
             auth_token=config.service_token,
             host=config.host,
         )
+
+
+class SemanticLayerFetcher:
+    def __init__(
+        self,
+        config_provider: ConfigProvider[SemanticLayerConfig],
+        client_provider: SemanticLayerClientProvider,
+    ):
+        self.client_provider = client_provider
+        self.config_provider = config_provider
+        self.entities_cache: dict[str, list[EntityToolResponse]] = {}
+        self.dimensions_cache: dict[str, list[DimensionToolResponse]] = {}
 
     async def list_metrics(self, search: str | None = None) -> list[MetricToolResponse]:
         metrics_result = submit_request(
@@ -171,7 +182,7 @@ class SemanticLayerFetcher:
             return GetMetricsCompiledSqlError(error=validation_error)
 
         try:
-            sl_client = await self.get_sl_client()
+            sl_client = await self.client_provider.get_client()
             with sl_client.session():
                 parsed_order_by: list[OrderBySpec] = (
                     self.get_order_bys(
@@ -317,7 +328,7 @@ class SemanticLayerFetcher:
 
         try:
             query_error = None
-            sl_client = await self.get_sl_client()
+            sl_client = await self.client_provider.get_client()
             with sl_client.session():
                 # Catching any exception within the session
                 # to ensure it is closed properly

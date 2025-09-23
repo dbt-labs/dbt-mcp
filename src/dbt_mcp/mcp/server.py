@@ -19,6 +19,7 @@ from dbt_mcp.config.config import Config
 from dbt_mcp.dbt_admin.tools import register_admin_api_tools
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.discovery.tools import register_discovery_tools
+from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
 from dbt_mcp.semantic_layer.tools import register_sl_tools
 from dbt_mcp.sql.tools import SqlToolsManager, register_sql_tools
 from dbt_mcp.tracking.tracking import UsageTracker
@@ -115,8 +116,11 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
         logger.info("Registering semantic layer tools")
         register_sl_tools(
             dbt_mcp,
-            config.semantic_layer_config_provider,
-            config.disable_tools,
+            config_provider=config.semantic_layer_config_provider,
+            client_provider=DefaultSemanticLayerClientProvider(
+                config_provider=config.semantic_layer_config_provider,
+            ),
+            exclude_tools=config.disable_tools,
         )
 
     if config.discovery_config_provider:

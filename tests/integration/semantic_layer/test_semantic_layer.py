@@ -2,7 +2,10 @@ import pytest
 from dbtsl.api.shared.query_params import GroupByParam, GroupByType
 
 from dbt_mcp.config.config import load_config
-from dbt_mcp.semantic_layer.client import SemanticLayerFetcher
+from dbt_mcp.semantic_layer.client import (
+    DefaultSemanticLayerClientProvider,
+    SemanticLayerFetcher,
+)
 from dbt_mcp.semantic_layer.types import OrderByParam
 
 config = load_config()
@@ -13,6 +16,9 @@ def semantic_layer_fetcher() -> SemanticLayerFetcher:
     assert config.semantic_layer_config_provider is not None
     return SemanticLayerFetcher(
         config_provider=config.semantic_layer_config_provider,
+        client_provider=DefaultSemanticLayerClientProvider(
+            config_provider=config.semantic_layer_config_provider,
+        ),
     )
 
 
