@@ -25,67 +25,41 @@ def create_discovery_tool_definitions(
     exposures_fetcher = ExposuresFetcher(api_client=api_client)
 
     async def get_mart_models() -> list[dict] | str:
-        try:
-            mart_models = await models_fetcher.fetch_models(
-                model_filter={"modelingLayer": "marts"}
-            )
-            return [m for m in mart_models if m["name"] != "metricflow_time_spine"]
-        except Exception as e:
-            return str(e)
+        mart_models = await models_fetcher.fetch_models(
+            model_filter={"modelingLayer": "marts"}
+        )
+        return [m for m in mart_models if m["name"] != "metricflow_time_spine"]
 
     async def get_all_models() -> list[dict] | str:
-        try:
-            return await models_fetcher.fetch_models()
-        except Exception as e:
-            return str(e)
+        return await models_fetcher.fetch_models()
 
     async def get_model_details(
         model_name: str | None = None, unique_id: str | None = None
     ) -> dict | str:
-        try:
-            return await models_fetcher.fetch_model_details(model_name, unique_id)
-        except Exception as e:
-            return str(e)
+        return await models_fetcher.fetch_model_details(model_name, unique_id)
 
     async def get_model_parents(
         model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict] | str:
-        try:
-            return await models_fetcher.fetch_model_parents(model_name, unique_id)
-        except Exception as e:
-            return str(e)
+        return await models_fetcher.fetch_model_parents(model_name, unique_id)
 
     async def get_model_children(
         model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict] | str:
-        try:
-            return await models_fetcher.fetch_model_children(model_name, unique_id)
-        except Exception as e:
-            return str(e)
+        return await models_fetcher.fetch_model_children(model_name, unique_id)
 
     async def get_model_health(
         model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict] | str:
-        try:
-            return await models_fetcher.fetch_model_health(model_name, unique_id)
-        except Exception as e:
-            return str(e)
+        return await models_fetcher.fetch_model_health(model_name, unique_id)
 
     async def get_exposures() -> list[dict] | str:
-        try:
-            return await exposures_fetcher.fetch_exposures()
-        except Exception as e:
-            return str(e)
+        return await exposures_fetcher.fetch_exposures()
 
     async def get_exposure_details(
         exposure_name: str | None = None, unique_ids: list[str] | None = None
     ) -> list[dict] | str:
-        try:
-            return await exposures_fetcher.fetch_exposure_details(
-                exposure_name, unique_ids
-            )
-        except Exception as e:
-            return str(e)
+        return await exposures_fetcher.fetch_exposure_details(exposure_name, unique_ids)
 
     return [
         ToolDefinition(
