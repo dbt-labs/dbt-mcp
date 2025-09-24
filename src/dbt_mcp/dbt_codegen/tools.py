@@ -90,7 +90,7 @@ def create_dbt_codegen_tool_definitions(
             description=get_prompt("dbt_codegen/args/include_descriptions"),
         ),
     ) -> str:
-        args = {"schema_name": schema_name}
+        args: dict[str, Any] = {"schema_name": schema_name}
         if database_name:
             args["database_name"] = database_name
         if table_names:
@@ -112,7 +112,7 @@ def create_dbt_codegen_tool_definitions(
             default=True, description=get_prompt("dbt_codegen/args/include_data_types")
         ),
     ) -> str:
-        args = {
+        args: dict[str, Any] = {
             "model_names": model_names,
             "upstream_descriptions": upstream_descriptions,
             "include_data_types": include_data_types,
@@ -136,7 +136,7 @@ def create_dbt_codegen_tool_definitions(
             default=None, description=get_prompt("dbt_codegen/args/materialized")
         ),
     ) -> str:
-        args = {
+        args: dict[str, Any] = {
             "source_name": source_name,
             "table_name": table_name,
             "leading_commas": leading_commas,
@@ -153,7 +153,7 @@ def create_dbt_codegen_tool_definitions(
             default=False, description=get_prompt("dbt_codegen/args/leading_commas")
         ),
     ) -> str:
-        args = {
+        args: dict[str, Any] = {
             "model_name": model_name,
             "leading_commas": leading_commas,
         }
@@ -181,7 +181,7 @@ def create_dbt_codegen_tool_definitions(
 
         for table in tables:
             # Generate base model for each table using existing function
-            args = {
+            args: dict[str, Any] = {
                 "source_name": source_name,
                 "table_name": table,
                 "leading_commas": leading_commas,
@@ -235,7 +235,7 @@ def create_dbt_codegen_tool_definitions(
 
         for table in tables:
             # Generate base model for each table
-            args = {
+            args: dict[str, Any] = {
                 "source_name": source_name,
                 "table_name": table,
                 "leading_commas": leading_commas,

@@ -129,4 +129,23 @@ tool_policies = {
     ToolName.GET_JOB_RUN_ARTIFACT.value: ToolPolicy(
         name=ToolName.GET_JOB_RUN_ARTIFACT.value, behavior=ToolBehavior.METADATA
     ),
+    # dbt-codegen tools
+    ToolName.GENERATE_SOURCE.value: ToolPolicy(
+        name=ToolName.GENERATE_SOURCE.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.GENERATE_MODEL_YAML.value: ToolPolicy(
+        name=ToolName.GENERATE_MODEL_YAML.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.GENERATE_BASE_MODEL.value: ToolPolicy(
+        name=ToolName.GENERATE_BASE_MODEL.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.GENERATE_MODEL_IMPORT_CTES.value: ToolPolicy(
+        name=ToolName.GENERATE_MODEL_IMPORT_CTES.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.CREATE_BASE_MODELS.value: ToolPolicy(
+        name=ToolName.CREATE_BASE_MODELS.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.BASE_MODEL_CREATION.value: ToolPolicy(
+        name=ToolName.BASE_MODEL_CREATION.value, behavior=ToolBehavior.METADATA
+    ),
 }

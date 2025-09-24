@@ -54,6 +54,7 @@ class DbtMcpSettings(BaseSettings):
 
     # Disable tool settings
     disable_dbt_cli: bool = Field(False, alias="DISABLE_DBT_CLI")
+    disable_dbt_codegen: bool = Field(False, alias="DISABLE_DBT_CODEGEN")
     disable_semantic_layer: bool = Field(False, alias="DISABLE_SEMANTIC_LAYER")
     disable_discovery: bool = Field(False, alias="DISABLE_DISCOVERY")
     disable_remote: bool | None = Field(None, alias="DISABLE_REMOTE")
