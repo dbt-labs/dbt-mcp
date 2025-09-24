@@ -30,3 +30,11 @@ This tool is particularly useful when:
 </instructions>
 
 Returns the compiled SQL as a string, or an error message if the compilation fails.
+
+<parameters>
+metrics: List of metric names (strings) to query for.
+group_by: Optional list of objects with name (string), type ("dimension" or "time_dimension"), and grain (string or null for time dimensions only).
+order_by: Optional list of objects with name (string) and descending (boolean, default false).
+where: Optional SQL WHERE clause (string) to filter results.
+limit: Optional limit (integer) for number of results.
+</parameters>

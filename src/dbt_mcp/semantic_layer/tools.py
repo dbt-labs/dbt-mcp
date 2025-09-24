@@ -2,13 +2,15 @@ import logging
 from collections.abc import Sequence
 
 from dbtsl.api.shared.query_params import GroupByParam
-from dbtsl.client.sync import SyncSemanticLayerClient
 from mcp.server.fastmcp import FastMCP
 
-from dbt_mcp.config.config import SemanticLayerConfig
+from dbt_mcp.config.config_providers import (
+    ConfigProvider,
+    SemanticLayerConfig,
+)
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.semantic_layer.client import (
-    SemanticLayerClientProtocol,
+    SemanticLayerClientProvider,
     SemanticLayerFetcher,
 )
 from dbt_mcp.semantic_layer.types import (
@@ -19,87 +21,75 @@ from dbt_mcp.semantic_layer.types import (
     OrderByParam,
     QueryMetricsSuccess,
 )
+from dbt_mcp.tools.annotations import create_tool_annotations
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.annotations import create_tool_annotations
 
 logger = logging.getLogger(__name__)
 
 
 def create_sl_tool_definitions(
-    config: SemanticLayerConfig, sl_client: SemanticLayerClientProtocol
+    config_provider: ConfigProvider[SemanticLayerConfig],
+    client_provider: SemanticLayerClientProvider,
 ) -> list[ToolDefinition]:
     semantic_layer_fetcher = SemanticLayerFetcher(
-        sl_client=sl_client,
-        config=config,
+        config_provider=config_provider,
+        client_provider=client_provider,
     )
 
-    def list_metrics(search: str | None = None) -> list[MetricToolResponse] | str:
-        try:
-            return semantic_layer_fetcher.list_metrics(search=search)
-        except Exception as e:
-            return str(e)
+    async def list_metrics(search: str | None = None) -> list[MetricToolResponse] | str:
+        return await semantic_layer_fetcher.list_metrics(search=search)
 
-    def get_dimensions(
+    async def get_dimensions(
         metrics: list[str], search: str | None = None
     ) -> list[DimensionToolResponse] | str:
-        try:
-            return semantic_layer_fetcher.get_dimensions(metrics=metrics, search=search)
-        except Exception as e:
-            return str(e)
+        return await semantic_layer_fetcher.get_dimensions(
+            metrics=metrics, search=search
+        )
 
-    def get_entities(
+    async def get_entities(
         metrics: list[str], search: str | None = None
     ) -> list[EntityToolResponse] | str:
-        try:
-            return semantic_layer_fetcher.get_entities(metrics=metrics, search=search)
-        except Exception as e:
-            return str(e)
+        return await semantic_layer_fetcher.get_entities(metrics=metrics, search=search)
 
-    def query_metrics(
+    async def query_metrics(
         metrics: list[str],
         group_by: list[GroupByParam] | None = None,
         order_by: list[OrderByParam] | None = None,
         where: str | None = None,
         limit: int | None = None,
     ) -> str:
-        try:
-            result = semantic_layer_fetcher.query_metrics(
-                metrics=metrics,
-                group_by=group_by,
-                order_by=order_by,
-                where=where,
-                limit=limit,
-            )
-            if isinstance(result, QueryMetricsSuccess):
-                return result.result
-            else:
-                return result.error
-        except Exception as e:
-            return str(e)
+        result = await semantic_layer_fetcher.query_metrics(
+            metrics=metrics,
+            group_by=group_by,
+            order_by=order_by,
+            where=where,
+            limit=limit,
+        )
+        if isinstance(result, QueryMetricsSuccess):
+            return result.result
+        else:
+            return result.error
 
-    def get_metrics_compiled_sql(
+    async def get_metrics_compiled_sql(
         metrics: list[str],
         group_by: list[GroupByParam] | None = None,
         order_by: list[OrderByParam] | None = None,
         where: str | None = None,
         limit: int | None = None,
     ) -> str:
-        try:
-            result = semantic_layer_fetcher.get_metrics_compiled_sql(
-                metrics=metrics,
-                group_by=group_by,
-                order_by=order_by,
-                where=where,
-                limit=limit,
-            )
-            if isinstance(result, GetMetricsCompiledSqlSuccess):
-                return result.sql
-            else:
-                return result.error
-        except Exception as e:
-            return str(e)
+        result = await semantic_layer_fetcher.get_metrics_compiled_sql(
+            metrics=metrics,
+            group_by=group_by,
+            order_by=order_by,
+            where=where,
+            limit=limit,
+        )
+        if isinstance(result, GetMetricsCompiledSqlSuccess):
+            return result.sql
+        else:
+            return result.error
 
     return [
         ToolDefinition(
@@ -157,18 +147,12 @@ def create_sl_tool_definitions(
 
 def register_sl_tools(
     dbt_mcp: FastMCP,
-    config: SemanticLayerConfig,
+    config_provider: ConfigProvider[SemanticLayerConfig],
+    client_provider: SemanticLayerClientProvider,
     exclude_tools: Sequence[ToolName] = [],
 ) -> None:
     register_tools(
         dbt_mcp,
-        create_sl_tool_definitions(
-            config,
-            SyncSemanticLayerClient(
-                environment_id=config.prod_environment_id,
-                auth_token=config.service_token,
-                host=config.host,
-            ),
-        ),
+        create_sl_tool_definitions(config_provider, client_provider),
         exclude_tools,
     )

@@ -80,8 +80,6 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
                 if is_selectable
                 else ""
             )
-        except Exception as e:
-            return str(e)
 
     def build(
         selector: str | None = Field(

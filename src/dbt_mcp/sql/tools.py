@@ -19,14 +19,13 @@ from mcp.server.fastmcp.utilities.func_metadata import (
 from mcp.shared.message import SessionMessage
 from mcp.types import (
     ContentBlock,
-    TextContent,
     Tool,
 )
 from pydantic import Field, WithJsonSchema, create_model
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
-from dbt_mcp.config.config import SqlConfig
+from dbt_mcp.config.config_providers import ConfigProvider, SqlConfig
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset, toolsets
 
@@ -36,7 +35,7 @@ logger = logging.getLogger(__name__)
 # Based on this: https://github.com/modelcontextprotocol/python-sdk/blob/9ae4df85fbab97bf476ddd160b766ca4c208cd13/src/mcp/server/fastmcp/utilities/func_metadata.py#L105
 def get_remote_tool_fn_metadata(tool: Tool) -> FuncMetadata:
     dynamic_pydantic_model_params: dict[str, Any] = {}
-    for key in tool.inputSchema["properties"].keys():
+    for key in tool.inputSchema["properties"]:
         # Remote tools shouldn't have type annotations or default values
         # for their arguments. So, we set them to defaults.
         field_info = FieldInfo.from_annotated_attribute(
@@ -99,7 +98,7 @@ class SqlToolsManager:
 
 async def register_sql_tools(
     dbt_mcp: FastMCP,
-    config: SqlConfig,
+    config_provider: ConfigProvider[SqlConfig],
     exclude_tools: Sequence[ToolName] = [],
 ) -> None:
     """
@@ -107,20 +106,14 @@ async def register_sql_tools(
 
     SQL tools are hosted remotely, so their definitions aren't found in this repo.
     """
-
-    is_local = config.host and config.host.startswith("localhost")
-    path = "/v1/mcp/" if is_local else "/api/ai/v1/mcp/"
-    scheme = "http://" if is_local else "https://"
-    host_prefix = f"{config.host_prefix}." if config.host_prefix else ""
-    url = f"{scheme}{host_prefix}{config.host}{path}"
+    config = await config_provider.get_config()
     headers = {
-        "Authorization": f"Bearer {config.token}",
         "x-dbt-prod-environment-id": str(config.prod_environment_id),
         "x-dbt-dev-environment-id": str(config.dev_environment_id),
         "x-dbt-user-id": str(config.user_id),
-    }
+    } | config.headers_provider.get_headers()
     sql_tools_manager = SqlToolsManager()
-    session = await sql_tools_manager.get_remote_mcp_session(url, headers)
+    session = await sql_tools_manager.get_remote_mcp_session(config.url, headers)
     await session.initialize()
     sql_tools = await _get_sql_tools(session)
     logger.info(f"Loaded sql tools: {', '.join([tool.name for tool in sql_tools])}")
@@ -131,24 +124,16 @@ async def register_sql_tools(
         # Create a new function using a factory to avoid closure issues
         def create_tool_function(tool_name: str):
             async def tool_function(*args, **kwargs) -> Sequence[ContentBlock]:
-                try:
-                    tool_call_result = await session.call_tool(
-                        tool_name,
-                        kwargs,
+                tool_call_result = await session.call_tool(
+                    tool_name,
+                    kwargs,
+                )
+                if tool_call_result.isError:
+                    raise ValueError(
+                        f"Tool {tool_name} reported an error: "
+                        + f"{tool_call_result.content}"
                     )
-                    if tool_call_result.isError:
-                        raise ValueError(
-                            f"Tool {tool_name} reported an error: "
-                            + f"{tool_call_result.content}"
-                        )
-                    return tool_call_result.content
-                except Exception as e:
-                    return [
-                        TextContent(
-                            type="text",
-                            text=str(e),
-                        )
-                    ]
+                return tool_call_result.content
 
             return tool_function
 

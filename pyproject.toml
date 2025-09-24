@@ -16,7 +16,7 @@ classifiers = [
 dependencies = [
   # Pinning all dependencies because this app is installed with uvx
   # and we want to have a consistent install as much as possible.
-  "authlib==1.6.3",
+  "authlib==1.6.4",
   "dbt-protos==1.0.317",
   "dbt-sl-sdk[sync]==0.13.0",
   "dbtlabs-vortex==0.2.0",
@@ -41,7 +41,7 @@ dev = [
   "openai>=1.71.0",
   "pyarrow-stubs>=19.1",
   "types-pyyaml>=6.0.12.20250516",
-  "types-authlib>=1.6.2.20250825",
+  "types-authlib>=1.6.4.20250920",
 ]
 
 [project.urls]

@@ -1,11 +1,10 @@
 Get detailed information for a specific dbt job run.
 
-This tool retrieves comprehensive run information including execution details, steps, artifacts, and debug logs.
+This tool retrieves comprehensive run information including execution details, steps, and artifacts.
 
 ## Parameters
 
 - **run_id** (required): The run ID to retrieve details for
-- **debug** (optional): Set to True only if the person is explicitely asking for debug level logs. Otherwise, do not set if just the logs are asked.
 
 ## Returns
 
@@ -17,7 +16,6 @@ Run object with detailed execution information including:
 - Execution steps and their status
 - Artifacts and logs availability
 - Trigger information and cause
-- Debug logs (if requested)
 - Performance metrics and timing
 
 ## Use Cases
@@ -39,14 +37,9 @@ Run object with detailed execution information including:
 
 ```json
 {
-  "run_id": 789,
-  "debug": true
+  "run_id": 789
 }
 ```
-
-## Debug Logs
-
-When the `debug` parameter is set to true, the response will contain detailed debug logs that can help troubleshoot run failures.
 
 ## Response Information
 
