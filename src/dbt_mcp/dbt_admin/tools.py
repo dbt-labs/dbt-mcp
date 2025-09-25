@@ -63,7 +63,7 @@ def create_admin_api_tool_definitions(
             params["offset"] = offset
         return await admin_client.list_jobs(admin_api_config.account_id, **params)
 
-    async def get_job_details(job_id: int) -> dict[str, Any] | str:
+    async def get_job_details(job_id: int) -> dict[str, Any]:
         """Get details for a specific job."""
         admin_api_config = await admin_api_config_provider.get_config()
         return await admin_client.get_job_details(admin_api_config.account_id, job_id)
@@ -120,17 +120,17 @@ def create_admin_api_tool_definitions(
             admin_api_config.account_id, run_id
         )
 
-    async def cancel_job_run(run_id: int) -> dict[str, Any] | str:
+    async def cancel_job_run(run_id: int) -> dict[str, Any]:
         """Cancel a job run."""
         admin_api_config = await admin_api_config_provider.get_config()
         return await admin_client.cancel_job_run(admin_api_config.account_id, run_id)
 
-    async def retry_job_run(run_id: int) -> dict[str, Any] | str:
+    async def retry_job_run(run_id: int) -> dict[str, Any]:
         """Retry a failed job run."""
         admin_api_config = await admin_api_config_provider.get_config()
         return await admin_client.retry_job_run(admin_api_config.account_id, run_id)
 
-    async def list_job_run_artifacts(run_id: int) -> list[str] | str:
+    async def list_job_run_artifacts(run_id: int) -> list[str]:
         """List artifacts for a job run."""
         admin_api_config = await admin_api_config_provider.get_config()
         return await admin_client.list_job_run_artifacts(
