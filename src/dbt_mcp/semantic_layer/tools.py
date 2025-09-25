@@ -38,19 +38,19 @@ def create_sl_tool_definitions(
         client_provider=client_provider,
     )
 
-    async def list_metrics(search: str | None = None) -> list[MetricToolResponse] | str:
+    async def list_metrics(search: str | None = None) -> list[MetricToolResponse]:
         return await semantic_layer_fetcher.list_metrics(search=search)
 
     async def get_dimensions(
         metrics: list[str], search: str | None = None
-    ) -> list[DimensionToolResponse] | str:
+    ) -> list[DimensionToolResponse]:
         return await semantic_layer_fetcher.get_dimensions(
             metrics=metrics, search=search
         )
 
     async def get_entities(
         metrics: list[str], search: str | None = None
-    ) -> list[EntityToolResponse] | str:
+    ) -> list[EntityToolResponse]:
         return await semantic_layer_fetcher.get_entities(metrics=metrics, search=search)
 
     async def query_metrics(
