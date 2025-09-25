@@ -21,7 +21,17 @@ jobs:
         id: setup-python
       - name: Check for changes
         run: |
-          ALL_CHANGES=$(git diff --name-only HEAD origin/main)
+          BASE=$(git merge-base HEAD origin/main)
+          ALL_CHANGES=$(git diff --name-only "$BASE"...HEAD)
+
+          # only ignore docs/ and .md files in root
+          IGNORE_REGEX='(^docs/|^[^/]+\.md$)'
+          NON_IGNORED_CHANGES=$(echo "$ALL_CHANGES" | grep -Ev "$IGNORE_REGEX" || true)
+
+          if [ "$NON_IGNORED_CHANGES" == "" ]; then
+            echo "No relevant changes detected. Skipping changelog check."
+            exit 0
+          fi
 
           CHANGIE=$(echo "$ALL_CHANGES" | grep -E "\.changes/unreleased/.*\.yaml" || true)
           if [ "$CHANGIE" == "" ]; then

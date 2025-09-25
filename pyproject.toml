@@ -67,3 +67,6 @@ source = "vcs"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 pythonpath = [".", "src"]
+
+[tool.ruff.lint]
+extend-select = ["UP"] # UP=pyupgrade
