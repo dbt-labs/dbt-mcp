@@ -16,7 +16,7 @@ class SemanticLayerConfig:
     url: str
     host: str
     prod_environment_id: int
-    service_token: str
+    token: str
     headers_provider: HeadersProvider
 
 
@@ -75,7 +75,7 @@ class DefaultSemanticLayerConfigProvider(ConfigProvider[SemanticLayerConfig]):
             url=f"http://{host}" if is_local else f"https://{host}" + "/api/graphql",
             host=host,
             prod_environment_id=settings.actual_prod_environment_id,
-            service_token=settings.dbt_token,
+            token=settings.dbt_token,
             headers_provider=SemanticLayerHeadersProvider(
                 token_provider=token_provider
             ),
