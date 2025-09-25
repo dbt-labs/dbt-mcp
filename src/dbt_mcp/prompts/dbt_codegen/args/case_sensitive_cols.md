@@ -1,0 +1,1 @@
+Whether to quote column names to preserve case sensitivity (optional, default false)

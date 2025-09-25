@@ -18,6 +18,7 @@ from mcp.types import (
 from dbt_mcp.config.config import Config
 from dbt_mcp.dbt_admin.tools import register_admin_api_tools
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
+from dbt_mcp.dbt_codegen.tools import register_dbt_codegen_tools
 from dbt_mcp.discovery.tools import register_discovery_tools
 from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
 from dbt_mcp.semantic_layer.tools import register_sl_tools
@@ -132,6 +133,12 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
     if config.dbt_cli_config:
         logger.info("Registering dbt cli tools")
         register_dbt_cli_tools(dbt_mcp, config.dbt_cli_config, config.disable_tools)
+
+    if config.dbt_codegen_config:
+        logger.info("Registering dbt codegen tools")
+        register_dbt_codegen_tools(
+            dbt_mcp, config.dbt_codegen_config, config.disable_tools
+        )
 
     if config.admin_api_config_provider:
         logger.info("Registering dbt admin API tools")

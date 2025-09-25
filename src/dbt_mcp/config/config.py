@@ -34,11 +34,20 @@ class DbtCliConfig:
 
 
 @dataclass
+class DbtCodegenConfig:
+    project_dir: str
+    dbt_path: str
+    dbt_cli_timeout: int
+    binary_type: BinaryType
+
+
+@dataclass
 class Config:
     tracking_config: TrackingConfig
     disable_tools: list[ToolName]
     sql_config_provider: DefaultSqlConfigProvider | None
     dbt_cli_config: DbtCliConfig | None
+    dbt_codegen_config: DbtCodegenConfig | None
     discovery_config_provider: DefaultDiscoveryConfigProvider | None
     semantic_layer_config_provider: DefaultSemanticLayerConfigProvider | None
     admin_api_config_provider: DefaultAdminApiConfigProvider | None
@@ -70,6 +79,20 @@ def load_config() -> Config:
     if not settings.disable_dbt_cli and settings.dbt_project_dir and settings.dbt_path:
         binary_type = detect_binary_type(settings.dbt_path)
         dbt_cli_config = DbtCliConfig(
+            project_dir=settings.dbt_project_dir,
+            dbt_path=settings.dbt_path,
+            dbt_cli_timeout=settings.dbt_cli_timeout,
+            binary_type=binary_type,
+        )
+
+    dbt_codegen_config = None
+    if (
+        not settings.disable_dbt_codegen
+        and settings.dbt_project_dir
+        and settings.dbt_path
+    ):
+        binary_type = detect_binary_type(settings.dbt_path)
+        dbt_codegen_config = DbtCodegenConfig(
             project_dir=settings.dbt_project_dir,
             dbt_path=settings.dbt_path,
             dbt_cli_timeout=settings.dbt_cli_timeout,
@@ -111,6 +134,7 @@ def load_config() -> Config:
         disable_tools=settings.disable_tools or [],
         sql_config_provider=sql_config_provider,
         dbt_cli_config=dbt_cli_config,
+        dbt_codegen_config=dbt_codegen_config,
         discovery_config_provider=discovery_config_provider,
         semantic_layer_config_provider=semantic_layer_config_provider,
         admin_api_config_provider=admin_api_config_provider,
