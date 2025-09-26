@@ -33,7 +33,9 @@ class UsageTracker:
         start_time_ms: int,
         end_time_ms: int,
         error_message: str | None = None,
-    ):
+    ) -> None:
+        if not config.usage_tracking_enabled:
+            return
         try:
             arguments_mapping: Mapping[str, str] = {
                 k: json.dumps(v) for k, v in arguments.items()

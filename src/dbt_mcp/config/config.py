@@ -1,8 +1,5 @@
 import os
 from dataclasses import dataclass
-from pathlib import Path
-
-import yaml
 
 from dbt_mcp.config.config_providers import (
     DefaultAdminApiConfigProvider,
@@ -10,7 +7,12 @@ from dbt_mcp.config.config_providers import (
     DefaultSemanticLayerConfigProvider,
     DefaultSqlConfigProvider,
 )
-from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
+from dbt_mcp.config.settings import (
+    CredentialsProvider,
+    DbtMcpSettings,
+    get_dbt_profiles_path,
+)
+from dbt_mcp.config.yaml import try_read_yaml
 from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
 from dbt_mcp.tools.tool_names import ToolName
 
@@ -23,6 +25,7 @@ class TrackingConfig:
     dev_environment_id: int | None = None
     dbt_cloud_user_id: int | None = None
     local_user_id: str | None = None
+    usage_tracking_enabled: bool = False
 
 
 @dataclass
@@ -90,14 +93,10 @@ def load_config() -> Config:
 
     # Load local user ID from dbt profile
     local_user_id = None
-    try:
-        home = os.environ.get("HOME")
-        user_path = Path(f"{home}/.dbt/.user.yml")
-        if home and user_path.exists():
-            with open(user_path) as f:
-                local_user_id = yaml.safe_load(f).get("id")
-    except Exception:
-        pass
+    user_dir = get_dbt_profiles_path(settings.dbt_profiles_dir)
+    user_yaml = try_read_yaml(user_dir / ".user.yml")
+    if user_yaml:
+        local_user_id = user_yaml.get("id")
 
     return Config(
         tracking_config=TrackingConfig(
@@ -107,6 +106,7 @@ def load_config() -> Config:
             dev_environment_id=settings.dbt_dev_env_id,
             dbt_cloud_user_id=settings.dbt_user_id,
             local_user_id=local_user_id,
+            usage_tracking_enabled=settings.usage_tracking_enabled,
         ),
         disable_tools=settings.disable_tools or [],
         sql_config_provider=sql_config_provider,
