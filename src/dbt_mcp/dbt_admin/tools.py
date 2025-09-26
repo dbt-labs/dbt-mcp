@@ -113,11 +113,12 @@ def create_admin_api_tool_definitions(
 
     async def get_job_run_details(
         run_id: int,
+        include_logs: bool = False,
     ) -> dict[str, Any]:
         """Get details for a specific job run."""
         admin_api_config = await admin_api_config_provider.get_config()
         return await admin_client.get_job_run_details(
-            admin_api_config.account_id, run_id
+            admin_api_config.account_id, run_id, include_logs=include_logs
         )
 
     async def cancel_job_run(run_id: int) -> dict[str, Any]:

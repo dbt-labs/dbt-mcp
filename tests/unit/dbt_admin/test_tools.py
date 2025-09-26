@@ -230,7 +230,9 @@ async def test_get_job_run_details_tool(mock_get_prompt, mock_admin_client):
     result = await get_job_run_details_tool(run_id=100)
 
     assert isinstance(result, dict)
-    mock_admin_client.get_job_run_details.assert_called_once_with(12345, 100)
+    mock_admin_client.get_job_run_details.assert_called_once_with(
+        12345, 100, include_logs=False
+    )
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
@@ -341,7 +343,9 @@ async def test_tools_with_no_optional_parameters(mock_get_prompt, mock_admin_cli
     get_job_run_details_tool = tool_definitions[4].fn
     result = await get_job_run_details_tool(run_id=100)
     assert isinstance(result, dict)
-    mock_admin_client.get_job_run_details.assert_called_with(12345, 100)
+    mock_admin_client.get_job_run_details.assert_called_with(
+        12345, 100, include_logs=False
+    )
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")
