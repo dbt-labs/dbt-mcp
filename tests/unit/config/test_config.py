@@ -1,8 +1,7 @@
 import os
-from unittest.mock import mock_open, patch
+from unittest.mock import patch
 
 import pytest
-import yaml
 
 from dbt_mcp.config.config import (
     DbtMcpSettings,
@@ -55,6 +54,71 @@ class TestDbtMcpSettings:
             assert settings.disable_remote is None
             assert settings.disable_sql is None
             assert settings.disable_tools == []
+
+    def test_usage_tracking_disabled_by_env_vars(self):
+        env_vars = {
+            "DO_NOT_TRACK": "true",
+            "DBT_SEND_ANONYMOUS_USAGE_STATS": "1",
+        }
+
+        with patch.dict(os.environ, env_vars, clear=True):
+            settings = DbtMcpSettings(_env_file=None)
+            assert settings.usage_tracking_enabled is False
+
+    def test_usage_tracking_respects_dbt_project_yaml(self, tmp_path):
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        (project_dir / "dbt_project.yml").write_text(
+            "flags:\n  send_anonymous_usage_stats: false\n"
+        )
+
+        env_vars = {
+            "DBT_PROJECT_DIR": str(project_dir),
+        }
+
+        with patch.dict(os.environ, env_vars, clear=True):
+            settings = DbtMcpSettings(_env_file=None)
+            assert settings.usage_tracking_enabled is False
+
+    def test_usage_tracking_env_var_precedence_over_yaml(self, tmp_path):
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        (project_dir / "dbt_project.yml").write_text(
+            "flags:\n  send_anonymous_usage_stats: true\n"
+        )
+
+        env_vars = {
+            "DBT_PROJECT_DIR": str(project_dir),
+            "DBT_SEND_ANONYMOUS_USAGE_STATS": "false",
+        }
+
+        with patch.dict(os.environ, env_vars, clear=True):
+            settings = DbtMcpSettings(_env_file=None)
+            assert settings.usage_tracking_enabled is False
+
+    @pytest.mark.parametrize(
+        "do_not_track, send_anonymous_usage_stats",
+        [
+            ("true", "1"),
+            ("1", "true"),
+            ("true", None),
+            ("1", None),
+            (None, "false"),
+            (None, "0"),
+        ],
+    )
+    def test_usage_tracking_conflicting_env_vars_bias_off(
+        self, do_not_track, send_anonymous_usage_stats
+    ):
+        env_vars = {}
+        if do_not_track is not None:
+            env_vars["DO_NOT_TRACK"] = do_not_track
+        if send_anonymous_usage_stats is not None:
+            env_vars["DBT_SEND_ANONYMOUS_USAGE_STATS"] = send_anonymous_usage_stats
+
+        with patch.dict(os.environ, env_vars, clear=True):
+            settings = DbtMcpSettings(_env_file=None)
+            assert settings.usage_tracking_enabled is False
 
     def test_env_var_parsing(self):
         env_vars = {
@@ -300,7 +364,6 @@ class TestLoadConfig:
 
     def test_local_user_id_loading_from_dbt_profile(self):
         user_data = {"id": "local_user_123"}
-        mock_file_content = yaml.dump(user_data)
 
         env_vars = {
             "DBT_TOKEN": "test_token",
@@ -312,11 +375,12 @@ class TestLoadConfig:
             "DISABLE_ADMIN_API": "true",
         }
 
-        with patch.dict(os.environ, env_vars):
-            with patch("pathlib.Path.exists", return_value=True):
-                with patch("builtins.open", mock_open(read_data=mock_file_content)):
-                    config = self._load_config_with_env(env_vars)
-                    assert config.tracking_config.local_user_id == "local_user_123"
+        with (
+            patch.dict(os.environ, env_vars),
+            patch("dbt_mcp.config.config.try_read_yaml", return_value=user_data),
+        ):
+            config = self._load_config_with_env(env_vars)
+            assert config.tracking_config.local_user_id == "local_user_123"
 
     def test_local_user_id_loading_failure_handling(self):
         env_vars = {
@@ -329,10 +393,12 @@ class TestLoadConfig:
             "DISABLE_ADMIN_API": "true",
         }
 
-        with patch.dict(os.environ, env_vars):
-            with patch("pathlib.Path.exists", return_value=False):
-                config = self._load_config_with_env(env_vars)
-                assert config.tracking_config.local_user_id is None
+        with (
+            patch.dict(os.environ, env_vars),
+            patch("dbt_mcp.config.config.try_read_yaml", return_value=None),
+        ):
+            config = self._load_config_with_env(env_vars)
+            assert config.tracking_config.local_user_id is None
 
     def test_remote_requirements(self):
         # Test that remote_config is only created when remote tools are enabled

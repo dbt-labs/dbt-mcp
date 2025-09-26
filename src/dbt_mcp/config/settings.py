@@ -8,9 +8,11 @@ from filelock import FileLock
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from dbt_mcp.config.dbt_project import DbtProjectYaml
 from dbt_mcp.config.headers import (
     TokenProvider,
 )
+from dbt_mcp.config.yaml import try_read_yaml
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
 from dbt_mcp.oauth.dbt_platform import DbtPlatformContext
 from dbt_mcp.oauth.login import login
@@ -63,6 +65,12 @@ class DbtMcpSettings(BaseSettings):
         None, alias="DISABLE_TOOLS"
     )
 
+    # Tracking settings
+    do_not_track: str | None = Field(None, alias="DO_NOT_TRACK")
+    send_anonymous_usage_data: str | None = Field(
+        None, alias="DBT_SEND_ANONYMOUS_USAGE_STATS"
+    )
+
     @property
     def actual_host(self) -> str | None:
         host = self.dbt_host or self.dbt_mcp_host
@@ -89,6 +97,38 @@ class DbtMcpSettings(BaseSettings):
         if self.multicell_account_prefix is not None:
             return self.multicell_account_prefix
         return None
+
+    @property
+    def dbt_project_yml(self) -> DbtProjectYaml | None:
+        if not self.dbt_project_dir:
+            return None
+        dbt_project_yml = try_read_yaml(Path(self.dbt_project_dir) / "dbt_project.yml")
+        if dbt_project_yml is None:
+            return None
+        return DbtProjectYaml.model_validate(dbt_project_yml)
+
+    @property
+    def usage_tracking_enabled(self) -> bool:
+        # dbt environment variables take precedence over dbt_project.yml
+        if (
+            self.send_anonymous_usage_data is not None
+            and (
+                self.send_anonymous_usage_data.lower() == "false"
+                or self.send_anonymous_usage_data == "0"
+            )
+        ) or (
+            self.do_not_track is not None
+            and (self.do_not_track.lower() == "true" or self.do_not_track == "1")
+        ):
+            return False
+        dbt_project_yml = self.dbt_project_yml
+        if (
+            dbt_project_yml
+            and dbt_project_yml.flags
+            and dbt_project_yml.flags.send_anonymous_usage_stats is not None
+        ):
+            return dbt_project_yml.flags.send_anonymous_usage_stats
+        return True
 
     @field_validator("disable_tools", mode="before")
     @classmethod
@@ -133,7 +173,7 @@ def _find_available_port(*, start_port: int, max_attempts: int = 20) -> int:
     )
 
 
-def _get_dbt_user_dir(dbt_profiles_dir: str | None = None) -> Path:
+def get_dbt_profiles_path(dbt_profiles_dir: str | None = None) -> Path:
     # Respect DBT_PROFILES_DIR if set; otherwise default to ~/.dbt/mcp.yml
     if dbt_profiles_dir:
         return Path(dbt_profiles_dir).expanduser()
@@ -275,7 +315,7 @@ class CredentialsProvider:
         # but there are no security concerns if you do.
         enable_oauth = os.environ.get("ENABLE_EXPERIMENAL_SECURE_OAUTH") == "true"
         if enable_oauth and dbt_platform_errors:
-            dbt_user_dir = _get_dbt_user_dir(
+            dbt_user_dir = get_dbt_profiles_path(
                 dbt_profiles_dir=self.settings.dbt_profiles_dir
             )
             config_location = dbt_user_dir / "mcp.yml"
