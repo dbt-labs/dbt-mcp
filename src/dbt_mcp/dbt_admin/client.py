@@ -177,7 +177,9 @@ class DbtAdminAPIClient:
 
         return data
 
-    async def get_job_run_details(self, account_id: int, run_id: int) -> dict[str, Any]:
+    async def get_job_run_details(
+        self, account_id: int, run_id: int, include_logs: bool = False
+    ) -> dict[str, Any]:
         """Get details for a specific job run."""
 
         incl = "?include_related=['run_steps']"
@@ -189,7 +191,8 @@ class DbtAdminAPIClient:
         # we remove the truncated debug logs and logs, they are not very relevant
         for step in data.get("run_steps", []):
             step.pop("truncated_debug_logs", None)
-            step.pop("logs", None)
+            if not include_logs:
+                step.pop("logs", None)
 
         return data
 

@@ -45,6 +45,7 @@ class ErrorFetcher:
         self.run_details = run_details
         self.client = client
         self.admin_api_config = admin_api_config
+        self._run_details_with_logs = None  # Cache for run details with logs
 
     async def analyze_run_errors(self) -> dict[str, Any]:
         """Parse the run data and return all failed steps with their details."""
@@ -94,9 +95,9 @@ class ErrorFetcher:
         run_results_content = await self._fetch_run_results_artifact(failed_step)
 
         if not run_results_content:
-            return self._handle_artifact_error(failed_step)
+            return await self._handle_artifact_error(failed_step)
 
-        return self._parse_run_results(run_results_content, failed_step)
+        return await self._parse_run_results(run_results_content, failed_step)
 
     async def _fetch_run_results_artifact(
         self, failed_step: RunStepSchema
@@ -121,7 +122,7 @@ class ErrorFetcher:
             logger.error(f"Failed to get run_results.json from step {step_index}: {e}")
             return None
 
-    def _parse_run_results(
+    async def _parse_run_results(
         self, run_results_content: str, failed_step: RunStepSchema
     ) -> dict[str, Any]:
         """Parse run_results.json content and extract errors."""
@@ -135,9 +136,9 @@ class ErrorFetcher:
 
         except ValidationError as e:
             logger.warning(f"run_results.json validation failed: {e}")
-            return self._handle_artifact_error(failed_step, e)
+            return await self._handle_artifact_error(failed_step, e)
         except Exception as e:
-            return self._handle_artifact_error(failed_step, e)
+            return await self._handle_artifact_error(failed_step, e)
 
     def _extract_errors_from_results(
         self, results: list[RunResultSchema]
@@ -218,21 +219,70 @@ class ErrorFetcher:
             target=target,
         ).model_dump()
 
-    def _handle_artifact_error(
+    async def _handle_artifact_error(
         self, failed_step: RunStepSchema, error: Optional[Exception] = None
     ) -> dict[str, Any]:
-        """Handle cases where run_results.json is not available."""
+        """Handle cases where run_results.json is not available by fetching logs."""
         step_name = failed_step.name
 
-        # Special handling for source freshness steps
-        if SOURCE_FRESHNESS_STEP_NAME.lower() in step_name.lower():
-            message = "Source freshness error: run_results.json not available"
-        else:
-            error_detail = str(error) if error else "not available"
-            message = f"run_results.json not available: {error_detail}"
+        # Try to get logs for the failed step
+        step_logs = await self._get_step_logs(failed_step)
 
-        return self._create_error_result(
-            message=message,
-            step_name=failed_step.name,
-            finished_at=failed_step.finished_at,
-        )
+        if step_logs:
+            # Special handling for source freshness steps
+            if SOURCE_FRESHNESS_STEP_NAME.lower() in step_name.lower():
+                message = "Source freshness error detected from logs"
+                compiled_code = ""
+            else:
+                message = "Error details from step logs"
+                logs = step_logs.splitlines()
+                if len(logs) > 50:
+                    step_logs = "Logs truncated to last 50 lines\n" + "\n".join(logs[-50:])
+                compiled_code = step_logs
+
+            return self._create_error_result(
+                message=message,
+                step_name=step_name,
+                finished_at=failed_step.finished_at,
+                compiled_code=compiled_code,
+            )
+        else:
+            # Fallback to original behavior when logs are also not available
+            if SOURCE_FRESHNESS_STEP_NAME.lower() in step_name.lower():
+                message = "Source freshness error: run_results.json not available"
+            else:
+                error_detail = str(error) if error else "not available"
+                message = f"run_results.json not available: {error_detail}"
+
+            return self._create_error_result(
+                message=message,
+                step_name=failed_step.name,
+                finished_at=failed_step.finished_at,
+            )
+
+    async def _get_step_logs(self, failed_step: RunStepSchema) -> Optional[str]:
+        """Get logs for a failed step by fetching run details with logs (cached)."""
+        try:
+            # Fetch run details with logs only once and cache it
+            if self._run_details_with_logs is None:
+                logger.info(f"Fetching run details with logs for run {self.run_id}")
+                self._run_details_with_logs = await self.client.get_job_run_details(
+                    self.admin_api_config.account_id, self.run_id, include_logs=True
+                )
+
+            # Find the matching step by index
+            run_steps = self._run_details_with_logs.get("run_steps", [])
+            for step in run_steps:
+                if step.get("index") == failed_step.index:
+                    logs = step.get("logs")
+                    if logs:
+                        logger.info(f"Retrieved logs for failed step {failed_step.index}")
+                        return logs
+                    break
+
+            logger.warning(f"No logs found for failed step {failed_step.index}")
+            return None
+
+        except Exception as e:
+            logger.error(f"Failed to get logs for step {failed_step.index}: {e}")
+            return None
