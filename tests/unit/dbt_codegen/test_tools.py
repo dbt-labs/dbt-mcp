@@ -154,8 +154,8 @@ def test_generate_model_yaml(monkeypatch: MonkeyPatch, mock_process, mock_fastmc
     assert args_json["include_data_types"] is False
 
 
-def test_generate_base_model(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp):
-    """Test generate_base_model function."""
+def test_generate_staging_model(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp):
+    """Test generate_staging_model function."""
     mock_calls = []
 
     def mock_popen(args, **kwargs):
@@ -166,10 +166,10 @@ def test_generate_base_model(monkeypatch: MonkeyPatch, mock_process, mock_fastmc
 
     fastmcp, _ = mock_fastmcp
     register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    generate_base_model_tool = fastmcp.tools["generate_base_model"]
+    generate_staging_model_tool = fastmcp.tools["generate_staging_model"]
 
     # Call the tool
-    generate_base_model_tool(
+    generate_staging_model_tool(
         source_name="raw_data",
         table_name="users",
         leading_commas=True,
@@ -180,6 +180,7 @@ def test_generate_base_model(monkeypatch: MonkeyPatch, mock_process, mock_fastmc
     # Verify the command
     assert mock_calls
     args_list = mock_calls[0]
+    # Note: Still calls the underlying dbt-codegen macro generate_base_model
     assert "generate_base_model" in args_list
 
     args_index = args_list.index("--args")
@@ -189,39 +190,6 @@ def test_generate_base_model(monkeypatch: MonkeyPatch, mock_process, mock_fastmc
     assert args_json["leading_commas"] is True
     assert args_json["case_sensitive_cols"] is False
     assert args_json["materialized"] == "view"
-
-
-def test_generate_model_import_ctes(
-    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
-):
-    """Test generate_model_import_ctes function."""
-    mock_calls = []
-
-    def mock_popen(args, **kwargs):
-        mock_calls.append(args)
-        return mock_process()
-
-    monkeypatch.setattr("subprocess.Popen", mock_popen)
-
-    fastmcp, _ = mock_fastmcp
-    register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    generate_model_import_ctes_tool = fastmcp.tools["generate_model_import_ctes"]
-
-    # Call the tool
-    generate_model_import_ctes_tool(
-        model_name="fct_orders",
-        leading_commas=False,
-    )
-
-    # Verify the command
-    assert mock_calls
-    args_list = mock_calls[0]
-    assert "generate_model_import_ctes" in args_list
-
-    args_index = args_list.index("--args")
-    args_json = json.loads(args_list[args_index + 1])
-    assert args_json["model_name"] == "fct_orders"
-    assert args_json["leading_commas"] is False
 
 
 def test_codegen_error_handling_missing_package(monkeypatch: MonkeyPatch, mock_fastmcp):
@@ -384,256 +352,6 @@ def test_absolute_path_handling(monkeypatch: MonkeyPatch, mock_process, mock_fas
     assert captured_kwargs["cwd"] == "/test/project"
 
 
-def test_create_base_models(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp):
-    """Test create_base_models function."""
-    mock_calls = []
-
-    def mock_popen(args, **kwargs):
-        mock_calls.append(args)
-        # Return different outputs for different calls
-        if len(mock_calls) == 1:
-            return mock_process(output="SELECT * FROM {{ source('raw', 'customers') }}")
-        else:
-            return mock_process(output="SELECT * FROM {{ source('raw', 'orders') }}")
-
-    monkeypatch.setattr("subprocess.Popen", mock_popen)
-
-    fastmcp, _ = mock_fastmcp
-    register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    create_base_models_tool = fastmcp.tools["create_base_models"]
-
-    # Call the tool
-    result = create_base_models_tool(
-        source_name="raw",
-        tables=["customers", "orders"],
-        leading_commas=True,
-        case_sensitive_cols=False,
-        materialized=None,
-    )
-
-    # Should have called dbt twice (once for each table)
-    assert len(mock_calls) == 2
-
-    # Check both calls used generate_base_model macro
-    for call_args in mock_calls:
-        assert "generate_base_model" in call_args
-        args_index = call_args.index("--args")
-        args_json = json.loads(call_args[args_index + 1])
-        assert args_json["source_name"] == "raw"
-        assert args_json["leading_commas"] is True
-        assert args_json["case_sensitive_cols"] is False
-
-    # Check result contains both filenames
-    assert "stg_raw__customers.sql" in result
-    assert "stg_raw__orders.sql" in result
-
-
-def test_create_base_models_error_propagation(monkeypatch: MonkeyPatch, mock_fastmcp):
-    """Test create_base_models propagates errors from generate_base_model."""
-    mock_calls = []
-
-    class MockProcessWithError:
-        def __init__(self):
-            self.returncode = 1
-
-        def communicate(self, timeout=None):
-            return "Error: Source not found", None
-
-    def mock_popen(args, **kwargs):
-        mock_calls.append(args)
-        return MockProcessWithError()
-
-    monkeypatch.setattr("subprocess.Popen", mock_popen)
-
-    fastmcp, _ = mock_fastmcp
-    register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    create_base_models_tool = fastmcp.tools["create_base_models"]
-
-    # Call should return error from first table
-    result = create_base_models_tool(
-        source_name="nonexistent",
-        tables=["table1", "table2"],
-        leading_commas=False,
-        case_sensitive_cols=False,
-        materialized=None,
-    )
-
-    # Should stop at first error
-    assert len(mock_calls) == 1
-    assert "Error running dbt-codegen macro" in result
-
-
-def test_base_model_creation(
-    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, tmp_path
-):
-    """Test base_model_creation function."""
-    mock_calls = []
-
-    def mock_popen(args, **kwargs):
-        mock_calls.append(args)
-        # Return SQL content for the table
-        return mock_process(output="SELECT * FROM {{ source('raw', 'customers') }}")
-
-    monkeypatch.setattr("subprocess.Popen", mock_popen)
-
-    # Create a temporary config with the tmp_path as project_dir
-    from tests.mocks.config import mock_dbt_codegen_config
-
-    test_config = mock_dbt_codegen_config
-    test_config.project_dir = str(tmp_path)
-
-    fastmcp, _ = mock_fastmcp
-    register_dbt_codegen_tools(fastmcp, test_config)
-    base_model_creation_tool = fastmcp.tools["base_model_creation"]
-
-    # Call the tool
-    result = base_model_creation_tool(
-        source_name="raw",
-        tables=["customers"],
-        leading_commas=False,
-        case_sensitive_cols=False,
-        materialized="view",
-    )
-
-    # Should have called dbt once
-    assert len(mock_calls) == 1
-
-    # Verify the command
-    call_args = mock_calls[0]
-    assert "generate_base_model" in call_args
-    args_index = call_args.index("--args")
-    args_json = json.loads(call_args[args_index + 1])
-    assert args_json["source_name"] == "raw"
-    assert args_json["table_name"] == "customers"
-    assert args_json["materialized"] == "view"
-
-    # Check that file was created
-    models_dir = tmp_path / "models"
-    expected_file = models_dir / "stg_raw__customers.sql"
-    assert expected_file.exists()
-    assert "SELECT * FROM {{ source('raw', 'customers') }}" in expected_file.read_text()
-
-    # Check success message
-    assert "Successfully created 1 base model files" in result
-    assert str(expected_file) in result
-
-
-def test_base_model_creation_multiple_files(
-    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, tmp_path
-):
-    """Test base_model_creation with multiple tables."""
-    mock_calls = []
-
-    def mock_popen(args, **kwargs):
-        mock_calls.append(args)
-        # Return different SQL for each table
-        call_count = len(mock_calls)
-        if call_count == 1:
-            return mock_process(output="SELECT * FROM {{ source('raw', 'customers') }}")
-        else:
-            return mock_process(output="SELECT * FROM {{ source('raw', 'orders') }}")
-
-    monkeypatch.setattr("subprocess.Popen", mock_popen)
-
-    # Use tmp_path for project directory
-    from tests.mocks.config import mock_dbt_codegen_config
-
-    test_config = mock_dbt_codegen_config
-    test_config.project_dir = str(tmp_path)
-
-    fastmcp, _ = mock_fastmcp
-    register_dbt_codegen_tools(fastmcp, test_config)
-    base_model_creation_tool = fastmcp.tools["base_model_creation"]
-
-    # Call the tool
-    result = base_model_creation_tool(
-        source_name="raw",
-        tables=["customers", "orders"],
-        leading_commas=False,
-        case_sensitive_cols=False,
-        materialized=None,
-    )
-
-    # Should have called dbt twice
-    assert len(mock_calls) == 2
-
-    # Check both files were created
-    models_dir = tmp_path / "models"
-    customers_file = models_dir / "stg_raw__customers.sql"
-    orders_file = models_dir / "stg_raw__orders.sql"
-
-    assert customers_file.exists()
-    assert orders_file.exists()
-    assert "customers" in customers_file.read_text()
-    assert "orders" in orders_file.read_text()
-
-    # Check success message
-    assert "Successfully created 2 base model files" in result
-
-
-def test_base_model_creation_error_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
-    """Test base_model_creation error handling."""
-    mock_calls = []
-
-    class MockProcessWithError:
-        def __init__(self):
-            self.returncode = 1
-
-        def communicate(self, timeout=None):
-            return "Error: Source not found", None
-
-    def mock_popen(args, **kwargs):
-        mock_calls.append(args)
-        return MockProcessWithError()
-
-    monkeypatch.setattr("subprocess.Popen", mock_popen)
-
-    fastmcp, _ = mock_fastmcp
-    register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    base_model_creation_tool = fastmcp.tools["base_model_creation"]
-
-    # Call should return error
-    result = base_model_creation_tool(
-        source_name="nonexistent",
-        tables=["table1"],
-        leading_commas=False,
-        case_sensitive_cols=False,
-        materialized="table",
-    )
-
-    assert "Error running dbt-codegen macro" in result
-
-
-def test_base_model_creation_permission_error(
-    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
-):
-    """Test base_model_creation handles file permission errors."""
-
-    def mock_popen(args, **kwargs):
-        return mock_process(output="SELECT * FROM test")
-
-    def mock_makedirs(*args, **kwargs):
-        raise PermissionError("Permission denied")
-
-    monkeypatch.setattr("subprocess.Popen", mock_popen)
-    monkeypatch.setattr("os.makedirs", mock_makedirs)
-
-    fastmcp, _ = mock_fastmcp
-    register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
-    base_model_creation_tool = fastmcp.tools["base_model_creation"]
-
-    result = base_model_creation_tool(
-        source_name="test",
-        tables=["table1"],
-        leading_commas=False,
-        case_sensitive_cols=False,
-        materialized="table",
-    )
-
-    assert "Error: Cannot access or create models directory" in result
-    assert "Permission denied" in result
-
-
 def test_all_tools_registered(mock_fastmcp):
     """Test that all expected tools are registered."""
     fastmcp, _ = mock_fastmcp
@@ -643,10 +361,7 @@ def test_all_tools_registered(mock_fastmcp):
     expected_tools = [
         "generate_source",
         "generate_model_yaml",
-        "generate_base_model",
-        "generate_model_import_ctes",
-        "create_base_models",
-        "base_model_creation",
+        "generate_staging_model",
     ]
 
     for tool_name in expected_tools:

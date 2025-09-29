@@ -54,10 +54,7 @@ class ToolName(Enum):
     # dbt-codegen tools
     GENERATE_SOURCE = "generate_source"
     GENERATE_MODEL_YAML = "generate_model_yaml"
-    GENERATE_BASE_MODEL = "generate_base_model"
-    GENERATE_MODEL_IMPORT_CTES = "generate_model_import_ctes"
-    CREATE_BASE_MODELS = "create_base_models"
-    BASE_MODEL_CREATION = "base_model_creation"
+    GENERATE_STAGING_MODEL = "generate_staging_model"
 
     @classmethod
     def get_all_tool_names(cls) -> set[str]:

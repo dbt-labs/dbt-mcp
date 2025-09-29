@@ -136,16 +136,7 @@ tool_policies = {
     ToolName.GENERATE_MODEL_YAML.value: ToolPolicy(
         name=ToolName.GENERATE_MODEL_YAML.value, behavior=ToolBehavior.METADATA
     ),
-    ToolName.GENERATE_BASE_MODEL.value: ToolPolicy(
-        name=ToolName.GENERATE_BASE_MODEL.value, behavior=ToolBehavior.METADATA
-    ),
-    ToolName.GENERATE_MODEL_IMPORT_CTES.value: ToolPolicy(
-        name=ToolName.GENERATE_MODEL_IMPORT_CTES.value, behavior=ToolBehavior.METADATA
-    ),
-    ToolName.CREATE_BASE_MODELS.value: ToolPolicy(
-        name=ToolName.CREATE_BASE_MODELS.value, behavior=ToolBehavior.METADATA
-    ),
-    ToolName.BASE_MODEL_CREATION.value: ToolPolicy(
-        name=ToolName.BASE_MODEL_CREATION.value, behavior=ToolBehavior.METADATA
+    ToolName.GENERATE_STAGING_MODEL.value: ToolPolicy(
+        name=ToolName.GENERATE_STAGING_MODEL.value, behavior=ToolBehavior.METADATA
     ),
 }

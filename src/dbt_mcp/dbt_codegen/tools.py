@@ -120,7 +120,7 @@ def create_dbt_codegen_tool_definitions(
 
         return _run_codegen_operation("generate_model_yaml", args)
 
-    def generate_base_model(
+    def generate_staging_model(
         source_name: str = Field(
             description=get_prompt("dbt_codegen/args/source_name")
         ),
@@ -147,130 +147,6 @@ def create_dbt_codegen_tool_definitions(
 
         return _run_codegen_operation("generate_base_model", args)
 
-    def generate_model_import_ctes(
-        model_name: str = Field(description=get_prompt("dbt_codegen/args/model_name")),
-        leading_commas: bool = Field(
-            default=False, description=get_prompt("dbt_codegen/args/leading_commas")
-        ),
-    ) -> str:
-        args: dict[str, Any] = {
-            "model_name": model_name,
-            "leading_commas": leading_commas,
-        }
-
-        return _run_codegen_operation("generate_model_import_ctes", args)
-
-    def create_base_models(
-        source_name: str = Field(
-            description=get_prompt("dbt_codegen/args/source_name")
-        ),
-        tables: list[str] = Field(description=get_prompt("dbt_codegen/args/tables")),
-        leading_commas: bool = Field(
-            default=False, description=get_prompt("dbt_codegen/args/leading_commas")
-        ),
-        case_sensitive_cols: bool = Field(
-            default=False,
-            description=get_prompt("dbt_codegen/args/case_sensitive_cols"),
-        ),
-        materialized: str | None = Field(
-            default=None, description=get_prompt("dbt_codegen/args/materialized")
-        ),
-    ) -> str:
-        """Generate creation instructions for multiple base models."""
-        results = []
-
-        for table in tables:
-            # Generate base model for each table using existing function
-            args: dict[str, Any] = {
-                "source_name": source_name,
-                "table_name": table,
-                "leading_commas": leading_commas,
-                "case_sensitive_cols": case_sensitive_cols,
-            }
-            if materialized:
-                args["materialized"] = materialized
-
-            # Get the generated SQL
-            sql_content = _run_codegen_operation("generate_base_model", args)
-
-            # Check for errors
-            if "Error:" in sql_content:
-                return sql_content  # Return first error encountered
-
-            # Format the result
-            filename = f"stg_{source_name}__{table}.sql"
-            results.append(
-                f"File: {filename}\n{'-' * (len(filename) + 6)}\n{sql_content}"
-            )
-
-        return "\n\n".join(results)
-
-    def base_model_creation(
-        source_name: str = Field(
-            description=get_prompt("dbt_codegen/args/source_name")
-        ),
-        tables: list[str] = Field(description=get_prompt("dbt_codegen/args/tables")),
-        leading_commas: bool = Field(
-            default=False, description=get_prompt("dbt_codegen/args/leading_commas")
-        ),
-        case_sensitive_cols: bool = Field(
-            default=False,
-            description=get_prompt("dbt_codegen/args/case_sensitive_cols"),
-        ),
-        materialized: str | None = Field(
-            default=None, description=get_prompt("dbt_codegen/args/materialized")
-        ),
-    ) -> str:
-        """Create actual model files for multiple base models."""
-        # Determine models directory path
-        models_dir = os.path.join(config.project_dir, "models")
-
-        # Check if models directory exists, create if it doesn't
-        try:
-            os.makedirs(models_dir, exist_ok=True)
-        except Exception as e:
-            return f"Error: Cannot access or create models directory: {e}"
-
-        created_files = []
-
-        for table in tables:
-            # Generate base model for each table
-            args: dict[str, Any] = {
-                "source_name": source_name,
-                "table_name": table,
-                "leading_commas": leading_commas,
-                "case_sensitive_cols": case_sensitive_cols,
-            }
-            if materialized:
-                args["materialized"] = materialized
-
-            # Get the generated SQL
-            sql_content = _run_codegen_operation("generate_base_model", args)
-
-            # Check for errors
-            if "Error:" in sql_content:
-                return sql_content  # Return first error encountered
-
-            # Create filename following dbt convention
-            filename = f"stg_{source_name}__{table}.sql"
-            filepath = os.path.join(models_dir, filename)
-
-            try:
-                # Write the file
-                with open(filepath, "w", encoding="utf-8") as f:
-                    f.write(sql_content)
-
-                created_files.append(filepath)
-
-            except Exception as e:
-                return f"Error writing file {filename}: {e}"
-
-        # Return success message
-        files_list = "\n".join([f"  - {f}" for f in created_files])
-        return (
-            f"Successfully created {len(created_files)} base model files:\n{files_list}"
-        )
-
     return [
         ToolDefinition(
             fn=generate_source,
@@ -293,43 +169,13 @@ def create_dbt_codegen_tool_definitions(
             ),
         ),
         ToolDefinition(
-            fn=generate_base_model,
-            description=get_prompt("dbt_codegen/generate_base_model"),
+            fn=generate_staging_model,
+            description=get_prompt("dbt_codegen/generate_staging_model"),
             annotations=create_tool_annotations(
-                title="dbt-codegen generate_base_model",
+                title="dbt-codegen generate_staging_model",
                 read_only_hint=True,
                 destructive_hint=False,
                 idempotent_hint=True,
-            ),
-        ),
-        ToolDefinition(
-            fn=generate_model_import_ctes,
-            description=get_prompt("dbt_codegen/generate_model_import_ctes"),
-            annotations=create_tool_annotations(
-                title="dbt-codegen generate_model_import_ctes",
-                read_only_hint=True,
-                destructive_hint=False,
-                idempotent_hint=True,
-            ),
-        ),
-        ToolDefinition(
-            fn=create_base_models,
-            description=get_prompt("dbt_codegen/create_base_models"),
-            annotations=create_tool_annotations(
-                title="dbt-codegen create_base_models",
-                read_only_hint=True,
-                destructive_hint=False,
-                idempotent_hint=True,
-            ),
-        ),
-        ToolDefinition(
-            fn=base_model_creation,
-            description=get_prompt("dbt_codegen/base_model_creation"),
-            annotations=create_tool_annotations(
-                title="dbt-codegen base_model_creation",
-                read_only_hint=False,
-                destructive_hint=True,
-                idempotent_hint=False,
             ),
         ),
     ]

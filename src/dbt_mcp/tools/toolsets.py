@@ -58,9 +58,6 @@ toolsets = {
     Toolset.DBT_CODEGEN: {
         ToolName.GENERATE_SOURCE,
         ToolName.GENERATE_MODEL_YAML,
-        ToolName.GENERATE_BASE_MODEL,
-        ToolName.GENERATE_MODEL_IMPORT_CTES,
-        ToolName.CREATE_BASE_MODELS,
-        ToolName.BASE_MODEL_CREATION,
+        ToolName.GENERATE_STAGING_MODEL,
     },
 }
