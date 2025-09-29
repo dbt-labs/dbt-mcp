@@ -228,5 +228,3 @@ def test_error_handling_invalid_source(generate_staging_model_tool):
 
     # Should return an error message
     assert result is not None
-
-
