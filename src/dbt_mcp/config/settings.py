@@ -57,10 +57,10 @@ class DbtMcpSettings(BaseSettings):
     # Disable tool settings
     disable_dbt_cli: bool = Field(False, alias="DISABLE_DBT_CLI")
     disable_dbt_codegen: bool = Field(True, alias="DISABLE_DBT_CODEGEN")
-    disable_semantic_layer: bool = Field(False, alias="DISABLE_SEMANTIC_LAYER")
-    disable_discovery: bool = Field(False, alias="DISABLE_DISCOVERY")
+    disable_semantic_layer: bool | None = Field(None, alias="DISABLE_SEMANTIC_LAYER")
+    disable_discovery: bool | None = Field(None, alias="DISABLE_DISCOVERY")
     disable_remote: bool | None = Field(None, alias="DISABLE_REMOTE")
-    disable_admin_api: bool | None = Field(False, alias="DISABLE_ADMIN_API")
+    disable_admin_api: bool | None = Field(None, alias="DISABLE_ADMIN_API")
     disable_sql: bool | None = Field(None, alias="DISABLE_SQL")
     disable_tools: Annotated[list[ToolName] | None, NoDecode] = Field(
         None, alias="DISABLE_TOOLS"
@@ -82,7 +82,8 @@ class DbtMcpSettings(BaseSettings):
     @property
     def actual_prod_environment_id(self) -> int | None:
         return self.dbt_prod_env_id or self.dbt_env_id
-
+    
+    ## Auto disable logic for cloud tools
     @property
     def actual_disable_sql(self) -> bool:
         if self.disable_sql is not None:
@@ -90,6 +91,25 @@ class DbtMcpSettings(BaseSettings):
         if self.disable_remote is not None:
             return self.disable_remote
         return True
+
+    @property
+    def actual_disable_admin_api(self) -> bool:
+        if self.disable_admin_api is None:
+            return not self._is_valid_dbt_cloud()
+        return self.disable_admin_api
+    
+    @property
+    def actual_disable_discovery(self) -> bool:
+        if self.disable_discovery is None:
+            return not self._is_valid_dbt_cloud()
+        return self.disable_discovery
+
+    @property
+    def actual_disable_semantic_layer(self) -> bool:
+        if self.disable_semantic_layer is None:
+            return not self._is_valid_dbt_cloud()
+        return self.disable_semantic_layer
+
 
     @property
     def actual_host_prefix(self) -> str | None:
@@ -153,6 +173,12 @@ class DbtMcpSettings(BaseSettings):
             raise ValueError("\n".join(errors))
         return tool_names
 
+    def _is_valid_dbt_cloud(self) -> bool:
+        return (
+            self.dbt_host is not None
+            and self.actual_prod_environment_id is not None
+            and self.dbt_token is not None
+        )
 
 def _find_available_port(*, start_port: int, max_attempts: int = 20) -> int:
     """

@@ -73,7 +73,7 @@ def load_config() -> Config:
         )
 
     admin_api_config_provider = None
-    if not settings.disable_admin_api:
+    if not settings.actual_disable_admin_api:
         admin_api_config_provider = DefaultAdminApiConfigProvider(
             credentials_provider=credentials_provider,
         )
@@ -103,13 +103,13 @@ def load_config() -> Config:
         )
 
     discovery_config_provider = None
-    if not settings.disable_discovery:
+    if not settings.actual_disable_discovery:
         discovery_config_provider = DefaultDiscoveryConfigProvider(
             credentials_provider=credentials_provider,
         )
 
     semantic_layer_config_provider = None
-    if not settings.disable_semantic_layer:
+    if not settings.actual_disable_semantic_layer:
         semantic_layer_config_provider = DefaultSemanticLayerConfigProvider(
             credentials_provider=credentials_provider,
         )
