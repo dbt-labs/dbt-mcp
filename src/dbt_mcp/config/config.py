@@ -119,7 +119,12 @@ def load_config() -> Config:
     user_dir = get_dbt_profiles_path(settings.dbt_profiles_dir)
     user_yaml = try_read_yaml(user_dir / ".user.yml")
     if user_yaml:
-        local_user_id = user_yaml.get("id")
+        try:
+            local_user_id = user_yaml.get("id")
+        except Exception:
+            # dbt Fusion may have a different format for
+            # the .user.yml file which is handled here
+            local_user_id = str(user_yaml)
 
     return Config(
         tracking_config=TrackingConfig(
