@@ -153,59 +153,6 @@ class SemanticLayerFetcher:
             self.entities_cache[metrics_key] = entities
         return self.entities_cache[metrics_key]
 
-    async def get_metrics_compiled_sql(
-        self,
-        metrics: list[str],
-        group_by: list[GroupByParam] | None = None,
-        order_by: list[OrderByParam] | None = None,
-        where: str | None = None,
-        limit: int | None = None,
-    ) -> GetMetricsCompiledSqlResult:
-        """
-        Get compiled SQL for the given metrics and group by parameters using the SDK.
-
-        Args:
-            metrics: List of metric names to get compiled SQL for
-            group_by: List of group by parameters (dimensions/entities with optional grain)
-            order_by: List of order by parameters
-            where: Optional SQL WHERE clause to filter results
-            limit: Optional limit for number of results
-
-        Returns:
-            GetMetricsCompiledSqlResult with either the compiled SQL or an error
-        """
-        validation_error = await self.validate_query_metrics_params(
-            metrics=metrics,
-            group_by=group_by,
-        )
-        if validation_error:
-            return GetMetricsCompiledSqlError(error=validation_error)
-
-        try:
-            sl_client = await self.client_provider.get_client()
-            with sl_client.session():
-                parsed_order_by: list[OrderBySpec] = (
-                    self.get_order_bys(
-                        order_by=order_by, metrics=metrics, group_by=group_by
-                    )
-                    if order_by is not None
-                    else []
-                )
-
-                compiled_sql = sl_client.compile_sql(
-                    metrics=metrics,
-                    group_by=group_by,  # type: ignore
-                    order_by=parsed_order_by,  # type: ignore
-                    where=[where] if where else None,
-                    limit=limit,
-                    read_cache=True,
-                )
-
-                return GetMetricsCompiledSqlSuccess(sql=compiled_sql)
-
-        except Exception as e:
-            return self._format_get_metrics_compiled_sql_error(e)
-
     def _format_semantic_layer_error(self, error: Exception) -> str:
         """Format semantic layer errors by cleaning up common error message patterns."""
         error_str = str(error)
@@ -284,13 +231,15 @@ class SemanticLayerFetcher:
         else:
             return QueryMetricsError(error=str(query_error))
 
-    def get_order_bys(
+    def _get_order_bys(
         self,
-        order_by: list[OrderByParam],
-        metrics: list[str],
+        order_by: list[OrderByParam] | None,
+        metrics: list[str] = [],
         group_by: list[GroupByParam] | None = None,
     ) -> list[OrderBySpec]:
         result: list[OrderBySpec] = []
+        if order_by is None:
+            return result
         queried_group_by = {g.name: g for g in group_by} if group_by else {}
         queried_metrics = set(metrics)
         for o in order_by:
@@ -310,6 +259,54 @@ class SemanticLayerFetcher:
                     f"Order by `{o.name}` not found in metrics or group by"
                 )
         return result
+
+    async def get_metrics_compiled_sql(
+        self,
+        metrics: list[str],
+        group_by: list[GroupByParam] | None = None,
+        order_by: list[OrderByParam] | None = None,
+        where: str | None = None,
+        limit: int | None = None,
+    ) -> GetMetricsCompiledSqlResult:
+        """
+        Get compiled SQL for the given metrics and group by parameters using the SDK.
+
+        Args:
+            metrics: List of metric names to get compiled SQL for
+            group_by: List of group by parameters (dimensions/entities with optional grain)
+            order_by: List of order by parameters
+            where: Optional SQL WHERE clause to filter results
+            limit: Optional limit for number of results
+
+        Returns:
+            GetMetricsCompiledSqlResult with either the compiled SQL or an error
+        """
+        validation_error = await self.validate_query_metrics_params(
+            metrics=metrics,
+            group_by=group_by,
+        )
+        if validation_error:
+            return GetMetricsCompiledSqlError(error=validation_error)
+
+        try:
+            sl_client = await self.client_provider.get_client()
+            with sl_client.session():
+                parsed_order_by: list[OrderBySpec] = self._get_order_bys(
+                    order_by=order_by, metrics=metrics, group_by=group_by
+                )
+                compiled_sql = sl_client.compile_sql(
+                    metrics=metrics,
+                    group_by=group_by,  # type: ignore
+                    order_by=parsed_order_by,  # type: ignore
+                    where=[where] if where else None,
+                    limit=limit,
+                    read_cache=True,
+                )
+
+                return GetMetricsCompiledSqlSuccess(sql=compiled_sql)
+
+        except Exception as e:
+            return self._format_get_metrics_compiled_sql_error(e)
 
     async def query_metrics(
         self,
@@ -333,16 +330,11 @@ class SemanticLayerFetcher:
                 # Catching any exception within the session
                 # to ensure it is closed properly
                 try:
-                    parsed_order_by: list[OrderBySpec] = (
-                        self.get_order_bys(
-                            order_by=order_by, metrics=metrics, group_by=group_by
-                        )
-                        if order_by is not None
-                        else []
+                    parsed_order_by: list[OrderBySpec] = self._get_order_bys(
+                        order_by=order_by, metrics=metrics, group_by=group_by
                     )
                     query_result = sl_client.query(
                         metrics=metrics,
-                        # TODO: remove this type ignore once this PR is merged: https://github.com/dbt-labs/semantic-layer-sdk-python/pull/80
                         group_by=group_by,  # type: ignore
                         order_by=parsed_order_by,  # type: ignore
                         where=[where] if where else None,
