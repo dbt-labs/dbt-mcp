@@ -1,6 +1,7 @@
 import os
 import socket
 import time
+from enum import Enum
 from pathlib import Path
 from typing import Annotated
 
@@ -24,6 +25,11 @@ from dbt_mcp.tools.tool_names import ToolName
 
 OAUTH_REDIRECT_STARTING_PORT = 6785
 DEFAULT_DBT_CLI_TIMEOUT = 60
+
+
+class AuthenticationMethod(Enum):
+    OAUTH = "oauth"
+    ENV_VAR = "env_var"
 
 
 class DbtMcpSettings(BaseSettings):
@@ -304,6 +310,7 @@ class CredentialsProvider:
     def __init__(self, settings: DbtMcpSettings):
         self.settings = settings
         self.token_provider: TokenProvider | None = None
+        self.authentication_method: AuthenticationMethod | None = None
 
     async def get_credentials(self) -> tuple[DbtMcpSettings, TokenProvider]:
         if self.token_provider is not None:
@@ -352,7 +359,9 @@ class CredentialsProvider:
                 context_manager=dbt_platform_context_manager,
             )
             validate_settings(self.settings)
+            self.authentication_method = AuthenticationMethod.OAUTH
             return self.settings, self.token_provider
         self.token_provider = StaticTokenProvider(token=self.settings.dbt_token)
         validate_settings(self.settings)
+        self.authentication_method = AuthenticationMethod.ENV_VAR
         return self.settings, self.token_provider

@@ -1,5 +1,6 @@
 import logging
 import time
+import uuid
 from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import (
     AbstractAsyncContextManager,
@@ -107,7 +108,10 @@ async def app_lifespan(server: DbtMCP) -> AsyncIterator[None]:
 async def create_dbt_mcp(config: Config) -> DbtMCP:
     dbt_mcp = DbtMCP(
         config=config,
-        usage_tracker=UsageTracker(),
+        usage_tracker=UsageTracker(
+            credentials_provider=config.credentials_provider,
+            session_id=uuid.uuid4(),
+        ),
         name="dbt",
         lifespan=app_lifespan,
     )

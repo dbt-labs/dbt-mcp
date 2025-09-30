@@ -1,10 +1,12 @@
 import json
+import uuid
 from unittest.mock import patch
 
 import pytest
 
 from dbt_mcp.config.config import TrackingConfig
 from dbt_mcp.tracking.tracking import UsageTracker
+from tests.mocks.config import MockCredentialsProvider
 
 
 @pytest.fixture
@@ -23,7 +25,10 @@ class TestUsageTracker:
     def test_emit_tool_called_event_disabled(self, tracking_config):
         tracking_config.usage_tracking_enabled = False
 
-        tracker = UsageTracker()
+        tracker = UsageTracker(
+            credentials_provider=MockCredentialsProvider(),
+            session_id=uuid.uuid4(),
+        )
 
         with patch("dbt_mcp.tracking.tracking.log_proto") as mock_log_proto:
             tracker.emit_tool_called_event(
@@ -39,7 +44,10 @@ class TestUsageTracker:
     def test_emit_tool_called_event_enabled(self, tracking_config):
         tracking_config.usage_tracking_enabled = True
 
-        tracker = UsageTracker()
+        tracker = UsageTracker(
+            credentials_provider=MockCredentialsProvider(),
+            session_id=uuid.uuid4(),
+        )
 
         with patch("uuid.uuid4", return_value="event-1"):
             with patch("dbt_mcp.tracking.tracking.log_proto") as mock_log_proto:

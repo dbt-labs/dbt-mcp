@@ -19,8 +19,11 @@ from dbt_mcp.config.headers import (
     SemanticLayerHeadersProvider,
     SqlHeadersProvider,
 )
+from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.oauth.token_provider import StaticTokenProvider
+
+mock_settings = DbtMcpSettings.model_construct()
 
 mock_tracking_config = TrackingConfig(
     host="http://localhost:8000",
@@ -108,6 +111,15 @@ class MockAdminApiConfigProvider(DefaultAdminApiConfigProvider):
         return mock_admin_api_config
 
 
+class MockCredentialsProvider(CredentialsProvider):
+    def __init__(self, settings: DbtMcpSettings | None = None):
+        super().__init__(settings or mock_settings)
+        self.token_provider = StaticTokenProvider(token=self.settings.dbt_token)
+
+    async def get_credentials(self):
+        return self.settings, self.token_provider
+
+
 mock_config = Config(
     tracking_config=mock_tracking_config,
     sql_config_provider=MockSqlConfigProvider(),
@@ -116,6 +128,5 @@ mock_config = Config(
     semantic_layer_config_provider=MockSemanticLayerConfigProvider(),
     admin_api_config_provider=MockAdminApiConfigProvider(),
     disable_tools=[],
+    credentials_provider=MockCredentialsProvider(),
 )
-
-# Note: Direct config access has been removed. Use config_provider.get_config() instead.

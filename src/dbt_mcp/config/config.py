@@ -1,5 +1,7 @@
 import os
 from dataclasses import dataclass
+from importlib.metadata import version
+from typing import assert_never
 
 from dbt_mcp.config.config_providers import (
     DefaultAdminApiConfigProvider,
@@ -15,6 +17,9 @@ from dbt_mcp.config.settings import (
 from dbt_mcp.config.yaml import try_read_yaml
 from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
 from dbt_mcp.tools.tool_names import ToolName
+from dbt_mcp.tools.toolsets import Toolset
+
+PACKAGE_NAME = "dbt-mcp"
 
 
 @dataclass
@@ -26,6 +31,10 @@ class TrackingConfig:
     dbt_cloud_user_id: int | None = None
     local_user_id: str | None = None
     usage_tracking_enabled: bool = False
+    dbt_mcp_version: str | None = None
+    dbt_cloud_account_id: int | None = None
+    disabled_tools: list[ToolName] | None = None
+    disabled_toolsets: list[Toolset] | None = None
 
 
 @dataclass
@@ -45,6 +54,33 @@ class Config:
     discovery_config_provider: DefaultDiscoveryConfigProvider | None
     semantic_layer_config_provider: DefaultSemanticLayerConfigProvider | None
     admin_api_config_provider: DefaultAdminApiConfigProvider | None
+    credentials_provider: CredentialsProvider
+
+
+def get_disabled_toolsets(settings: DbtMcpSettings) -> list[Toolset]:
+    disabled_toolsets: list[Toolset] = []
+    # Looping over the Toolset enum to ensure that type validation
+    # accounts for additions to the Toolset enum with `assert_never`
+    for toolset in Toolset:
+        match toolset:
+            case Toolset.SQL:
+                if settings.disable_sql:
+                    disabled_toolsets.append(toolset)
+            case Toolset.SEMANTIC_LAYER:
+                if settings.disable_semantic_layer:
+                    disabled_toolsets.append(toolset)
+            case Toolset.DISCOVERY:
+                if settings.disable_discovery:
+                    disabled_toolsets.append(toolset)
+            case Toolset.DBT_CLI:
+                if settings.disable_dbt_cli:
+                    disabled_toolsets.append(toolset)
+            case Toolset.ADMIN_API:
+                if settings.disable_admin_api:
+                    disabled_toolsets.append(toolset)
+            case _:
+                assert_never(toolset)
+    return disabled_toolsets
 
 
 def load_config() -> Config:
@@ -107,6 +143,10 @@ def load_config() -> Config:
             dbt_cloud_user_id=settings.dbt_user_id,
             local_user_id=local_user_id,
             usage_tracking_enabled=settings.usage_tracking_enabled,
+            dbt_mcp_version=version(PACKAGE_NAME),
+            dbt_cloud_account_id=settings.dbt_account_id,
+            disabled_tools=settings.disable_tools,
+            disabled_toolsets=get_disabled_toolsets(settings),
         ),
         disable_tools=settings.disable_tools or [],
         sql_config_provider=sql_config_provider,
@@ -114,4 +154,5 @@ def load_config() -> Config:
         discovery_config_provider=discovery_config_provider,
         semantic_layer_config_provider=semantic_layer_config_provider,
         admin_api_config_provider=admin_api_config_provider,
+        credentials_provider=credentials_provider,
     )

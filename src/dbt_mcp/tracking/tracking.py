@@ -2,29 +2,24 @@ import json
 import logging
 import uuid
 from collections.abc import Mapping
-from dataclasses import dataclass
 from typing import Any
 
 from dbtlabs.proto.public.v1.events.mcp_pb2 import ToolCalled
 from dbtlabs_vortex.producer import log_proto
 
 from dbt_mcp.config.config import TrackingConfig
+from dbt_mcp.config.settings import CredentialsProvider
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class ToolCalledEvent:
-    tool_name: str
-    arguments: dict[str, Any]
-    error_message: str | None
-    prod_environment_id: int | None
-    dev_environment_id: int | None
-    dbt_cloud_user_id: int | None
-    local_user_id: str | None
-
-
 class UsageTracker:
+    def __init__(
+        self, credentials_provider: CredentialsProvider, session_id: uuid.UUID
+    ):
+        self.credentials_provider = credentials_provider
+        self.session_id = session_id
+
     def emit_tool_called_event(
         self,
         config: TrackingConfig,
