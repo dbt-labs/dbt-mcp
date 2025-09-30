@@ -1,5 +1,6 @@
 import pytest
 from dbtsl.api.shared.query_params import GroupByParam, GroupByType
+import pyarrow as pa
 
 from dbt_mcp.config.config import load_config
 from dbt_mcp.semantic_layer.client import (
@@ -133,3 +134,26 @@ async def test_semantic_layer_get_entities(
         metrics=["count_dbt_copilot_requests"]
     )
     assert len(entities) > 0
+
+
+async def test_semantic_layer_query_metrics_with_csv_formatter(
+    semantic_layer_fetcher: SemanticLayerFetcher,
+):
+    def csv_formatter(table: pa.Table) -> str:
+        return table.to_pandas().to_csv(index=False)
+
+    result = await semantic_layer_fetcher.query_metrics(
+        metrics=["revenue"],
+        group_by=[
+            GroupByParam(
+                name="metric_time",
+                type=GroupByType.TIME_DIMENSION,
+                grain=None,
+            )
+        ],
+        result_formatter=csv_formatter,
+    )
+    assert result.result is not None
+    assert "revenue" in result.result.casefold()
+    # CSV format should have comma separators
+    assert "," in result.result
