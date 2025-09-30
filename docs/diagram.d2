@@ -43,13 +43,15 @@ tools: Tools {
 
   discovery: Discovery\nMetadata API {
     label.near: outside-right-center
-    class: container
+    class: big-container
     get_mart_models
     get_all_models
     get_model_details
     get_model_parents
     get_model_children
     get_model_health
+    get_exposures
+    get_exposure_details
   }
 
   sl: dbt Semantic Layer {
@@ -81,6 +83,14 @@ tools: Tools {
     retry_job_run
     list_job_run_artifacts
     get_job_run_artifact
+  }
+
+  codegen: dbt-codegen tools {
+    label.near: outside-right-center
+    class: container
+    generate_source
+    generate_model_yaml
+    generate_staging_model
   }
 }
 
