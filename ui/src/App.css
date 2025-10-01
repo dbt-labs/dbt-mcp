@@ -476,7 +476,10 @@ section {
   font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.15s ease-in-out, transform 0.15s ease-in-out;
+  transition:
+    background-color 0.15s ease-in-out,
+    transform 0.15s ease-in-out,
+    opacity 0.15s ease-in-out;
 }
 
 .primary-button:hover {
@@ -494,6 +497,26 @@ section {
 .primary-button:active {
   transform: translateY(0);
   background-color: #3d3a38;
+}
+
+.primary-button:disabled {
+  background-color: #d1d5db;
+  border-color: #d1d5db;
+  color: #6b7280;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  opacity: 0.65;
+}
+
+.primary-button:disabled:hover,
+.primary-button:disabled:focus,
+.primary-button:disabled:active {
+  background-color: #d1d5db;
+  border-color: #d1d5db;
+  color: #6b7280;
+  transform: none;
+  box-shadow: none;
 }
 
 /* Response section */
@@ -765,6 +788,21 @@ section {
   .primary-button:active {
     background-color: #3d3a38;
   }
+
+  .primary-button:disabled {
+    background-color: #d6d3d1;
+    border-color: #e7e5e4;
+    color: #78716c;
+    opacity: 0.7;
+  }
+
+  .primary-button:disabled:hover,
+  .primary-button:disabled:focus,
+  .primary-button:disabled:active {
+    background-color: #d6d3d1;
+    border-color: #e7e5e4;
+    color: #78716c;
+  }
 }
 
 /* Dark mode styles */
@@ -978,5 +1016,20 @@ section {
 
   .primary-button:active {
     background-color: #e5e7eb;
+  }
+
+  .primary-button:disabled {
+    background-color: #2f2f30;
+    border-color: #3f3f40;
+    color: #8b949e;
+    opacity: 0.55;
+  }
+
+  .primary-button:disabled:hover,
+  .primary-button:disabled:focus,
+  .primary-button:disabled:active {
+    background-color: #2f2f30;
+    border-color: #3f3f40;
+    color: #8b949e;
   }
 }

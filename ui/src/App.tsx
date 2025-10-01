@@ -45,7 +45,7 @@ function useOAuthResult(): string | null {
 }
 
 type CustomDropdownProps = {
-  value: number | "";
+  value: number | null;
   onChange: (value: string) => void;
   options: Project[];
   placeholder: string;
@@ -183,7 +183,9 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [loadingProjects, setLoadingProjects] = useState(false);
-  const [selectedProjectId, setSelectedProjectId] = useState<number | "">("");
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(
+    null
+  );
   const [dbtPlatformContext, setDbtPlatformContext] =
     useState<DbtPlatformContext | null>(null);
 
@@ -239,7 +241,7 @@ export default function App() {
   const onSelectProject = async (projectIdStr: string) => {
     setDbtPlatformContext(null);
     const projectId = Number(projectIdStr);
-    setSelectedProjectId(Number.isNaN(projectId) ? "" : projectId);
+    setSelectedProjectId(Number.isNaN(projectId) ? null : projectId);
     const project = projects.find((p) => p.id === projectId);
     if (!project) return;
     try {
@@ -360,7 +362,11 @@ export default function App() {
 
         {dbtPlatformContext && (
           <div className="button-container">
-            <button onClick={onContinue} className="primary-button">
+            <button
+              onClick={onContinue}
+              className="primary-button"
+              disabled={selectedProjectId === null}
+            >
               Continue
             </button>
           </div>
