@@ -31,6 +31,7 @@ class TestDbtMcpSettings:
             "DISABLE_DISCOVERY",
             "DISABLE_REMOTE",
             "DISABLE_ADMIN_API",
+            "DISABLE_DBT_PLATFORM",
             "MULTICELL_ACCOUNT_PREFIX",
             "DBT_WARN_ERROR_OPTIONS",
             "DISABLE_TOOLS",
@@ -49,11 +50,12 @@ class TestDbtMcpSettings:
             assert settings.dbt_path == "dbt"
             assert settings.dbt_cli_timeout == DEFAULT_DBT_CLI_TIMEOUT
             assert settings.disable_dbt_cli is False
-            assert settings.disable_semantic_layer is None
-            assert settings.disable_discovery is None
+            assert settings.disable_semantic_layer is False
+            assert settings.disable_discovery is False
             assert settings.disable_remote is None
             assert settings.disable_sql is None
             assert settings.disable_tools == []
+            assert settings.disable_dbt_platform is None
 
     def test_usage_tracking_disabled_by_env_vars(self):
         env_vars = {
@@ -477,45 +479,33 @@ class TestLoadConfig:
                 disable_flags["DISABLE_DISCOVERY"] == "false"
             )
     
-    def test_disable_flags_auto_disabling(self):
+    @pytest.mark.parametrize(
+        "disable_flags", [
+            pytest.param({}, id="dbt_platform_auto_disabled"),
+            pytest.param({"DISABLE_DBT_PLATFORM": "true"}, id="dbt_platform_explicitly_disabled"),
+            pytest.param({"DISABLE_DBT_PLATFORM": "false"}, id="dbt_platform_explicitly_enabled"),
+        ],
+    )
+    def test_disable_flags_auto_disabling(self, disable_flags):
         # Test that services are auto-disabled when required fields are missing
         base_env = {
             # missing DBT_HOST
             "DBT_PROD_ENV_ID": "123",
             "DBT_TOKEN": "test_token",
         }
-        test_cases = [
-            {}, # All auto-disabled
-            {  # Explicitly disabling should override auto-disable
-                "DISABLE_SQL": "true",
-                "DISABLE_ADMIN_API": "true",
-                "DISABLE_DISCOVERY": "true",
-                "DISABLE_SEMANTIC_LAYER": "true"
-            },
-            { # Explicitly enabling should override auto-disable
-                "DISABLE_SQL": "false",
-                "DISABLE_ADMIN_API": "false",
-                "DISABLE_DISCOVERY": "false",
-                "DISABLE_SEMANTIC_LAYER": "false"
-            },
-        ]
-        for disable_flags in test_cases:
-            env_vars = {**base_env, **disable_flags}
-            config = self._load_config_with_env(env_vars)
 
-            # Verify configs are created only when services are enabled
-            assert (config.sql_config_provider is not None) == (
-                disable_flags.get("DISABLE_SQL", "true") == "false"
-            )
-            assert (config.semantic_layer_config_provider is not None) == (
-                disable_flags.get("DISABLE_SEMANTIC_LAYER", "true") == "false"
-            )
-            assert (config.discovery_config_provider is not None) == (
-                disable_flags.get("DISABLE_DISCOVERY", "true") == "false"
-            )
-            assert (config.admin_api_config_provider is not None) == (
-                disable_flags.get("DISABLE_ADMIN_API", "true") == "false"
-            )
+        env_vars = {**base_env, **disable_flags}
+        config = self._load_config_with_env(env_vars)
+        # Verify configs are created only when services are enabled
+        assert (config.semantic_layer_config_provider is not None) == (
+            disable_flags.get("DISABLE_DBT_PLATFORM", "true") == "false"
+        )
+        assert (config.discovery_config_provider is not None) == (
+            disable_flags.get("DISABLE_DBT_PLATFORM", "true") == "false"
+        )
+        assert (config.admin_api_config_provider is not None) == (
+            disable_flags.get("DISABLE_DBT_PLATFORM", "true") == "false"
+        )
 
     def test_legacy_env_id_support(self):
         # Test that DBT_ENV_ID still works for backward compatibility
