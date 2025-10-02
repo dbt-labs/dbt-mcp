@@ -171,22 +171,26 @@ class ErrorFetcher:
     ) -> dict[str, Any]:
         """Build the final error response structure."""
         target = args.target if args else None
+        step_name = failed_step.name
+        finished_at = failed_step.finished_at
+        truncated_logs = self._truncated_logs(failed_step)
 
         if errors:
             return ErrorStepSchema(
                 errors=errors,
-                step_name=failed_step.name,
-                finished_at=failed_step.finished_at,
+                step_name=step_name,
+                finished_at=finished_at,
                 target=target,
             ).model_dump()
 
-        message = "No failures found in run_results"
+        message = "No failures found in run_results.json"
 
         return self._create_error_result(
             message=message,
             target=target,
-            step_name=failed_step.name,
-            finished_at=failed_step.finished_at,
+            step_name=step_name,
+            finished_at=finished_at,
+            truncated_logs=truncated_logs,
         )
 
     def _create_error_result(
@@ -221,14 +225,8 @@ class ErrorFetcher:
         """Handle cases where run_results.json is not available."""
         relation_name = "No database relation"
         step_name = failed_step.name
-
-        TRUNCATED_LOGS_LENGTH = 50
-        split_logs = failed_step.logs.splitlines() if failed_step.logs else []
-        if len(split_logs) > TRUNCATED_LOGS_LENGTH:
-            split_logs = [
-                "Logs truncated to last {TRUNCATED_LOGS_LENGTH} lines..."
-            ] + split_logs[-TRUNCATED_LOGS_LENGTH:]
-        truncated_logs = "\n".join(split_logs)
+        finished_at = failed_step.finished_at
+        truncated_logs = self._truncated_logs(failed_step)
 
         # Special handling for source freshness steps
         if SOURCE_FRESHNESS_STEP_NAME.lower() in step_name.lower():
@@ -239,7 +237,18 @@ class ErrorFetcher:
         return self._create_error_result(
             message=message,
             relation_name=relation_name,
-            step_name=failed_step.name,
-            finished_at=failed_step.finished_at,
+            step_name=step_name,
+            finished_at=finished_at,
             truncated_logs=truncated_logs,
         )
+
+    def _truncated_logs(self, failed_step: RunStepSchema) -> str | None:
+        """Truncate logs to the last 50 lines."""
+        TRUNCATED_LOGS_LENGTH = 50
+
+        split_logs = failed_step.logs.splitlines() if failed_step.logs else []
+        if len(split_logs) > TRUNCATED_LOGS_LENGTH:
+            split_logs = [
+                f"Logs truncated to last {TRUNCATED_LOGS_LENGTH} lines..."
+            ] + split_logs[-TRUNCATED_LOGS_LENGTH:]
+        return "\n".join(split_logs)
