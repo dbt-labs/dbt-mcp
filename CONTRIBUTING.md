@@ -64,6 +64,8 @@ Or, if you would like to test with Oauth, use a configuration like this:
 }
 ```
 
+For improved debugging, you can set the `FILE_LOGGING=true` environment variable to log to a `./dbt-mcp.log` file.
+
 ## Signed Commits
 
 Before committing changes, ensure that you have set up [signed commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).

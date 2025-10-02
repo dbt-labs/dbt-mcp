@@ -44,7 +44,7 @@ class DbtMCP(FastMCP):
     async def call_tool(
         self, name: str, arguments: dict[str, Any]
     ) -> Sequence[ContentBlock] | dict[str, Any]:
-        logger.info(f"Calling tool: {name}")
+        logger.info(f"Calling tool: {name} with arguments: {arguments}")
         result = None
         start_time = int(time.time() * 1000)
         try:
