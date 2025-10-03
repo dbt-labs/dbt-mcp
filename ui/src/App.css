@@ -415,6 +415,69 @@ section {
   opacity: 0.8;
 }
 
+/* OAuth Error Section */
+.error-section {
+  background: #fff;
+  border: 1px solid #fecaca;
+}
+
+.error-details {
+  padding: 0 1.5rem 1.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.error-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.error-item strong {
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: #991b1b;
+}
+
+.error-code {
+  display: inline-block;
+  padding: 0.5rem 0.75rem;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  font-size: 0.875rem;
+  color: #991b1b;
+  font-weight: 500;
+}
+
+.error-description {
+  margin: 0;
+  padding: 0.75rem;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  color: #991b1b;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.error-actions {
+  margin-top: 0.5rem;
+  padding: 1rem;
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+}
+
+.error-actions p {
+  margin: 0;
+  color: #92400e;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
 /* Context details */
 .context-details {
   padding: 0 1.5rem 1.5rem 1.5rem;
@@ -961,6 +1024,37 @@ section {
 
   .error-state p {
     color: #f6f6f6;
+  }
+
+  /* OAuth Error Section Dark Mode */
+  .error-section {
+    background: #1c1a19;
+    border-color: #991b1b;
+  }
+
+  .error-item strong {
+    color: #fca5a5;
+  }
+
+  .error-code {
+    background-color: #450a0a;
+    border-color: #7f1d1d;
+    color: #fca5a5;
+  }
+
+  .error-description {
+    background-color: #450a0a;
+    border-color: #7f1d1d;
+    color: #fca5a5;
+  }
+
+  .error-actions {
+    background-color: #422006;
+    border-color: #92400e;
+  }
+
+  .error-actions p {
+    color: #fde68a;
   }
 
   /* Context details */
