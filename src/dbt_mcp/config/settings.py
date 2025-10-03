@@ -1,3 +1,4 @@
+import logging
 import os
 import socket
 import time
@@ -21,6 +22,8 @@ from dbt_mcp.oauth.token_provider import (
     StaticTokenProvider,
 )
 from dbt_mcp.tools.tool_names import ToolName
+
+logger = logging.getLogger(__name__)
 
 OAUTH_REDIRECT_STARTING_PORT = 6785
 DEFAULT_DBT_CLI_TIMEOUT = 60
@@ -71,6 +74,9 @@ class DbtMcpSettings(BaseSettings):
     send_anonymous_usage_data: str | None = Field(
         None, alias="DBT_SEND_ANONYMOUS_USAGE_STATS"
     )
+
+    # Developer settings
+    file_logging: bool = Field(False, alias="DBT_MCP_SERVER_FILE_LOGGING")
 
     @property
     def actual_host(self) -> str | None:
@@ -306,6 +312,12 @@ class CredentialsProvider:
         self.settings = settings
         self.token_provider: TokenProvider | None = None
 
+    def _log_settings(self) -> None:
+        settings = self.settings.model_dump()
+        if settings.get("dbt_token") is not None:
+            settings["dbt_token"] = "***redacted***"
+        logger.info(f"Settings: {settings}")
+
     async def get_credentials(self) -> tuple[DbtMcpSettings, TokenProvider]:
         if self.token_provider is not None:
             # If token provider is already set, just return the cached values
@@ -353,7 +365,9 @@ class CredentialsProvider:
                 context_manager=dbt_platform_context_manager,
             )
             validate_settings(self.settings)
+            self._log_settings()
             return self.settings, self.token_provider
         self.token_provider = StaticTokenProvider(token=self.settings.dbt_token)
         validate_settings(self.settings)
+        self._log_settings()
         return self.settings, self.token_provider

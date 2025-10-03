@@ -14,6 +14,7 @@ from dbt_mcp.config.settings import (
 )
 from dbt_mcp.config.yaml import try_read_yaml
 from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
+from dbt_mcp.telemetry.logging import configure_logging
 from dbt_mcp.tools.tool_names import ToolName
 
 
@@ -58,6 +59,7 @@ class Config:
 
 def load_config() -> Config:
     settings = DbtMcpSettings()  # type: ignore
+    configure_logging(settings.file_logging)
     credentials_provider = CredentialsProvider(settings)
 
     # Set default warn error options if not provided

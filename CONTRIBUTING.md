@@ -64,7 +64,7 @@ Or, if you would like to test with Oauth, use a configuration like this:
 }
 ```
 
-For improved debugging, you can set the `FILE_LOGGING=true` environment variable to log to a `./dbt-mcp.log` file.
+For improved debugging, you can set the `DBT_MCP_SERVER_FILE_LOGGING=true` environment variable to log to a `./dbt-mcp.log` file.
 
 ## Signed Commits
 

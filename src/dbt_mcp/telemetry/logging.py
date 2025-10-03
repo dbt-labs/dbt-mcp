@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 
-FILE_LOGGING_ENV_VAR = "FILE_LOGGING"
 LOG_FILENAME = "dbt-mcp.log"
 
 
@@ -21,8 +19,8 @@ def _find_repo_root() -> Path:
     return module_path
 
 
-def configure_file_logging() -> None:
-    if os.environ.get(FILE_LOGGING_ENV_VAR, "").lower() != "true":
+def configure_logging(file_logging: bool) -> None:
+    if not file_logging:
         return
 
     repo_root = _find_repo_root()
