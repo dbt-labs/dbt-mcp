@@ -83,7 +83,7 @@ class DbtMcpSettings(BaseSettings):
         host = self.dbt_host or self.dbt_mcp_host
         if host is None:
             return None
-        return host.rstrip("/")
+        return host.rstrip("/").removeprefix("https://").removeprefix("http://")
 
     @property
     def actual_prod_environment_id(self) -> int | None:
