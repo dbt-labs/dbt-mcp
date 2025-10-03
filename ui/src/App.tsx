@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import "./App.css";
-
-// Import SVG files as URLs for theme switching
 import dbtLogoBLK from "../assets/dbt_logo BLK.svg";
 import dbtLogoWHT from "../assets/dbt_logo WHT.svg";
 
@@ -29,6 +27,108 @@ type DbtPlatformContext = {
     };
   };
 };
+
+type FetchRetryOptions = {
+  attempts?: number;
+  delayMs?: number;
+  backoffFactor?: number;
+  timeoutMs?: number;
+  retryOnResponse?: (response: Response) => boolean;
+};
+
+function isAbortError(error: unknown): boolean {
+  if (error instanceof DOMException) {
+    return error.name === "AbortError";
+  }
+  return error instanceof Error && error.name === "AbortError";
+}
+
+function isNetworkError(error: unknown): boolean {
+  if (error instanceof TypeError) {
+    return true;
+  }
+  return error instanceof Error && error.name === "TypeError";
+}
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function fetchWithRetry(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  options?: FetchRetryOptions
+): Promise<Response> {
+  const {
+    attempts = 3,
+    delayMs = 500,
+    backoffFactor = 2,
+    timeoutMs = 10000,
+    retryOnResponse,
+  } = options ?? {};
+
+  let currentDelay = delayMs;
+
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (attempt > 0 && currentDelay > 0) {
+      await sleep(currentDelay);
+      currentDelay *= backoffFactor;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    // Listen to existing signal if present
+    if (init?.signal) {
+      init.signal.addEventListener("abort", () => controller.abort(), {
+        once: true,
+      });
+    }
+
+    try {
+      const response = await fetch(input, {
+        ...init,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (
+        retryOnResponse &&
+        retryOnResponse(response) &&
+        attempt < attempts - 1
+      ) {
+        // Consume response body to free resources
+        try {
+          await response.arrayBuffer();
+        } catch {
+          // Ignore - may already be consumed or reader locked
+        }
+        continue;
+      }
+
+      return response;
+    } catch (error) {
+      clearTimeout(timeoutId);
+
+      if (isAbortError(error)) {
+        throw error;
+      }
+
+      if (!isNetworkError(error)) {
+        throw error;
+      }
+
+      if (attempt === attempts - 1) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error("Failed to fetch after retries");
+}
 
 function parseHash(): URLSearchParams {
   const hash = window.location.hash.startsWith("#")
@@ -188,53 +288,110 @@ export default function App() {
   );
   const [dbtPlatformContext, setDbtPlatformContext] =
     useState<DbtPlatformContext | null>(null);
+  const [continuing, setContinuing] = useState(false);
+  const [shutdownComplete, setShutdownComplete] = useState(false);
 
   // Load available projects after OAuth success
   useEffect(() => {
     if (oauthResult !== "success") return;
-    setLoadingProjects(true);
-    setProjectsError(null);
-    fetch("/projects")
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`Failed to load projects (${r.status})`);
-        return r.json();
-      })
-      .then((data: Project[]) => {
-        setProjects(data);
-      })
-      .catch((err: unknown) => {
+    const abortController = new AbortController();
+    let cancelled = false;
+
+    const loadProjects = async () => {
+      setLoadingProjects(true);
+      setProjectsError(null);
+
+      try {
+        const response = await fetchWithRetry(
+          "/projects",
+          { signal: abortController.signal },
+          { attempts: 3, delayMs: 400 }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to load projects (${response.status})`);
+        }
+
+        const data: Project[] = await response.json();
+
+        if (!cancelled) {
+          setProjects(data);
+        }
+      } catch (err) {
+        if (cancelled || isAbortError(err)) {
+          return;
+        }
+
         const msg = err instanceof Error ? err.message : String(err);
         setProjectsError(msg);
-      })
-      .finally(() => setLoadingProjects(false));
+      } finally {
+        if (!cancelled) {
+          setLoadingProjects(false);
+        }
+      }
+    };
+
+    loadProjects();
+
+    return () => {
+      cancelled = true;
+      abortController.abort();
+    };
   }, [oauthResult]);
 
   // Fetch saved selected project on load after OAuth success
   useEffect(() => {
     if (oauthResult !== "success") return;
+    const abortController = new AbortController();
+    let cancelled = false;
+
     (async () => {
       try {
-        const res = await fetch("/dbt_platform_context");
-        if (!res.ok) return; // if no config yet or server error, skip silently
+        const res = await fetchWithRetry(
+          "/dbt_platform_context",
+          { signal: abortController.signal },
+          { attempts: 2, delayMs: 400 }
+        );
+        if (!res.ok || cancelled) return; // if no config yet or server error, skip silently
         const data: DbtPlatformContext = await res.json();
-        setDbtPlatformContext(data);
-      } catch {
-        // ignore
+        if (!cancelled) {
+          setDbtPlatformContext(data);
+        }
+      } catch (err) {
+        if (isAbortError(err) || cancelled) {
+          return;
+        }
+        // ignore other failures to keep UX consistent
       }
     })();
+
+    return () => {
+      cancelled = true;
+      abortController.abort();
+    };
   }, [oauthResult]);
 
   const onContinue = async () => {
+    if (continuing) return;
+    setContinuing(true);
+    setResponseText(null);
     try {
-      const res = await fetch("/shutdown", { method: "POST" });
+      const res = await fetchWithRetry(
+        "/shutdown",
+        { method: "POST" },
+        { attempts: 3, delayMs: 400 }
+      );
       const text = await res.text();
       if (res.ok) {
+        setShutdownComplete(true);
         window.close();
       } else {
         setResponseText(text);
       }
     } catch (err) {
       setResponseText(String(err));
+    } finally {
+      setContinuing(false);
     }
   };
 
@@ -245,14 +402,18 @@ export default function App() {
     const project = projects.find((p) => p.id === projectId);
     if (!project) return;
     try {
-      const res = await fetch("/selected_project", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          account_id: project.account_id,
-          project_id: project.id,
-        }),
-      });
+      const res = await fetchWithRetry(
+        "/selected_project",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            account_id: project.account_id,
+            project_id: project.id,
+          }),
+        },
+        { attempts: 3, delayMs: 400 }
+      );
       if (res.ok) {
         const data = await res.json();
         setDbtPlatformContext(data);
@@ -278,7 +439,7 @@ export default function App() {
           <p>Configure your dbt Platform connection</p>
         </header>
 
-        {oauthResult === "success" && (
+        {oauthResult === "success" && !shutdownComplete && (
           <section className="project-selection-section">
             <div className="section-header">
               <h2>Select a Project</h2>
@@ -322,7 +483,7 @@ export default function App() {
           </section>
         )}
 
-        {dbtPlatformContext && (
+        {dbtPlatformContext && !shutdownComplete && (
           <section className="context-section">
             <div className="section-header">
               <h2>Current Configuration</h2>
@@ -360,16 +521,28 @@ export default function App() {
           </section>
         )}
 
-        {dbtPlatformContext && (
+        {dbtPlatformContext && !shutdownComplete && (
           <div className="button-container">
             <button
               onClick={onContinue}
               className="primary-button"
-              disabled={selectedProjectId === null}
+              disabled={selectedProjectId === null || continuing}
             >
-              Continue
+              {continuing ? "Closing…" : "Continue"}
             </button>
           </div>
+        )}
+
+        {shutdownComplete && (
+          <section className="completion-section">
+            <div className="completion-card">
+              <h2>All Set!</h2>
+              <p>
+                Your dbt Platform setup has finished. This window can now be
+                closed.
+              </p>
+            </div>
+          </section>
         )}
 
         {responseText && (
