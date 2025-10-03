@@ -509,7 +509,7 @@ section {
   opacity: 0.65;
 }
 
-.primary-button:disabled:hover,
+  .primary-button:disabled:hover,
 .primary-button:disabled:focus,
 .primary-button:disabled:active {
   background-color: #d1d5db;
@@ -517,6 +517,28 @@ section {
   color: #6b7280;
   transform: none;
   box-shadow: none;
+}
+
+/* Completion section */
+.completion-section {
+  padding: 0;
+}
+
+.completion-card {
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
+
+.completion-card h2 {
+  margin: 0 0 1rem 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+.completion-card p {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.6;
 }
 
 /* Response section */
