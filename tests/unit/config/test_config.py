@@ -31,6 +31,7 @@ class TestDbtMcpSettings:
             "DISABLE_DISCOVERY",
             "DISABLE_REMOTE",
             "DISABLE_ADMIN_API",
+            "DISABLE_DBT_PLATFORM",
             "MULTICELL_ACCOUNT_PREFIX",
             "DBT_WARN_ERROR_OPTIONS",
             "DISABLE_TOOLS",
@@ -54,6 +55,7 @@ class TestDbtMcpSettings:
             assert settings.disable_remote is None
             assert settings.disable_sql is None
             assert settings.disable_tools == []
+            assert settings.disable_dbt_platform is None
 
     def test_usage_tracking_disabled_by_env_vars(self):
         env_vars = {
@@ -476,6 +478,34 @@ class TestLoadConfig:
             assert (config.discovery_config_provider is not None) == (
                 disable_flags["DISABLE_DISCOVERY"] == "false"
             )
+    
+    @pytest.mark.parametrize(
+        "disable_flags", [
+            pytest.param({}, id="dbt_platform_auto_disabled"),
+            pytest.param({"DISABLE_DBT_PLATFORM": "true"}, id="dbt_platform_explicitly_disabled"),
+            pytest.param({"DISABLE_DBT_PLATFORM": "false"}, id="dbt_platform_explicitly_enabled"),
+        ],
+    )
+    def test_disable_flags_auto_disabling(self, disable_flags):
+        # Test that services are auto-disabled when required fields are missing
+        base_env = {
+            # missing DBT_HOST
+            "DBT_PROD_ENV_ID": "123",
+            "DBT_TOKEN": "test_token",
+        }
+
+        env_vars = {**base_env, **disable_flags}
+        config = self._load_config_with_env(env_vars)
+        # Verify configs are created only when services are enabled
+        assert (config.semantic_layer_config_provider is not None) == (
+            disable_flags.get("DISABLE_DBT_PLATFORM", "true") == "false"
+        )
+        assert (config.discovery_config_provider is not None) == (
+            disable_flags.get("DISABLE_DBT_PLATFORM", "true") == "false"
+        )
+        assert (config.admin_api_config_provider is not None) == (
+            disable_flags.get("DISABLE_DBT_PLATFORM", "true") == "false"
+        )
 
     def test_legacy_env_id_support(self):
         # Test that DBT_ENV_ID still works for backward compatibility

@@ -4,7 +4,7 @@ from unittest.mock import patch
 from dbt_mcp.config.config import load_config
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.mcp.server import create_dbt_mcp
-from dbt_mcp.tools.tool_names import ToolName
+from dbt_mcp.tools.tool_names import ToolName, ToolGroup
 from tests.env_vars import default_env_vars_context
 
 
@@ -47,3 +47,12 @@ async def test_tool_names_match_server_tools():
 def test_tool_names_no_duplicates():
     """Test that there are no duplicate tool names in the enum."""
     assert len(ToolName.get_all_tool_names()) == len(set(ToolName.get_all_tool_names()))
+
+
+def test_tool_name_by_group_matches_group_attribute():
+    """A little tautological, but test that the grouping method works as expected."""
+    for group in list(ToolGroup):
+        expected_members = {tool for tool in ToolName if tool.group is group}
+        members = ToolName.get_tools_by_group(group)
+        assert members == expected_members
+        assert all(member.group is group for member in members)

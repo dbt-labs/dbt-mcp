@@ -67,13 +67,13 @@ def load_config() -> Config:
 
     # Build configurations
     sql_config_provider = None
-    if not settings.actual_disable_sql:
+    if not (settings.actual_disable_dbt_platform or settings.actual_disable_sql):
         sql_config_provider = DefaultSqlConfigProvider(
             credentials_provider=credentials_provider,
         )
 
     admin_api_config_provider = None
-    if not settings.disable_admin_api:
+    if not (settings.actual_disable_dbt_platform or settings.disable_admin_api):
         admin_api_config_provider = DefaultAdminApiConfigProvider(
             credentials_provider=credentials_provider,
         )
@@ -103,13 +103,13 @@ def load_config() -> Config:
         )
 
     discovery_config_provider = None
-    if not settings.disable_discovery:
+    if not (settings.actual_disable_dbt_platform or settings.disable_discovery):
         discovery_config_provider = DefaultDiscoveryConfigProvider(
             credentials_provider=credentials_provider,
         )
 
     semantic_layer_config_provider = None
-    if not settings.disable_semantic_layer:
+    if not (settings.actual_disable_dbt_platform or settings.disable_semantic_layer):
         semantic_layer_config_provider = DefaultSemanticLayerConfigProvider(
             credentials_provider=credentials_provider,
         )
@@ -125,7 +125,7 @@ def load_config() -> Config:
             # dbt Fusion may have a different format for
             # the .user.yml file which is handled here
             local_user_id = str(user_yaml)
-
+    print(semantic_layer_config_provider, discovery_config_provider, sql_config_provider, admin_api_config_provider)
     return Config(
         tracking_config=TrackingConfig(
             host=settings.actual_host,
