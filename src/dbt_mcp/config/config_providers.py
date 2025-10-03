@@ -44,6 +44,16 @@ class SqlConfig:
     headers_provider: HeadersProvider
 
 
+@dataclass
+class FusionConfig:
+    """Configuration for fusion tools.
+    
+    This can be extended to include specific configuration
+    needed for fusion operations.
+    """
+    pass
+
+
 class ConfigProvider[ConfigType](ABC):
     @abstractmethod
     async def get_config(self) -> ConfigType: ...

@@ -1,4 +1,5 @@
 import os
+import socket
 import subprocess
 from collections.abc import Iterable, Sequence
 
@@ -175,6 +176,21 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             args.extend(["--limit", str(cli_limit)])
         args.extend(["--output", "json"])
         return _run_dbt_command(args)
+
+    async def get_column_lineage(
+        # TODO: Cleanly implement parameters
+        model_id: str = Field(description="The ID of the model to get the column lineage for"),
+        column_name: str = Field(description="The name of the column to get the lineage for"),
+    ) -> str:
+        # Use a pre established connection to the LSP
+        response = await lsp_client.get_column_lineage(
+            model_id=model_id, column_name=column_name
+        )
+        if "result" in response and "nodes" in response["result"]:
+            return json.dumps(response["result"]["nodes"])
+        else:
+            return "[]"
+
 
     return [
         ToolDefinition(

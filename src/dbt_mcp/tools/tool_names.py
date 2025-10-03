@@ -57,6 +57,9 @@ class ToolName(Enum):
     GENERATE_MODEL_YAML = "generate_model_yaml"
     GENERATE_STAGING_MODEL = "generate_staging_model"
 
+    # Fusion tools
+    FUSION_EXAMPLE = "fusion_example"
+
     @classmethod
     def get_all_tool_names(cls) -> set[str]:
         """Returns a set of all tool names as strings."""

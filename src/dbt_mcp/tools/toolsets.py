@@ -10,6 +10,7 @@ class Toolset(Enum):
     DBT_CLI = "dbt_cli"
     ADMIN_API = "admin_api"
     DBT_CODEGEN = "dbt_codegen"
+    FUSION = "fusion"
 
 
 toolsets = {
@@ -60,5 +61,8 @@ toolsets = {
         ToolName.GENERATE_SOURCE,
         ToolName.GENERATE_MODEL_YAML,
         ToolName.GENERATE_STAGING_MODEL,
+    },
+    Toolset.FUSION: {
+        ToolName.FUSION_EXAMPLE,
     },
 }
