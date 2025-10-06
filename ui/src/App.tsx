@@ -38,10 +38,19 @@ function parseHash(): URLSearchParams {
   return new URLSearchParams(query);
 }
 
-function useOAuthResult(): string | null {
+type OAuthResult = {
+  status: string | null;
+  error: string | null;
+  errorDescription: string | null;
+};
+
+function useOAuthResult(): OAuthResult {
   const params = useMemo(() => parseHash(), []);
-  const status = params.get("status");
-  return status;
+  return {
+    status: params.get("status"),
+    error: params.get("error"),
+    errorDescription: params.get("error_description"),
+  };
 }
 
 type CustomDropdownProps = {
@@ -191,7 +200,7 @@ export default function App() {
 
   // Load available projects after OAuth success
   useEffect(() => {
-    if (oauthResult !== "success") return;
+    if (oauthResult.status !== "success") return;
     setLoadingProjects(true);
     setProjectsError(null);
     fetch("/projects")
@@ -207,11 +216,11 @@ export default function App() {
         setProjectsError(msg);
       })
       .finally(() => setLoadingProjects(false));
-  }, [oauthResult]);
+  }, [oauthResult.status]);
 
   // Fetch saved selected project on load after OAuth success
   useEffect(() => {
-    if (oauthResult !== "success") return;
+    if (oauthResult.status !== "success") return;
     (async () => {
       try {
         const res = await fetch("/dbt_platform_context");
@@ -222,7 +231,7 @@ export default function App() {
         // ignore
       }
     })();
-  }, [oauthResult]);
+  }, [oauthResult.status]);
 
   const onContinue = async () => {
     try {
@@ -278,7 +287,41 @@ export default function App() {
           <p>Configure your dbt Platform connection</p>
         </header>
 
-        {oauthResult === "success" && (
+        {oauthResult.status === "error" && (
+          <section className="error-section">
+            <div className="section-header">
+              <h2>Authentication Error</h2>
+              <p>There was a problem during authentication</p>
+            </div>
+
+            <div className="error-details">
+              {oauthResult.error && (
+                <div className="error-item">
+                  <strong>Error Code:</strong>
+                  <code className="error-code">{oauthResult.error}</code>
+                </div>
+              )}
+
+              {oauthResult.errorDescription && (
+                <div className="error-item">
+                  <strong>Description:</strong>
+                  <p className="error-description">
+                    {decodeURIComponent(oauthResult.errorDescription)}
+                  </p>
+                </div>
+              )}
+
+              <div className="error-actions">
+                <p>
+                  Please close this window and try again. If the problem
+                  persists, contact support.
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {oauthResult.status === "success" && (
           <section className="project-selection-section">
             <div className="section-header">
               <h2>Select a Project</h2>
