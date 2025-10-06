@@ -1,5 +1,6 @@
 import logging
 from typing import cast
+from urllib.parse import quote
 
 import requests
 from authlib.integrations.requests_client import OAuth2Session
@@ -24,6 +25,13 @@ from dbt_mcp.oauth.token import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def error_redirect(error_code: str, description: str) -> RedirectResponse:
+    return RedirectResponse(
+        url=f"/index.html#status=error&error={quote(error_code)}&error_description={quote(description)}",
+        status_code=302,
+    )
 
 
 class NoCacheStaticFiles(StaticFiles):
@@ -134,19 +142,25 @@ def create_app(
         logger.info("OAuth callback received")
         # Only handle OAuth callback when provider returns with code or error.
         params = request.query_params
-        if "error" in params:
-            return RedirectResponse(url="/index.html#status=error", status_code=302)
+        if "error" in params or "error_description" in params:
+            error_code = params.get("error", "unknown_error")
+            error_desc = params.get("error_description", "An error occurred")
+            return error_redirect(error_code, error_desc)
         if "code" not in params:
             return RedirectResponse(url="/index.html", status_code=302)
         state = params.get("state")
         if not state:
             logger.error("Missing state in OAuth callback")
-            return RedirectResponse(url="/index.html#status=error", status_code=302)
+            return error_redirect(
+                "missing_state", "State parameter missing in OAuth callback"
+            )
         try:
             code_verifier = state_to_verifier.pop(state, None)
             if not code_verifier:
                 logger.error("No code_verifier found for provided state")
-                return RedirectResponse(url="/index.html#status=error", status_code=302)
+                return error_redirect(
+                    "invalid_state", "Invalid or expired state parameter"
+                )
             logger.info("Fetching initial access token")
             # Fetch the initial access token
             token_response = oauth_client.fetch_token(
@@ -165,9 +179,11 @@ def create_app(
                 url="/index.html#status=success",
                 status_code=302,
             )
-        except Exception:
+        except Exception as e:
             logger.exception("OAuth callback failed")
-            return RedirectResponse(url="/index.html#status=error", status_code=302)
+            default_msg = "An unexpected error occurred during authentication"
+            error_message = str(e) if str(e) else default_msg
+            return error_redirect("oauth_failed", error_message)
 
     @app.post("/shutdown")
     def shutdown_server() -> dict[str, bool]:
