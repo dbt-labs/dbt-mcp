@@ -2,10 +2,13 @@ import json
 import logging
 import uuid
 from collections.abc import Mapping
+from contextlib import suppress
 from dataclasses import dataclass
 from importlib.metadata import version
+from pathlib import Path
 from typing import Any, assert_never
 
+import yaml
 from dbtlabs.proto.public.v1.common.vortex_telemetry_contexts_pb2 import (
     VortexTelemetryDbtCloudContext,
 )
@@ -13,12 +16,12 @@ from dbtlabs.proto.public.v1.events.mcp_pb2 import ToolCalled
 from dbtlabs_vortex.producer import log_proto
 
 from dbt_mcp.config.config import PACKAGE_NAME
+from dbt_mcp.config.dbt_yaml import try_read_yaml
 from dbt_mcp.config.settings import (
     CredentialsProvider,
     DbtMcpSettings,
     get_dbt_profiles_path,
 )
-from dbt_mcp.config.yaml import try_read_yaml
 from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
@@ -73,11 +76,12 @@ class UsageTracker:
                     assert_never(toolset)
         return disabled_toolsets
 
-    def _get_local_user_id(self, settings: DbtMcpSettings) -> str | None:
+    def _get_local_user_id(self, settings: DbtMcpSettings) -> str:
         if self._local_user_id is None:
             # Load local user ID from dbt profile
             user_dir = get_dbt_profiles_path(settings.dbt_profiles_dir)
-            user_yaml = try_read_yaml(user_dir / ".user.yml")
+            user_yaml_path = user_dir / ".user.yml"
+            user_yaml = try_read_yaml(user_yaml_path)
             if user_yaml:
                 try:
                     self._local_user_id = str(user_yaml.get("id"))
@@ -85,6 +89,12 @@ class UsageTracker:
                     # dbt Fusion may have a different format for
                     # the .user.yml file which is handled here
                     self._local_user_id = str(user_yaml)
+            else:
+                self._local_user_id = str(uuid.uuid4())
+                with suppress(Exception):
+                    Path(user_yaml_path).write_text(
+                        yaml.dump({"id": self._local_user_id})
+                    )
         return self._local_user_id
 
     async def _get_settings(self) -> DbtMcpSettings:

@@ -10,10 +10,10 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from dbt_mcp.config.dbt_project import DbtProjectYaml
+from dbt_mcp.config.dbt_yaml import try_read_yaml
 from dbt_mcp.config.headers import (
     TokenProvider,
 )
-from dbt_mcp.config.yaml import try_read_yaml
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
 from dbt_mcp.oauth.dbt_platform import DbtPlatformContext
 from dbt_mcp.oauth.login import login
