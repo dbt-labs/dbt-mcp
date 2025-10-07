@@ -24,7 +24,7 @@ from dbt_mcp.discovery.tools import register_discovery_tools
 from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
 from dbt_mcp.semantic_layer.tools import register_sl_tools
 from dbt_mcp.sql.tools import SqlToolsManager, register_sql_tools
-from dbt_mcp.tracking.tracking import ToolCalledEvent, UsageTracker
+from dbt_mcp.tracking.tracking import DefaultUsageTracker, ToolCalledEvent, UsageTracker
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +111,7 @@ async def app_lifespan(server: DbtMCP) -> AsyncIterator[None]:
 async def create_dbt_mcp(config: Config) -> DbtMCP:
     dbt_mcp = DbtMCP(
         config=config,
-        usage_tracker=UsageTracker(
+        usage_tracker=DefaultUsageTracker(
             credentials_provider=config.credentials_provider,
             session_id=uuid.uuid4(),
         ),

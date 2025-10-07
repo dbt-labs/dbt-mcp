@@ -7,7 +7,7 @@ import pytest
 from dbt_mcp.config.settings import AuthenticationMethod, DbtMcpSettings
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
-from dbt_mcp.tracking.tracking import ToolCalledEvent, UsageTracker
+from dbt_mcp.tracking.tracking import DefaultUsageTracker, ToolCalledEvent
 from tests.mocks.config import MockCredentialsProvider
 
 
@@ -20,7 +20,7 @@ class TestUsageTracker:
             do_not_track="true",
         )
 
-        tracker = UsageTracker(
+        tracker = DefaultUsageTracker(
             credentials_provider=MockCredentialsProvider(mock_settings),
             session_id=uuid.uuid4(),
         )
@@ -55,7 +55,7 @@ class TestUsageTracker:
 
         mock_credentials_provider = MockCredentialsProvider(mock_settings)
 
-        tracker = UsageTracker(
+        tracker = DefaultUsageTracker(
             credentials_provider=mock_credentials_provider,
             session_id=uuid.uuid4(),
         )
@@ -64,7 +64,7 @@ class TestUsageTracker:
             patch("uuid.uuid4", return_value="event-1"),
             patch("dbt_mcp.tracking.tracking.log_proto") as mock_log_proto,
             patch(
-                "dbt_mcp.tracking.tracking.UsageTracker._get_local_user_id",
+                "dbt_mcp.tracking.tracking.DefaultUsageTracker._get_local_user_id",
                 return_value="local-user",
             ),
         ):
@@ -93,7 +93,7 @@ class TestUsageTracker:
         mock_settings = DbtMcpSettings.model_construct(
             dbt_profiles_dir="/fake/profiles",
         )
-        tracker = UsageTracker(
+        tracker = DefaultUsageTracker(
             credentials_provider=MockCredentialsProvider(mock_settings),
             session_id=uuid.uuid4(),
         )
@@ -109,7 +109,7 @@ class TestUsageTracker:
         mock_settings = DbtMcpSettings.model_construct(
             dbt_profiles_dir="/fake/profiles",
         )
-        tracker = UsageTracker(
+        tracker = DefaultUsageTracker(
             credentials_provider=MockCredentialsProvider(mock_settings),
             session_id=uuid.uuid4(),
         )
@@ -134,7 +134,7 @@ class TestUsageTracker:
         mock_settings = DbtMcpSettings.model_construct(
             dbt_profiles_dir="/fake/profiles",
         )
-        tracker = UsageTracker(
+        tracker = DefaultUsageTracker(
             credentials_provider=MockCredentialsProvider(mock_settings),
             session_id=uuid.uuid4(),
         )
@@ -151,7 +151,7 @@ class TestUsageTracker:
         mock_settings = DbtMcpSettings.model_construct(
             dbt_profiles_dir="/fake/profiles",
         )
-        tracker = UsageTracker(
+        tracker = DefaultUsageTracker(
             credentials_provider=MockCredentialsProvider(mock_settings),
             session_id=uuid.uuid4(),
         )
@@ -171,7 +171,7 @@ class TestUsageTracker:
         )
         mock_credentials_provider = MockCredentialsProvider(mock_settings)
 
-        tracker = UsageTracker(
+        tracker = DefaultUsageTracker(
             credentials_provider=mock_credentials_provider,
             session_id=uuid.uuid4(),
         )
@@ -208,7 +208,7 @@ class TestUsageTracker:
             disable_admin_api=False,
             disable_dbt_codegen=False,
         )
-        tracker = UsageTracker(
+        tracker = DefaultUsageTracker(
             credentials_provider=MockCredentialsProvider(mock_settings),
             session_id=uuid.uuid4(),
         )
@@ -227,7 +227,7 @@ class TestUsageTracker:
             disable_admin_api=False,
             disable_dbt_codegen=False,
         )
-        tracker = UsageTracker(
+        tracker = DefaultUsageTracker(
             credentials_provider=MockCredentialsProvider(mock_settings),
             session_id=uuid.uuid4(),
         )
@@ -246,7 +246,7 @@ class TestUsageTracker:
             disable_admin_api=True,
             disable_dbt_codegen=True,
         )
-        tracker = UsageTracker(
+        tracker = DefaultUsageTracker(
             credentials_provider=MockCredentialsProvider(mock_settings),
             session_id=uuid.uuid4(),
         )
@@ -272,7 +272,7 @@ class TestUsageTracker:
         mock_credentials_provider = MockCredentialsProvider(mock_settings)
         mock_credentials_provider.authentication_method = AuthenticationMethod.ENV_VAR
 
-        tracker = UsageTracker(
+        tracker = DefaultUsageTracker(
             credentials_provider=mock_credentials_provider,
             session_id=uuid.uuid4(),
         )
@@ -280,7 +280,7 @@ class TestUsageTracker:
         with (
             patch("dbt_mcp.tracking.tracking.log_proto") as mock_log_proto,
             patch(
-                "dbt_mcp.tracking.tracking.UsageTracker._get_local_user_id",
+                "dbt_mcp.tracking.tracking.DefaultUsageTracker._get_local_user_id",
                 return_value=None,
             ),
         ):
@@ -313,7 +313,7 @@ class TestUsageTracker:
         )
         mock_credentials_provider = MockCredentialsProvider(mock_settings)
 
-        tracker = UsageTracker(
+        tracker = DefaultUsageTracker(
             credentials_provider=mock_credentials_provider,
             session_id=uuid.uuid4(),
         )
@@ -321,7 +321,7 @@ class TestUsageTracker:
         with (
             patch("dbt_mcp.tracking.tracking.log_proto") as mock_log_proto,
             patch(
-                "dbt_mcp.tracking.tracking.UsageTracker._get_local_user_id",
+                "dbt_mcp.tracking.tracking.DefaultUsageTracker._get_local_user_id",
                 return_value=None,
             ),
         ):
@@ -349,7 +349,7 @@ class TestUsageTracker:
         )
         mock_credentials_provider = MockCredentialsProvider(mock_settings)
 
-        tracker = UsageTracker(
+        tracker = DefaultUsageTracker(
             credentials_provider=mock_credentials_provider,
             session_id=uuid.uuid4(),
         )
@@ -357,7 +357,7 @@ class TestUsageTracker:
         with (
             patch("dbt_mcp.tracking.tracking.log_proto") as mock_log_proto,
             patch(
-                "dbt_mcp.tracking.tracking.UsageTracker._get_local_user_id",
+                "dbt_mcp.tracking.tracking.DefaultUsageTracker._get_local_user_id",
                 return_value=None,
             ),
         ):
@@ -385,7 +385,7 @@ class TestUsageTracker:
         mock_credentials_provider = MockCredentialsProvider(mock_settings)
 
         session_id = uuid.uuid4()
-        tracker = UsageTracker(
+        tracker = DefaultUsageTracker(
             credentials_provider=mock_credentials_provider,
             session_id=session_id,
         )
@@ -393,7 +393,7 @@ class TestUsageTracker:
         with (
             patch("dbt_mcp.tracking.tracking.log_proto") as mock_log_proto,
             patch(
-                "dbt_mcp.tracking.tracking.UsageTracker._get_local_user_id",
+                "dbt_mcp.tracking.tracking.DefaultUsageTracker._get_local_user_id",
                 return_value=None,
             ),
         ):
@@ -420,7 +420,7 @@ class TestUsageTracker:
         )
         mock_credentials_provider = MockCredentialsProvider(mock_settings)
 
-        tracker = UsageTracker(
+        tracker = DefaultUsageTracker(
             credentials_provider=mock_credentials_provider,
             session_id=uuid.uuid4(),
         )
@@ -428,7 +428,7 @@ class TestUsageTracker:
         with (
             patch("dbt_mcp.tracking.tracking.log_proto") as mock_log_proto,
             patch(
-                "dbt_mcp.tracking.tracking.UsageTracker._get_local_user_id",
+                "dbt_mcp.tracking.tracking.DefaultUsageTracker._get_local_user_id",
                 return_value=None,
             ),
         ):

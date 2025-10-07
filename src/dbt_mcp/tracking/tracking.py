@@ -6,7 +6,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any, assert_never
+from typing import Any, Protocol, assert_never
 
 import yaml
 from dbtlabs.proto.public.v1.common.vortex_telemetry_contexts_pb2 import (
@@ -36,7 +36,13 @@ class ToolCalledEvent:
     end_time_ms: int
 
 
-class UsageTracker:
+class UsageTracker(Protocol):
+    async def emit_tool_called_event(
+        self, tool_called_event: ToolCalledEvent
+    ) -> None: ...
+
+
+class DefaultUsageTracker:
     def __init__(
         self,
         credentials_provider: CredentialsProvider,
