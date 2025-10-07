@@ -57,7 +57,6 @@ Or, if you would like to test with Oauth, use a configuration like this:
       ],
       "env": {
         "DBT_HOST": "<dbt-host-with-custom-subdomain>",
-        "ENABLE_EXPERIMENAL_SECURE_OAUTH": "true",
       }
     }
   }

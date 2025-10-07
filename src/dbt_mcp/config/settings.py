@@ -1,5 +1,4 @@
 import logging
-import os
 import socket
 import time
 from pathlib import Path
@@ -324,10 +323,7 @@ class CredentialsProvider:
             return self.settings, self.token_provider
         # Load settings from environment variables using pydantic_settings
         dbt_platform_errors = validate_dbt_platform_settings(self.settings)
-        # Oauth is exerimental but secure, so you shouldn't use it,
-        # but there are no security concerns if you do.
-        enable_oauth = os.environ.get("ENABLE_EXPERIMENAL_SECURE_OAUTH") == "true"
-        if enable_oauth and dbt_platform_errors:
+        if dbt_platform_errors:
             dbt_user_dir = get_dbt_profiles_path(
                 dbt_profiles_dir=self.settings.dbt_profiles_dir
             )
