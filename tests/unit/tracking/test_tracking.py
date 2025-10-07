@@ -147,7 +147,7 @@ class TestUsageTracker:
 
     @pytest.mark.asyncio
     async def test_get_local_user_id_no_file(self):
-        """Test behavior when .user.yml doesn't exist"""
+        """Test behavior when .user.yml doesn't exist - should generate new UUID"""
         mock_settings = DbtMcpSettings.model_construct(
             dbt_profiles_dir="/fake/profiles",
         )
@@ -158,7 +158,10 @@ class TestUsageTracker:
 
         with patch("dbt_mcp.tracking.tracking.try_read_yaml", return_value=None):
             result = tracker._get_local_user_id(mock_settings)
-            assert result is None
+            # When file doesn't exist, a new UUID should be generated
+            assert result is not None
+            # Verify it's a valid UUID string
+            uuid.UUID(result)  # This will raise ValueError if invalid
 
     @pytest.mark.asyncio
     async def test_get_settings_caching(self):
