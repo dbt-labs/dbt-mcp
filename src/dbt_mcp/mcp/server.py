@@ -1,5 +1,6 @@
 import logging
 import time
+import uuid
 from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import (
     AbstractAsyncContextManager,
@@ -23,7 +24,7 @@ from dbt_mcp.discovery.tools import register_discovery_tools
 from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
 from dbt_mcp.semantic_layer.tools import register_sl_tools
 from dbt_mcp.sql.tools import SqlToolsManager, register_sql_tools
-from dbt_mcp.tracking.tracking import UsageTracker
+from dbt_mcp.tracking.tracking import ToolCalledEvent, UsageTracker
 
 logger = logging.getLogger(__name__)
 
@@ -58,13 +59,14 @@ class DbtMCP(FastMCP):
                 f"Error calling tool: {name} with arguments: {arguments} "
                 + f"in {end_time - start_time}ms: {e}"
             )
-            self.usage_tracker.emit_tool_called_event(
-                config=self.config.tracking_config,
-                tool_name=name,
-                arguments=arguments,
-                start_time_ms=start_time,
-                end_time_ms=end_time,
-                error_message=str(e),
+            await self.usage_tracker.emit_tool_called_event(
+                tool_called_event=ToolCalledEvent(
+                    tool_name=name,
+                    arguments=arguments,
+                    start_time_ms=start_time,
+                    end_time_ms=end_time,
+                    error_message=str(e),
+                ),
             )
             return [
                 TextContent(
@@ -74,13 +76,14 @@ class DbtMCP(FastMCP):
             ]
         end_time = int(time.time() * 1000)
         logger.info(f"Tool {name} called successfully in {end_time - start_time}ms")
-        self.usage_tracker.emit_tool_called_event(
-            config=self.config.tracking_config,
-            tool_name=name,
-            arguments=arguments,
-            start_time_ms=start_time,
-            end_time_ms=end_time,
-            error_message=None,
+        await self.usage_tracker.emit_tool_called_event(
+            tool_called_event=ToolCalledEvent(
+                tool_name=name,
+                arguments=arguments,
+                start_time_ms=start_time,
+                end_time_ms=end_time,
+                error_message=None,
+            ),
         )
         return result
 
@@ -108,7 +111,10 @@ async def app_lifespan(server: DbtMCP) -> AsyncIterator[None]:
 async def create_dbt_mcp(config: Config) -> DbtMCP:
     dbt_mcp = DbtMCP(
         config=config,
-        usage_tracker=UsageTracker(),
+        usage_tracker=UsageTracker(
+            credentials_provider=config.credentials_provider,
+            session_id=uuid.uuid4(),
+        ),
         name="dbt",
         lifespan=app_lifespan,
     )

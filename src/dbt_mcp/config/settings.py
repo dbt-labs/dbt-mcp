@@ -1,6 +1,7 @@
 import logging
 import socket
 import time
+from enum import Enum
 from pathlib import Path
 from typing import Annotated
 
@@ -26,6 +27,11 @@ logger = logging.getLogger(__name__)
 
 OAUTH_REDIRECT_STARTING_PORT = 6785
 DEFAULT_DBT_CLI_TIMEOUT = 60
+
+
+class AuthenticationMethod(Enum):
+    OAUTH = "oauth"
+    ENV_VAR = "env_var"
 
 
 class DbtMcpSettings(BaseSettings):
@@ -310,6 +316,7 @@ class CredentialsProvider:
     def __init__(self, settings: DbtMcpSettings):
         self.settings = settings
         self.token_provider: TokenProvider | None = None
+        self.authentication_method: AuthenticationMethod | None = None
 
     def _log_settings(self) -> None:
         settings = self.settings.model_dump()
@@ -361,9 +368,11 @@ class CredentialsProvider:
                 context_manager=dbt_platform_context_manager,
             )
             validate_settings(self.settings)
+            self.authentication_method = AuthenticationMethod.OAUTH
             self._log_settings()
             return self.settings, self.token_provider
         self.token_provider = StaticTokenProvider(token=self.settings.dbt_token)
         validate_settings(self.settings)
+        self.authentication_method = AuthenticationMethod.ENV_VAR
         self._log_settings()
         return self.settings, self.token_provider
