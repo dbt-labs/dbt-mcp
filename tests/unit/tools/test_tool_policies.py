@@ -5,13 +5,12 @@ from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.mcp.server import create_dbt_mcp
 from dbt_mcp.tools.policy import tool_policies
 from dbt_mcp.tools.tool_names import ToolName
+from dbt_mcp.tools.toolsets import proxied_tools
 from tests.env_vars import default_env_vars_context
 
 
 async def test_tool_policies_match_server_tools():
     """Test that the ToolPolicy enum matches the tools registered in the server."""
-    sql_tool_names = {"text_to_sql", "execute_sql"}
-
     with (
         default_env_vars_context(),
         patch(
@@ -25,7 +24,9 @@ async def test_tool_policies_match_server_tools():
         server_tools = await dbt_mcp.list_tools()
         # Manually adding SQL tools here because the server doesn't get them
         # in this unit test.
-        server_tool_names = {tool.name for tool in server_tools} | sql_tool_names
+        server_tool_names = {tool.name for tool in server_tools} | {
+            p.value for p in proxied_tools
+        }
         policy_names = {policy_name for policy_name in tool_policies}
 
         if server_tool_names != policy_names:

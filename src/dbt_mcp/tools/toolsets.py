@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Literal
 
 from dbt_mcp.tools.tool_names import ToolName
 
@@ -11,6 +12,13 @@ class Toolset(Enum):
     ADMIN_API = "admin_api"
     DBT_CODEGEN = "dbt_codegen"
 
+
+proxied_tools: set[Literal[ToolName.TEXT_TO_SQL, ToolName.EXECUTE_SQL]] = set(
+    [
+        ToolName.TEXT_TO_SQL,
+        ToolName.EXECUTE_SQL,
+    ]
+)
 
 toolsets = {
     Toolset.SQL: {

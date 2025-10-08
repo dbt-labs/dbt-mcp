@@ -22,7 +22,7 @@ from dbt_mcp.config.settings import (
     DbtMcpSettings,
     get_dbt_profiles_path,
 )
-from dbt_mcp.tools.toolsets import Toolset
+from dbt_mcp.tools.toolsets import Toolset, proxied_tools
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +116,10 @@ class DefaultUsageTracker:
     ) -> None:
         settings = await self._get_settings()
         if not settings.usage_tracking_enabled:
+            return
+        # Proxied tools are tracked on our backend, so we don't want
+        # to double count them here.
+        if tool_called_event.tool_name in [tool.value for tool in proxied_tools]:
             return
         try:
             arguments_mapping: Mapping[str, str] = {

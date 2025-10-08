@@ -6,7 +6,7 @@ import pytest
 
 from dbt_mcp.config.settings import AuthenticationMethod, DbtMcpSettings
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.toolsets import Toolset
+from dbt_mcp.tools.toolsets import Toolset, proxied_tools
 from dbt_mcp.tracking.tracking import DefaultUsageTracker, ToolCalledEvent
 from tests.mocks.config import MockCredentialsProvider
 
@@ -447,3 +447,72 @@ class TestUsageTracker:
         # Just verify the field exists, don't assert specific version
         assert hasattr(tool_called, "dbt_mcp_version")
         assert isinstance(tool_called.dbt_mcp_version, str)
+
+    @pytest.mark.asyncio
+    async def test_emit_tool_called_event_proxied_tools_not_tracked(self):
+        """Test that proxied tools are not tracked locally (tracked on backend)"""
+        mock_settings = DbtMcpSettings.model_construct(
+            do_not_track=None,
+            send_anonymous_usage_data=None,
+            dbt_prod_env_id=1,
+        )
+        mock_credentials_provider = MockCredentialsProvider(mock_settings)
+
+        tracker = DefaultUsageTracker(
+            credentials_provider=mock_credentials_provider,
+            session_id=uuid.uuid4(),
+        )
+
+        with patch("dbt_mcp.tracking.tracking.log_proto") as mock_log_proto:
+            # Test each proxied tool
+            for proxied_tool in proxied_tools:
+                await tracker.emit_tool_called_event(
+                    tool_called_event=ToolCalledEvent(
+                        tool_name=proxied_tool.value,
+                        arguments={"query": "SELECT 1"},
+                        start_time_ms=0,
+                        end_time_ms=1,
+                        error_message=None,
+                    ),
+                )
+
+        # log_proto should never be called for proxied tools
+        mock_log_proto.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_emit_tool_called_event_non_proxied_tools_are_tracked(self):
+        """Test that non-proxied tools are still tracked normally"""
+        mock_settings = DbtMcpSettings.model_construct(
+            do_not_track=None,
+            send_anonymous_usage_data=None,
+            dbt_prod_env_id=1,
+        )
+        mock_credentials_provider = MockCredentialsProvider(mock_settings)
+
+        tracker = DefaultUsageTracker(
+            credentials_provider=mock_credentials_provider,
+            session_id=uuid.uuid4(),
+        )
+
+        with (
+            patch("dbt_mcp.tracking.tracking.log_proto") as mock_log_proto,
+            patch(
+                "dbt_mcp.tracking.tracking.DefaultUsageTracker._get_local_user_id",
+                return_value=None,
+            ),
+        ):
+            # Use a non-proxied tool (e.g., list_metrics)
+            await tracker.emit_tool_called_event(
+                tool_called_event=ToolCalledEvent(
+                    tool_name="list_metrics",
+                    arguments={},
+                    start_time_ms=0,
+                    end_time_ms=1,
+                    error_message=None,
+                ),
+            )
+
+        # log_proto should be called for non-proxied tools
+        mock_log_proto.assert_called_once()
+        tool_called = mock_log_proto.call_args.args[0]
+        assert tool_called.tool_name == "list_metrics"

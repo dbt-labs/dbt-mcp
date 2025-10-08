@@ -1,18 +1,18 @@
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 from dbt_mcp.config.config import load_config
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.mcp.server import create_dbt_mcp
 from dbt_mcp.tools.tool_names import ToolName
+from dbt_mcp.tools.toolsets import proxied_tools
 from tests.env_vars import default_env_vars_context
 
 
 @pytest.mark.asyncio
 async def test_tool_names_match_server_tools():
     """Test that the ToolName enum matches the tools registered in the server."""
-    sql_tool_names = {"text_to_sql", "execute_sql"}
-
     with (
         default_env_vars_context(),
         patch(
@@ -26,7 +26,9 @@ async def test_tool_names_match_server_tools():
         server_tools = await dbt_mcp.list_tools()
         # Manually adding SQL tools here because the server doesn't get them
         # in this unit test.
-        server_tool_names = {tool.name for tool in server_tools} | sql_tool_names
+        server_tool_names = {tool.name for tool in server_tools} | {
+            p.value for p in proxied_tools
+        }
         enum_names = {n for n in ToolName.get_all_tool_names()}
 
         # This should not raise any errors if the enum is in sync
