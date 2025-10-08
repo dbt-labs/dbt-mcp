@@ -10,23 +10,12 @@ from dbt_mcp.config.config_providers import (
 from dbt_mcp.config.settings import (
     CredentialsProvider,
     DbtMcpSettings,
-    get_dbt_profiles_path,
 )
-from dbt_mcp.config.yaml import try_read_yaml
 from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
 from dbt_mcp.telemetry.logging import configure_logging
 from dbt_mcp.tools.tool_names import ToolName
 
-
-@dataclass
-class TrackingConfig:
-    host: str | None = None
-    host_prefix: str | None = None
-    prod_environment_id: int | None = None
-    dev_environment_id: int | None = None
-    dbt_cloud_user_id: int | None = None
-    local_user_id: str | None = None
-    usage_tracking_enabled: bool = False
+PACKAGE_NAME = "dbt-mcp"
 
 
 @dataclass
@@ -47,7 +36,6 @@ class DbtCodegenConfig:
 
 @dataclass
 class Config:
-    tracking_config: TrackingConfig
     disable_tools: list[ToolName]
     sql_config_provider: DefaultSqlConfigProvider | None
     dbt_cli_config: DbtCliConfig | None
@@ -55,6 +43,7 @@ class Config:
     discovery_config_provider: DefaultDiscoveryConfigProvider | None
     semantic_layer_config_provider: DefaultSemanticLayerConfigProvider | None
     admin_api_config_provider: DefaultAdminApiConfigProvider | None
+    credentials_provider: CredentialsProvider
 
 
 def load_config() -> Config:
@@ -116,28 +105,7 @@ def load_config() -> Config:
             credentials_provider=credentials_provider,
         )
 
-    # Load local user ID from dbt profile
-    local_user_id = None
-    user_dir = get_dbt_profiles_path(settings.dbt_profiles_dir)
-    user_yaml = try_read_yaml(user_dir / ".user.yml")
-    if user_yaml:
-        try:
-            local_user_id = user_yaml.get("id")
-        except Exception:
-            # dbt Fusion may have a different format for
-            # the .user.yml file which is handled here
-            local_user_id = str(user_yaml)
-
     return Config(
-        tracking_config=TrackingConfig(
-            host=settings.actual_host,
-            host_prefix=settings.actual_host_prefix,
-            prod_environment_id=settings.actual_prod_environment_id,
-            dev_environment_id=settings.dbt_dev_env_id,
-            dbt_cloud_user_id=settings.dbt_user_id,
-            local_user_id=local_user_id,
-            usage_tracking_enabled=settings.usage_tracking_enabled,
-        ),
         disable_tools=settings.disable_tools or [],
         sql_config_provider=sql_config_provider,
         dbt_cli_config=dbt_cli_config,
@@ -145,4 +113,5 @@ def load_config() -> Config:
         discovery_config_provider=discovery_config_provider,
         semantic_layer_config_provider=semantic_layer_config_provider,
         admin_api_config_provider=admin_api_config_provider,
+        credentials_provider=credentials_provider,
     )

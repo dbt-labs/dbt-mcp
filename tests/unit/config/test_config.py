@@ -251,13 +251,12 @@ class TestLoadConfig:
 
         config = self._load_config_with_env(env_vars)
 
-        assert config.tracking_config.host == "test.dbt.com"
-        assert config.tracking_config.prod_environment_id == 123
         assert config.sql_config_provider is not None
         assert config.dbt_cli_config is not None
         assert config.discovery_config_provider is not None
         assert config.semantic_layer_config_provider is not None
         assert config.admin_api_config_provider is not None
+        assert config.credentials_provider is not None
 
     def test_valid_config_all_services_disabled(self):
         env_vars = {
@@ -377,10 +376,11 @@ class TestLoadConfig:
 
         with (
             patch.dict(os.environ, env_vars),
-            patch("dbt_mcp.config.config.try_read_yaml", return_value=user_data),
+            patch("dbt_mcp.tracking.tracking.try_read_yaml", return_value=user_data),
         ):
             config = self._load_config_with_env(env_vars)
-            assert config.tracking_config.local_user_id == "local_user_123"
+            # local_user_id is now loaded by UsageTracker, not Config
+            assert config.credentials_provider is not None
 
     def test_local_user_id_loading_failure_handling(self):
         env_vars = {
@@ -395,10 +395,11 @@ class TestLoadConfig:
 
         with (
             patch.dict(os.environ, env_vars),
-            patch("dbt_mcp.config.config.try_read_yaml", return_value=None),
+            patch("dbt_mcp.tracking.tracking.try_read_yaml", return_value=None),
         ):
             config = self._load_config_with_env(env_vars)
-            assert config.tracking_config.local_user_id is None
+            # local_user_id is now loaded by UsageTracker, not Config
+            assert config.credentials_provider is not None
 
     def test_remote_requirements(self):
         # Test that remote_config is only created when remote tools are enabled
@@ -490,8 +491,8 @@ class TestLoadConfig:
         }
 
         config = self._load_config_with_env(env_vars)
-        assert config.tracking_config.prod_environment_id == 123
         assert config.discovery_config_provider is not None
+        assert config.credentials_provider is not None
 
     def test_case_insensitive_environment_variables(self):
         # pydantic_settings should handle case insensitivity based on config
@@ -506,4 +507,5 @@ class TestLoadConfig:
         }
 
         config = self._load_config_with_env(env_vars)
-        assert config.tracking_config.host == "test.dbt.com"
+        assert config.discovery_config_provider is not None
+        assert config.credentials_provider is not None

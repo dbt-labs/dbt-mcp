@@ -2,7 +2,6 @@ from dbt_mcp.config.config import (
     Config,
     DbtCliConfig,
     DbtCodegenConfig,
-    TrackingConfig,
 )
 from dbt_mcp.config.config_providers import (
     AdminApiConfig,
@@ -20,17 +19,11 @@ from dbt_mcp.config.headers import (
     SemanticLayerHeadersProvider,
     SqlHeadersProvider,
 )
+from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.oauth.token_provider import StaticTokenProvider
 
-mock_tracking_config = TrackingConfig(
-    host="http://localhost:8000",
-    host_prefix="test",
-    prod_environment_id=1,
-    dev_environment_id=1,
-    dbt_cloud_user_id=1,
-    local_user_id="1",
-)
+mock_settings = DbtMcpSettings.model_construct()
 
 mock_sql_config = SqlConfig(
     url="http://localhost:8000",
@@ -116,8 +109,16 @@ class MockAdminApiConfigProvider(DefaultAdminApiConfigProvider):
         return mock_admin_api_config
 
 
+class MockCredentialsProvider(CredentialsProvider):
+    def __init__(self, settings: DbtMcpSettings | None = None):
+        super().__init__(settings or mock_settings)
+        self.token_provider = StaticTokenProvider(token=self.settings.dbt_token)
+
+    async def get_credentials(self):
+        return self.settings, self.token_provider
+
+
 mock_config = Config(
-    tracking_config=mock_tracking_config,
     sql_config_provider=MockSqlConfigProvider(),
     dbt_cli_config=mock_dbt_cli_config,
     dbt_codegen_config=mock_dbt_codegen_config,
@@ -125,6 +126,5 @@ mock_config = Config(
     semantic_layer_config_provider=MockSemanticLayerConfigProvider(),
     admin_api_config_provider=MockAdminApiConfigProvider(),
     disable_tools=[],
+    credentials_provider=MockCredentialsProvider(),
 )
-
-# Note: Direct config access has been removed. Use config_provider.get_config() instead.

@@ -1,7 +1,7 @@
 import logging
-import os
 import socket
 import time
+from enum import Enum
 from pathlib import Path
 from typing import Annotated
 
@@ -10,10 +10,10 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from dbt_mcp.config.dbt_project import DbtProjectYaml
+from dbt_mcp.config.dbt_yaml import try_read_yaml
 from dbt_mcp.config.headers import (
     TokenProvider,
 )
-from dbt_mcp.config.yaml import try_read_yaml
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
 from dbt_mcp.oauth.dbt_platform import DbtPlatformContext
 from dbt_mcp.oauth.login import login
@@ -27,6 +27,11 @@ logger = logging.getLogger(__name__)
 
 OAUTH_REDIRECT_STARTING_PORT = 6785
 DEFAULT_DBT_CLI_TIMEOUT = 60
+
+
+class AuthenticationMethod(Enum):
+    OAUTH = "oauth"
+    ENV_VAR = "env_var"
 
 
 class DbtMcpSettings(BaseSettings):
@@ -311,6 +316,7 @@ class CredentialsProvider:
     def __init__(self, settings: DbtMcpSettings):
         self.settings = settings
         self.token_provider: TokenProvider | None = None
+        self.authentication_method: AuthenticationMethod | None = None
 
     def _log_settings(self) -> None:
         settings = self.settings.model_dump()
@@ -324,10 +330,7 @@ class CredentialsProvider:
             return self.settings, self.token_provider
         # Load settings from environment variables using pydantic_settings
         dbt_platform_errors = validate_dbt_platform_settings(self.settings)
-        # Oauth is exerimental but secure, so you shouldn't use it,
-        # but there are no security concerns if you do.
-        enable_oauth = os.environ.get("ENABLE_EXPERIMENAL_SECURE_OAUTH") == "true"
-        if enable_oauth and dbt_platform_errors:
+        if dbt_platform_errors:
             dbt_user_dir = get_dbt_profiles_path(
                 dbt_profiles_dir=self.settings.dbt_profiles_dir
             )
@@ -365,9 +368,11 @@ class CredentialsProvider:
                 context_manager=dbt_platform_context_manager,
             )
             validate_settings(self.settings)
+            self.authentication_method = AuthenticationMethod.OAUTH
             self._log_settings()
             return self.settings, self.token_provider
         self.token_provider = StaticTokenProvider(token=self.settings.dbt_token)
         validate_settings(self.settings)
+        self.authentication_method = AuthenticationMethod.ENV_VAR
         self._log_settings()
         return self.settings, self.token_provider
