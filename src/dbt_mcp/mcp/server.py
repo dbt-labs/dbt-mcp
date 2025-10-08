@@ -34,7 +34,8 @@ class DbtMCP(FastMCP):
         self,
         config: Config,
         usage_tracker: UsageTracker,
-        lifespan: Callable[["DbtMCP"], AbstractAsyncContextManager[LifespanResultT]],
+        lifespan: Callable[["DbtMCP"], AbstractAsyncContextManager[LifespanResultT]]
+        | None = None,
         *args: Any,
         **kwargs: Any,
     ) -> None:
