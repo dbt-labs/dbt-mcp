@@ -516,13 +516,20 @@ async def test_get_exposure_filters_multiple_unique_ids(exposures_fetcher):
 
 
 async def test_get_exposure_filters_name_raises_error(exposures_fetcher):
-    with pytest.raises(ValueError, match="ExposureFilter only supports uniqueIds"):
+    from dbt_mcp.errors import InvalidParameterError
+
+    with pytest.raises(
+        InvalidParameterError, match="ExposureFilter only supports uniqueIds"
+    ):
         exposures_fetcher._get_exposure_filters(exposure_name="test_exposure")
 
 
 async def test_get_exposure_filters_no_params(exposures_fetcher):
+    from dbt_mcp.errors import InvalidParameterError
+
     with pytest.raises(
-        ValueError, match="unique_ids must be provided for exposure filtering"
+        InvalidParameterError,
+        match="unique_ids must be provided for exposure filtering",
     ):
         exposures_fetcher._get_exposure_filters()
 

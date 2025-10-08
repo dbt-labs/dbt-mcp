@@ -4,6 +4,7 @@ from typing import Literal, TypedDict
 import requests
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
+from dbt_mcp.errors import GraphQLError, InvalidParameterError
 from dbt_mcp.gql.errors import raise_gql_error
 
 PAGE_SIZE = 100
@@ -356,7 +357,7 @@ class ModelsFetcher:
         if not edges:
             return parsed_edges
         if result.get("errors"):
-            raise Exception(f"GraphQL query failed: {result['errors']}")
+            raise GraphQLError(f"GraphQL query failed: {result['errors']}")
         for edge in edges:
             if not isinstance(edge, dict) or "node" not in edge:
                 continue
@@ -374,7 +375,9 @@ class ModelsFetcher:
         elif model_name:
             return {"identifier": model_name}
         else:
-            raise ValueError("Either model_name or unique_id must be provided")
+            raise InvalidParameterError(
+                "Either model_name or unique_id must be provided"
+            )
 
     async def fetch_models(self, model_filter: ModelFilter | None = None) -> list[dict]:
         has_next_page = True
@@ -491,7 +494,7 @@ class ExposuresFetcher:
         if not edges:
             return parsed_edges
         if result.get("errors"):
-            raise Exception(f"GraphQL query failed: {result['errors']}")
+            raise GraphQLError(f"GraphQL query failed: {result['errors']}")
         for edge in edges:
             if not isinstance(edge, dict) or "node" not in edge:
                 continue
@@ -534,11 +537,13 @@ class ExposuresFetcher:
         if unique_ids:
             return {"uniqueIds": unique_ids}
         elif exposure_name:
-            raise ValueError(
+            raise InvalidParameterError(
                 "ExposureFilter only supports uniqueIds. Please use unique_ids parameter instead of exposure_name."
             )
         else:
-            raise ValueError("unique_ids must be provided for exposure filtering")
+            raise InvalidParameterError(
+                "unique_ids must be provided for exposure filtering"
+            )
 
     async def fetch_exposure_details(
         self, exposure_name: str | None = None, unique_ids: list[str] | None = None
@@ -567,4 +572,6 @@ class ExposuresFetcher:
                 return []
             return [edge["node"] for edge in edges]
         else:
-            raise ValueError("Either exposure_name or unique_ids must be provided")
+            raise InvalidParameterError(
+                "Either exposure_name or unique_ids must be provided"
+            )

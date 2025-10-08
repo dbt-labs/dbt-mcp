@@ -26,6 +26,7 @@ from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
 from dbt_mcp.config.config_providers import ConfigProvider, SqlConfig
+from dbt_mcp.errors import RemoteToolError
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset, toolsets
 
@@ -129,7 +130,7 @@ async def register_sql_tools(
                     kwargs,
                 )
                 if tool_call_result.isError:
-                    raise ValueError(
+                    raise RemoteToolError(
                         f"Tool {tool_name} reported an error: "
                         + f"{tool_call_result.content}"
                     )

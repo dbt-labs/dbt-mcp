@@ -1,6 +1,8 @@
 import subprocess
 from enum import Enum
 
+from dbt_mcp.errors import BinaryExecutionError
+
 
 class BinaryType(Enum):
     DBT_CORE = "dbt_core"
@@ -23,11 +25,15 @@ def detect_binary_type(file_path: str) -> BinaryType:
     """
     try:
         result = subprocess.run(
-            [file_path, "--help"], capture_output=True, text=True, timeout=10
+            [file_path, "--help"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         help_output = result.stdout
     except Exception as e:
-        raise Exception(f"Cannot execute binary {file_path}: {e}")
+        raise BinaryExecutionError(f"Cannot execute binary {file_path}: {e}")
 
     if not help_output:
         # Default to dbt Core if no output

@@ -1,24 +1,25 @@
 import logging
 from typing import Any
+
 from pydantic import ValidationError
 
-from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.config.config_providers import AdminApiConfig
+from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.dbt_admin.constants import (
+    SOURCE_FRESHNESS_STEP_NAME,
+    STATUS_MAP,
     JobRunStatus,
     RunResultsStatus,
-    STATUS_MAP,
-    SOURCE_FRESHNESS_STEP_NAME,
 )
 from dbt_mcp.dbt_admin.run_results_errors.config import (
-    RunDetailsSchema,
-    RunStepSchema,
-    RunResultSchema,
-    RunResultsArtifactSchema,
     ErrorResultSchema,
     ErrorStepSchema,
+    RunDetailsSchema,
+    RunResultsArtifactSchema,
+    RunResultSchema,
+    RunStepSchema,
 )
-
+from dbt_mcp.errors import ArtifactRetrievalError
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ class ErrorFetcher:
 
         except ValidationError as e:
             logger.error(f"Schema validation failed for run {self.run_id}: {e}")
-            error_result = self._create_error_result(f"Validation failed: {str(e)}")
+            error_result = self._create_error_result(f"Validation failed: {e!s}")
             return {"failed_steps": [error_result]}
         except Exception as e:
             logger.error(f"Error analyzing run {self.run_id}: {e}")
@@ -115,7 +116,9 @@ class ErrorFetcher:
                 logger.info(f"Got run_results.json from failed step {step_index}")
                 return run_results_content
             else:
-                raise ValueError("No step index available for artifact retrieval")
+                raise ArtifactRetrievalError(
+                    "No step index available for artifact retrieval"
+                )
 
         except Exception as e:
             logger.error(f"Failed to get run_results.json from step {step_index}: {e}")

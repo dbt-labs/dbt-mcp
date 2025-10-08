@@ -8,14 +8,9 @@ from dbt_mcp.config.config_providers import (
     AdminApiConfig,
     ConfigProvider,
 )
+from dbt_mcp.errors import AdminAPIError
 
 logger = logging.getLogger(__name__)
-
-
-class AdminAPIError(Exception):
-    """Exception raised for Admin API errors."""
-
-    pass
 
 
 class DbtAdminAPIClient:

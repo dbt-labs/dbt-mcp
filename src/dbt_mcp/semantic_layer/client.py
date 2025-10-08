@@ -1,6 +1,6 @@
+from collections.abc import Callable
 from contextlib import AbstractContextManager
 from typing import Any, Protocol
-from collections.abc import Callable
 
 import pyarrow as pa
 from dbtsl.api.shared.query_params import (
@@ -13,6 +13,7 @@ from dbtsl.client.sync import SyncSemanticLayerClient
 from dbtsl.error import QueryFailedError
 
 from dbt_mcp.config.config_providers import ConfigProvider, SemanticLayerConfig
+from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.semantic_layer.gql.gql import GRAPHQL_QUERIES
 from dbt_mcp.semantic_layer.gql.gql_request import submit_request
 from dbt_mcp.semantic_layer.levenshtein import get_misspellings
@@ -260,7 +261,7 @@ class SemanticLayerFetcher:
                     )
                 )
             else:
-                raise ValueError(
+                raise InvalidParameterError(
                     f"Order by `{o.name}` not found in metrics or group by"
                 )
         return result
