@@ -18,6 +18,7 @@ class ToolName(Enum):
     RUN = "run"
     TEST = "test"
     SHOW = "show"
+    COMPILE_SQL = "compile_sql"
 
     # Semantic Layer tools
     LIST_METRICS = "list_metrics"
@@ -56,6 +57,9 @@ class ToolName(Enum):
     GENERATE_SOURCE = "generate_source"
     GENERATE_MODEL_YAML = "generate_model_yaml"
     GENERATE_STAGING_MODEL = "generate_staging_model"
+
+    # dbt LSP tools
+    GET_COLUMN_LINEAGE = "get_column_lineage"
 
     @classmethod
     def get_all_tool_names(cls) -> set[str]:

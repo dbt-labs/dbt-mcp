@@ -10,6 +10,7 @@ class Toolset(Enum):
     DBT_CLI = "dbt_cli"
     ADMIN_API = "admin_api"
     DBT_CODEGEN = "dbt_codegen"
+    DBT_LSP = "dbt_lsp"
 
 
 toolsets = {
@@ -37,6 +38,7 @@ toolsets = {
     Toolset.DBT_CLI: {
         ToolName.BUILD,
         ToolName.COMPILE,
+        ToolName.COMPILE_SQL,
         ToolName.DOCS,
         ToolName.LIST,
         ToolName.PARSE,
@@ -60,5 +62,8 @@ toolsets = {
         ToolName.GENERATE_SOURCE,
         ToolName.GENERATE_MODEL_YAML,
         ToolName.GENERATE_STAGING_MODEL,
+    },
+    Toolset.DBT_LSP: {
+        ToolName.GET_COLUMN_LINEAGE,
     },
 }

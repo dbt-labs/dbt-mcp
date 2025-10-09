@@ -39,6 +39,9 @@ tool_policies = {
     ToolName.COMPILE.value: ToolPolicy(
         name=ToolName.COMPILE.value, behavior=ToolBehavior.RESULT_SET
     ),
+    ToolName.COMPILE_SQL.value: ToolPolicy(
+        name=ToolName.COMPILE_SQL.value, behavior=ToolBehavior.RESULT_SET
+    ),
     ToolName.TEST.value: ToolPolicy(
         name=ToolName.TEST.value, behavior=ToolBehavior.METADATA
     ),
@@ -141,5 +144,9 @@ tool_policies = {
     ),
     ToolName.GENERATE_STAGING_MODEL.value: ToolPolicy(
         name=ToolName.GENERATE_STAGING_MODEL.value, behavior=ToolBehavior.METADATA
+    ),
+    # LSP tools
+    ToolName.GET_COLUMN_LINEAGE.value: ToolPolicy(
+        name=ToolName.GET_COLUMN_LINEAGE.value, behavior=ToolBehavior.METADATA
     ),
 }
