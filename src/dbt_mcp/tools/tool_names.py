@@ -18,7 +18,6 @@ class ToolName(Enum):
     RUN = "run"
     TEST = "test"
     SHOW = "show"
-    COMPILE_SQL = "compile_sql"
 
     # Semantic Layer tools
     LIST_METRICS = "list_metrics"

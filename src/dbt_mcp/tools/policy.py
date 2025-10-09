@@ -39,9 +39,6 @@ tool_policies = {
     ToolName.COMPILE.value: ToolPolicy(
         name=ToolName.COMPILE.value, behavior=ToolBehavior.RESULT_SET
     ),
-    ToolName.COMPILE_SQL.value: ToolPolicy(
-        name=ToolName.COMPILE_SQL.value, behavior=ToolBehavior.RESULT_SET
-    ),
     ToolName.TEST.value: ToolPolicy(
         name=ToolName.TEST.value, behavior=ToolBehavior.METADATA
     ),

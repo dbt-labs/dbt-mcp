@@ -38,7 +38,6 @@ toolsets = {
     Toolset.DBT_CLI: {
         ToolName.BUILD,
         ToolName.COMPILE,
-        ToolName.COMPILE_SQL,
         ToolName.DOCS,
         ToolName.LIST,
         ToolName.PARSE,
