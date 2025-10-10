@@ -50,7 +50,10 @@ class ToolName(Enum):
     RETRY_JOB_RUN = "retry_job_run"
     LIST_JOB_RUN_ARTIFACTS = "list_job_run_artifacts"
     GET_JOB_RUN_ARTIFACT = "get_job_run_artifact"
+    DOWNLOAD_JOB_RUN_ARTIFACT = "download_job_run_artifact"
     GET_JOB_RUN_ERROR = "get_job_run_error"
+    GET_CI_MANIFEST_AND_DEFERRED_MANIFEST = "get_ci_manifest_and_deferred_manifest"
+    COMPARE_MANIFESTS = "compare_manifests"
 
     # dbt-codegen tools
     GENERATE_SOURCE = "generate_source"

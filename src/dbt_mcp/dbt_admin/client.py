@@ -246,3 +246,63 @@ class DbtAdminAPIClient:
         )
         response.raise_for_status()
         return response.text
+    
+    async def download_job_run_artifact(
+        self,
+        account_id: int,
+        run_id: int,
+        artifact_path: str,
+        save_path: str = '.',
+        step: int | None = None,
+    ) -> dict[str, Any]:
+        """Download a specific job run artifact to local filesystem."""
+        import os
+        
+        params = {}
+        if step:
+            params["step"] = step
+
+        config = await self.get_config()
+        get_artifact_header = {
+            "Accept": "*/*",
+        } | config.headers_provider.get_headers()
+
+        response = requests.get(
+            f"{config.url}/api/v2/accounts/{account_id}/runs/{run_id}/artifacts/{artifact_path}",
+            headers=get_artifact_header,
+            params=params,
+            stream=True,
+        )
+        response.raise_for_status()
+        
+        # Create parent directories if they don't exist
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        
+        # Write the content to file
+        with open(save_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        
+        # Get file size
+        file_size = os.path.getsize(save_path)
+        
+        # Determine content type based on file extension
+        content_type = "unknown"
+        if artifact_path.endswith('.json'):
+            content_type = "json"
+        elif artifact_path.endswith('.sql'):
+            content_type = "sql"
+        elif artifact_path.endswith('.log'):
+            content_type = "log"
+        elif artifact_path.endswith('.txt'):
+            content_type = "text"
+        
+        return {
+            "success": True,
+            "artifact_path": artifact_path,
+            "save_path": save_path,
+            "file_size_bytes": file_size,
+            "content_type": content_type,
+        }
+    
+    
