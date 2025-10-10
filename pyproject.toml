@@ -16,7 +16,7 @@ classifiers = [
 dependencies = [
   # Pinning all dependencies because this app is installed with uvx
   # and we want to have a consistent install as much as possible.
-  "authlib==1.6.4",
+  "authlib==1.6.5",
   "dbt-protos==1.0.382",
   "dbt-sl-sdk[sync]==0.13.0",
   "dbtlabs-vortex==0.2.0",
