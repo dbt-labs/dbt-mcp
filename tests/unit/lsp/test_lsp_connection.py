@@ -13,7 +13,6 @@ from dbt_mcp.lsp.lsp_connection import (
     LspEventName,
     JsonRpcMessage,
     event_name_from_string,
-    jsonrpc,
 )
 
 
@@ -97,17 +96,6 @@ class TestLspEventName:
         """Test converting invalid string returns None."""
         assert event_name_from_string("invalid/event") is None
         assert event_name_from_string("") is None
-
-
-class TestJsonRpcHelper:
-    """Test jsonrpc helper function."""
-
-    def test_jsonrpc_adds_version(self):
-        """Test that jsonrpc helper adds version to message."""
-        msg = {"method": "test", "params": {}}
-        result = jsonrpc(msg)
-
-        assert result == {"jsonrpc": "2.0", "method": "test", "params": {}}
 
 
 class TestLspConnectionState:
