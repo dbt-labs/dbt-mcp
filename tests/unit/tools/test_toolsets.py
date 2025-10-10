@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 from dbt_mcp.config.config import load_config
 from dbt_mcp.dbt_cli.binary_type import BinaryType
+from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo
 from dbt_mcp.mcp.server import create_dbt_mcp
 from dbt_mcp.tools.toolsets import proxied_tools, toolsets
 from tests.env_vars import default_env_vars_context
@@ -13,6 +14,10 @@ async def test_toolsets_match_server_tools():
         default_env_vars_context(),
         patch(
             "dbt_mcp.config.config.detect_binary_type", return_value=BinaryType.DBT_CORE
+        ),
+        patch(
+            "dbt_mcp.lsp.tools.dbt_lsp_binary_info",
+            return_value=LspBinaryInfo(path="/path/to/lsp", version="1.0.0"),
         ),
     ):
         config = load_config()

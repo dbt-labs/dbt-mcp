@@ -25,6 +25,7 @@ from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
 from dbt_mcp.semantic_layer.tools import register_sl_tools
 from dbt_mcp.sql.tools import SqlToolsManager, register_sql_tools
 from dbt_mcp.tracking.tracking import DefaultUsageTracker, ToolCalledEvent, UsageTracker
+from dbt_mcp.lsp.tools import cleanup_lsp_connection, register_lsp_tools
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +104,10 @@ async def app_lifespan(server: DbtMCP) -> AsyncIterator[None]:
         except Exception:
             logger.exception("Error closing SQL tools manager")
         try:
+            await cleanup_lsp_connection()
+        except Exception:
+            logger.exception("Error cleaning up LSP connection")
+        try:
             shutdown()
         except Exception:
             logger.exception("Error shutting down MCP server")
@@ -157,5 +162,9 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
         await register_sql_tools(
             dbt_mcp, config.sql_config_provider, config.disable_tools
         )
+
+    if config.lsp_config:
+        logger.info("Registering LSP tools")
+        await register_lsp_tools(dbt_mcp, config.lsp_config, config.disable_tools)
 
     return dbt_mcp
