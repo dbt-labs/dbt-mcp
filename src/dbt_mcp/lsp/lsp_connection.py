@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 import uuid
+from dataclasses import asdict
 
 logger = logging.getLogger(__name__)
 
@@ -50,33 +51,12 @@ class JsonRpcMessage:
     error: dict[str, Any] | None = None
 
     def to_dict(self, none_values: bool = False) -> dict[str, Any]:
-        """Convert message to dictionary for serialization."""
-        msg: dict[str, Any] = {"jsonrpc": self.jsonrpc}
+        """Convert the message to a dictionary."""
 
-        if self.id is not None or none_values:
-            msg["id"] = self.id
-        if self.method is not None or none_values:
-            msg["method"] = self.method
-        if self.params is not None or none_values:
-            msg["params"] = self.params
-        if self.result is not None or none_values:
-            msg["result"] = self.result
-        if self.error is not None or none_values:
-            msg["error"] = self.error
+        def dict_factory(x: list[tuple[str, Any]]) -> dict[str, Any]:
+            return dict(x) if none_values else {k: v for k, v in x if v is not None}
 
-        return msg
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "JsonRpcMessage":
-        """Create message from dictionary."""
-        return cls(
-            jsonrpc=data.get("jsonrpc", "2.0"),
-            id=data.get("id"),
-            method=data.get("method"),
-            params=data.get("params"),
-            result=data.get("result"),
-            error=data.get("error"),
-        )
+        return asdict(self, dict_factory=dict_factory)
 
 
 @dataclass
@@ -86,14 +66,15 @@ class LspConnectionState:
     initialized: bool = False
     shutting_down: bool = False
     capabilities: dict[str, Any] = field(default_factory=dict)
-    next_request_id: int = 1
     pending_requests: dict[int | str, asyncio.Future] = field(default_factory=dict)
     pending_notifications: dict[LspEventName, list[asyncio.Future]] = field(
         default_factory=dict
     )
     compiled: bool = False
     # start at 20 to avoid collisions between ids of requests we are waiting for and the lsp server requests from us
-    request_id_counter: Iterator[int] = itertools.count(20)
+    request_id_counter: Iterator[int] = field(
+        default_factory=lambda: itertools.count(20)
+    )
 
     def get_next_request_id(self) -> int:
         return next(self.request_id_counter)
@@ -481,7 +462,7 @@ class LSPConnection:
         try:
             content = buffer[content_start:content_end].decode("utf-8")
             data = json.loads(content)
-            message = JsonRpcMessage.from_dict(data)
+            message = JsonRpcMessage(**data)
 
             return message, buffer[content_end:]
 
@@ -515,9 +496,7 @@ class LSPConnection:
             else:
                 # it's an unknown request, we respond with an empty result
                 logger.debug(f"LSP request {message.to_dict()}")
-                self._send_message(
-                    JsonRpcMessage(id=message.id, result=None).to_dict(none_values=True)
-                )
+                self._send_message(JsonRpcMessage(id=message.id, result=None))
 
         if message.method is None:
             return
@@ -630,13 +609,10 @@ class LSPConnection:
 
         return future
 
-    def _send_message(self, message: JsonRpcMessage | dict[str, Any]) -> None:
+    def _send_message(self, message: JsonRpcMessage) -> None:
         """Send a message to the LSP server."""
         # Serialize message
-        if isinstance(message, dict):
-            content = json.dumps(message)
-        else:
-            content = json.dumps(message.to_dict())
+        content = json.dumps(message.to_dict())
         content_bytes = content.encode("utf-8")
 
         # Create LSP message with headers
@@ -645,9 +621,7 @@ class LSPConnection:
 
         data = header_bytes + content_bytes
 
-        logger.debug(
-            f"Sending message: {message.to_dict() if isinstance(message, JsonRpcMessage) else message}"
-        )
+        logger.debug(f"Sending message: {content}")
 
         # Queue for sending (put_nowait is safe from sync context)
         self._outgoing_queue.put_nowait(data)
