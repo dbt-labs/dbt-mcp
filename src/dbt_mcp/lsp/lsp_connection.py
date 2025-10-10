@@ -235,25 +235,17 @@ class LSPConnection:
         The server will connect back to the socket set up by setup_socket().
         """
         # Prepare command with socket info
-        cmd = (
-            [str(self.binary_path)]
-            + ["--socket", f"{self.host}:{self.port}"]
-            + self.args
-        )
-
-        logger.debug(f"Starting LSP server: {' '.join(cmd)}")
-        if self.cwd:
-            logger.debug(f"Working directory: {self.cwd}")
-
-        # Start the process with stdout/stderr capture
-        self.process = await asyncio.create_subprocess_exec(
+        cmd = [
             str(self.binary_path),
             "--socket",
             f"{self.port}",
             "--project-dir",
             self.cwd,
             *self.args,
-        )
+        ]
+
+        logger.debug(f"Starting LSP server: {' '.join(cmd)}")
+        self.process = await asyncio.create_subprocess_exec(*cmd)
 
         logger.info(f"LSP server started with PID: {self.process.pid}")
 
