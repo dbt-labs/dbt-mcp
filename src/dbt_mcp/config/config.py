@@ -46,6 +46,12 @@ class DbtCodegenConfig:
 
 
 @dataclass
+class LspConfig:
+    project_dir: str
+    lsp_path: str | None
+
+
+@dataclass
 class Config:
     tracking_config: TrackingConfig
     disable_tools: list[ToolName]
@@ -55,6 +61,7 @@ class Config:
     discovery_config_provider: DefaultDiscoveryConfigProvider | None
     semantic_layer_config_provider: DefaultSemanticLayerConfigProvider | None
     admin_api_config_provider: DefaultAdminApiConfigProvider | None
+    lsp_config: LspConfig | None
 
 
 def load_config() -> Config:
@@ -116,6 +123,13 @@ def load_config() -> Config:
             credentials_provider=credentials_provider,
         )
 
+    lsp_config = None
+    if not settings.disable_lsp and settings.dbt_project_dir:
+        lsp_config = LspConfig(
+            project_dir=settings.dbt_project_dir,
+            lsp_path=settings.dbt_lsp_path,
+        )
+
     # Load local user ID from dbt profile
     local_user_id = None
     user_dir = get_dbt_profiles_path(settings.dbt_profiles_dir)
@@ -145,4 +159,5 @@ def load_config() -> Config:
         discovery_config_provider=discovery_config_provider,
         semantic_layer_config_provider=semantic_layer_config_provider,
         admin_api_config_provider=admin_api_config_provider,
+        lsp_config=lsp_config,
     )

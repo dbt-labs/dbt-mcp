@@ -2,6 +2,7 @@ from dbt_mcp.config.config import (
     Config,
     DbtCliConfig,
     DbtCodegenConfig,
+    LspConfig,
     TrackingConfig,
 )
 from dbt_mcp.config.config_providers import (
@@ -54,6 +55,11 @@ mock_dbt_codegen_config = DbtCodegenConfig(
     dbt_path="/path/to/dbt",
     dbt_cli_timeout=10,
     binary_type=BinaryType.DBT_CORE,
+)
+
+mock_lsp_config = LspConfig(
+    project_dir="/test/project",
+    lsp_path="/path/to/lsp",
 )
 
 mock_discovery_config = DiscoveryConfig(
@@ -124,6 +130,7 @@ mock_config = Config(
     discovery_config_provider=MockDiscoveryConfigProvider(),
     semantic_layer_config_provider=MockSemanticLayerConfigProvider(),
     admin_api_config_provider=MockAdminApiConfigProvider(),
+    lsp_config=mock_lsp_config,
     disable_tools=[],
 )
 

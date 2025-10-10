@@ -130,11 +130,6 @@ class LSPConnection:
                                    individual requests.
         """
         self.binary_path = Path(binary_path)
-        if not self.binary_path.exists():
-            raise FileNotFoundError(f"LSP binary not found: {binary_path}")
-        if not self.binary_path.is_file():
-            raise ValueError(f"LSP binary path is not a file: {binary_path}")
-
         self.args = list(args) if args else []
         self.cwd = cwd
         self.host = "127.0.0.1"
