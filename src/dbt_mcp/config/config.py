@@ -35,6 +35,12 @@ class DbtCodegenConfig:
 
 
 @dataclass
+class LspConfig:
+    project_dir: str
+    lsp_path: str | None
+
+
+@dataclass
 class Config:
     disable_tools: list[ToolName]
     sql_config_provider: DefaultSqlConfigProvider | None
@@ -44,6 +50,7 @@ class Config:
     semantic_layer_config_provider: DefaultSemanticLayerConfigProvider | None
     admin_api_config_provider: DefaultAdminApiConfigProvider | None
     credentials_provider: CredentialsProvider
+    lsp_config: LspConfig | None
 
 
 def load_config() -> Config:
@@ -105,6 +112,13 @@ def load_config() -> Config:
             credentials_provider=credentials_provider,
         )
 
+    lsp_config = None
+    if not settings.disable_lsp and settings.dbt_project_dir:
+        lsp_config = LspConfig(
+            project_dir=settings.dbt_project_dir,
+            lsp_path=settings.dbt_lsp_path,
+        )
+
     return Config(
         disable_tools=settings.disable_tools or [],
         sql_config_provider=sql_config_provider,
@@ -114,4 +128,5 @@ def load_config() -> Config:
         semantic_layer_config_provider=semantic_layer_config_provider,
         admin_api_config_provider=admin_api_config_provider,
         credentials_provider=credentials_provider,
+        lsp_config=lsp_config,
     )

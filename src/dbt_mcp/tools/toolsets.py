@@ -11,6 +11,7 @@ class Toolset(Enum):
     DBT_CLI = "dbt_cli"
     ADMIN_API = "admin_api"
     DBT_CODEGEN = "dbt_codegen"
+    DBT_LSP = "dbt_lsp"
 
 
 proxied_tools: set[Literal[ToolName.TEXT_TO_SQL, ToolName.EXECUTE_SQL]] = set(
@@ -68,5 +69,8 @@ toolsets = {
         ToolName.GENERATE_SOURCE,
         ToolName.GENERATE_MODEL_YAML,
         ToolName.GENERATE_STAGING_MODEL,
+    },
+    Toolset.DBT_LSP: {
+        ToolName.GET_COLUMN_LINEAGE,
     },
 }
