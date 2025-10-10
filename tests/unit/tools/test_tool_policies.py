@@ -19,7 +19,7 @@ async def test_tool_policies_match_server_tools():
             "dbt_mcp.config.config.detect_binary_type", return_value=BinaryType.DBT_CORE
         ),
         patch(
-            "dbt_mcp.lsp.lsp_binary_manager.dbt_lsp_binary_info",
+            "dbt_mcp.lsp.tools.dbt_lsp_binary_info",
             return_value=LspBinaryInfo(path="/path/to/lsp", version="1.0.0"),
         ),
     ):
