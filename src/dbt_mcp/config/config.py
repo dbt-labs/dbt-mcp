@@ -119,18 +119,6 @@ def load_config() -> Config:
             lsp_path=settings.dbt_lsp_path,
         )
 
-    # Load local user ID from dbt profile
-    local_user_id = None
-    user_dir = get_dbt_profiles_path(settings.dbt_profiles_dir)
-    user_yaml = try_read_yaml(user_dir / ".user.yml")
-    if user_yaml:
-        try:
-            local_user_id = user_yaml.get("id")
-        except Exception:
-            # dbt Fusion may have a different format for
-            # the .user.yml file which is handled here
-            local_user_id = str(user_yaml)
-
     return Config(
         disable_tools=settings.disable_tools or [],
         sql_config_provider=sql_config_provider,
