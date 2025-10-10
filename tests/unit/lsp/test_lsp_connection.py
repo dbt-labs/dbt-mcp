@@ -72,7 +72,7 @@ class TestJsonRpcMessage:
             "method": "textDocument/completion",
             "params": {"textDocument": {"uri": "file:///test.sql"}},
         }
-        msg = JsonRpcMessage.from_dict(data)
+        msg = JsonRpcMessage(**data)
 
         assert msg.jsonrpc == "2.0"
         assert msg.id == 42
@@ -107,8 +107,8 @@ class TestLspConnectionState:
 
         assert state.initialized is False
         assert state.shutting_down is False
-        assert state.capabilities == {}
-        assert state.next_request_id == 1
+        assert state.capabilities is not None
+        assert len(state.capabilities) == 0
         assert state.pending_requests == {}
         assert state.pending_notifications == {}
         assert state.compiled is False
@@ -634,8 +634,9 @@ class TestMessageHandling:
             # Should send empty response back
             mock_send.assert_called_once()
             sent_msg = mock_send.call_args[0][0]
-            assert sent_msg["id"] == 999
-            assert sent_msg["result"] is None
+            assert isinstance(sent_msg, JsonRpcMessage)
+            assert sent_msg.id == 999
+            assert sent_msg.result is None
 
     def test_handle_notification(self, tmp_path):
         """Test handling notification messages."""
@@ -847,29 +848,6 @@ class TestSendMessage:
         assert b'"jsonrpc"' in data and b'"2.0"' in data
         assert b'"method"' in data and b'"test"' in data
 
-    def test_send_message_with_dict(self, tmp_path):
-        """Test sending dictionary message."""
-        binary_path = tmp_path / "lsp"
-        binary_path.touch()
-
-        conn = LSPConnection(str(binary_path), "/test")
-        conn._outgoing_queue = MagicMock()
-
-        message = {"jsonrpc": "2.0", "id": 2, "result": {"success": True}}
-
-        conn._send_message(message)
-
-        # Verify message was queued
-        conn._outgoing_queue.put_nowait.assert_called_once()
-        data = conn._outgoing_queue.put_nowait.call_args[0][0]
-
-        # Verify content
-        assert b"Content-Length:" in data
-        # JSON formatting might vary, check for key components
-        assert b'"result"' in data
-        assert b'"success"' in data
-        assert b"true" in data.lower()  # Handle True/true
-
 
 class TestShutdown:
     """Test shutdown sequence."""
@@ -1040,9 +1018,15 @@ class TestEdgeCases:
 
         with patch.object(conn, "_send_message", side_effect=track_message):
             # Create futures for multiple requests
-            future1 = asyncio.create_task(conn.send_request("method1", {"p": 1}))
-            future2 = asyncio.create_task(conn.send_request("method2", {"p": 2}))
-            future3 = asyncio.create_task(conn.send_request("method3", {"p": 3}))
+            future1 = asyncio.create_task(
+                conn.send_request("method1", JsonRpcMessage(id=1))
+            )
+            future2 = asyncio.create_task(
+                conn.send_request("method2", JsonRpcMessage(id=2))
+            )
+            future3 = asyncio.create_task(
+                conn.send_request("method3", JsonRpcMessage(id=3))
+            )
 
             # Let tasks start
             await asyncio.sleep(0.01)
