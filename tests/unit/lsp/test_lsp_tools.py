@@ -12,6 +12,7 @@ from dbt_mcp.lsp.tools import (
 )
 from dbt_mcp.lsp.lsp_client import LSPClient
 from dbt_mcp.mcp.server import FastMCP
+from dbt_mcp.tools.tool_names import ToolName
 
 
 @pytest.fixture
@@ -64,7 +65,7 @@ async def test_register_lsp_tools_success(
 
         # Verify correct tools were registered
         tool_names = [tool.name for tool in await test_mcp_server.list_tools()]
-        assert "get_column_lineage" in tool_names
+        assert ToolName.GET_COLUMN_LINEAGE.value in tool_names
 
 
 @pytest.mark.asyncio
