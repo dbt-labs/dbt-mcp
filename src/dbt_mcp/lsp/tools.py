@@ -100,10 +100,18 @@ async def list_lsp_tools(config: LspConfig) -> list[ToolDefinition]:
 
         return wrapper
 
-    for tool_definition in LSP_TOOL_DEFINITIONS:
-        tool_definition.fn = call_with_lsp_client(tool_definition.fn)
-
-    return LSP_TOOL_DEFINITIONS
+    return [
+        ToolDefinition(
+            fn=call_with_lsp_client(get_column_lineage),
+            description=get_prompt("lsp/get_column_lineage"),
+            annotations=create_tool_annotations(
+                title="get_column_lineage",
+                read_only_hint=False,
+                destructive_hint=False,
+                idempotent_hint=True,
+            ),
+        ),
+    ]
 
 
 async def get_column_lineage(
@@ -166,17 +174,3 @@ async def cleanup_lsp_connection() -> None:
             logger.error(f"Error cleaning up LSP connection: {e}")
         finally:
             _lsp_connection = None
-
-
-LSP_TOOL_DEFINITIONS = [
-    ToolDefinition(
-        fn=get_column_lineage,
-        description=get_prompt("lsp/get_column_lineage"),
-        annotations=create_tool_annotations(
-            title="get_column_lineage",
-            read_only_hint=False,
-            destructive_hint=False,
-            idempotent_hint=True,
-        ),
-    ),
-]
