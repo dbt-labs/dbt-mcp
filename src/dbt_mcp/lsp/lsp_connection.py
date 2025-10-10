@@ -115,7 +115,7 @@ class LSPConnection:
         cwd: str,
         args: Sequence[str] | None = None,
         connection_timeout: float = 10,
-        default_request_timeout: float = 30,
+        default_request_timeout: float = 60,
     ):
         """Initialize the LSP connection manager.
 
@@ -126,7 +126,7 @@ class LSPConnection:
             connection_timeout: Timeout in seconds for establishing the initial socket
                               connection (default: 10). Used during server startup.
             default_request_timeout: Default timeout in seconds for LSP request operations
-                                   (default: 30). Used when no timeout is specified for
+                                   (default: 60). Used when no timeout is specified for
                                    individual requests.
         """
         self.binary_path = Path(binary_path)
