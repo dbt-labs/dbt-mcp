@@ -49,19 +49,19 @@ class JsonRpcMessage:
     result: Any = None
     error: dict[str, Any] | None = None
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, none_values: bool = False) -> dict[str, Any]:
         """Convert message to dictionary for serialization."""
         msg: dict[str, Any] = {"jsonrpc": self.jsonrpc}
 
-        if self.id is not None:
+        if self.id is not None or none_values:
             msg["id"] = self.id
-        if self.method is not None:
+        if self.method is not None or none_values:
             msg["method"] = self.method
-        if self.params is not None:
+        if self.params is not None or none_values:
             msg["params"] = self.params
-        if self.result is not None:
+        if self.result is not None or none_values:
             msg["result"] = self.result
-        if self.error is not None:
+        if self.error is not None or none_values:
             msg["error"] = self.error
 
         return msg
@@ -77,11 +77,6 @@ class JsonRpcMessage:
             result=data.get("result"),
             error=data.get("error"),
         )
-
-
-def jsonrpc(message: dict[str, Any]) -> dict[str, Any]:
-    """Convert a message to a JSON-RPC message."""
-    return {"jsonrpc": "2.0", **message}
 
 
 @dataclass
@@ -520,7 +515,9 @@ class LSPConnection:
             else:
                 # it's an unknown request, we respond with an empty result
                 logger.debug(f"LSP request {message.to_dict()}")
-                self._send_message(jsonrpc({"id": message.id, "result": None}))
+                self._send_message(
+                    JsonRpcMessage(id=message.id, result=None).to_dict(none_values=True)
+                )
 
         if message.method is None:
             return
