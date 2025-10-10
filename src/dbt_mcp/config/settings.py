@@ -54,6 +54,7 @@ class DbtMcpSettings(BaseSettings):
     dbt_token: str | None = Field(None, alias="DBT_TOKEN")
     multicell_account_prefix: str | None = Field(None, alias="MULTICELL_ACCOUNT_PREFIX")
     host_prefix: str | None = Field(None, alias="DBT_HOST_PREFIX")
+    dbt_lsp_path: str | None = Field(None, alias="DBT_LSP_PATH")
 
     # dbt CLI settings
     dbt_project_dir: str | None = Field(None, alias="DBT_PROJECT_DIR")
@@ -73,6 +74,7 @@ class DbtMcpSettings(BaseSettings):
     disable_tools: Annotated[list[ToolName] | None, NoDecode] = Field(
         None, alias="DISABLE_TOOLS"
     )
+    disable_lsp: bool | None = Field(None, alias="DISABLE_LSP")
 
     # Tracking settings
     do_not_track: str | None = Field(None, alias="DO_NOT_TRACK")

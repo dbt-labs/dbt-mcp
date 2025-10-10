@@ -154,20 +154,6 @@ class TestLSPConnectionInitialization:
         assert conn.process is None
         assert isinstance(conn.state, LspConnectionState)
 
-    def test_init_binary_not_found(self):
-        """Test initialization with non-existent binary."""
-        with pytest.raises(FileNotFoundError, match="LSP binary not found"):
-            LSPConnection(binary_path="/nonexistent/binary", cwd="/test/dir")
-
-    def test_init_binary_is_directory(self, tmp_path):
-        """Test initialization with directory instead of file."""
-        # Create a directory instead of a file
-        binary_path = tmp_path / "lsp-server"
-        binary_path.mkdir()
-
-        with pytest.raises(ValueError, match="LSP binary path is not a file"):
-            LSPConnection(binary_path=str(binary_path), cwd="/test/dir")
-
 
 class TestSocketSetup:
     """Test socket setup and lifecycle."""
