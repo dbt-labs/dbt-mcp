@@ -57,6 +57,9 @@ class ToolName(Enum):
     GENERATE_MODEL_YAML = "generate_model_yaml"
     GENERATE_STAGING_MODEL = "generate_staging_model"
 
+    # dbt LSP tools
+    GET_COLUMN_LINEAGE = "get_column_lineage"
+
     @classmethod
     def get_all_tool_names(cls) -> set[str]:
         """Returns a set of all tool names as strings."""
