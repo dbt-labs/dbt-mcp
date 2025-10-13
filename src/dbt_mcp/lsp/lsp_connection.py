@@ -491,7 +491,9 @@ class LSPConnection:
             else:
                 # it's an unknown request, we respond with an empty result
                 logger.debug(f"LSP request {message.to_dict()}")
-                self._send_message(JsonRpcMessage(id=message.id, result=None))
+                self._send_message(
+                    JsonRpcMessage(id=message.id, result=None), none_values=True
+                )
 
         if message.method is None:
             return
@@ -604,10 +606,10 @@ class LSPConnection:
 
         return future
 
-    def _send_message(self, message: JsonRpcMessage) -> None:
+    def _send_message(self, message: JsonRpcMessage, none_values: bool = False) -> None:
         """Send a message to the LSP server."""
         # Serialize message
-        content = json.dumps(message.to_dict())
+        content = json.dumps(message.to_dict(none_values=none_values))
         content_bytes = content.encode("utf-8")
 
         # Create LSP message with headers
