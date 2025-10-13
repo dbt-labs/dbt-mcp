@@ -6,12 +6,25 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.12"
 dynamic = ["version"]
+keywords = [
+  "dbt",
+  "mcp",
+  "model-context-protocol",
+  "data",
+  "analytics",
+  "ai-agent",
+  "llm",
+]
 classifiers = [
-  "License :: OSI Approved :: Apache Software License",
-  "Programming Language :: Python :: 3",
-  "Operating System :: OS Independent",
-  "Development Status :: 4 - Beta",
+  "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Developers",
+  "Intended Audience :: Information Technology",
+  "Intended Audience :: System Administrators",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+  "Typing :: Typed",
 ]
 dependencies = [
   # Pinning all dependencies because this app is installed with uvx
@@ -45,7 +58,7 @@ dev = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/dbt-labs/dbt-mcp#readme"
+Documentation = "https://docs.getdbt.com/docs/dbt-ai/about-mcp"
 Issues = "https://github.com/dbt-labs/dbt-mcp/issues"
 Source = "https://github.com/dbt-labs/dbt-mcp"
 Changelog = "https://github.com/dbt-labs/dbt-mcp/blob/main/CHANGELOG.md"
