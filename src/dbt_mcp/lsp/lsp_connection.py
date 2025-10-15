@@ -5,7 +5,6 @@ communication according to the Language Server Protocol specification.
 """
 
 import asyncio
-from enum import Enum
 import itertools
 import json
 import logging
@@ -18,17 +17,12 @@ from typing import Any
 import uuid
 from dataclasses import asdict
 
+from dbt_mcp.lsp.providers.lsp_connection_provider import (
+    LSPConnectionProviderProtocol,
+    LspEventName,
+)
+
 logger = logging.getLogger(__name__)
-
-
-class LspEventName(str, Enum):
-    """LSP event names."""
-
-    compileComplete = "dbt/lspCompileComplete"
-    logMessage = "window/logMessage"
-    progress = "$/progress"
-    workspaceDiagnostics = "workspace/diagnostics"
-    fileDiagnostics = "textDocument/publishDiagnostics"
 
 
 def event_name_from_string(string: str) -> LspEventName | None:
@@ -80,7 +74,7 @@ class LspConnectionState:
         return next(self.request_id_counter)
 
 
-class LSPConnection:
+class SocketLSPConnection(LSPConnectionProviderProtocol):
     """LSP process lifecycle and communication via socket.
 
     This class handles:
@@ -136,6 +130,12 @@ class LSPConnection:
         self.default_request_timeout = default_request_timeout
 
         logger.debug(f"LSP Connection initialized with binary: {self.binary_path}")
+
+    def compiled(self) -> bool:
+        return self.state.compiled
+
+    def initialized(self) -> bool:
+        return self.state.initialized
 
     async def start(self) -> None:
         """Start the LSP server process and socket communication tasks."""
@@ -304,9 +304,7 @@ class LSPConnection:
 
         logger.info("LSP server stopped")
 
-    async def initialize(
-        self, root_uri: str | None = None, timeout: float = 10
-    ) -> None:
+    async def initialize(self, timeout: float | None = None) -> None:
         """Initialize the LSP connection.
 
         Sends the initialize request to the LSP server and waits for the response.
@@ -321,7 +319,7 @@ class LSPConnection:
 
         params = {
             "processId": None,
-            "rootUri": root_uri,
+            "rootUri": None,
             "clientInfo": {
                 "name": "dbt-mcp",
                 "version": "1.0.0",
@@ -334,7 +332,9 @@ class LSPConnection:
         }
 
         # Send initialize request
-        result = await self.send_request("initialize", params, timeout=timeout)
+        result = await self.send_request(
+            "initialize", params, timeout=timeout or self.default_request_timeout
+        )
 
         # Store capabilities
         self.state.capabilities = result.get("capabilities", {})
