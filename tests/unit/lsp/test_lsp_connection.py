@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from dbt_mcp.lsp.lsp_connection import (
-    LSPConnection,
+    SocketLSPConnection,
     LspConnectionState,
     LspEventName,
     JsonRpcMessage,
@@ -136,7 +136,7 @@ class TestLSPConnectionInitialization:
         binary_path = tmp_path / "lsp-server"
         binary_path.touch()
 
-        conn = LSPConnection(
+        conn = SocketLSPConnection(
             binary_path=str(binary_path),
             cwd="/test/dir",
             args=["--arg1", "--arg2"],
@@ -163,7 +163,7 @@ class TestSocketSetup:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         with patch("socket.socket") as mock_socket_class:
             mock_socket = MagicMock()
@@ -195,7 +195,7 @@ class TestProcessLaunching:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test/dir")
+        conn = SocketLSPConnection(str(binary_path), "/test/dir")
         conn.port = 12345
 
         with patch("asyncio.create_subprocess_exec") as mock_create_subprocess:
@@ -222,7 +222,7 @@ class TestStartStop:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Mock socket setup
         mock_socket = MagicMock()
@@ -264,7 +264,7 @@ class TestStartStop:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
         conn.process = MagicMock()  # Simulate already running
 
         with (
@@ -282,7 +282,7 @@ class TestStartStop:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test", connection_timeout=0.1)
+        conn = SocketLSPConnection(str(binary_path), "/test", connection_timeout=0.1)
 
         mock_socket = MagicMock()
         mock_socket.getsockname.return_value = ("127.0.0.1", 54321)
@@ -309,7 +309,7 @@ class TestStartStop:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Setup mocks for running state
         conn.process = MagicMock()
@@ -355,7 +355,7 @@ class TestStartStop:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Setup mock process that doesn't terminate
         mock_process = MagicMock()
@@ -382,7 +382,7 @@ class TestInitializeMethod:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
         conn.process = MagicMock()  # Simulate running
 
         # Mock send_request to return capabilities
@@ -401,7 +401,7 @@ class TestInitializeMethod:
         ):
             mock_send_request.return_value = mock_result
 
-            await conn.initialize(root_uri="file:///workspace", timeout=5)
+            await conn.initialize(timeout=5)
 
             # Verify initialize request was sent
             mock_send_request.assert_called_once()
@@ -410,7 +410,7 @@ class TestInitializeMethod:
             assert call_args[1]["timeout"] == 5
 
             params = call_args[0][1]
-            assert params["rootUri"] == "file:///workspace"
+            assert params["rootUri"] is None  # currently not using cwd
             assert params["clientInfo"]["name"] == "dbt-mcp"
 
             # Verify initialized notification was sent
@@ -426,7 +426,7 @@ class TestInitializeMethod:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
         conn.process = MagicMock()
         conn.state.initialized = True
 
@@ -442,7 +442,7 @@ class TestMessageParsing:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Create a valid LSP message
         content = '{"jsonrpc":"2.0","id":1,"result":{"test":true}}'
@@ -461,7 +461,7 @@ class TestMessageParsing:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         buffer = b"Content-Length: 50\r\n"  # Missing \r\n\r\n
 
@@ -475,7 +475,7 @@ class TestMessageParsing:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         content = '{"jsonrpc":"2.0","id":1,"result":{"test":true}}'
         header = f"Content-Length: {len(content)}\r\n\r\n"
@@ -492,7 +492,7 @@ class TestMessageParsing:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         content = '{"invalid json'
         header = f"Content-Length: {len(content)}\r\n\r\n"
@@ -508,7 +508,7 @@ class TestMessageParsing:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         buffer = b'Some-Header: value\r\n\r\n{"test":true}'
 
@@ -522,7 +522,7 @@ class TestMessageParsing:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Create two messages
         content1 = '{"jsonrpc":"2.0","id":1,"result":true}'
@@ -553,7 +553,7 @@ class TestMessageHandling:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Create a pending request
         future = asyncio.Future()
@@ -582,7 +582,7 @@ class TestMessageHandling:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Create a pending request
         future = asyncio.Future()
@@ -609,7 +609,7 @@ class TestMessageHandling:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Handle response with unknown ID
         message = JsonRpcMessage(id=999, result={"test": True})
@@ -629,7 +629,7 @@ class TestMessageHandling:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Create futures waiting for compile complete event
         future1 = asyncio.Future()
@@ -671,7 +671,7 @@ class TestMessageHandling:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Handle unknown notification
         message = JsonRpcMessage(method="unknown/notification", params={"data": "test"})
@@ -689,7 +689,7 @@ class TestSendRequest:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
         conn.process = MagicMock()  # Simulate running
 
         with (
@@ -719,7 +719,7 @@ class TestSendRequest:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
         # process is None - not running
 
         with pytest.raises(RuntimeError, match="LSP server is not running"):
@@ -731,7 +731,7 @@ class TestSendRequest:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test", default_request_timeout=1)
+        conn = SocketLSPConnection(str(binary_path), "/test", default_request_timeout=1)
         conn.process = MagicMock()
 
         with patch.object(conn, "_send_message"):
@@ -753,7 +753,7 @@ class TestSendNotification:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
         conn.process = MagicMock()
 
         with patch.object(conn, "_send_message") as mock_send:
@@ -774,7 +774,7 @@ class TestSendNotification:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
         # process is None - not running
 
         with pytest.raises(RuntimeError, match="LSP server is not running"):
@@ -789,7 +789,7 @@ class TestWaitForNotification:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         with patch("asyncio.get_running_loop") as mock_get_loop:
             mock_loop = MagicMock()
@@ -816,7 +816,7 @@ class TestSendMessage:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
         conn._outgoing_queue = MagicMock()
 
         message = JsonRpcMessage(id=1, method="test", params={"key": "value"})
@@ -843,7 +843,7 @@ class TestShutdown:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         with patch.object(conn, "_send_message") as mock_send:
             conn._send_shutdown_request()
@@ -872,7 +872,7 @@ class TestIsRunning:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
         conn.process = MagicMock()
         conn.process.returncode = None
 
@@ -883,7 +883,7 @@ class TestIsRunning:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         assert conn.is_running() is False
 
@@ -892,7 +892,7 @@ class TestIsRunning:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
         conn.process = MagicMock()
         conn.process.returncode = 0
 
@@ -908,7 +908,7 @@ class TestReadWriteLoops:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Setup mock connection
         mock_connection = MagicMock()
@@ -952,7 +952,7 @@ class TestReadWriteLoops:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Setup mock connection
         mock_connection = MagicMock()
@@ -993,7 +993,7 @@ class TestEdgeCases:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
         conn.process = MagicMock()
 
         # Track sent messages
@@ -1040,7 +1040,7 @@ class TestEdgeCases:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
         conn.process = MagicMock()
         conn.process.terminate = MagicMock()
         conn.process.wait = AsyncMock()
@@ -1061,7 +1061,7 @@ class TestEdgeCases:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Create message with unicode
         content = '{"jsonrpc":"2.0","method":"test","params":{"text":"Hello 世界 🚀"}}'
