@@ -268,6 +268,41 @@ class GraphQLQueries:
     """)
     )
 
+    GET_SOURCES = textwrap.dedent("""
+        query GetSources(
+            $environmentId: BigInt!,
+            $sourcesFilter: SourceAppliedFilter,
+            $after: String,
+            $first: Int,
+            $sort: AppliedSourceSort
+        ) {
+            environment(id: $environmentId) {
+                applied {
+                    sources(filter: $sourcesFilter, after: $after, first: $first, sort: $sort) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
+                        edges {
+                            node {
+                                name
+                                uniqueId
+                                description
+                                sourceName
+                                resourceType
+                                freshness {
+                                    maxLoadedAt
+                                    maxLoadedAtTimeAgoInS
+                                    freshnessStatus
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    """)
+
     GET_EXPOSURES = textwrap.dedent("""
         query Exposures($environmentId: BigInt!, $first: Int, $after: String) {
             environment(id: $environmentId) {
@@ -340,6 +375,15 @@ class MetadataAPIClient:
 
 class ModelFilter(TypedDict, total=False):
     modelingLayer: Literal["marts"] | None
+
+
+class SourceFilter(TypedDict, total=False):
+    sourceNames: list[str] | None        # Filter by source names
+    uniqueIds: list[str] | None          # Filter by specific source table IDs
+    database: str | None                 # Filter by database
+    schema: str | None                   # Filter by schema
+    freshnessStatus: str | None          # Filter by freshness: "pass", "warn", "error"
+    tags: list[str] | None               # Filter by tags
 
 
 class ModelsFetcher:
@@ -575,3 +619,55 @@ class ExposuresFetcher:
             raise InvalidParameterError(
                 "Either exposure_name or unique_ids must be provided"
             )
+
+
+class SourcesFetcher:
+    def __init__(self, api_client: MetadataAPIClient):
+        self.api_client = api_client
+
+    async def get_environment_id(self) -> int:
+        config = await self.api_client.config_provider.get_config()
+        return config.environment_id
+
+    def _parse_response_to_json(self, result: dict) -> list[dict]:
+        raise_gql_error(result)
+        edges = result["data"]["environment"]["applied"]["sources"]["edges"]
+        parsed_edges: list[dict] = []
+        if not edges:
+            return parsed_edges
+        if result.get("errors"):
+            raise GraphQLError(f"GraphQL query failed: {result['errors']}")
+        for edge in edges:
+            if not isinstance(edge, dict) or "node" not in edge:
+                continue
+            node = edge["node"]
+            if not isinstance(node, dict):
+                continue
+            parsed_edges.append(node)
+        return parsed_edges
+
+    async def fetch_sources(self, source_filter: SourceFilter | None = None) -> list[dict]:
+        has_next_page = True
+        after_cursor: str = ""
+        all_edges: list[dict] = []
+            
+        while has_next_page and len(all_edges) < MAX_NUM_MODELS:  # Reuse MAX_NUM_MODELS limit
+            variables = {
+                "environmentId": await self.get_environment_id(),
+                "after": after_cursor,
+                "first": PAGE_SIZE,
+                "sourcesFilter": source_filter or {}
+            }
+
+            result = await self.api_client.execute_query(
+                GraphQLQueries.GET_SOURCES, variables
+            )
+            all_edges.extend(self._parse_response_to_json(result))
+
+            page_info = result["data"]["environment"]["applied"]["sources"][
+                "pageInfo"
+            ]
+            has_next_page = page_info.get("hasNextPage", False)
+            after_cursor = page_info.get("endCursor")
+
+        return all_edges
