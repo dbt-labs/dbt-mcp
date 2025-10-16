@@ -9,7 +9,12 @@ import asyncio
 import logging
 from typing import Any
 
-from dbt_mcp.lsp.lsp_connection import LSPConnection, LspEventName
+from dbt_mcp.lsp.lsp_connection import LspEventName
+from dbt_mcp.lsp.providers.lsp_connection_provider import (
+    LSPConnectionProviderProtocol,
+)
+from dbt_mcp.lsp.providers.lsp_client_provider import LSPClientProtocol
+
 
 logger = logging.getLogger(__name__)
 
@@ -17,14 +22,18 @@ logger = logging.getLogger(__name__)
 DEFAULT_LSP_TIMEOUT = 30
 
 
-class LSPClient:
+class LSPClient(LSPClientProtocol):
     """High-level client for dbt Fusion LSP operations.
 
     This class provides typed methods for dbt-specific LSP operations
     such as column lineage, model references, and more.
     """
 
-    def __init__(self, lsp_connection: LSPConnection, timeout: float | None = None):
+    def __init__(
+        self,
+        lsp_connection: LSPConnectionProviderProtocol,
+        timeout: float | None = None,
+    ):
         """Initialize the dbt LSP client.
 
         Args:
@@ -78,7 +87,7 @@ class LSPClient:
             Dictionary containing lineage information with 'nodes' key
         """
 
-        if not self.lsp_connection.state.compiled:
+        if not self.lsp_connection.compiled():
             await self.compile()
 
         logger.info(f"Requesting column lineage for {model_id}.{column_name}")
@@ -100,7 +109,9 @@ class LSPClient:
 
             return result
 
-    async def get_model_lineage(self, model_selector: str) -> dict[str, Any]:
+    async def get_model_lineage(
+        self, model_selector: str, timeout: float | None = None
+    ) -> dict[str, Any]:
         nodes = []
         response = await self._list_nodes(model_selector)
 
@@ -128,7 +139,7 @@ class LSPClient:
     ) -> dict[str, Any]:
         """List nodes in the dbt project."""
 
-        if not self.lsp_connection.state.compiled:
+        if not self.lsp_connection.compiled():
             await self.compile()
 
         logger.info("Listing nodes", extra={"model_selector": model_selector})
