@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Exclude Python 3.14 for now as pyarrow hasn't released wheels yet
-time: 2025-10-20T13:25:53.59341+02:00
