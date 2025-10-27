@@ -4,6 +4,10 @@ Parameters (all optional):
 - source_names: List of specific source names to filter by (e.g., ['raw_data', 'external_api'])
 - unique_ids: List of specific source table IDs to filter by
 
+Note:
+  - source_names correspond to the top-level source grouping in the source YML config
+  - unique_ids have the form `source.{YOUR-DBT-PROJECT}.{SOURCE-NAME}.{SOURCE-TABLE}`
+
 Returns information including:
 - name: The table name within the source
 - uniqueId: The unique identifier for this source table
@@ -18,12 +22,3 @@ Returns information including:
   - maxLoadedAtTimeAgoInS: How long ago the source was loaded (in seconds)
   - freshnessStatus: Current freshness status (e.g., 'pass', 'warn', 'error')
 
-This tool is useful for:
-- Data discovery and understanding available source tables
-- Lineage analysis to see what external data feeds into your dbt project
-- Source validation and freshness monitoring
-- Filtering sources by environment, status, or organizational tags
-- Getting a complete picture of your data graph including upstream dependencies
-
-Notes:
-- Filtering by `source_names` returns every table under each matching source definition, mirroring Discovery API behaviour.

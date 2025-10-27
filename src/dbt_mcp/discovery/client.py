@@ -382,8 +382,8 @@ class ModelFilter(TypedDict, total=False):
 
 
 class SourceFilter(TypedDict, total=False):
-    sourceNames: list[str] | None  # Filter by source names
-    uniqueIds: list[str] | None  # Filter by specific source table IDs
+    sourceNames: list[str]
+    uniqueIds: list[str] | None
 
 
 class ModelsFetcher:
@@ -651,8 +651,7 @@ class SourcesFetcher:
         source_names: list[str] | None = None,
         unique_ids: list[str] | None = None,
     ) -> list[dict]:
-        # Build the GraphQL filter
-        source_filter: dict[str, list[str]] = {}
+        source_filter: SourceFilter = {}
         if source_names is not None:
             source_filter["sourceNames"] = source_names
         if unique_ids is not None:
