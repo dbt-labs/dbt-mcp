@@ -509,3 +509,59 @@ class TestLoadConfig:
         config = self._load_config_with_env(env_vars)
         assert config.discovery_config_provider is not None
         assert config.credentials_provider is not None
+
+    def test_dbt_host_with_too_many_dots_fails_validation(self):
+        """Test that DBT_HOST with more than 2 dots (e.g., including prefix) fails validation."""
+        env_vars = {
+            "DBT_HOST": "tj155.us1.dbt.com",  # 3 dots - includes prefix incorrectly
+            "DBT_PROD_ENV_ID": "123",
+            "DBT_TOKEN": "test_token",
+            "DISABLE_DISCOVERY": "false",
+            "DISABLE_DBT_CLI": "true",
+            "DISABLE_SEMANTIC_LAYER": "true",
+            "DISABLE_REMOTE": "true",
+        }
+
+        with pytest.raises(
+            ValueError,
+            match="DBT_HOST appears to include a multi-cell account prefix.*found 3 dots",
+        ):
+            self._load_config_with_env(env_vars)
+
+    def test_dbt_host_with_correct_format_passes_validation(self):
+        """Test that DBT_HOST with 2 dots or fewer passes validation."""
+        # Test with 2 dots (standard format)
+        env_vars = {
+            "DBT_HOST": "us1.dbt.com",  # 2 dots - correct
+            "MULTICELL_ACCOUNT_PREFIX": "tj155",  # Prefix separate
+            "DBT_PROD_ENV_ID": "123",
+            "DBT_TOKEN": "test_token",
+            "DISABLE_DISCOVERY": "false",
+            "DISABLE_DBT_CLI": "true",
+            "DISABLE_SEMANTIC_LAYER": "true",
+            "DISABLE_REMOTE": "true",
+        }
+
+        config = self._load_config_with_env(env_vars)
+        assert config.discovery_config_provider is not None
+
+        # Test with default cloud.getdbt.com
+        env_vars["DBT_HOST"] = "cloud.getdbt.com"
+        env_vars.pop("MULTICELL_ACCOUNT_PREFIX")
+        config = self._load_config_with_env(env_vars)
+        assert config.discovery_config_provider is not None
+
+    def test_localhost_host_ignores_dot_validation(self):
+        """Test that localhost hostnames are not subject to dot count validation."""
+        env_vars = {
+            "DBT_HOST": "localhost:8080",  # 0 dots - should pass
+            "DBT_PROD_ENV_ID": "123",
+            "DBT_TOKEN": "test_token",
+            "DISABLE_DISCOVERY": "false",
+            "DISABLE_DBT_CLI": "true",
+            "DISABLE_SEMANTIC_LAYER": "true",
+            "DISABLE_REMOTE": "true",
+        }
+
+        config = self._load_config_with_env(env_vars)
+        assert config.discovery_config_provider is not None

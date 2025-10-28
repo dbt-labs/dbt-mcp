@@ -278,6 +278,16 @@ def validate_dbt_platform_settings(
             errors.append(
                 "DBT_HOST must not start with 'metadata' or 'semantic-layer'."
             )
+        if settings.actual_host and not settings.actual_host.startswith("localhost"):
+            # Count dots in the hostname (excluding port if present)
+            hostname_without_port = settings.actual_host.split(":")[0]
+            dot_count = hostname_without_port.count(".")
+            if dot_count > 2:
+                errors.append(
+                    f"DBT_HOST appears to include a multi-cell account prefix (found {dot_count} dots, expected 2 or fewer). "
+                    "If you're using Multi-cell, please set DBT_HOST to the base hostname (e.g., 'us1.dbt.com') "
+                    "and set MULTICELL_ACCOUNT_PREFIX or DBT_HOST_PREFIX separately (e.g., 'tj155')."
+                )
     if (
         not settings.actual_disable_sql
         and ToolName.TEXT_TO_SQL not in (settings.disable_tools or [])
