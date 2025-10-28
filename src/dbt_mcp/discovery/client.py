@@ -8,7 +8,7 @@ from dbt_mcp.errors import GraphQLError, InvalidParameterError
 from dbt_mcp.gql.errors import raise_gql_error
 
 PAGE_SIZE = 100
-MAX_NUM_MODELS = 1000
+MAX_NODE_QUERY_LIMIT = 1000
 
 
 class GraphQLQueries:
@@ -427,7 +427,7 @@ class ModelsFetcher:
         has_next_page = True
         after_cursor: str = ""
         all_edges: list[dict] = []
-        while has_next_page and len(all_edges) < MAX_NUM_MODELS:
+        while has_next_page and len(all_edges) < MAX_NODE_QUERY_LIMIT:
             variables = {
                 "environmentId": await self.get_environment_id(),
                 "after": after_cursor,
@@ -661,9 +661,7 @@ class SourcesFetcher:
         after_cursor: str = ""
         all_edges: list[dict] = []
 
-        while (
-            has_next_page and len(all_edges) < MAX_NUM_MODELS
-        ):  # Reuse MAX_NUM_MODELS limit
+        while has_next_page and len(all_edges) < MAX_NODE_QUERY_LIMIT:
             variables = {
                 "environmentId": await self.get_environment_id(),
                 "after": after_cursor,
