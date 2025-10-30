@@ -4,14 +4,13 @@ from dbt_mcp.config.config import load_config
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo
 from dbt_mcp.mcp.server import create_dbt_mcp
-from dbt_mcp.tools.toolsets import proxied_tools, toolsets
-from tests.env_vars import default_env_vars_context
+from dbt_mcp.tools.toolsets import proxied_tools, toolsets, Toolset
 
 
-async def test_toolsets_match_server_tools():
+async def test_toolsets_match_server_tools(env_setup):
     """Test that the defined toolsets match the tools registered in the server."""
     with (
-        default_env_vars_context(),
+        env_setup(),
         patch(
             "dbt_mcp.config.config.detect_binary_type", return_value=BinaryType.DBT_CORE
         ),
@@ -27,9 +26,12 @@ async def test_toolsets_match_server_tools():
         server_tools = await dbt_mcp.list_tools()
         # Manually adding SQL tools here because the server doesn't get them
         # in this unit test.
-        server_tool_names = {tool.name for tool in server_tools} | {
-            p.value for p in proxied_tools
-        }
+        server_tool_names = (
+            {tool.name for tool in server_tools}
+            | {p.value for p in proxied_tools}
+            # Also adding codegen because it's default off
+            | {t.value for t in toolsets[Toolset.DBT_CODEGEN]}
+        )
         defined_tools = set()
         for toolset_tools in toolsets.values():
             defined_tools.update({t.value for t in toolset_tools})

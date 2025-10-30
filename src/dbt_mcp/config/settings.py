@@ -1,12 +1,14 @@
 import logging
 import socket
 import time
+import shutil
 from enum import Enum
 from pathlib import Path
 from typing import Annotated
 
 from filelock import FileLock
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
+from pydantic_core.core_schema import ValidationInfo
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from dbt_mcp.config.dbt_project import DbtProjectYaml
@@ -69,7 +71,7 @@ class DbtMcpSettings(BaseSettings):
     disable_semantic_layer: bool = Field(False, alias="DISABLE_SEMANTIC_LAYER")
     disable_discovery: bool = Field(False, alias="DISABLE_DISCOVERY")
     disable_remote: bool | None = Field(None, alias="DISABLE_REMOTE")
-    disable_admin_api: bool | None = Field(False, alias="DISABLE_ADMIN_API")
+    disable_admin_api: bool = Field(False, alias="DISABLE_ADMIN_API")
     disable_sql: bool | None = Field(None, alias="DISABLE_SQL")
     disable_tools: Annotated[list[ToolName] | None, NoDecode] = Field(
         None, alias="DISABLE_TOOLS"
@@ -84,6 +86,32 @@ class DbtMcpSettings(BaseSettings):
 
     # Developer settings
     file_logging: bool = Field(False, alias="DBT_MCP_SERVER_FILE_LOGGING")
+
+    def __repr__(self):
+        """Custom repr to bring most important settings to front. Redact sensitive info."""
+        return (
+            #  auto-disable settings
+            f"DbtMcpSettings(dbt_host={self.dbt_host}, "
+            f"dbt_path={self.dbt_path}, "
+            f"dbt_project_dir={self.dbt_project_dir}, "
+            # disable settings
+            f"disable_dbt_cli={self.disable_dbt_cli}, "
+            f"disable_dbt_codegen={self.disable_dbt_codegen}, "
+            f"disable_semantic_layer={self.disable_semantic_layer}, "
+            f"disable_discovery={self.disable_discovery}, "
+            f"disable_admin_api={self.disable_admin_api}, "
+            f"disable_sql={self.disable_sql}, "
+            f"disable_tools={self.disable_tools}, "
+            f"disable_lsp={self.disable_lsp}, "
+            # everything else
+            f"dbt_prod_env_id={self.dbt_prod_env_id}, "
+            f"dbt_dev_env_id={self.dbt_dev_env_id}, "
+            f"dbt_user_id={self.dbt_user_id}, "
+            f"dbt_account_id={self.dbt_account_id}, "
+            f"dbt_token={'***redacted***' if self.dbt_token else None}, "
+            f"send_anonymous_usage_data={self.send_anonymous_usage_data}, "
+            f"file_logging={self.file_logging})"
+        )
 
     @property
     def actual_host(self) -> str | None:
@@ -144,6 +172,58 @@ class DbtMcpSettings(BaseSettings):
             return dbt_project_yml.flags.send_anonymous_usage_stats
         return True
 
+    @field_validator("dbt_host", "dbt_mcp_host", mode="after")
+    @classmethod
+    def validate_host(cls, v: str | None, info: ValidationInfo) -> str | None:
+        """Intentionally error on misconfigured host-like env vars (DBT_HOST and DBT_MCP_HOST)."""
+        host = (
+            v.rstrip("/").removeprefix("https://").removeprefix("http://") if v else v
+        )
+
+        if host and (host.startswith("metadata") or host.startswith("semantic-layer")):
+            field_name = (
+                getattr(info, "field_name", "None") if info is not None else "None"
+            ).upper()
+            raise ValueError(
+                f"{field_name} must not start with 'metadata' or 'semantic-layer': {v}"
+            )
+        return v
+
+    @field_validator("dbt_path", mode="after")
+    @classmethod
+    def validate_file_exists(cls, v: str | None, info: ValidationInfo) -> str | None:
+        """Validate a path exists in the system.
+
+        This will only fail if the path is explicitly set to a non-existing path.
+        It will auto-disable upon model validation if it can't be found AND it's not $PATH.
+        """
+        # Allow 'dbt' and 'dbtf' as special cases as they're expected to be on PATH
+        if v in ["dbt", "dbtf"]:
+            return v
+        if v:
+            p = Path(v)
+            if p.exists():
+                return v
+
+            field_name = (
+                getattr(info, "field_name", "None") if info is not None else "None"
+            ).upper()
+            raise ValueError(f"{field_name} path does not exist: {v}")
+        return v
+
+    @field_validator("dbt_project_dir", "dbt_profiles_dir", mode="after")
+    @classmethod
+    def validate_dir_exists(cls, v: str | None, info: ValidationInfo) -> str | None:
+        """Validate a directory path exists in the system."""
+        if v:
+            path = Path(v)
+            if not path.is_dir():
+                field_name = (
+                    getattr(info, "field_name", "None") if info is not None else "None"
+                ).upper()
+                raise ValueError(f"{field_name} directory does not exist: {v}")
+        return v
+
     @field_validator("disable_tools", mode="before")
     @classmethod
     def parse_disable_tools(cls, env_var: str | None) -> list[ToolName]:
@@ -165,6 +245,33 @@ class DbtMcpSettings(BaseSettings):
         if errors:
             raise ValueError("\n".join(errors))
         return tool_names
+
+    @model_validator(mode="after")
+    def auto_disable(self) -> "DbtMcpSettings":
+        """Auto-disable features based on required settings."""
+        # platform features
+        if (
+            not self.actual_host
+        ):  # host is the only truly required setting for platform features
+            # object.__setattr__ is used in case we want to set values on a frozen model
+            object.__setattr__(self, "disable_semantic_layer", True)
+            object.__setattr__(self, "disable_discovery", True)
+            object.__setattr__(self, "disable_admin_api", True)
+            object.__setattr__(self, "disable_sql", True)
+
+            logger.warning(
+                "Platform features have been automatically disabled due to missing DBT_HOST."
+            )
+
+        # CLI features
+        cli_errors = validate_dbt_cli_settings(self)
+        if cli_errors:
+            object.__setattr__(self, "disable_dbt_cli", True)
+            object.__setattr__(self, "disable_dbt_codegen", True)
+            logger.warning(
+                f"CLI features have been automatically disabled due to misconfigurations:\n    {'\n    '.join(cli_errors)}."
+            )
+        return self
 
 
 def _find_available_port(*, start_port: int, max_attempts: int = 20) -> int:
@@ -311,6 +418,12 @@ def validate_dbt_cli_settings(settings: DbtMcpSettings) -> list[str]:
             errors.append(
                 "DBT_PATH environment variable is required when dbt CLI tools are enabled."
             )
+        else:
+            dbt_path = Path(settings.dbt_path)
+            if not (dbt_path.exists() or shutil.which(dbt_path)):
+                errors.append(
+                    f"DBT_PATH executable can't be found: {settings.dbt_path}"
+                )
     return errors
 
 
