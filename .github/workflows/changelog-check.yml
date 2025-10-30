@@ -13,7 +13,7 @@ jobs:
     if: "!startsWith(github.event.head_commit.message, 'Release: v')"
     steps:
       - name: checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # actions/checkout@v4
         with:
           fetch-depth: 0
       - name: setup python
