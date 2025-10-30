@@ -30,9 +30,9 @@ This repo has automated tests which can be run with `task test:unit`. Additional
 {
   "mcpServers": {
     "dbt": {
-      "command": "<path-to-this-uv>",
+      "command": "<path-to-uv>",
       "args": [
-        --directory,
+        "--directory",
         "<path-to-this-directory>/dbt-mcp",
         "run",
         "dbt-mcp",
@@ -50,9 +50,9 @@ Or, if you would like to test with Oauth, use a configuration like this:
 {
   "mcpServers": {
     "dbt": {
-      "command": "<path-to-this-uv>",
+      "command": "<path-to-uv>",
       "args": [
-        --directory,
+        "--directory",
         "<path-to-this-directory>/dbt-mcp",
         "run",
         "dbt-mcp",
