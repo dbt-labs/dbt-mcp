@@ -237,10 +237,7 @@ class TestLoadConfig:
             mock_settings_class.return_value = settings_instance
             return load_config()
 
-    def test_valid_config_all_services_enabled(self, tmp_path):
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-
+    def test_valid_config_all_services_enabled(self, env_setup):
         env_vars = {
             "DBT_HOST": "test.dbt.com",
             "DBT_PROD_ENV_ID": "123",
@@ -248,32 +245,34 @@ class TestLoadConfig:
             "DBT_USER_ID": "789",
             "DBT_ACCOUNT_ID": "123",
             "DBT_TOKEN": "test_token",
-            "DBT_PROJECT_DIR": str(project_dir),
             "DISABLE_SEMANTIC_LAYER": "false",
             "DISABLE_DISCOVERY": "false",
             "DISABLE_REMOTE": "false",
             "DISABLE_ADMIN_API": "false",
-            "PATH": os.environ.get("PATH", ""),  # needed so dbt can be found in PATH
+            "DISABLE_DBT_CODEGEN": "false",
         }
+        with env_setup(env_vars=env_vars) as (project_dir, helpers):
+            config = load_config()
 
-        config = self._load_config_with_env(env_vars)
-
-        assert config.sql_config_provider is not None, (
-            "sql_config_provider should be set"
-        )
-        assert config.dbt_cli_config is not None, "dbt_cli_config should be set"
-        assert config.discovery_config_provider is not None, (
-            "discovery_config_provider should be set"
-        )
-        assert config.semantic_layer_config_provider is not None, (
-            "semantic_layer_config_provider should be set"
-        )
-        assert config.admin_api_config_provider is not None, (
-            "admin_api_config_provider should be set"
-        )
-        assert config.credentials_provider is not None, (
-            "credentials_provider should be set"
-        )
+            assert config.sql_config_provider is not None, (
+                "sql_config_provider should be set"
+            )
+            assert config.dbt_cli_config is not None, "dbt_cli_config should be set"
+            assert config.discovery_config_provider is not None, (
+                "discovery_config_provider should be set"
+            )
+            assert config.semantic_layer_config_provider is not None, (
+                "semantic_layer_config_provider should be set"
+            )
+            assert config.admin_api_config_provider is not None, (
+                "admin_api_config_provider should be set"
+            )
+            assert config.credentials_provider is not None, (
+                "credentials_provider should be set"
+            )
+            assert config.dbt_codegen_config is not None, (
+                "dbt_codegen_config should be set"
+            )
 
     def test_valid_config_all_services_disabled(self):
         env_vars = {
@@ -448,16 +447,11 @@ class TestLoadConfig:
         config = self._load_config_with_env(env_vars)
         assert config.sql_config_provider is not None
 
-    def test_disable_flags_combinations(self, tmp_path):
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-
+    def test_disable_flags_combinations(self, env_setup):
         base_env = {
             "DBT_HOST": "test.dbt.com",
             "DBT_PROD_ENV_ID": "123",
             "DBT_TOKEN": "test_token",
-            "DBT_PROJECT_DIR": str(project_dir),
-            "PATH": os.environ.get("PATH", ""),  # needed so dbt can be found in PATH
         }
 
         test_cases = [
@@ -486,18 +480,19 @@ class TestLoadConfig:
 
         for disable_flags in test_cases:
             env_vars = {**base_env, **disable_flags}
-            config = self._load_config_with_env(env_vars)
+            with env_setup(env_vars=env_vars) as (project_dir, helpers):
+                config = load_config()
 
-            # Verify configs are created only when services are enabled
-            assert (config.dbt_cli_config is not None) == (
-                disable_flags["DISABLE_DBT_CLI"] == "false"
-            )
-            assert (config.semantic_layer_config_provider is not None) == (
-                disable_flags["DISABLE_SEMANTIC_LAYER"] == "false"
-            )
-            assert (config.discovery_config_provider is not None) == (
-                disable_flags["DISABLE_DISCOVERY"] == "false"
-            )
+                # Verify configs are created only when services are enabled
+                assert (config.dbt_cli_config is not None) == (
+                    disable_flags["DISABLE_DBT_CLI"] == "false"
+                )
+                assert (config.semantic_layer_config_provider is not None) == (
+                    disable_flags["DISABLE_SEMANTIC_LAYER"] == "false"
+                )
+                assert (config.discovery_config_provider is not None) == (
+                    disable_flags["DISABLE_DISCOVERY"] == "false"
+                )
 
     def test_legacy_env_id_support(self):
         # Test that DBT_ENV_ID still works for backward compatibility
