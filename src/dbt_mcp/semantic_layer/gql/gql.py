@@ -40,4 +40,28 @@ query GetEntities($environmentId: BigInt!, $metrics: [MetricInput!]!, $search: S
   }
 }
     """,
+    "saved_queries": """
+query GetSavedQueries($environmentId: BigInt!, $search: String) {
+  savedQueriesPaginated(environmentId: $environmentId, search: $search) {
+    items {
+      name
+      description
+      label
+      queryParams {
+        metrics {
+          name
+        }
+        groupBy {
+          name
+          grain
+          datePart
+        }
+        where {
+          whereSqlTemplate
+        }
+      }
+    }
+  }
+}
+    """,
 }

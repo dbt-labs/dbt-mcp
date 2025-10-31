@@ -28,6 +28,7 @@ toolsets = {
     },
     Toolset.SEMANTIC_LAYER: {
         ToolName.LIST_METRICS,
+        ToolName.LIST_SAVED_QUERIES,
         ToolName.GET_DIMENSIONS,
         ToolName.GET_ENTITIES,
         ToolName.QUERY_METRICS,
