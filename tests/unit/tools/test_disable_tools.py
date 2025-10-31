@@ -3,15 +3,16 @@ from unittest.mock import patch
 from dbt_mcp.config.config import load_config
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.mcp.server import create_dbt_mcp
-from tests.env_vars import default_env_vars_context
 
 
-async def test_disable_tools():
+async def test_disable_tools(env_setup):
     """Test that the ToolName enum matches the tools registered in the server."""
     disable_tools = {"get_mart_models", "list_metrics"}
     with (
-        default_env_vars_context(
-            override_env_vars={"DISABLE_TOOLS": ",".join(disable_tools)}
+        env_setup(
+            env_vars={
+                "DISABLE_TOOLS": ",".join(disable_tools),
+            }
         ),
         patch(
             "dbt_mcp.config.config.detect_binary_type", return_value=BinaryType.DBT_CORE
@@ -26,11 +27,13 @@ async def test_disable_tools():
         assert not disable_tools.intersection(server_tool_names)
 
 
-async def test_disable_cli_tools():
+async def test_disable_cli_tools(env_setup):
     disable_tools = {"build", "compile", "docs", "list"}
     with (
-        default_env_vars_context(
-            override_env_vars={"DISABLE_TOOLS": ",".join(disable_tools)}
+        env_setup(
+            env_vars={
+                "DISABLE_TOOLS": ",".join(disable_tools),
+            }
         ),
         patch(
             "dbt_mcp.config.config.detect_binary_type", return_value=BinaryType.DBT_CORE

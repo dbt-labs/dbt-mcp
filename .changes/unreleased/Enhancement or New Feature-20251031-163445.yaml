@@ -1,0 +1,7 @@
+kind: Enhancement or New Feature
+body: |
+  add auto-disable and better validation of MCP settings.
+  A whole bunch of tests needed to change because of this
+  Created fixture for allowing the default behavior
+  to assume all required fields for settings are fully set
+time: 2025-10-31T16:34:45.256956318Z
