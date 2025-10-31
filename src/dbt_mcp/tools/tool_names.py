@@ -60,6 +60,7 @@ class ToolName(Enum):
 
     # dbt LSP tools
     GET_COLUMN_LINEAGE = "get_column_lineage"
+    RENAME_MODEL = "rename_model"
 
     @classmethod
     def get_all_tool_names(cls) -> set[str]:

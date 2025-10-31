@@ -111,6 +111,16 @@ async def list_lsp_tools(config: LspConfig) -> list[ToolDefinition]:
                 idempotent_hint=True,
             ),
         ),
+        ToolDefinition(
+            fn=call_with_lsp_client(rename_model),
+            description=get_prompt("lsp/rename_model"),
+            annotations=create_tool_annotations(
+                title="rename_model",
+                read_only_hint=False,
+                destructive_hint=True,  # Modifies files on disk
+                idempotent_hint=False,
+            ),
+        ),
     ]
 
 
@@ -159,6 +169,56 @@ async def get_column_lineage(
         error_msg = (
             f"Failed to get column lineage for {model_id}.{column_name}: {str(e)}"
         )
+        logger.error(error_msg)
+        return {"error": error_msg}
+
+
+async def rename_model(
+    lsp_client: LSPClient,
+    old_uri: str = Field(description=get_prompt("lsp/args/old_uri")),
+    new_uri: str = Field(description=get_prompt("lsp/args/new_uri")),
+) -> dict[str, Any]:
+    """Rename a dbt model in the project workspace and update all references.
+
+    Args:
+        lsp_client: The LSP client instance
+        old_uri: The current file URI
+        new_uri: The new file URI
+
+    Returns:
+        Dictionary with either:
+        - 'renamed': True, 'old_path', 'new_path', 'files_updated' on success
+        - 'error' key containing error message on failure
+    """
+    try:
+        response = await lsp_client.rename_model(
+            old_uri=old_uri,
+            new_uri=new_uri,
+            apply_edits=True,
+        )
+
+        # Check for LSP-level errors
+        if "error" in response:
+            logger.error(f"Error renaming model: {response['error']}")
+            return {"error": response["error"]}
+
+        if response.get("renamed"):
+            logger.info(
+                f"Successfully renamed {response['old_path']} to {response['new_path']}"
+            )
+            if response.get("files_updated"):
+                logger.info(
+                    f"Updated {len(response['files_updated'])} files with new references"
+                )
+
+        return response
+
+    except TimeoutError:
+        error_msg = f"Timeout waiting for model rename (old: {old_uri}, new: {new_uri})"
+        logger.error(error_msg)
+        return {"error": error_msg}
+    except Exception as e:
+        error_msg = f"Failed to rename model from {old_uri} to {new_uri}: {str(e)}"
         logger.error(error_msg)
         return {"error": error_msg}
 

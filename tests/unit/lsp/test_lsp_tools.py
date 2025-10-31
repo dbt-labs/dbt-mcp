@@ -9,6 +9,7 @@ from dbt_mcp.lsp.tools import (
     cleanup_lsp_connection,
     get_column_lineage,
     register_lsp_tools,
+    rename_model,
 )
 from dbt_mcp.lsp.lsp_client import LSPClient
 from dbt_mcp.mcp.server import FastMCP
@@ -66,6 +67,7 @@ async def test_register_lsp_tools_success(
         # Verify correct tools were registered
         tool_names = [tool.name for tool in await test_mcp_server.list_tools()]
         assert ToolName.GET_COLUMN_LINEAGE.value in tool_names
+        assert ToolName.RENAME_MODEL.value in tool_names
 
 
 @pytest.mark.asyncio
@@ -202,4 +204,104 @@ async def test_get_column_lineage_generic_exception() -> None:
 
     assert "error" in result
     assert "Failed to get column lineage" in result["error"]
+    assert "Connection lost" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_rename_model_success() -> None:
+    """Test successful model rename."""
+    mock_lsp_client = AsyncMock(spec=LSPClient)
+    mock_lsp_client.rename_model = AsyncMock(
+        return_value={
+            "renamed": True,
+            "old_path": "/path/to/old_model.sql",
+            "new_path": "/path/to/new_model.sql",
+            "files_updated": ["/path/to/ref_file.sql"],
+        }
+    )
+
+    old_uri = "file:///path/to/old_model.sql"
+    new_uri = "file:///path/to/new_model.sql"
+    result = await rename_model(mock_lsp_client, old_uri, new_uri)
+
+    assert result["renamed"] is True
+    assert result["old_path"] == "/path/to/old_model.sql"
+    assert result["new_path"] == "/path/to/new_model.sql"
+    assert len(result["files_updated"]) == 1
+    mock_lsp_client.rename_model.assert_called_once_with(
+        old_uri=old_uri, new_uri=new_uri, apply_edits=True
+    )
+
+
+@pytest.mark.asyncio
+async def test_rename_model_with_multiple_updates() -> None:
+    """Test model rename that updates multiple files."""
+    mock_lsp_client = AsyncMock(spec=LSPClient)
+    mock_lsp_client.rename_model = AsyncMock(
+        return_value={
+            "renamed": True,
+            "old_path": "/path/to/old_model.sql",
+            "new_path": "/path/to/new_model.sql",
+            "files_updated": [
+                "/path/to/ref_file1.sql",
+                "/path/to/ref_file2.sql",
+                "/path/to/ref_file3.sql",
+            ],
+        }
+    )
+
+    old_uri = "file:///path/to/old_model.sql"
+    new_uri = "file:///path/to/new_model.sql"
+    result = await rename_model(mock_lsp_client, old_uri, new_uri)
+
+    assert result["renamed"] is True
+    assert len(result["files_updated"]) == 3
+
+
+@pytest.mark.asyncio
+async def test_rename_model_error() -> None:
+    """Test model rename with error response."""
+    mock_lsp_client = AsyncMock(spec=LSPClient)
+    mock_lsp_client.rename_model = AsyncMock(return_value={"error": "Model not found"})
+
+    result = await rename_model(
+        mock_lsp_client,
+        "file:///invalid/old_model.sql",
+        "file:///invalid/new_model.sql",
+    )
+
+    assert "error" in result
+    assert "Model not found" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_rename_model_timeout() -> None:
+    """Test model rename with timeout error."""
+    mock_lsp_client = AsyncMock(spec=LSPClient)
+    mock_lsp_client.rename_model = AsyncMock(side_effect=TimeoutError())
+
+    result = await rename_model(
+        mock_lsp_client,
+        "file:///path/to/old_model.sql",
+        "file:///path/to/new_model.sql",
+    )
+
+    assert "error" in result
+    assert "Timeout waiting for model rename" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_rename_model_generic_exception() -> None:
+    """Test model rename with generic exception."""
+    mock_lsp_client = AsyncMock(spec=LSPClient)
+    mock_lsp_client.rename_model = AsyncMock(side_effect=Exception("Connection lost"))
+
+    result = await rename_model(
+        mock_lsp_client,
+        "file:///path/to/old_model.sql",
+        "file:///path/to/new_model.sql",
+    )
+
+    assert "error" in result
+    assert "Failed to rename model" in result["error"]
     assert "Connection lost" in result["error"]
