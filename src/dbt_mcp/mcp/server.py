@@ -135,10 +135,17 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
             exclude_tools=config.disable_tools,
         )
 
-    if config.discovery_config_provider:
+    # Register discovery tools if either a platform discovery provider or a
+    # dbt CLI config is available. Discovery tools will prefer platform
+    # implementations when present and fall back to CLI-based implementations
+    # for a subset of functionality (e.g. parents/children lineage) when not.
+    if config.discovery_config_provider or config.dbt_cli_config:
         logger.info("Registering discovery tools")
         register_discovery_tools(
-            dbt_mcp, config.discovery_config_provider, config.disable_tools
+            dbt_mcp,
+            config.discovery_config_provider,
+            config.dbt_cli_config,
+            config.disable_tools,
         )
 
     if config.dbt_cli_config:
