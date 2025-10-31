@@ -57,6 +57,9 @@ tool_policies = {
     ToolName.LIST_METRICS.value: ToolPolicy(
         name=ToolName.LIST_METRICS.value, behavior=ToolBehavior.METADATA
     ),
+    ToolName.LIST_SAVED_QUERIES.value: ToolPolicy(
+        name=ToolName.LIST_SAVED_QUERIES.value, behavior=ToolBehavior.METADATA
+    ),
     ToolName.GET_DIMENSIONS.value: ToolPolicy(
         name=ToolName.GET_DIMENSIONS.value, behavior=ToolBehavior.METADATA
     ),
