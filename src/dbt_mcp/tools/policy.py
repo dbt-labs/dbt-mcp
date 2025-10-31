@@ -149,4 +149,7 @@ tool_policies = {
     ToolName.GET_COLUMN_LINEAGE.value: ToolPolicy(
         name=ToolName.GET_COLUMN_LINEAGE.value, behavior=ToolBehavior.METADATA
     ),
+    ToolName.RENAME_MODEL.value: ToolPolicy(
+        name=ToolName.RENAME_MODEL.value, behavior=ToolBehavior.METADATA
+    ),
 }

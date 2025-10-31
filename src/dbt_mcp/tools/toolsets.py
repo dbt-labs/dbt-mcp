@@ -73,5 +73,6 @@ toolsets = {
     },
     Toolset.DBT_LSP: {
         ToolName.GET_COLUMN_LINEAGE,
+        ToolName.RENAME_MODEL,
     },
 }
