@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Make release version determination automatic based on changie changelog entries. The workflow now defaults to 'auto' mode which uses 'changie batch auto' to
+time: 2025-11-01T08:24:57.988089+09:00

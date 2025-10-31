@@ -7,9 +7,10 @@ on:
     inputs:
       bump:
         type: choice
-        description: The version bump type.
-        default: minor
+        description: The version bump type. Select 'auto' to determine from changelog entries.
+        default: auto
         options:
+          - auto
           - major
           - minor
           - patch

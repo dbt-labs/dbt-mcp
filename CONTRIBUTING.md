@@ -125,7 +125,7 @@ Only people in the `CODEOWNERS` file should trigger a new release with these ste
     - Editing a tool or parameter description prompt
     - Adding an allowed environment variable with the `DBT_MCP_` prefix
 2. Trigger the [Create release PR Action](https://github.com/dbt-labs/dbt-mcp/actions/workflows/create-release-pr.yml).
-  - If the release is NOT a pre-release, just pick if the bump should be patch, minor or major
+  - If the release is NOT a pre-release, select `auto` (default) to automatically determine the version bump based on changelog entries, or manually pick patch, minor or major if needed
   - If the release is a pre-release, set the bump and the pre-release suffix. We support alpha.N, beta.N and rc.N.
     - use alpha for early releases of experimental features that specific people might want to test. Significant changes can be expected between alpha and the official release.
     - use beta for releases that are mostly stable but still in development. It can be used to gather feedback from a group of peopleon how a specific feature should work.
