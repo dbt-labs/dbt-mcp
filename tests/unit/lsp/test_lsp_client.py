@@ -1,7 +1,6 @@
 """Tests for the DbtLspClient class."""
 
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -100,10 +99,10 @@ async def test_rename_model_success_with_apply_edits(
     old_file = tmp_path / "old_file.sql"
     new_file = tmp_path / "new_file.sql"
     ref_file = tmp_path / "ref_file.sql"
-    
+
     old_file.write_text("SELECT * FROM table")
     ref_file.write_text("SELECT * FROM {{ ref('old_file') }}")
-    
+
     # Setup mock LSP response
     mock_result = {
         "changes": {
@@ -130,14 +129,14 @@ async def test_rename_model_success_with_apply_edits(
     assert result["old_path"] == str(old_file)
     assert result["new_path"] == str(new_file)
     assert str(ref_file) in result["files_updated"]
-    
+
     # Verify file was renamed
     assert not old_file.exists()
     assert new_file.exists()
-    
+
     # Verify reference was updated
     assert ref_file.read_text() == "SELECT * FROM {{ ref('new_file') }}"
-    
+
     # Verify didRenameFiles notification was sent
     mock_lsp_connection.send_notification.assert_called_once()
 
@@ -191,7 +190,9 @@ async def test_rename_model_error(lsp_client, mock_lsp_connection):
 
 
 @pytest.mark.asyncio
-async def test_rename_model_source_not_exists(lsp_client, mock_lsp_connection, tmp_path):
+async def test_rename_model_source_not_exists(
+    lsp_client, mock_lsp_connection, tmp_path
+):
     """Test model rename when source file doesn't exist."""
     # Setup mock
     mock_lsp_connection.send_request.return_value = {"changes": {}}
@@ -207,14 +208,16 @@ async def test_rename_model_source_not_exists(lsp_client, mock_lsp_connection, t
 
 
 @pytest.mark.asyncio
-async def test_rename_model_destination_exists(lsp_client, mock_lsp_connection, tmp_path):
+async def test_rename_model_destination_exists(
+    lsp_client, mock_lsp_connection, tmp_path
+):
     """Test model rename when destination file already exists."""
     # Create both files
     old_file = tmp_path / "old.sql"
     new_file = tmp_path / "new.sql"
     old_file.write_text("content")
     new_file.write_text("existing")
-    
+
     # Setup mock
     mock_lsp_connection.send_request.return_value = {"changes": {}}
 
@@ -235,7 +238,7 @@ async def test_rename_model_none_response(lsp_client, mock_lsp_connection, tmp_p
     old_file = tmp_path / "old.sql"
     new_file = tmp_path / "new.sql"
     old_file.write_text("content")
-    
+
     # Setup mock to return None (simulating the user's issue)
     mock_lsp_connection.send_request.return_value = None
 
@@ -249,7 +252,7 @@ async def test_rename_model_none_response(lsp_client, mock_lsp_connection, tmp_p
     assert result["old_path"] == str(old_file)
     assert result["new_path"] == str(new_file)
     assert result["files_updated"] == []
-    
+
     # Verify file was renamed
     assert not old_file.exists()
     assert new_file.exists()

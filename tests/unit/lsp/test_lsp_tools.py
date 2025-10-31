@@ -262,9 +262,7 @@ async def test_rename_model_with_multiple_updates() -> None:
 async def test_rename_model_error() -> None:
     """Test model rename with error response."""
     mock_lsp_client = AsyncMock(spec=LSPClient)
-    mock_lsp_client.rename_model = AsyncMock(
-        return_value={"error": "Model not found"}
-    )
+    mock_lsp_client.rename_model = AsyncMock(return_value={"error": "Model not found"})
 
     result = await rename_model(
         mock_lsp_client,

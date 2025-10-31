@@ -158,11 +158,9 @@ class LSPClient:
         path_str = unquote(parsed.path)
         return Path(path_str)
 
-    def _apply_single_edit(
-        self, lines: list[str], edit: dict[str, Any]
-    ) -> None:
+    def _apply_single_edit(self, lines: list[str], edit: dict[str, Any]) -> None:
         """Apply a single text edit to a list of lines.
-        
+
         Args:
             lines: List of lines (with line endings preserved)
             edit: LSP TextEdit object with 'range' and 'newText'
@@ -172,23 +170,23 @@ class LSPClient:
         end_line_idx = edit["range"]["end"]["line"]
         end_char = edit["range"]["end"]["character"]
         new_text = edit["newText"]
-        
+
         # Handle single line edit
         if start_line_idx == end_line_idx:
             if start_line_idx < len(lines):
                 line = lines[start_line_idx]
                 # Strip line ending to work with just the text
-                line_ending = ''
-                if line.endswith('\r\n'):
-                    line_ending = '\r\n'
+                line_ending = ""
+                if line.endswith("\r\n"):
+                    line_ending = "\r\n"
                     line = line[:-2]
-                elif line.endswith('\n'):
-                    line_ending = '\n'
+                elif line.endswith("\n"):
+                    line_ending = "\n"
                     line = line[:-1]
-                elif line.endswith('\r'):
-                    line_ending = '\r'
+                elif line.endswith("\r"):
+                    line_ending = "\r"
                     line = line[:-1]
-                
+
                 # Apply the edit
                 lines[start_line_idx] = (
                     line[:start_char] + new_text + line[end_char:] + line_ending
@@ -197,39 +195,37 @@ class LSPClient:
             # Multi-line edit
             start_line = lines[start_line_idx]
             end_line = lines[end_line_idx]
-            
+
             # Strip line endings
-            start_line_ending = ''
-            if start_line.endswith('\r\n'):
-                start_line_ending = '\r\n'
+            if start_line.endswith("\r\n"):
                 start_line = start_line[:-2]
-            elif start_line.endswith('\n'):
-                start_line_ending = '\n'
+            elif start_line.endswith("\n"):
                 start_line = start_line[:-1]
-            elif start_line.endswith('\r'):
-                start_line_ending = '\r'
+            elif start_line.endswith("\r"):
                 start_line = start_line[:-1]
-            
-            end_line_ending = ''
-            if end_line.endswith('\r\n'):
-                end_line_ending = '\r\n'
+
+            end_line_ending = ""
+            if end_line.endswith("\r\n"):
+                end_line_ending = "\r\n"
                 end_line = end_line[:-2]
-            elif end_line.endswith('\n'):
-                end_line_ending = '\n'
+            elif end_line.endswith("\n"):
+                end_line_ending = "\n"
                 end_line = end_line[:-1]
-            elif end_line.endswith('\r'):
-                end_line_ending = '\r'
+            elif end_line.endswith("\r"):
+                end_line_ending = "\r"
                 end_line = end_line[:-1]
-            
+
             start_line_text = start_line[:start_char]
             end_line_text = end_line[end_char:]
-            lines[start_line_idx] = start_line_text + new_text + end_line_text + end_line_ending
+            lines[start_line_idx] = (
+                start_line_text + new_text + end_line_text + end_line_ending
+            )
             # Remove the lines in between
-            del lines[start_line_idx + 1:end_line_idx + 1]
+            del lines[start_line_idx + 1 : end_line_idx + 1]
 
     def _apply_text_edits(self, file_path: Path, edits: list[dict[str, Any]]) -> None:
         """Apply text edits to a file.
-        
+
         Args:
             file_path: Path to the file to edit
             edits: List of LSP TextEdit objects with 'range' and 'newText'
@@ -237,28 +233,28 @@ class LSPClient:
         if not file_path.exists():
             logger.warning(f"File not found for edits: {file_path}")
             return
-            
+
         # Read the file content
         content = file_path.read_text()
-        
+
         # Sort edits in reverse order (end to start) to avoid offset issues
         # We sort by start position descending so we can apply from end to beginning
         sorted_edits = sorted(
             edits,
             key=lambda e: (
                 e["range"]["start"]["line"],
-                e["range"]["start"]["character"]
+                e["range"]["start"]["character"],
             ),
-            reverse=True
+            reverse=True,
         )
-        
+
         # Convert content to list of lines for easier manipulation
         lines = content.splitlines(keepends=True)
-        
+
         # Apply each edit
         for edit in sorted_edits:
             self._apply_single_edit(lines, edit)
-        
+
         # Write back to file
         file_path.write_text("".join(lines))
         logger.info(f"Applied {len(edits)} edits to {file_path}")
@@ -346,7 +342,9 @@ class LSPClient:
                                 self._apply_text_edits(file_path, change["edits"])
                                 files_updated.append(str(file_path))
                             except Exception as e:
-                                logger.error(f"Failed to apply edits to {file_uri}: {e}")
+                                logger.error(
+                                    f"Failed to apply edits to {file_uri}: {e}"
+                                )
                                 return {
                                     "error": f"Failed to apply edits to {file_uri}: {str(e)}"
                                 }
@@ -354,13 +352,13 @@ class LSPClient:
                 # Step 3: Perform the actual file rename
                 old_path = self._uri_to_path(old_uri)
                 new_path = self._uri_to_path(new_uri)
-                
+
                 if not old_path.exists():
                     return {"error": f"Source file does not exist: {old_path}"}
-                
+
                 if new_path.exists():
                     return {"error": f"Destination file already exists: {new_path}"}
-                
+
                 try:
                     # Ensure parent directory exists
                     new_path.parent.mkdir(parents=True, exist_ok=True)
@@ -392,7 +390,7 @@ class LSPClient:
                     "files_updated": files_updated,
                 }
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return {"error": "Timeout waiting for LSP response"}
         except Exception as e:
             return {"error": f"Failed to rename file: {str(e)}"}
