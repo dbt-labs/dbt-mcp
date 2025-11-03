@@ -16,11 +16,9 @@ cd dbt-mcp
 
 4. Run `task install`
 
-5. Configure environment variables:
-```shell
-cp .env.example .env
-```
-Then edit `.env` with your specific environment variables (see the `Configuration` section of the `README.md`).
+5. Refer to [our documentation](https://docs.getdbt.com/docs/dbt-ai/about-mcp) for environment variable configuration. You can use a tool like [direnv](https://direnv.net/) to manage environment variables just for this project.
+
+6. Run `task client` to chat with dbt MCP in your terminal.
 
 ## Testing
 

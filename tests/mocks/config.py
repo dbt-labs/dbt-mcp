@@ -22,6 +22,7 @@ from dbt_mcp.config.headers import (
 )
 from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
 from dbt_mcp.dbt_cli.binary_type import BinaryType
+from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo
 from dbt_mcp.oauth.token_provider import StaticTokenProvider
 
 mock_settings = DbtMcpSettings.model_construct()
@@ -52,7 +53,10 @@ mock_dbt_codegen_config = DbtCodegenConfig(
 
 mock_lsp_config = LspConfig(
     project_dir="/test/project",
-    lsp_path="/path/to/lsp",
+    lsp_binary_info=LspBinaryInfo(
+        path="/path/to/lsp",
+        version="1.0.0",
+    ),
 )
 
 mock_discovery_config = DiscoveryConfig(

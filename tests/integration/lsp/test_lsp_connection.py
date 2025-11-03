@@ -11,7 +11,7 @@ import socket
 import pytest
 
 from dbt_mcp.lsp.lsp_connection import (
-    LSPConnection,
+    SocketLSPConnection,
     LspEventName,
     JsonRpcMessage,
 )
@@ -25,7 +25,7 @@ class TestRealSocketOperations:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Use real socket
         conn.setup_socket()
@@ -52,7 +52,7 @@ class TestRealSocketOperations:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
         conn.setup_socket()
 
         try:
@@ -70,7 +70,7 @@ class TestRealSocketOperations:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test", connection_timeout=2.0)
+        conn = SocketLSPConnection(str(binary_path), "/test", connection_timeout=2.0)
         conn.setup_socket()
 
         try:
@@ -117,7 +117,7 @@ class TestRealAsyncioQueues:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # The _outgoing_queue is already a real asyncio.Queue
         assert isinstance(conn._outgoing_queue, asyncio.Queue)
@@ -144,7 +144,7 @@ class TestRealAsyncioQueues:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Send multiple messages
         msg1 = JsonRpcMessage(id=1, method="first")
@@ -180,7 +180,7 @@ class TestRealAsyncioFutures:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Create real future in current event loop
         future = asyncio.get_running_loop().create_future()
@@ -202,7 +202,7 @@ class TestRealAsyncioFutures:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Create real future
         future = asyncio.get_running_loop().create_future()
@@ -226,7 +226,7 @@ class TestRealAsyncioFutures:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Register to wait for a notification
         future = conn.wait_for_notification(LspEventName.compileComplete)
@@ -257,7 +257,7 @@ class TestRealSocketCommunication:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Create a real socket pair (connected sockets)
         server_socket, client_socket = socket.socketpair()
@@ -298,7 +298,7 @@ class TestRealSocketCommunication:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Create socket pair
         server_socket, client_socket = socket.socketpair()
@@ -347,7 +347,7 @@ class TestRealSocketCommunication:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Create socket pair
         server_socket, client_socket = socket.socketpair()
@@ -429,7 +429,7 @@ class TestRealMessageParsing:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Create a real LSP message exactly as it would be sent
         content = json.dumps(
@@ -462,7 +462,7 @@ class TestRealMessageParsing:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Create a message
         content = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "test"})
@@ -503,7 +503,7 @@ class TestRealConcurrentOperations:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Create multiple real futures for concurrent requests
         futures = {}
@@ -541,7 +541,7 @@ class TestRealConcurrentOperations:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Create multiple waiters for the same event
         future1 = conn.wait_for_notification(LspEventName.compileComplete)
@@ -573,7 +573,7 @@ class TestRealStateManagement:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Verify state is a real instance
         from dbt_mcp.lsp.lsp_connection import LspConnectionState
@@ -589,7 +589,7 @@ class TestRealStateManagement:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Get sequential IDs
         ids = [conn.state.get_next_request_id() for _ in range(100)]
@@ -606,7 +606,7 @@ class TestRealStateManagement:
         binary_path = tmp_path / "lsp"
         binary_path.touch()
 
-        conn = LSPConnection(str(binary_path), "/test")
+        conn = SocketLSPConnection(str(binary_path), "/test")
 
         # Update state
         conn.state.initialized = True
