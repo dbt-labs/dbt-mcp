@@ -1,3 +1,0 @@
-kind: Enhancement or New Feature
-body: Add list_saved_queries tool to the Semantic Layer, enabling discovery of predefined MetricFlow queries via GraphQL API. This allows AI agents to list and search saved queries with their associated metrics, dimensions, and filters.
-time: 2025-11-01T07:22:30.000000+09:00

@@ -1,3 +1,0 @@
-kind: Under the Hood
-body: Make release version determination automatic based on changie changelog entries. The workflow now defaults to 'auto' mode which uses 'changie batch auto' to
-time: 2025-11-04T05:41:47.588109+09:00
