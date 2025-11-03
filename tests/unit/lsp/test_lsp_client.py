@@ -5,19 +5,19 @@ from unittest.mock import MagicMock
 import pytest
 
 from dbt_mcp.lsp.lsp_client import LSPClient
-from dbt_mcp.lsp.lsp_connection import LSPConnection, LspConnectionState
+from dbt_mcp.lsp.lsp_connection import SocketLSPConnection, LspConnectionState
 
 
 @pytest.fixture
-def mock_lsp_connection() -> LSPConnection:
+def mock_lsp_connection() -> SocketLSPConnection:
     """Create a mock LSP connection manager."""
-    connection = MagicMock(spec=LSPConnection)
+    connection = MagicMock(spec=SocketLSPConnection)
     connection.state = LspConnectionState(initialized=True, compiled=True)
     return connection
 
 
 @pytest.fixture
-def lsp_client(mock_lsp_connection: LSPConnection):
+def lsp_client(mock_lsp_connection: SocketLSPConnection):
     """Create an LSP client with a mock connection manager."""
     return LSPClient(mock_lsp_connection)
 
