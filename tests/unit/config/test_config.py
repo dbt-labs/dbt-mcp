@@ -27,6 +27,7 @@ class TestDbtMcpSettings:
             "DBT_PATH",
             "DBT_CLI_TIMEOUT",
             "DISABLE_DBT_CLI",
+            "DISABLE_DBT_CODEGEN",
             "DISABLE_SEMANTIC_LAYER",
             "DISABLE_DISCOVERY",
             "DISABLE_REMOTE",
@@ -39,21 +40,23 @@ class TestDbtMcpSettings:
         for var in env_vars_to_clear:
             os.environ.pop(var, None)
 
-    def test_default_values(self):
+    def test_default_values(self, env_setup):
         # Test with clean environment and no .env file
         clean_env = {
-            "HOME": os.environ.get("HOME", "")
+            "HOME": os.environ.get("HOME", ""),
         }  # Keep HOME for potential path resolution
-        with patch.dict(os.environ, clean_env, clear=True):
+        with env_setup(env_vars=clean_env):
             settings = DbtMcpSettings(_env_file=None)
             assert settings.dbt_path == "dbt"
             assert settings.dbt_cli_timeout == DEFAULT_DBT_CLI_TIMEOUT
-            assert settings.disable_dbt_cli is False
-            assert settings.disable_semantic_layer is False
-            assert settings.disable_discovery is False
-            assert settings.disable_remote is None
-            assert settings.disable_sql is None
-            assert settings.disable_tools == []
+            assert settings.disable_remote is None, "disable_remote"
+            assert settings.disable_dbt_cli is False, "disable_dbt_cli"
+            assert settings.disable_dbt_codegen is True, "disable_dbt_codegen"
+            assert settings.disable_admin_api is False, "disable_admin_api"
+            assert settings.disable_semantic_layer is False, "disable_semantic_layer"
+            assert settings.disable_discovery is False, "disable_discovery"
+            assert settings.disable_sql is None, "disable_sql"
+            assert settings.disable_tools == [], "disable_tools"
 
     def test_usage_tracking_disabled_by_env_vars(self):
         env_vars = {
@@ -65,34 +68,24 @@ class TestDbtMcpSettings:
             settings = DbtMcpSettings(_env_file=None)
             assert settings.usage_tracking_enabled is False
 
-    def test_usage_tracking_respects_dbt_project_yaml(self, tmp_path):
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        (project_dir / "dbt_project.yml").write_text(
-            "flags:\n  send_anonymous_usage_stats: false\n"
-        )
+    def test_usage_tracking_respects_dbt_project_yaml(self, env_setup):
+        with env_setup() as (project_dir, helpers):
+            (project_dir / "dbt_project.yml").write_text(
+                "flags:\n  send_anonymous_usage_stats: false\n"
+            )
 
-        env_vars = {
-            "DBT_PROJECT_DIR": str(project_dir),
-        }
-
-        with patch.dict(os.environ, env_vars, clear=True):
             settings = DbtMcpSettings(_env_file=None)
             assert settings.usage_tracking_enabled is False
 
-    def test_usage_tracking_env_var_precedence_over_yaml(self, tmp_path):
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        (project_dir / "dbt_project.yml").write_text(
-            "flags:\n  send_anonymous_usage_stats: true\n"
-        )
-
+    def test_usage_tracking_env_var_precedence_over_yaml(self, env_setup):
         env_vars = {
-            "DBT_PROJECT_DIR": str(project_dir),
             "DBT_SEND_ANONYMOUS_USAGE_STATS": "false",
         }
+        with env_setup(env_vars=env_vars) as (project_dir, helpers):
+            (project_dir / "dbt_project.yml").write_text(
+                "flags:\n  send_anonymous_usage_stats: true\n"
+            )
 
-        with patch.dict(os.environ, env_vars, clear=True):
             settings = DbtMcpSettings(_env_file=None)
             assert settings.usage_tracking_enabled is False
 
@@ -120,22 +113,21 @@ class TestDbtMcpSettings:
             settings = DbtMcpSettings(_env_file=None)
             assert settings.usage_tracking_enabled is False
 
-    def test_env_var_parsing(self):
+    def test_env_var_parsing(self, env_setup):
         env_vars = {
             "DBT_HOST": "test.dbt.com",
             "DBT_PROD_ENV_ID": "123",
             "DBT_TOKEN": "test_token",
-            "DBT_PROJECT_DIR": "/test/project",
             "DISABLE_DBT_CLI": "true",
             "DISABLE_TOOLS": "build,compile,docs",
         }
 
-        with patch.dict(os.environ, env_vars):
+        with env_setup(env_vars=env_vars) as (project_dir, helpers):
             settings = DbtMcpSettings(_env_file=None)
             assert settings.dbt_host == "test.dbt.com"
             assert settings.dbt_prod_env_id == 123
             assert settings.dbt_token == "test_token"
-            assert settings.dbt_project_dir == "/test/project"
+            assert settings.dbt_project_dir == str(project_dir)
             assert settings.disable_dbt_cli is True
             assert settings.disable_tools == [
                 ToolName.BUILD,
@@ -190,6 +182,17 @@ class TestDbtMcpSettings:
                 settings.actual_prod_environment_id == 123
             )  # DBT_PROD_ENV_ID takes precedence
 
+    def test_auto_disable_platform_features_logging(self):
+        with patch.dict(os.environ, {}, clear=True):
+            settings = DbtMcpSettings(_env_file=None)
+            # When DBT_HOST is missing, platform features should be disabled
+            assert settings.disable_admin_api is True
+            assert settings.disable_sql is True
+            assert settings.disable_semantic_layer is True
+            assert settings.disable_discovery is True
+            assert settings.disable_dbt_cli is True
+            assert settings.disable_dbt_codegen is True
+
 
 class TestLoadConfig:
     def setup_method(self):
@@ -234,7 +237,7 @@ class TestLoadConfig:
             mock_settings_class.return_value = settings_instance
             return load_config()
 
-    def test_valid_config_all_services_enabled(self):
+    def test_valid_config_all_services_enabled(self, env_setup):
         env_vars = {
             "DBT_HOST": "test.dbt.com",
             "DBT_PROD_ENV_ID": "123",
@@ -242,21 +245,34 @@ class TestLoadConfig:
             "DBT_USER_ID": "789",
             "DBT_ACCOUNT_ID": "123",
             "DBT_TOKEN": "test_token",
-            "DBT_PROJECT_DIR": "/test/project",
             "DISABLE_SEMANTIC_LAYER": "false",
             "DISABLE_DISCOVERY": "false",
             "DISABLE_REMOTE": "false",
             "DISABLE_ADMIN_API": "false",
+            "DISABLE_DBT_CODEGEN": "false",
         }
+        with env_setup(env_vars=env_vars) as (project_dir, helpers):
+            config = load_config()
 
-        config = self._load_config_with_env(env_vars)
-
-        assert config.sql_config_provider is not None
-        assert config.dbt_cli_config is not None
-        assert config.discovery_config_provider is not None
-        assert config.semantic_layer_config_provider is not None
-        assert config.admin_api_config_provider is not None
-        assert config.credentials_provider is not None
+            assert config.sql_config_provider is not None, (
+                "sql_config_provider should be set"
+            )
+            assert config.dbt_cli_config is not None, "dbt_cli_config should be set"
+            assert config.discovery_config_provider is not None, (
+                "discovery_config_provider should be set"
+            )
+            assert config.semantic_layer_config_provider is not None, (
+                "semantic_layer_config_provider should be set"
+            )
+            assert config.admin_api_config_provider is not None, (
+                "admin_api_config_provider should be set"
+            )
+            assert config.credentials_provider is not None, (
+                "credentials_provider should be set"
+            )
+            assert config.dbt_codegen_config is not None, (
+                "dbt_codegen_config should be set"
+            )
 
     def test_valid_config_all_services_disabled(self):
         env_vars = {
@@ -431,12 +447,11 @@ class TestLoadConfig:
         config = self._load_config_with_env(env_vars)
         assert config.sql_config_provider is not None
 
-    def test_disable_flags_combinations(self):
+    def test_disable_flags_combinations(self, env_setup):
         base_env = {
             "DBT_HOST": "test.dbt.com",
             "DBT_PROD_ENV_ID": "123",
             "DBT_TOKEN": "test_token",
-            "DBT_PROJECT_DIR": "/test",
         }
 
         test_cases = [
@@ -465,18 +480,19 @@ class TestLoadConfig:
 
         for disable_flags in test_cases:
             env_vars = {**base_env, **disable_flags}
-            config = self._load_config_with_env(env_vars)
+            with env_setup(env_vars=env_vars) as (project_dir, helpers):
+                config = load_config()
 
-            # Verify configs are created only when services are enabled
-            assert (config.dbt_cli_config is not None) == (
-                disable_flags["DISABLE_DBT_CLI"] == "false"
-            )
-            assert (config.semantic_layer_config_provider is not None) == (
-                disable_flags["DISABLE_SEMANTIC_LAYER"] == "false"
-            )
-            assert (config.discovery_config_provider is not None) == (
-                disable_flags["DISABLE_DISCOVERY"] == "false"
-            )
+                # Verify configs are created only when services are enabled
+                assert (config.dbt_cli_config is not None) == (
+                    disable_flags["DISABLE_DBT_CLI"] == "false"
+                )
+                assert (config.semantic_layer_config_provider is not None) == (
+                    disable_flags["DISABLE_SEMANTIC_LAYER"] == "false"
+                )
+                assert (config.discovery_config_provider is not None) == (
+                    disable_flags["DISABLE_DISCOVERY"] == "false"
+                )
 
     def test_legacy_env_id_support(self):
         # Test that DBT_ENV_ID still works for backward compatibility

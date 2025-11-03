@@ -12,6 +12,7 @@ from dbt_mcp.config.settings import (
     DbtMcpSettings,
 )
 from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
+from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo, dbt_lsp_binary_info
 from dbt_mcp.telemetry.logging import configure_logging
 from dbt_mcp.tools.tool_names import ToolName
 
@@ -37,7 +38,7 @@ class DbtCodegenConfig:
 @dataclass
 class LspConfig:
     project_dir: str
-    lsp_path: str | None
+    lsp_binary_info: LspBinaryInfo | None
 
 
 @dataclass
@@ -114,9 +115,10 @@ def load_config() -> Config:
 
     lsp_config = None
     if not settings.disable_lsp and settings.dbt_project_dir:
+        lsp_binary_info = dbt_lsp_binary_info(settings.dbt_lsp_path)
         lsp_config = LspConfig(
             project_dir=settings.dbt_project_dir,
-            lsp_path=settings.dbt_lsp_path,
+            lsp_binary_info=lsp_binary_info,
         )
 
     return Config(
