@@ -2,20 +2,23 @@ from unittest.mock import patch
 
 from dbt_mcp.config.config import load_config
 from dbt_mcp.dbt_cli.binary_type import BinaryType
+from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo
 from dbt_mcp.mcp.server import create_dbt_mcp
 from dbt_mcp.tools.policy import tool_policies
 from dbt_mcp.tools.tool_names import ToolName
-from tests.env_vars import default_env_vars_context
+from dbt_mcp.tools.toolsets import proxied_tools, Toolset, toolsets
 
 
-async def test_tool_policies_match_server_tools():
+async def test_tool_policies_match_server_tools(env_setup):
     """Test that the ToolPolicy enum matches the tools registered in the server."""
-    sql_tool_names = {"text_to_sql", "execute_sql"}
-
     with (
-        default_env_vars_context(),
+        env_setup(),
         patch(
             "dbt_mcp.config.config.detect_binary_type", return_value=BinaryType.DBT_CORE
+        ),
+        patch(
+            "dbt_mcp.config.config.dbt_lsp_binary_info",
+            return_value=LspBinaryInfo(path="/path/to/lsp", version="1.0.0"),
         ),
     ):
         config = load_config()
@@ -25,7 +28,12 @@ async def test_tool_policies_match_server_tools():
         server_tools = await dbt_mcp.list_tools()
         # Manually adding SQL tools here because the server doesn't get them
         # in this unit test.
-        server_tool_names = {tool.name for tool in server_tools} | sql_tool_names
+        server_tool_names = (
+            {tool.name for tool in server_tools}
+            | {p.value for p in proxied_tools}
+            # Also adding codegen because it's default off
+            | {t.value for t in toolsets[Toolset.DBT_CODEGEN]}
+        )
         policy_names = {policy_name for policy_name in tool_policies}
 
         if server_tool_names != policy_names:

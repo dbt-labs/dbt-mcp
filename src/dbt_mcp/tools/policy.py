@@ -57,6 +57,9 @@ tool_policies = {
     ToolName.LIST_METRICS.value: ToolPolicy(
         name=ToolName.LIST_METRICS.value, behavior=ToolBehavior.METADATA
     ),
+    ToolName.LIST_SAVED_QUERIES.value: ToolPolicy(
+        name=ToolName.LIST_SAVED_QUERIES.value, behavior=ToolBehavior.METADATA
+    ),
     ToolName.GET_DIMENSIONS.value: ToolPolicy(
         name=ToolName.GET_DIMENSIONS.value, behavior=ToolBehavior.METADATA
     ),
@@ -87,6 +90,9 @@ tool_policies = {
     ),
     ToolName.GET_ALL_MODELS.value: ToolPolicy(
         name=ToolName.GET_ALL_MODELS.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.GET_ALL_SOURCES.value: ToolPolicy(
+        name=ToolName.GET_ALL_SOURCES.value, behavior=ToolBehavior.METADATA
     ),
     ToolName.GET_EXPOSURES.value: ToolPolicy(
         name=ToolName.GET_EXPOSURES.value, behavior=ToolBehavior.METADATA
@@ -128,5 +134,22 @@ tool_policies = {
     ),
     ToolName.GET_JOB_RUN_ARTIFACT.value: ToolPolicy(
         name=ToolName.GET_JOB_RUN_ARTIFACT.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.GET_JOB_RUN_ERROR.value: ToolPolicy(
+        name=ToolName.GET_JOB_RUN_ERROR.value, behavior=ToolBehavior.METADATA
+    ),
+    # dbt-codegen tools
+    ToolName.GENERATE_SOURCE.value: ToolPolicy(
+        name=ToolName.GENERATE_SOURCE.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.GENERATE_MODEL_YAML.value: ToolPolicy(
+        name=ToolName.GENERATE_MODEL_YAML.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.GENERATE_STAGING_MODEL.value: ToolPolicy(
+        name=ToolName.GENERATE_STAGING_MODEL.value, behavior=ToolBehavior.METADATA
+    ),
+    # LSP tools
+    ToolName.GET_COLUMN_LINEAGE.value: ToolPolicy(
+        name=ToolName.GET_COLUMN_LINEAGE.value, behavior=ToolBehavior.METADATA
     ),
 }

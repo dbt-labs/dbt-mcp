@@ -4,20 +4,34 @@ description = "A MCP (Model Context Protocol) server for interacting with dbt re
 authors = [{ name = "dbt Labs" }]
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.12"
+# until pyarrow releases wheels for 3.14 https://github.com/apache/arrow/issues/47438
+requires-python = ">=3.12,<3.14"
 dynamic = ["version"]
+keywords = [
+  "dbt",
+  "mcp",
+  "model-context-protocol",
+  "data",
+  "analytics",
+  "ai-agent",
+  "llm",
+]
 classifiers = [
-  "License :: OSI Approved :: Apache Software License",
-  "Programming Language :: Python :: 3",
-  "Operating System :: OS Independent",
-  "Development Status :: 4 - Beta",
+  "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Developers",
+  "Intended Audience :: Information Technology",
+  "Intended Audience :: System Administrators",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+  "Typing :: Typed",
 ]
 dependencies = [
   # Pinning all dependencies because this app is installed with uvx
   # and we want to have a consistent install as much as possible.
-  "authlib==1.6.3",
-  "dbt-protos==1.0.317",
+  "authlib==1.6.5",
+  "dbt-protos==1.0.382",
   "dbt-sl-sdk[sync]==0.13.0",
   "dbtlabs-vortex==0.2.0",
   "fastapi==0.116.1",
@@ -42,11 +56,11 @@ dev = [
   "openai>=1.71.0",
   "pyarrow-stubs>=19.1",
   "types-pyyaml>=6.0.12.20250516",
-  "types-authlib>=1.6.2.20250825",
+  "types-authlib>=1.6.4.20250920",
 ]
 
 [project.urls]
-Documentation = "https://github.com/dbt-labs/dbt-mcp#readme"
+Documentation = "https://docs.getdbt.com/docs/dbt-ai/about-mcp"
 Issues = "https://github.com/dbt-labs/dbt-mcp/issues"
 Source = "https://github.com/dbt-labs/dbt-mcp"
 Changelog = "https://github.com/dbt-labs/dbt-mcp/blob/main/CHANGELOG.md"
@@ -68,3 +82,6 @@ source = "vcs"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 pythonpath = [".", "src"]
+
+[tool.ruff.lint]
+extend-select = ["UP"] # UP=pyupgrade

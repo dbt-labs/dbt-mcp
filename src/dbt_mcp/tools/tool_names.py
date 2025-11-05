@@ -21,6 +21,7 @@ class ToolName(Enum):
 
     # Semantic Layer tools
     LIST_METRICS = "list_metrics"
+    LIST_SAVED_QUERIES = "list_saved_queries"
     GET_DIMENSIONS = "get_dimensions"
     GET_ENTITIES = "get_entities"
     QUERY_METRICS = "query_metrics"
@@ -33,6 +34,7 @@ class ToolName(Enum):
     GET_MODEL_PARENTS = "get_model_parents"
     GET_MODEL_CHILDREN = "get_model_children"
     GET_MODEL_HEALTH = "get_model_health"
+    GET_ALL_SOURCES = "get_all_sources"
     GET_EXPOSURES = "get_exposures"
     GET_EXPOSURE_DETAILS = "get_exposure_details"
 
@@ -50,6 +52,15 @@ class ToolName(Enum):
     RETRY_JOB_RUN = "retry_job_run"
     LIST_JOB_RUN_ARTIFACTS = "list_job_run_artifacts"
     GET_JOB_RUN_ARTIFACT = "get_job_run_artifact"
+    GET_JOB_RUN_ERROR = "get_job_run_error"
+
+    # dbt-codegen tools
+    GENERATE_SOURCE = "generate_source"
+    GENERATE_MODEL_YAML = "generate_model_yaml"
+    GENERATE_STAGING_MODEL = "generate_staging_model"
+
+    # dbt LSP tools
+    GET_COLUMN_LINEAGE = "get_column_lineage"
 
     @classmethod
     def get_all_tool_names(cls) -> set[str]:

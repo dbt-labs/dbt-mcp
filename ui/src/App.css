@@ -415,6 +415,69 @@ section {
   opacity: 0.8;
 }
 
+/* OAuth Error Section */
+.error-section {
+  background: #fff;
+  border: 1px solid #fecaca;
+}
+
+.error-details {
+  padding: 0 1.5rem 1.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.error-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.error-item strong {
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: #991b1b;
+}
+
+.error-code {
+  display: inline-block;
+  padding: 0.5rem 0.75rem;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  font-size: 0.875rem;
+  color: #991b1b;
+  font-weight: 500;
+}
+
+.error-description {
+  margin: 0;
+  padding: 0.75rem;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  color: #991b1b;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.error-actions {
+  margin-top: 0.5rem;
+  padding: 1rem;
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+}
+
+.error-actions p {
+  margin: 0;
+  color: #92400e;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
 /* Context details */
 .context-details {
   padding: 0 1.5rem 1.5rem 1.5rem;
@@ -476,7 +539,10 @@ section {
   font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.15s ease-in-out, transform 0.15s ease-in-out;
+  transition:
+    background-color 0.15s ease-in-out,
+    transform 0.15s ease-in-out,
+    opacity 0.15s ease-in-out;
 }
 
 .primary-button:hover {
@@ -494,6 +560,48 @@ section {
 .primary-button:active {
   transform: translateY(0);
   background-color: #3d3a38;
+}
+
+.primary-button:disabled {
+  background-color: #d1d5db;
+  border-color: #d1d5db;
+  color: #6b7280;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  opacity: 0.65;
+}
+
+  .primary-button:disabled:hover,
+.primary-button:disabled:focus,
+.primary-button:disabled:active {
+  background-color: #d1d5db;
+  border-color: #d1d5db;
+  color: #6b7280;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Completion section */
+.completion-section {
+  padding: 0;
+}
+
+.completion-card {
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
+
+.completion-card h2 {
+  margin: 0 0 1rem 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+.completion-card p {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.6;
 }
 
 /* Response section */
@@ -765,6 +873,21 @@ section {
   .primary-button:active {
     background-color: #3d3a38;
   }
+
+  .primary-button:disabled {
+    background-color: #d6d3d1;
+    border-color: #e7e5e4;
+    color: #78716c;
+    opacity: 0.7;
+  }
+
+  .primary-button:disabled:hover,
+  .primary-button:disabled:focus,
+  .primary-button:disabled:active {
+    background-color: #d6d3d1;
+    border-color: #e7e5e4;
+    color: #78716c;
+  }
 }
 
 /* Dark mode styles */
@@ -925,6 +1048,37 @@ section {
     color: #f6f6f6;
   }
 
+  /* OAuth Error Section Dark Mode */
+  .error-section {
+    background: #1c1a19;
+    border-color: #991b1b;
+  }
+
+  .error-item strong {
+    color: #fca5a5;
+  }
+
+  .error-code {
+    background-color: #450a0a;
+    border-color: #7f1d1d;
+    color: #fca5a5;
+  }
+
+  .error-description {
+    background-color: #450a0a;
+    border-color: #7f1d1d;
+    color: #fca5a5;
+  }
+
+  .error-actions {
+    background-color: #422006;
+    border-color: #92400e;
+  }
+
+  .error-actions p {
+    color: #fde68a;
+  }
+
   /* Context details */
   .context-item strong {
     color: #f6f6f6;
@@ -978,5 +1132,20 @@ section {
 
   .primary-button:active {
     background-color: #e5e7eb;
+  }
+
+  .primary-button:disabled {
+    background-color: #2f2f30;
+    border-color: #3f3f40;
+    color: #8b949e;
+    opacity: 0.55;
+  }
+
+  .primary-button:disabled:hover,
+  .primary-button:disabled:focus,
+  .primary-button:disabled:active {
+    background-color: #2f2f30;
+    border-color: #3f3f40;
+    color: #8b949e;
   }
 }

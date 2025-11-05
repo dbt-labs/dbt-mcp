@@ -1,5 +1,5 @@
+from collections.abc import Callable
 from contextlib import AbstractContextManager
-from functools import cache
 from typing import Any, Protocol
 
 import pyarrow as pa
@@ -9,9 +9,11 @@ from dbtsl.api.shared.query_params import (
     OrderByMetric,
     OrderBySpec,
 )
+from dbtsl.client.sync import SyncSemanticLayerClient
 from dbtsl.error import QueryFailedError
 
-from dbt_mcp.config.config import SemanticLayerConfig
+from dbt_mcp.config.config_providers import ConfigProvider, SemanticLayerConfig
+from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.semantic_layer.gql.gql import GRAPHQL_QUERIES
 from dbt_mcp.semantic_layer.gql.gql_request import submit_request
 from dbt_mcp.semantic_layer.levenshtein import get_misspellings
@@ -26,7 +28,12 @@ from dbt_mcp.semantic_layer.types import (
     QueryMetricsError,
     QueryMetricsResult,
     QueryMetricsSuccess,
+    SavedQueryToolResponse,
 )
+
+
+def DEFAULT_RESULT_FORMATTER(table: pa.Table) -> str:
+    return table.to_pandas().to_json(orient="records", indent=2)
 
 
 class SemanticLayerClientProtocol(Protocol):
@@ -53,21 +60,37 @@ class SemanticLayerClientProtocol(Protocol):
     ) -> str: ...
 
 
+class SemanticLayerClientProvider(Protocol):
+    async def get_client(self) -> SemanticLayerClientProtocol: ...
+
+
+class DefaultSemanticLayerClientProvider:
+    def __init__(self, config_provider: ConfigProvider[SemanticLayerConfig]):
+        self.config_provider = config_provider
+
+    async def get_client(self) -> SemanticLayerClientProtocol:
+        config = await self.config_provider.get_config()
+        return SyncSemanticLayerClient(
+            environment_id=config.prod_environment_id,
+            auth_token=config.token,
+            host=config.host,
+        )
+
+
 class SemanticLayerFetcher:
     def __init__(
         self,
-        sl_client: SemanticLayerClientProtocol,
-        config: SemanticLayerConfig,
+        config_provider: ConfigProvider[SemanticLayerConfig],
+        client_provider: SemanticLayerClientProvider,
     ):
-        self.sl_client = sl_client
-        self.config = config
+        self.client_provider = client_provider
+        self.config_provider = config_provider
         self.entities_cache: dict[str, list[EntityToolResponse]] = {}
         self.dimensions_cache: dict[str, list[DimensionToolResponse]] = {}
 
-    @cache
-    def list_metrics(self, search: str | None = None) -> list[MetricToolResponse]:
+    async def list_metrics(self, search: str | None = None) -> list[MetricToolResponse]:
         metrics_result = submit_request(
-            self.config,
+            await self.config_provider.get_config(),
             {"query": GRAPHQL_QUERIES["metrics"], "variables": {"search": search}},
         )
         return [
@@ -81,13 +104,46 @@ class SemanticLayerFetcher:
             for m in metrics_result["data"]["metricsPaginated"]["items"]
         ]
 
-    def get_dimensions(
+    async def list_saved_queries(
+        self, search: str | None = None
+    ) -> list[SavedQueryToolResponse]:
+        """Fetch all saved queries from the Semantic Layer API."""
+        saved_queries_result = submit_request(
+            await self.config_provider.get_config(),
+            {
+                "query": GRAPHQL_QUERIES["saved_queries"],
+                "variables": {"search": search},
+            },
+        )
+        return [
+            SavedQueryToolResponse(
+                name=sq.get("name"),
+                label=sq.get("label"),
+                description=sq.get("description"),
+                metrics=[
+                    m.get("name") for m in sq.get("queryParams", {}).get("metrics", [])
+                ]
+                if sq.get("queryParams", {}).get("metrics")
+                else None,
+                group_by=[
+                    g.get("name") for g in sq.get("queryParams", {}).get("groupBy", [])
+                ]
+                if sq.get("queryParams", {}).get("groupBy")
+                else None,
+                where=sq.get("queryParams", {}).get("where", {}).get("whereSqlTemplate")
+                if sq.get("queryParams", {}).get("where")
+                else None,
+            )
+            for sq in saved_queries_result["data"]["savedQueriesPaginated"]["items"]
+        ]
+
+    async def get_dimensions(
         self, metrics: list[str], search: str | None = None
     ) -> list[DimensionToolResponse]:
         metrics_key = ",".join(sorted(metrics))
         if metrics_key not in self.dimensions_cache:
             dimensions_result = submit_request(
-                self.config,
+                await self.config_provider.get_config(),
                 {
                     "query": GRAPHQL_QUERIES["dimensions"],
                     "variables": {
@@ -111,13 +167,13 @@ class SemanticLayerFetcher:
             self.dimensions_cache[metrics_key] = dimensions
         return self.dimensions_cache[metrics_key]
 
-    def get_entities(
+    async def get_entities(
         self, metrics: list[str], search: str | None = None
     ) -> list[EntityToolResponse]:
         metrics_key = ",".join(sorted(metrics))
         if metrics_key not in self.entities_cache:
             entities_result = submit_request(
-                self.config,
+                await self.config_provider.get_config(),
                 {
                     "query": GRAPHQL_QUERIES["entities"],
                     "variables": {
@@ -136,58 +192,6 @@ class SemanticLayerFetcher:
             ]
             self.entities_cache[metrics_key] = entities
         return self.entities_cache[metrics_key]
-
-    def get_metrics_compiled_sql(
-        self,
-        metrics: list[str],
-        group_by: list[GroupByParam] | None = None,
-        order_by: list[OrderByParam] | None = None,
-        where: str | None = None,
-        limit: int | None = None,
-    ) -> GetMetricsCompiledSqlResult:
-        """
-        Get compiled SQL for the given metrics and group by parameters using the SDK.
-
-        Args:
-            metrics: List of metric names to get compiled SQL for
-            group_by: List of group by parameters (dimensions/entities with optional grain)
-            order_by: List of order by parameters
-            where: Optional SQL WHERE clause to filter results
-            limit: Optional limit for number of results
-
-        Returns:
-            GetMetricsCompiledSqlResult with either the compiled SQL or an error
-        """
-        validation_error = self.validate_query_metrics_params(
-            metrics=metrics,
-            group_by=group_by,
-        )
-        if validation_error:
-            return GetMetricsCompiledSqlError(error=validation_error)
-
-        try:
-            with self.sl_client.session():
-                parsed_order_by: list[OrderBySpec] = (
-                    self.get_order_bys(
-                        order_by=order_by, metrics=metrics, group_by=group_by
-                    )
-                    if order_by is not None
-                    else []
-                )
-
-                compiled_sql = self.sl_client.compile_sql(
-                    metrics=metrics,
-                    group_by=group_by,  # type: ignore
-                    order_by=parsed_order_by,  # type: ignore
-                    where=[where] if where else None,
-                    limit=limit,
-                    read_cache=True,
-                )
-
-                return GetMetricsCompiledSqlSuccess(sql=compiled_sql)
-
-        except Exception as e:
-            return self._format_get_metrics_compiled_sql_error(e)
 
     def _format_semantic_layer_error(self, error: Exception) -> str:
         """Format semantic layer errors by cleaning up common error message patterns."""
@@ -215,11 +219,11 @@ class SemanticLayerFetcher:
             error=self._format_semantic_layer_error(compile_error)
         )
 
-    def validate_query_metrics_params(
+    async def validate_query_metrics_params(
         self, metrics: list[str], group_by: list[GroupByParam] | None
     ) -> str | None:
         errors = []
-        available_metrics_names = [m.name for m in self.list_metrics()]
+        available_metrics_names = [m.name for m in await self.list_metrics()]
         metric_misspellings = get_misspellings(
             targets=metrics,
             words=available_metrics_names,
@@ -237,8 +241,8 @@ class SemanticLayerFetcher:
         if errors:
             return f"Errors: {', '.join(errors)}"
 
-        available_group_by = [d.name for d in self.get_dimensions(metrics)] + [
-            e.name for e in self.get_entities(metrics)
+        available_group_by = [d.name for d in await self.get_dimensions(metrics)] + [
+            e.name for e in await self.get_entities(metrics)
         ]
         group_by_misspellings = get_misspellings(
             targets=[g.name for g in group_by or []],
@@ -267,13 +271,15 @@ class SemanticLayerFetcher:
         else:
             return QueryMetricsError(error=str(query_error))
 
-    def get_order_bys(
+    def _get_order_bys(
         self,
-        order_by: list[OrderByParam],
-        metrics: list[str],
+        order_by: list[OrderByParam] | None,
+        metrics: list[str] = [],
         group_by: list[GroupByParam] | None = None,
     ) -> list[OrderBySpec]:
         result: list[OrderBySpec] = []
+        if order_by is None:
+            return result
         queried_group_by = {g.name: g for g in group_by} if group_by else {}
         queried_metrics = set(metrics)
         for o in order_by:
@@ -289,20 +295,69 @@ class SemanticLayerFetcher:
                     )
                 )
             else:
-                raise ValueError(
+                raise InvalidParameterError(
                     f"Order by `{o.name}` not found in metrics or group by"
                 )
         return result
 
-    def query_metrics(
+    async def get_metrics_compiled_sql(
         self,
         metrics: list[str],
         group_by: list[GroupByParam] | None = None,
         order_by: list[OrderByParam] | None = None,
         where: str | None = None,
         limit: int | None = None,
+    ) -> GetMetricsCompiledSqlResult:
+        """
+        Get compiled SQL for the given metrics and group by parameters using the SDK.
+
+        Args:
+            metrics: List of metric names to get compiled SQL for
+            group_by: List of group by parameters (dimensions/entities with optional grain)
+            order_by: List of order by parameters
+            where: Optional SQL WHERE clause to filter results
+            limit: Optional limit for number of results
+
+        Returns:
+            GetMetricsCompiledSqlResult with either the compiled SQL or an error
+        """
+        validation_error = await self.validate_query_metrics_params(
+            metrics=metrics,
+            group_by=group_by,
+        )
+        if validation_error:
+            return GetMetricsCompiledSqlError(error=validation_error)
+
+        try:
+            sl_client = await self.client_provider.get_client()
+            with sl_client.session():
+                parsed_order_by: list[OrderBySpec] = self._get_order_bys(
+                    order_by=order_by, metrics=metrics, group_by=group_by
+                )
+                compiled_sql = sl_client.compile_sql(
+                    metrics=metrics,
+                    group_by=group_by,  # type: ignore
+                    order_by=parsed_order_by,  # type: ignore
+                    where=[where] if where else None,
+                    limit=limit,
+                    read_cache=True,
+                )
+
+                return GetMetricsCompiledSqlSuccess(sql=compiled_sql)
+
+        except Exception as e:
+            return self._format_get_metrics_compiled_sql_error(e)
+
+    async def query_metrics(
+        self,
+        metrics: list[str],
+        group_by: list[GroupByParam] | None = None,
+        order_by: list[OrderByParam] | None = None,
+        where: str | None = None,
+        limit: int | None = None,
+        result_formatter: Callable[[pa.Table], str] = DEFAULT_RESULT_FORMATTER,
     ) -> QueryMetricsResult:
-        validation_error = self.validate_query_metrics_params(
+        validation_error = await self.validate_query_metrics_params(
             metrics=metrics,
             group_by=group_by,
         )
@@ -311,20 +366,16 @@ class SemanticLayerFetcher:
 
         try:
             query_error = None
-            with self.sl_client.session():
+            sl_client = await self.client_provider.get_client()
+            with sl_client.session():
                 # Catching any exception within the session
                 # to ensure it is closed properly
                 try:
-                    parsed_order_by: list[OrderBySpec] = (
-                        self.get_order_bys(
-                            order_by=order_by, metrics=metrics, group_by=group_by
-                        )
-                        if order_by is not None
-                        else []
+                    parsed_order_by: list[OrderBySpec] = self._get_order_bys(
+                        order_by=order_by, metrics=metrics, group_by=group_by
                     )
-                    query_result = self.sl_client.query(
+                    query_result = sl_client.query(
                         metrics=metrics,
-                        # TODO: remove this type ignore once this PR is merged: https://github.com/dbt-labs/semantic-layer-sdk-python/pull/80
                         group_by=group_by,  # type: ignore
                         order_by=parsed_order_by,  # type: ignore
                         where=[where] if where else None,
@@ -334,7 +385,7 @@ class SemanticLayerFetcher:
                     query_error = e
             if query_error:
                 return self._format_query_failed_error(query_error)
-            json_result = query_result.to_pandas().to_json(orient="records", indent=2)
+            json_result = result_formatter(query_result)
             return QueryMetricsSuccess(result=json_result or "")
         except Exception as e:
             return self._format_query_failed_error(e)

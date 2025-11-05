@@ -2,6 +2,8 @@
 Retrieves the parent models of a specific dbt model. These are the models that the specified model depends on.
 
 You can provide either a model_name or a uniqueId, if known, to identify the model. Using uniqueId is more precise and guarantees a unique match, which is especially useful when models might have the same name in different projects.
+
+Returned parents include `resourceType`, `name`, and `description`. For upstream sources, also provide `sourceName` and `uniqueId` so lineage can be linked back via `get_all_sources`.
 </instructions>
 
 <parameters>

@@ -3,18 +3,38 @@ from unittest.mock import Mock, patch
 import pytest
 import requests
 
-from dbt_mcp.config.config import AdminApiConfig
+from dbt_mcp.config.config_providers import AdminApiConfig
 from dbt_mcp.dbt_admin.client import (
     AdminAPIError,
     DbtAdminAPIClient,
 )
 
 
+class MockHeadersProvider:
+    """Mock headers provider for testing."""
+
+    def __init__(self, headers: dict[str, str]):
+        self._headers = headers
+
+    def get_headers(self) -> dict[str, str]:
+        return self._headers
+
+
+class MockAdminApiConfigProvider:
+    """Mock config provider for testing."""
+
+    def __init__(self, config: AdminApiConfig):
+        self.config = config
+
+    async def get_config(self) -> AdminApiConfig:
+        return self.config
+
+
 @pytest.fixture
 def admin_config():
     return AdminApiConfig(
         account_id=12345,
-        headers={"Authorization": "Bearer test_token"},
+        headers_provider=MockHeadersProvider({"Authorization": "Bearer test_token"}),
         url="https://cloud.getdbt.com",
     )
 
@@ -23,47 +43,54 @@ def admin_config():
 def admin_config_with_prefix():
     return AdminApiConfig(
         account_id=12345,
-        headers={"Authorization": "Bearer test_token"},
+        headers_provider=MockHeadersProvider({"Authorization": "Bearer test_token"}),
         url="https://eu1.cloud.getdbt.com",
     )
 
 
 @pytest.fixture
 def client(admin_config):
-    return DbtAdminAPIClient(admin_config)
+    config_provider = MockAdminApiConfigProvider(admin_config)
+    return DbtAdminAPIClient(config_provider)
 
 
 @pytest.fixture
 def client_with_prefix(admin_config_with_prefix):
-    return DbtAdminAPIClient(admin_config_with_prefix)
+    config_provider = MockAdminApiConfigProvider(admin_config_with_prefix)
+    return DbtAdminAPIClient(config_provider)
 
 
-def test_client_initialization(client):
-    assert client.config.account_id == 12345
-    assert client.config.headers == {"Authorization": "Bearer test_token"}
-    assert client.config.url == "https://cloud.getdbt.com"
-    assert client.headers["Authorization"] == "Bearer test_token"
-    assert client.headers["Content-Type"] == "application/json"
-    assert client.headers["Accept"] == "application/json"
+async def test_client_initialization(client):
+    config = await client.get_config()
+    assert config.account_id == 12345
+    assert config.headers_provider.get_headers() == {
+        "Authorization": "Bearer test_token"
+    }
+    assert config.url == "https://cloud.getdbt.com"
+    headers = await client.get_headers()
+    assert headers["Authorization"] == "Bearer test_token"
+    assert headers["Content-Type"] == "application/json"
+    assert headers["Accept"] == "application/json"
 
 
 @patch("requests.request")
-def test_make_request_success(mock_request, client):
+async def test_make_request_success(mock_request, client):
     mock_response = Mock()
     mock_response.json.return_value = {"data": "test"}
     mock_response.raise_for_status.return_value = None
     mock_request.return_value = mock_response
 
-    result = client._make_request("GET", "/test/endpoint")
+    result = await client._make_request("GET", "/test/endpoint")
 
     assert result == {"data": "test"}
+    headers = await client.get_headers()
     mock_request.assert_called_once_with(
-        "GET", "https://cloud.getdbt.com/test/endpoint", headers=client.headers
+        "GET", "https://cloud.getdbt.com/test/endpoint", headers=headers
     )
 
 
 @patch("requests.request")
-def test_make_request_failure(mock_request, client):
+async def test_make_request_failure(mock_request, client):
     mock_response = Mock()
     mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
         "404 Not Found"
@@ -71,11 +98,11 @@ def test_make_request_failure(mock_request, client):
     mock_request.return_value = mock_response
 
     with pytest.raises(AdminAPIError):
-        client._make_request("GET", "/test/endpoint")
+        await client._make_request("GET", "/test/endpoint")
 
 
 @patch("requests.request")
-def test_list_jobs(mock_request, client):
+async def test_list_jobs(mock_request, client):
     mock_response = Mock()
     mock_response.json.return_value = {
         "data": [
@@ -106,7 +133,7 @@ def test_list_jobs(mock_request, client):
     mock_response.raise_for_status.return_value = None
     mock_request.return_value = mock_response
 
-    result = client.list_jobs(12345, project_id=1, limit=10)
+    result = await client.list_jobs(12345, project_id=1, limit=10)
 
     assert len(result) == 1
     assert result[0]["id"] == 1
@@ -114,16 +141,17 @@ def test_list_jobs(mock_request, client):
     assert result[0]["most_recent_run_id"] == 100
     assert result[0]["schedule"] == "0 9 * * *"
 
+    headers = await client.get_headers()
     mock_request.assert_called_once_with(
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/jobs/?include_related=['most_recent_run','most_recent_completed_run']",
-        headers=client.headers,
+        headers=headers,
         params={"project_id": 1, "limit": 10},
     )
 
 
 @patch("requests.request")
-def test_list_jobs_with_null_values(mock_request, client):
+async def test_list_jobs_with_null_values(mock_request, client):
     mock_response = Mock()
     mock_response.json.return_value = {
         "data": [
@@ -144,7 +172,7 @@ def test_list_jobs_with_null_values(mock_request, client):
     mock_response.raise_for_status.return_value = None
     mock_request.return_value = mock_response
 
-    result = client.list_jobs(12345)
+    result = await client.list_jobs(12345)
 
     assert len(result) == 1
     assert result[0]["most_recent_run_id"] is None
@@ -152,38 +180,40 @@ def test_list_jobs_with_null_values(mock_request, client):
 
 
 @patch("requests.request")
-def test_get_job_details(mock_request, client):
+async def test_get_job_details(mock_request, client):
     mock_response = Mock()
     mock_response.json.return_value = {"data": {"id": 1, "name": "test_job"}}
     mock_response.raise_for_status.return_value = None
     mock_request.return_value = mock_response
 
-    result = client.get_job_details(12345, 1)
+    result = await client.get_job_details(12345, 1)
 
     assert result == {"id": 1, "name": "test_job"}
+    headers = await client.get_headers()
     mock_request.assert_called_once_with(
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/jobs/1/?include_related=['most_recent_run','most_recent_completed_run']",
-        headers=client.headers,
+        headers=headers,
     )
 
 
 @patch("requests.request")
-def test_trigger_job_run(mock_request, client):
+async def test_trigger_job_run(mock_request, client):
     mock_response = Mock()
     mock_response.json.return_value = {"data": {"id": 200, "status": "queued"}}
     mock_response.raise_for_status.return_value = None
     mock_request.return_value = mock_response
 
-    result = client.trigger_job_run(
+    result = await client.trigger_job_run(
         12345, 1, "Manual trigger", git_branch="main", schema_override="test_schema"
     )
 
     assert result == {"id": 200, "status": "queued"}
+    headers = await client.get_headers()
     mock_request.assert_called_once_with(
         "POST",
         "https://cloud.getdbt.com/api/v2/accounts/12345/jobs/1/run/",
-        headers=client.headers,
+        headers=headers,
         json={
             "cause": "Manual trigger",
             "git_branch": "main",
@@ -193,7 +223,7 @@ def test_trigger_job_run(mock_request, client):
 
 
 @patch("requests.request")
-def test_list_jobs_runs(mock_request, client):
+async def test_list_jobs_runs(mock_request, client):
     mock_response = Mock()
     mock_response.json.return_value = {
         "data": [
@@ -235,7 +265,7 @@ def test_list_jobs_runs(mock_request, client):
     mock_response.raise_for_status.return_value = None
     mock_request.return_value = mock_response
 
-    result = client.list_jobs_runs(12345, job_definition_id=1, status="success")
+    result = await client.list_jobs_runs(12345, job_definition_id=1, status="success")
 
     assert len(result) == 1
     run = result[0]
@@ -274,102 +304,87 @@ def test_list_jobs_runs(mock_request, client):
     for field in removed_fields:
         assert field not in run
 
+    headers = await client.get_headers()
     mock_request.assert_called_once_with(
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/?include_related=['job']",
-        headers=client.headers,
+        headers=headers,
         params={"job_definition_id": 1, "status": "success"},
     )
 
 
 @patch("requests.request")
-def test_get_job_run_details_without_debug(mock_request, client):
+async def test_get_job_run_details(mock_request, client):
     mock_response = Mock()
     mock_response.json.return_value = {
         "data": {
             "id": 100,
             "status": 10,
             "run_steps": [
-                {"id": 1, "name": "dbt run", "truncated_debug_logs": "log data"}
+                {
+                    "id": 1,
+                    "name": "dbt run",
+                    "logs": "log data",
+                }
             ],
         }
     }
     mock_response.raise_for_status.return_value = None
     mock_request.return_value = mock_response
 
-    result = client.get_job_run_details(12345, 100, debug=False)
+    result = await client.get_job_run_details(12345, 100)
 
     assert result["id"] == 100
-    # Verify truncated_debug_logs are removed
+    # Verify truncated_debug_logs and logs are removed
     assert "truncated_debug_logs" not in result["run_steps"][0]
+    assert "logs" not in result["run_steps"][0]
 
+    headers = await client.get_headers()
     mock_request.assert_called_once_with(
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/?include_related=['run_steps']",
-        headers=client.headers,
+        headers=headers,
     )
 
 
 @patch("requests.request")
-def test_get_job_run_details_with_debug(mock_request, client):
-    mock_response = Mock()
-    mock_response.json.return_value = {
-        "data": {
-            "id": 100,
-            "status": 10,
-            "run_steps": [
-                {"id": 1, "name": "dbt run", "truncated_debug_logs": "log data"}
-            ],
-        }
-    }
-    mock_response.raise_for_status.return_value = None
-    mock_request.return_value = mock_response
-
-    _ = client.get_job_run_details(12345, 100, debug=True)
-
-    mock_request.assert_called_once_with(
-        "GET",
-        "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/?include_related=['run_steps','debug_logs']",
-        headers=client.headers,
-    )
-
-
-@patch("requests.request")
-def test_cancel_job_run(mock_request, client):
+async def test_cancel_job_run(mock_request, client):
     mock_response = Mock()
     mock_response.json.return_value = {"data": {"id": 100, "status": "cancelled"}}
     mock_response.raise_for_status.return_value = None
     mock_request.return_value = mock_response
 
-    result = client.cancel_job_run(12345, 100)
+    result = await client.cancel_job_run(12345, 100)
 
     assert result == {"id": 100, "status": "cancelled"}
+    headers = await client.get_headers()
     mock_request.assert_called_once_with(
         "POST",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/cancel/",
-        headers=client.headers,
+        headers=headers,
     )
 
 
 @patch("requests.request")
-def test_retry_job_run(mock_request, client):
+async def test_retry_job_run(mock_request, client):
     mock_response = Mock()
     mock_response.json.return_value = {"data": {"id": 101, "status": "queued"}}
     mock_response.raise_for_status.return_value = None
     mock_request.return_value = mock_response
 
-    result = client.retry_job_run(12345, 100)
+    result = await client.retry_job_run(12345, 100)
 
     assert result == {"id": 101, "status": "queued"}
+    headers = await client.get_headers()
     mock_request.assert_called_once_with(
         "POST",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/retry/",
-        headers=client.headers,
+        headers=headers,
     )
 
 
 @patch("requests.request")
-def test_list_job_run_artifacts(mock_request, client):
+async def test_list_job_run_artifacts(mock_request, client):
     mock_response = Mock()
     mock_response.json.return_value = {
         "data": [
@@ -383,28 +398,29 @@ def test_list_job_run_artifacts(mock_request, client):
     mock_response.raise_for_status.return_value = None
     mock_request.return_value = mock_response
 
-    result = client.list_job_run_artifacts(12345, 100)
+    result = await client.list_job_run_artifacts(12345, 100)
 
     # Should filter out compiled/ and run/ artifacts
     expected = ["manifest.json", "catalog.json", "sources.json"]
     assert result == expected
 
+    headers = await client.get_headers()
     mock_request.assert_called_once_with(
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/artifacts/",
-        headers=client.headers,
+        headers=headers,
     )
 
 
 @patch("requests.get")
-def test_get_job_run_artifact_json(mock_get, client):
+async def test_get_job_run_artifact_json(mock_get, client):
     mock_response = Mock()
     mock_response.json.return_value = {"nodes": {"model.test": {}}}
     mock_response.headers = {"content-type": "application/json"}
     mock_response.raise_for_status.return_value = None
     mock_get.return_value = mock_response
 
-    result = client.get_job_run_artifact(12345, 100, "manifest.json", step=1)
+    result = await client.get_job_run_artifact(12345, 100, "manifest.json", step=1)
 
     # The client returns response.text, but the mock returns the mock_response.text which is a Mock object
     # In a real scenario with JSON content type, the API would return JSON as text
@@ -417,14 +433,14 @@ def test_get_job_run_artifact_json(mock_get, client):
 
 
 @patch("requests.get")
-def test_get_job_run_artifact_text(mock_get, client):
+async def test_get_job_run_artifact_text(mock_get, client):
     mock_response = Mock()
     mock_response.text = "LOG DATA"
     mock_response.headers = {"content-type": "text/plain"}
     mock_response.raise_for_status.return_value = None
     mock_get.return_value = mock_response
 
-    result = client.get_job_run_artifact(12345, 100, "logs/dbt.log")
+    result = await client.get_job_run_artifact(12345, 100, "logs/dbt.log")
 
     assert result == "LOG DATA"
     mock_get.assert_called_once_with(
@@ -435,14 +451,14 @@ def test_get_job_run_artifact_text(mock_get, client):
 
 
 @patch("requests.get")
-def test_get_job_run_artifact_no_step_param(mock_get, client):
+async def test_get_job_run_artifact_no_step_param(mock_get, client):
     mock_response = Mock()
     mock_response.text = "artifact content"
     mock_response.headers = {"content-type": "text/plain"}
     mock_response.raise_for_status.return_value = None
     mock_get.return_value = mock_response
 
-    client.get_job_run_artifact(12345, 100, "manifest.json")
+    await client.get_job_run_artifact(12345, 100, "manifest.json")
 
     mock_get.assert_called_once_with(
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/artifacts/manifest.json",
@@ -452,8 +468,8 @@ def test_get_job_run_artifact_no_step_param(mock_get, client):
 
 
 @patch("requests.get")
-def test_get_job_run_artifact_request_exception(mock_get, client):
+async def test_get_job_run_artifact_request_exception(mock_get, client):
     mock_get.side_effect = requests.exceptions.HTTPError("404 Not Found")
 
     with pytest.raises(requests.exceptions.HTTPError):
-        client.get_job_run_artifact(12345, 100, "nonexistent.json")
+        await client.get_job_run_artifact(12345, 100, "nonexistent.json")

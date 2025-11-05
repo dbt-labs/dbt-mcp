@@ -1,0 +1,1 @@
+Whether to include column definitions in the generated source YAML (optional, default false)
