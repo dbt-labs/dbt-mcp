@@ -29,7 +29,7 @@ dependencies = [
   "pyyaml==6.0.2",
   "requests==2.32.4",
   "filelock>=3.18.0",
-  "agnost==0.1.2",
+  "agnost==0.1.8",
 ]
 [dependency-groups]
 dev = [

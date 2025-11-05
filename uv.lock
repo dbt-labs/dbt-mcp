@@ -46,14 +46,14 @@ wheels = [
 
 [[package]]
 name = "agnost"
-version = "0.1.2"
+version = "0.1.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/39/8a/22f618fc8ce6ae0cc3ea4708683cc4d434b3bd36cccea53a67a4edf1a118/agnost-0.1.2.tar.gz", hash = "sha256:34dbb445576de67263cd33712b3aec3dbed366733f3b3a38caf62281ba46b759", size = 6465, upload-time = "2025-09-12T10:14:14.291Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6a/9b/06311f487b0a974d4a2b39f4823f3995b0be3c7c6b8edffad33098e09364/agnost-0.1.8.tar.gz", hash = "sha256:f3b784a766c0afd83eea3e13256a6c3928c02506aed8aa18c6daeb280de864e2", size = 11093, upload-time = "2025-10-17T10:59:19.912Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0a/e6/fdded8fc54492a93cc30000d37fec6e90ea271acc1371a35ee3b851ed995/agnost-0.1.2-py3-none-any.whl", hash = "sha256:1ef7b9e3a84fa85bc62f89d209c728daa85c76fdbf07ca1d6485ed2f869aa87e", size = 6767, upload-time = "2025-09-12T10:14:13.273Z" },
+    { url = "https://files.pythonhosted.org/packages/57/ba/4b6b0e2f2795e516fcca83c6d5e9b31fc789d05746ea8e0253b8c1defbd4/agnost-0.1.8-py3-none-any.whl", hash = "sha256:c87dfb43708b0d4075a97035efb71178f5c20bf9a1b7c9c63c79a345d268380f", size = 12304, upload-time = "2025-10-17T10:59:18.792Z" },
 ]
 
 [[package]]
@@ -287,7 +287,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "agnost", specifier = "==0.1.2" },
+    { name = "agnost", specifier = "==0.1.8" },
     { name = "authlib", specifier = "==1.6.3" },
     { name = "dbt-protos", specifier = "==1.0.317" },
     { name = "dbt-sl-sdk", extras = ["sync"], specifier = "==0.13.0" },
