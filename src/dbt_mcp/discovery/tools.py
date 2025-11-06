@@ -54,6 +54,11 @@ def create_discovery_tool_definitions(
     ) -> list[dict]:
         return await models_fetcher.fetch_model_children(model_name, unique_id)
 
+    async def get_model_lineage(
+        model_name: str | None = None, unique_id: str | None = None
+    ) -> dict:
+        return await models_fetcher.fetch_model_lineage(model_name, unique_id)
+
     async def get_model_health(
         model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict]:
@@ -124,6 +129,16 @@ def create_discovery_tool_definitions(
             fn=get_model_children,
             annotations=create_tool_annotations(
                 title="Get Model Children",
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+            ),
+        ),
+        ToolDefinition(
+            description=get_prompt("discovery/get_model_lineage"),
+            fn=get_model_lineage,
+            annotations=create_tool_annotations(
+                title="Get Model Lineage",
                 read_only_hint=True,
                 destructive_hint=False,
                 idempotent_hint=True,
