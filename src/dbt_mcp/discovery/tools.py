@@ -7,7 +7,12 @@ from dbt_mcp.config.config_providers import (
     ConfigProvider,
     DiscoveryConfig,
 )
-from dbt_mcp.discovery.client import ExposuresFetcher, MetadataAPIClient, ModelsFetcher
+from dbt_mcp.discovery.client import (
+    ExposuresFetcher,
+    MetadataAPIClient,
+    ModelsFetcher,
+    SourcesFetcher,
+)
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.annotations import create_tool_annotations
 from dbt_mcp.tools.definitions import ToolDefinition
@@ -23,6 +28,7 @@ def create_discovery_tool_definitions(
     api_client = MetadataAPIClient(config_provider=config_provider)
     models_fetcher = ModelsFetcher(api_client=api_client)
     exposures_fetcher = ExposuresFetcher(api_client=api_client)
+    sources_fetcher = SourcesFetcher(api_client=api_client)
 
     async def get_mart_models() -> list[dict]:
         mart_models = await models_fetcher.fetch_models(
@@ -60,6 +66,12 @@ def create_discovery_tool_definitions(
         exposure_name: str | None = None, unique_ids: list[str] | None = None
     ) -> list[dict]:
         return await exposures_fetcher.fetch_exposure_details(exposure_name, unique_ids)
+
+    async def get_all_sources(
+        source_names: list[str] | None = None,
+        unique_ids: list[str] | None = None,
+    ) -> list[dict]:
+        return await sources_fetcher.fetch_sources(source_names, unique_ids)
 
     return [
         ToolDefinition(
@@ -137,6 +149,16 @@ def create_discovery_tool_definitions(
             fn=get_exposure_details,
             annotations=create_tool_annotations(
                 title="Get Exposure Details",
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+            ),
+        ),
+        ToolDefinition(
+            description=get_prompt("discovery/get_all_sources"),
+            fn=get_all_sources,
+            annotations=create_tool_annotations(
+                title="Get All Sources",
                 read_only_hint=True,
                 destructive_hint=False,
                 idempotent_hint=True,

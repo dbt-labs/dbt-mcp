@@ -34,11 +34,11 @@ from dbt_mcp.custom_tools.filesystem import FileSystemProvider
 
 class S3FileSystemProvider(FileSystemProvider):
     """Example S3-backed file system provider."""
-    
+
     def __init__(self, s3_client, bucket_name):
         self.s3_client = s3_client
         self.bucket_name = bucket_name
-    
+
     def exists(self, path: str) -> bool:
         """Check if a file exists in S3."""
         try:
@@ -46,15 +46,15 @@ class S3FileSystemProvider(FileSystemProvider):
             return True
         except:
             return False
-    
+
     def read_text(self, path: str) -> str:
         """Read file contents from S3."""
         response = self.s3_client.get_object(
-            Bucket=self.bucket_name, 
+            Bucket=self.bucket_name,
             Key=path
         )
         return response['Body'].read().decode('utf-8')
-    
+
     def join_path(self, base: str, *parts: str) -> str:
         """Join S3 paths."""
         path = base.rstrip('/')
@@ -65,8 +65,8 @@ class S3FileSystemProvider(FileSystemProvider):
 # Use the custom provider
 s3_provider = S3FileSystemProvider(s3_client, 'my-bucket')
 register_custom_tools(
-    dbt_mcp, 
-    config_provider, 
+    dbt_mcp,
+    config_provider,
     exclude_tools,
     fs_provider=s3_provider
 )
@@ -79,22 +79,22 @@ from dbt_mcp.custom_tools.filesystem import FileSystemProvider
 
 class InMemoryFileSystemProvider(FileSystemProvider):
     """In-memory file system for testing."""
-    
+
     def __init__(self):
         self.files = {}
-    
+
     def add_file(self, path: str, content: str):
         """Add a file to the in-memory filesystem."""
         self.files[path] = content
-    
+
     def exists(self, path: str) -> bool:
         return path in self.files
-    
+
     def read_text(self, path: str) -> str:
         if path not in self.files:
             raise FileNotFoundError(f"File not found: {path}")
         return self.files[path]
-    
+
     def join_path(self, base: str, *parts: str) -> str:
         from pathlib import Path
         path = Path(base)
@@ -171,8 +171,8 @@ FROM {{ ref('customers') }}
 WHERE customer_id = {{ var('customer_id') }}
 {% if var('include_orders', false) %}
   AND EXISTS (
-    SELECT 1 
-    FROM {{ ref('orders') }} 
+    SELECT 1
+    FROM {{ ref('orders') }}
     WHERE orders.customer_id = customers.customer_id
   )
 {% endif %}
@@ -193,13 +193,13 @@ from dbt_mcp.custom_tools.filesystem import FileSystemProvider
 class MockFileSystemProvider(FileSystemProvider):
     def __init__(self, files: dict[str, str]):
         self.files = files
-    
+
     def exists(self, path: str) -> bool:
         return path in self.files
-    
+
     def read_text(self, path: str) -> str:
         return self.files[path]
-    
+
     def join_path(self, base: str, *parts: str) -> str:
         return f"{base}/{'/'.join(parts)}"
 
@@ -207,7 +207,7 @@ def test_discover_models_with_mock_fs():
     fs = MockFileSystemProvider({
         "/project/models/tools/test.sql": "SELECT * FROM {{ ref('users') }}"
     })
-    
+
     # Mock dbt ls output would be needed here
     models = discover_tool_models(
         "/project",
@@ -216,7 +216,7 @@ def test_discover_models_with_mock_fs():
         parser,
         fs_provider=fs
     )
-    
+
     assert len(models) > 0
 ```
 

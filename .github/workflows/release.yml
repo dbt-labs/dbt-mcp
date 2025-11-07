@@ -17,7 +17,7 @@ jobs:
       changie-latest: ${{ steps.changie-latest.outputs.output }}
     if: "startsWith(github.event.head_commit.message, 'version:')"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # actions/checkout@v4
       - uses: ./.github/actions/setup-python
       - name: Get the latest version
         id: changie-latest
@@ -43,7 +43,7 @@ jobs:
 
     steps:
       - name: checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # actions/checkout@v4
         with:
           ref: ${{ needs.create-release-tag.outputs.changie-latest }}
           fetch-tags: true
@@ -78,7 +78,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # actions/checkout@v4
         with:
           fetch-depth: 0 # Fetches all history for changie to work correctly
 

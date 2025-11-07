@@ -21,6 +21,7 @@ class ToolName(Enum):
 
     # Semantic Layer tools
     LIST_METRICS = "list_metrics"
+    LIST_SAVED_QUERIES = "list_saved_queries"
     GET_DIMENSIONS = "get_dimensions"
     GET_ENTITIES = "get_entities"
     QUERY_METRICS = "query_metrics"
@@ -33,6 +34,7 @@ class ToolName(Enum):
     GET_MODEL_PARENTS = "get_model_parents"
     GET_MODEL_CHILDREN = "get_model_children"
     GET_MODEL_HEALTH = "get_model_health"
+    GET_ALL_SOURCES = "get_all_sources"
     GET_EXPOSURES = "get_exposures"
     GET_EXPOSURE_DETAILS = "get_exposure_details"
 

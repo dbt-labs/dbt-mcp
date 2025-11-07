@@ -17,10 +17,12 @@ cd dbt-mcp
 4. Run `task install`
 
 5. Configure environment variables:
-```shell
-cp .env.example .env
-```
-Then edit `.env` with your specific environment variables (see the `Configuration` section of the `README.md`).
+    ```shell
+    cp .env.example .env
+    ```
+    Then edit `.env` with your specific environment variables (see [our docs](https://docs.getdbt.com/docs/dbt-ai/setup-local-mcp) to determine the values).
+
+6. Run `task client` to chat with dbt MCP in your terminal.
 
 ## Testing
 
@@ -30,14 +32,14 @@ This repo has automated tests which can be run with `task test:unit`. Additional
 {
   "mcpServers": {
     "dbt": {
-      "command": "<path-to-this-uv>",
+      "command": "<path-to-uv>",
       "args": [
+        "--directory",
+        "<path-to-this-directory>/dbt-mcp",
         "run",
+        "dbt-mcp",
         "--env-file",
-        "<path-to-this-directory>/dbt-mcp/.env",
-        "<path-to-this-directory>/dbt-mcp/.venv/bin/mcp",
-        "run",
-        "<path-to-this-directory>/dbt-mcp/src/dbt_mcp/main.py"
+        "<path-to-this-directory>/dbt-mcp/.env"
       ]
     }
   }
@@ -50,10 +52,12 @@ Or, if you would like to test with Oauth, use a configuration like this:
 {
   "mcpServers": {
     "dbt": {
-      "command": "<path-to-this-directory>/dbt-mcp/.venv/bin/mcp",
+      "command": "<path-to-uv>",
       "args": [
+        "--directory",
+        "<path-to-this-directory>/dbt-mcp",
         "run",
-        "<path-to-this-directory>/dbt-mcp/src/dbt_mcp/main.py"
+        "dbt-mcp",
       ],
       "env": {
         "DBT_HOST": "<dbt-host-with-custom-subdomain>",
@@ -107,8 +111,23 @@ If you encounter any problems, you can try running `task run` to see errors in y
 
 Only people in the `CODEOWNERS` file should trigger a new release with these steps:
 
-1. Trigger the [Create release PR Action](https://github.com/dbt-labs/dbt-mcp/actions/workflows/create-release-pr.yml).
-  - If the release is NOT a pre-release, just pick if the bump should be patch, minor or major
+1. Consider these guidelines when choosing a version number:
+  - Major
+    - Removing a tool or toolset
+    - Changing the behavior of existing environment variables or configurations
+  - Minor
+    - Changes to config system related to the function signature of the register functions (e.g. `register_discovery_tools`)
+    - Adding optional parameters to a tool function signature
+    - Adding a new tool or toolset
+    - Removing or adding non-optional parameters from tool function signatures
+  - Patch
+    - Bug and security fixes - only major security and bug fixes will be back-ported to prior minor and major versions
+    - Dependency updates which don’t change behavior
+    - Minor enhancements
+    - Editing a tool or parameter description prompt
+    - Adding an allowed environment variable with the `DBT_MCP_` prefix
+2. Trigger the [Create release PR Action](https://github.com/dbt-labs/dbt-mcp/actions/workflows/create-release-pr.yml).
+  - If the release is NOT a pre-release, select `auto` (default) to automatically determine the version bump based on changelog entries, or manually pick patch, minor or major if needed
   - If the release is a pre-release, set the bump and the pre-release suffix. We support alpha.N, beta.N and rc.N.
     - use alpha for early releases of experimental features that specific people might want to test. Significant changes can be expected between alpha and the official release.
     - use beta for releases that are mostly stable but still in development. It can be used to gather feedback from a group of peopleon how a specific feature should work.
@@ -125,5 +144,5 @@ Only people in the `CODEOWNERS` file should trigger a new release with these ste
 | 1.2.0       | -                | major | rc.1               | 2.0.0-rc.1        |
 | 1.2.0       | 2.0.0-rc.1       | major | -                  | 2.0.0             |
 
-2. Get this PR approved & merged in (if the resulting release name is not the one expected in the PR, just close the PR and try again step 1)
-3. This will trigger the `Release dbt-mcp` Action. On the `Summary` page of this Action a member of the `CODEOWNERS` file will have to manually approve the release. The rest of the release process is automated.
+3. Get this PR approved & merged in (if the resulting release name is not the one expected in the PR, just close the PR and try again step 1)
+4. This will trigger the `Release dbt-mcp` Action. On the `Summary` page of this Action a member of the `CODEOWNERS` file will have to manually approve the release. The rest of the release process is automated.

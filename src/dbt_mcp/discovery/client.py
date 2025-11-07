@@ -8,7 +8,7 @@ from dbt_mcp.errors import GraphQLError, InvalidParameterError
 from dbt_mcp.gql.errors import raise_gql_error
 
 PAGE_SIZE = 100
-MAX_NUM_MODELS = 1000
+MAX_NODE_QUERY_LIMIT = 1000
 
 
 class GraphQLQueries:
@@ -200,6 +200,8 @@ class GraphQLQueries:
         }
         ... on SourceAppliedStateNestedNode {
             resourceType
+            sourceName
+            uniqueId
             name
             description
         }
@@ -267,6 +269,43 @@ class GraphQLQueries:
         }
     """)
     )
+
+    GET_SOURCES = textwrap.dedent("""
+        query GetSources(
+            $environmentId: BigInt!,
+            $sourcesFilter: SourceAppliedFilter,
+            $after: String,
+            $first: Int
+        ) {
+            environment(id: $environmentId) {
+                applied {
+                    sources(filter: $sourcesFilter, after: $after, first: $first) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
+                        edges {
+                            node {
+                                name
+                                uniqueId
+                                identifier
+                                description
+                                sourceName
+                                resourceType
+                                database
+                                schema
+                                freshness {
+                                    maxLoadedAt
+                                    maxLoadedAtTimeAgoInS
+                                    freshnessStatus
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    """)
 
     GET_EXPOSURES = textwrap.dedent("""
         query Exposures($environmentId: BigInt!, $first: Int, $after: String) {
@@ -342,6 +381,11 @@ class ModelFilter(TypedDict, total=False):
     modelingLayer: Literal["marts"] | None
 
 
+class SourceFilter(TypedDict, total=False):
+    sourceNames: list[str]
+    uniqueIds: list[str] | None
+
+
 class ModelsFetcher:
     def __init__(self, api_client: MetadataAPIClient):
         self.api_client = api_client
@@ -383,7 +427,7 @@ class ModelsFetcher:
         has_next_page = True
         after_cursor: str = ""
         all_edges: list[dict] = []
-        while has_next_page and len(all_edges) < MAX_NUM_MODELS:
+        while has_next_page and len(all_edges) < MAX_NODE_QUERY_LIMIT:
             variables = {
                 "environmentId": await self.get_environment_id(),
                 "after": after_cursor,
@@ -575,3 +619,63 @@ class ExposuresFetcher:
             raise InvalidParameterError(
                 "Either exposure_name or unique_ids must be provided"
             )
+
+
+class SourcesFetcher:
+    def __init__(self, api_client: MetadataAPIClient):
+        self.api_client = api_client
+
+    async def get_environment_id(self) -> int:
+        config = await self.api_client.config_provider.get_config()
+        return config.environment_id
+
+    def _parse_response_to_json(self, result: dict) -> list[dict]:
+        raise_gql_error(result)
+        edges = result["data"]["environment"]["applied"]["sources"]["edges"]
+        parsed_edges: list[dict] = []
+        if not edges:
+            return parsed_edges
+        if result.get("errors"):
+            raise GraphQLError(f"GraphQL query failed: {result['errors']}")
+        for edge in edges:
+            if not isinstance(edge, dict) or "node" not in edge:
+                continue
+            node = edge["node"]
+            if not isinstance(node, dict):
+                continue
+            parsed_edges.append(node)
+        return parsed_edges
+
+    async def fetch_sources(
+        self,
+        source_names: list[str] | None = None,
+        unique_ids: list[str] | None = None,
+    ) -> list[dict]:
+        source_filter: SourceFilter = {}
+        if source_names is not None:
+            source_filter["sourceNames"] = source_names
+        if unique_ids is not None:
+            source_filter["uniqueIds"] = unique_ids
+
+        has_next_page = True
+        after_cursor: str = ""
+        all_edges: list[dict] = []
+
+        while has_next_page and len(all_edges) < MAX_NODE_QUERY_LIMIT:
+            variables = {
+                "environmentId": await self.get_environment_id(),
+                "after": after_cursor,
+                "first": PAGE_SIZE,
+                "sourcesFilter": source_filter,
+            }
+
+            result = await self.api_client.execute_query(
+                GraphQLQueries.GET_SOURCES, variables
+            )
+            all_edges.extend(self._parse_response_to_json(result))
+
+            page_info = result["data"]["environment"]["applied"]["sources"]["pageInfo"]
+            has_next_page = page_info.get("hasNextPage", False)
+            after_cursor = page_info.get("endCursor")
+
+        return all_edges

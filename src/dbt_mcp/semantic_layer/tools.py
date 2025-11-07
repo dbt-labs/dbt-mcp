@@ -20,6 +20,7 @@ from dbt_mcp.semantic_layer.types import (
     MetricToolResponse,
     OrderByParam,
     QueryMetricsSuccess,
+    SavedQueryToolResponse,
 )
 from dbt_mcp.tools.annotations import create_tool_annotations
 from dbt_mcp.tools.definitions import ToolDefinition
@@ -40,6 +41,11 @@ def create_sl_tool_definitions(
 
     async def list_metrics(search: str | None = None) -> list[MetricToolResponse]:
         return await semantic_layer_fetcher.list_metrics(search=search)
+
+    async def list_saved_queries(
+        search: str | None = None,
+    ) -> list[SavedQueryToolResponse]:
+        return await semantic_layer_fetcher.list_saved_queries(search=search)
 
     async def get_dimensions(
         metrics: list[str], search: str | None = None
@@ -97,6 +103,16 @@ def create_sl_tool_definitions(
             fn=list_metrics,
             annotations=create_tool_annotations(
                 title="List Metrics",
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+            ),
+        ),
+        ToolDefinition(
+            description=get_prompt("semantic_layer/list_saved_queries"),
+            fn=list_saved_queries,
+            annotations=create_tool_annotations(
+                title="List Saved Queries",
                 read_only_hint=True,
                 destructive_hint=False,
                 idempotent_hint=True,

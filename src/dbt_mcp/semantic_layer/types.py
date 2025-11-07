@@ -37,6 +37,16 @@ class EntityToolResponse:
 
 
 @dataclass
+class SavedQueryToolResponse:
+    name: str
+    label: str | None = None
+    description: str | None = None
+    metrics: list[str] | None = None
+    group_by: list[str] | None = None
+    where: list[str] | None = None
+
+
+@dataclass
 class QueryMetricsSuccess:
     result: str
     error: None = None

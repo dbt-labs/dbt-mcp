@@ -28,6 +28,7 @@ from dbt_mcp.semantic_layer.types import (
     QueryMetricsError,
     QueryMetricsResult,
     QueryMetricsSuccess,
+    SavedQueryToolResponse,
 )
 
 
@@ -101,6 +102,39 @@ class SemanticLayerFetcher:
                 metadata=(m.get("config") or {}).get("meta", ""),
             )
             for m in metrics_result["data"]["metricsPaginated"]["items"]
+        ]
+
+    async def list_saved_queries(
+        self, search: str | None = None
+    ) -> list[SavedQueryToolResponse]:
+        """Fetch all saved queries from the Semantic Layer API."""
+        saved_queries_result = submit_request(
+            await self.config_provider.get_config(),
+            {
+                "query": GRAPHQL_QUERIES["saved_queries"],
+                "variables": {"search": search},
+            },
+        )
+        return [
+            SavedQueryToolResponse(
+                name=sq.get("name"),
+                label=sq.get("label"),
+                description=sq.get("description"),
+                metrics=[
+                    m.get("name") for m in sq.get("queryParams", {}).get("metrics", [])
+                ]
+                if sq.get("queryParams", {}).get("metrics")
+                else None,
+                group_by=[
+                    g.get("name") for g in sq.get("queryParams", {}).get("groupBy", [])
+                ]
+                if sq.get("queryParams", {}).get("groupBy")
+                else None,
+                where=sq.get("queryParams", {}).get("where", {}).get("whereSqlTemplate")
+                if sq.get("queryParams", {}).get("where")
+                else None,
+            )
+            for sq in saved_queries_result["data"]["savedQueriesPaginated"]["items"]
         ]
 
     async def get_dimensions(

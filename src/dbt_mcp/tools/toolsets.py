@@ -28,6 +28,7 @@ toolsets = {
     },
     Toolset.SEMANTIC_LAYER: {
         ToolName.LIST_METRICS,
+        ToolName.LIST_SAVED_QUERIES,
         ToolName.GET_DIMENSIONS,
         ToolName.GET_ENTITIES,
         ToolName.QUERY_METRICS,
@@ -40,6 +41,7 @@ toolsets = {
         ToolName.GET_MODEL_PARENTS,
         ToolName.GET_MODEL_CHILDREN,
         ToolName.GET_MODEL_HEALTH,
+        ToolName.GET_ALL_SOURCES,
         ToolName.GET_EXPOSURES,
         ToolName.GET_EXPOSURE_DETAILS,
     },
