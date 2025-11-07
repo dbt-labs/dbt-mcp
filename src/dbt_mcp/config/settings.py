@@ -75,6 +75,7 @@ class DbtMcpSettings(BaseSettings):
         None, alias="DISABLE_TOOLS"
     )
     disable_lsp: bool | None = Field(None, alias="DISABLE_LSP")
+    disable_custom_tools: bool = Field(True, alias="DISABLE_CUSTOM_TOOLS")
 
     # Tracking settings
     do_not_track: str | None = Field(None, alias="DO_NOT_TRACK")

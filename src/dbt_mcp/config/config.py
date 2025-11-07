@@ -41,11 +41,20 @@ class LspConfig:
 
 
 @dataclass
+class CustomToolsConfig:
+    project_dir: str
+    dbt_path: str
+    dbt_cli_timeout: int
+    binary_type: BinaryType
+
+
+@dataclass
 class Config:
     disable_tools: list[ToolName]
     sql_config_provider: DefaultSqlConfigProvider | None
     dbt_cli_config: DbtCliConfig | None
     dbt_codegen_config: DbtCodegenConfig | None
+    custom_tools_config: CustomToolsConfig | None
     discovery_config_provider: DefaultDiscoveryConfigProvider | None
     semantic_layer_config_provider: DefaultSemanticLayerConfigProvider | None
     admin_api_config_provider: DefaultAdminApiConfigProvider | None
@@ -119,11 +128,26 @@ def load_config() -> Config:
             lsp_path=settings.dbt_lsp_path,
         )
 
+    custom_tools_config = None
+    if (
+        not settings.disable_custom_tools
+        and settings.dbt_project_dir
+        and settings.dbt_path
+    ):
+        binary_type = detect_binary_type(settings.dbt_path)
+        custom_tools_config = CustomToolsConfig(
+            project_dir=settings.dbt_project_dir,
+            dbt_path=settings.dbt_path,
+            dbt_cli_timeout=settings.dbt_cli_timeout,
+            binary_type=binary_type,
+        )
+
     return Config(
         disable_tools=settings.disable_tools or [],
         sql_config_provider=sql_config_provider,
         dbt_cli_config=dbt_cli_config,
         dbt_codegen_config=dbt_codegen_config,
+        custom_tools_config=custom_tools_config,
         discovery_config_provider=discovery_config_provider,
         semantic_layer_config_provider=semantic_layer_config_provider,
         admin_api_config_provider=admin_api_config_provider,

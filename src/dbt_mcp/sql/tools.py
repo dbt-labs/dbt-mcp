@@ -2,7 +2,6 @@ import logging
 from collections.abc import Sequence
 from contextlib import AsyncExitStack
 from typing import (
-    Annotated,
     Any,
 )
 
@@ -14,14 +13,13 @@ from mcp.server.fastmcp.tools.base import Tool as InternalTool
 from mcp.server.fastmcp.utilities.func_metadata import (
     ArgModelBase,
     FuncMetadata,
-    _get_typed_annotation,
 )
 from mcp.shared.message import SessionMessage
 from mcp.types import (
     ContentBlock,
     Tool,
 )
-from pydantic import Field, WithJsonSchema, create_model
+from pydantic import create_model
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
@@ -40,14 +38,7 @@ def get_remote_tool_fn_metadata(tool: Tool) -> FuncMetadata:
         # Remote tools shouldn't have type annotations or default values
         # for their arguments. So, we set them to defaults.
         field_info = FieldInfo.from_annotated_attribute(
-            annotation=_get_typed_annotation(
-                annotation=Annotated[
-                    Any,
-                    Field(),
-                    WithJsonSchema({"title": key, "type": "string"}),
-                ],
-                globalns={},
-            ),
+            annotation=Any,
             default=PydanticUndefined,
         )
         dynamic_pydantic_model_params[key] = (field_info.annotation, None)

@@ -17,15 +17,16 @@ from mcp.types import (
 )
 
 from dbt_mcp.config.config import Config
+from dbt_mcp.custom_tools.tools import register_custom_tools
 from dbt_mcp.dbt_admin.tools import register_admin_api_tools
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.dbt_codegen.tools import register_dbt_codegen_tools
 from dbt_mcp.discovery.tools import register_discovery_tools
+from dbt_mcp.lsp.tools import cleanup_lsp_connection, register_lsp_tools
 from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
 from dbt_mcp.semantic_layer.tools import register_sl_tools
 from dbt_mcp.sql.tools import SqlToolsManager, register_sql_tools
 from dbt_mcp.tracking.tracking import DefaultUsageTracker, ToolCalledEvent, UsageTracker
-from dbt_mcp.lsp.tools import cleanup_lsp_connection, register_lsp_tools
 
 logger = logging.getLogger(__name__)
 
@@ -166,5 +167,10 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
     if config.lsp_config:
         logger.info("Registering LSP tools")
         await register_lsp_tools(dbt_mcp, config.lsp_config, config.disable_tools)
+
+    if config.custom_tools_config:
+        print("Registering custom tools")
+        logger.info("Registering custom tools")
+        register_custom_tools(dbt_mcp, config.custom_tools_config, config.disable_tools)
 
     return dbt_mcp
