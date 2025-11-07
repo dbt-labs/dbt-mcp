@@ -21,13 +21,13 @@ def sample_manifest():
             "source.1": [],
         },
         "nodes": {
-            "model.a": {"identifier": "a"},
-            "model.b": {"identifier": "b"},
-            "model.c": {"identifier": "c"},
-            "model.d": {"identifier": "d"},
+            "model.a": {"name": "a"},
+            "model.b": {"name": "b"},
+            "model.c": {"name": "c"},
+            "model.d": {"name": "d"},
         },
         "sources": {
-            "source.1": {"name": "1"},
+            "source.1": {"identifier": "1"},
         },
         "exposures": {
             "exposure.1": {"name": "1"},

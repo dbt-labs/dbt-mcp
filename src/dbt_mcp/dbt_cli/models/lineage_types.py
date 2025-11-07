@@ -127,10 +127,10 @@ def get_uid_from_name(manifest: dict[str, Any], model_id: str) -> str:
         return model_id
     # fallback: look through eveything for the identifier
     for uid, node in manifest.get("nodes", {}).items():
-        if node.get("identifier") == model_id:
+        if node.get("name") == model_id:
             return uid
     for uid, source in manifest.get("sources", {}).items():
-        if source.get("name") == model_id:
+        if source.get("identifier") == model_id:
             return uid
     for uid, exposure in manifest.get("exposures", {}).items():
         if exposure.get("name") == model_id:
