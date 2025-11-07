@@ -15,7 +15,6 @@ from dbt_mcp.custom_tools.model_discovery import (
     discover_tool_models,
 )
 from dbt_mcp.custom_tools.tools import (
-    create_custom_tool_definitions,
     register_custom_tools,
 )
 
@@ -29,6 +28,5 @@ __all__ = [
     "ModelVariable",
     "discover_tool_models",
     # Tool registration
-    "create_custom_tool_definitions",
     "register_custom_tools",
 ]

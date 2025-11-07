@@ -18,6 +18,7 @@ from mcp.types import (
 )
 
 from dbt_mcp.config.config import Config
+from dbt_mcp.custom_tools.filesystem import LocalFileSystemProvider
 from dbt_mcp.custom_tools.tools import register_custom_tools
 from dbt_mcp.dbt_admin.tools import register_admin_api_tools
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
@@ -187,9 +188,14 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
         dbt_mcp.lsp_connection_provider = local_lsp_connection_provider
         await register_lsp_tools(dbt_mcp, lsp_client_provider)
 
+    print(config.custom_tools_config)
     if config.custom_tools_config:
-        print("Registering custom tools")
         logger.info("Registering custom tools")
-        register_custom_tools(dbt_mcp, config.custom_tools_config, config.disable_tools)
+        register_custom_tools(
+            dbt_mcp,
+            config.custom_tools_config,
+            config.disable_tools,
+            LocalFileSystemProvider(),
+        )
 
     return dbt_mcp
