@@ -1,6 +1,6 @@
 import pytest
 
-from dbt_mcp.discovery.models.lineage_types import ModelLineage
+from dbt_mcp.dbt_cli.models.lineage_types import ModelLineage
 
 
 @pytest.fixture
@@ -20,13 +20,32 @@ def sample_manifest():
             "model.a": ["source.1"],
             "source.1": [],
         },
+        "nodes": {
+            "model.a": {"identifier": "a"},
+            "model.b": {"identifier": "b"},
+            "model.c": {"identifier": "c"},
+            "model.d": {"identifier": "d"},
+        },
+        "sources": {
+            "source.1": {"name": "1"},
+        },
+        "exposures": {
+            "exposure.1": {"name": "1"},
+        },
     }
 
 
-def test_model_lineage_a__from_manifest(sample_manifest):
+@pytest.mark.parametrize(
+    "model_id",
+    [
+        pytest.param("model.a", id="using_full_model_id"),
+        pytest.param("a", id="using_model_name_only"),
+    ],
+)
+def test_model_lineage_a__from_manifest(sample_manifest, model_id):
     manifest = sample_manifest
     lineage = ModelLineage.from_manifest(
-        manifest, "model.a", direction="both", recursive=True
+        manifest, model_id, direction="both", recursive=True
     )
     assert lineage.model_id == "model.a"
     assert lineage.parents[0].model_id == "source.1", (

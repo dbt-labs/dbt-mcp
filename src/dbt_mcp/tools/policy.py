@@ -53,6 +53,9 @@ tool_policies = {
     ToolName.PARSE.value: ToolPolicy(
         name=ToolName.PARSE.value, behavior=ToolBehavior.METADATA
     ),
+    ToolName.GET_MODEL_LINEAGE_DEV.value: ToolPolicy(
+        name=ToolName.GET_MODEL_LINEAGE_DEV.value, behavior=ToolBehavior.METADATA
+    ),
     # Semantic Layer tools
     ToolName.LIST_METRICS.value: ToolPolicy(
         name=ToolName.LIST_METRICS.value, behavior=ToolBehavior.METADATA

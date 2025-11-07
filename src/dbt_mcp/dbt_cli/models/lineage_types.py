@@ -49,6 +49,7 @@ class ModelLineage(BaseModel):
 
         parents: list[Ancestor] = []
         children: list[Descendant] = []
+        model_id = get_uid_from_name(manifest, model_id)
 
         if direction in ("both", "parents"):
             if not recursive:
@@ -113,3 +114,24 @@ class ModelLineage(BaseModel):
             parents=parents,
             children=children,
         )
+
+
+def get_uid_from_name(manifest: dict[str, Any], model_id: str) -> str:
+    """
+    Given a dbt manifest mapping and a model name, return the unique_id
+    corresponding to that model name, or None if not found.
+    """
+    # using the parent and child map so it include sources/exposures
+    if model_id in manifest["child_map"] or model_id in manifest["parent_map"]:
+        return model_id
+    # fallback: look through eveything for the identifier
+    for uid, node in manifest.get("nodes", {}).items():
+        if node.get("identifier") == model_id:
+            return uid
+    for uid, source in manifest.get("sources", {}).items():
+        if source.get("name") == model_id:
+            return uid
+    for uid, exposure in manifest.get("exposures", {}).items():
+        if exposure.get("name") == model_id:
+            return uid
+    raise ValueError(f"Model name '{model_id}' not found in manifest.")
