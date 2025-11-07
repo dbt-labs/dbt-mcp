@@ -25,9 +25,10 @@ class ModelLineage(BaseModel):
         cls,
         manifest: dict[str, Any],
         model_id: str,
-        recursive: bool = False,
         direction: Literal["parents", "children", "both"] = "both",
         exclude_prefixes: tuple[str, ...] = ("test.", "unit_test."),
+        *,
+        recursive: bool = False,
     ) -> ModelLineage:
         """
         Build a ModelLineage instance from a dbt manifest mapping.

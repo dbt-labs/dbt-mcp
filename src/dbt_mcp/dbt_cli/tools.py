@@ -1,7 +1,7 @@
 import os
 import subprocess
 from collections.abc import Iterable, Sequence
-from typing import Any
+from typing import Any, Literal
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -189,9 +189,21 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             manifest = json.load(f)
         return manifest
 
-    def get_model_lineage_dev(model_id: str) -> dict[str, Any]:
+    def get_model_lineage_dev(
+        model_id: str,
+        direction: Literal["parents", "children", "both"] = "both",
+        exclude_prefixes: tuple[str, ...] = ("test.", "unit_test."),
+        *,
+        recursive: bool,
+    ) -> dict[str, Any]:
         manifest = _get_manifest()
-        model_lineage = ModelLineage.from_manifest(manifest, model_id)
+        model_lineage = ModelLineage.from_manifest(
+            manifest,
+            model_id,
+            direction=direction,
+            exclude_prefixes=exclude_prefixes,
+            recursive=recursive,
+        )
         return model_lineage.model_dump()
 
     return [
