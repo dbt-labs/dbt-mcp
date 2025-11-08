@@ -8,9 +8,8 @@ from jinja2 import ChainableUndefined
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 from pydantic import BaseModel, ValidationError
 
-from dbt_mcp.custom_tools.filesystem import (
-    FileSystemProvider,
-)
+from dbt_mcp.config.config import CustomToolsConfig
+from dbt_mcp.custom_tools.filesystem import FileSystemProvider
 
 logger = logging.getLogger(__name__)
 
@@ -94,9 +93,8 @@ class JinjaTemplateParser:
 
 
 def discover_tool_models(
-    project_dir: str,
+    config: CustomToolsConfig,
     tools_subdir: str,
-    dbt_path: str,
     parser: JinjaTemplateParser,
     fs_provider: FileSystemProvider,
 ) -> list[CustomToolModel]:
@@ -104,9 +102,8 @@ def discover_tool_models(
     Discover custom tool models in the dbt project.
 
     Args:
-        project_dir: Path to the dbt project root directory
+        config: Custom tools configuration containing dbt settings
         tools_subdir: Subdirectory containing tool models
-        dbt_path: Path to the dbt executable
         parser: JinjaTemplateParser instance for extracting variables
         fs_provider: File system provider for reading files
 
@@ -119,7 +116,7 @@ def discover_tool_models(
     # --output json gives us structured data
     # --output-keys specifies what fields to include
     command = [
-        dbt_path,
+        config.dbt_path,
         "ls",
         "--quiet",
         "--select",
@@ -135,16 +132,12 @@ def discover_tool_models(
     ]
     result = subprocess.run(
         command,
-        cwd=project_dir,
+        cwd=config.project_dir,
         capture_output=True,
         text=True,
-        timeout=30,
-        check=False,
+        timeout=config.dbt_cli_timeout,
+        check=True,
     )
-
-    if result.returncode != 0:
-        logger.error(f"dbt ls command failed: {result.stderr}")
-        return []
 
     # Parse JSON output - each line is a separate JSON object
     for line in result.stdout.strip().split("\n"):
@@ -153,8 +146,15 @@ def discover_tool_models(
 
         try:
             model_info = DbtModelInfo.model_validate_json(line)
+        except ValidationError as e:
+            logger.error(
+                "Failed to parse dbt JSON output line: %s",
+                e,
+            )
+            continue
+        try:
             sql_file_path = fs_provider.join_path(
-                project_dir, model_info.original_file_path
+                config.project_dir, model_info.original_file_path
             )
             if not fs_provider.exists(sql_file_path):
                 logger.warning(f"Model file does not exist: {sql_file_path}")
@@ -175,17 +175,7 @@ def discover_tool_models(
                 or f"Execute SQL for the {model_info.name} model",
             )
             models.append(model)
-        except ValidationError as e:
-            print("here 2")
-            print(e)
-            logger.error(
-                "Failed to parse dbt JSON output line: %s",
-                e,
-            )
-            continue
         except Exception as e:
-            print("here 3")
-            print(e)
             logger.error(f"Failed to process model: {e}")
             continue
 

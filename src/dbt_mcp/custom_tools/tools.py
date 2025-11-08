@@ -121,9 +121,8 @@ def register_custom_tools(
 
     # Discover models from the tools directory using dbt ls
     models = discover_tool_models(
-        config_provider.project_dir,
+        config_provider,
         "models/tools",
-        config_provider.dbt_path,
         parser,
         fs_provider,
     )

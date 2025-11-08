@@ -188,7 +188,6 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
         dbt_mcp.lsp_connection_provider = local_lsp_connection_provider
         await register_lsp_tools(dbt_mcp, lsp_client_provider)
 
-    print(config.custom_tools_config)
     if config.custom_tools_config:
         logger.info("Registering custom tools")
         register_custom_tools(
