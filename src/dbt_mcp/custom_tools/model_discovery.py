@@ -1,5 +1,3 @@
-"""Module for discovering and parsing custom tool models from dbt project."""
-
 import logging
 import subprocess
 from dataclasses import dataclass
@@ -145,8 +143,6 @@ def discover_tool_models(
     )
 
     if result.returncode != 0:
-        print("here 1")
-        print(result.stderr)
         logger.error(f"dbt ls command failed: {result.stderr}")
         return []
 
@@ -156,15 +152,10 @@ def discover_tool_models(
             continue
 
         try:
-            print("here 0")
-            print(line)
             model_info = DbtModelInfo.model_validate_json(line)
-
-            # Resolve the full path to the SQL file using fs_provider
             sql_file_path = fs_provider.join_path(
                 project_dir, model_info.original_file_path
             )
-
             if not fs_provider.exists(sql_file_path):
                 logger.warning(f"Model file does not exist: {sql_file_path}")
                 continue

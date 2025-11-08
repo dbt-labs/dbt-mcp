@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import subprocess
 from collections.abc import Sequence
 from typing import (
@@ -54,7 +53,14 @@ def convert_variables_to_json_schema(
         # dbt vars are passed as JSON, so they can be any valid JSON type
         # Use a union of all JSON types for explicitness
         prop_schema: dict[str, Any] = {
-            "type": ["string", "number", "boolean", "null", "object", "array"]
+            "anyOf": [
+                {"type": "string"},
+                {"type": "number"},
+                {"type": "boolean"},
+                {"type": "null"},
+                {"type": "object", "additionalProperties": True},
+                {"type": "array", "items": {}},
+            ]
         }
 
         # Add default value using JSON Schema's default keyword
@@ -121,12 +127,9 @@ def register_custom_tools(
         parser,
         fs_provider,
     )
-
-    print(models)
     if not models:
         logger.info("No custom tool models found in models/tools directory")
-        return []
-
+        return
     logger.info(f"Discovered {len(models)} custom tool models")
 
     for model in models:
@@ -140,22 +143,15 @@ def register_custom_tools(
                     # Convert kwargs to JSON string for --vars parameter
                     vars_json = json.dumps(kwargs) if kwargs else None
 
-                    # Build the dbt show command
-                    cwd_path = (
-                        config_provider.project_dir
-                        if os.path.isabs(config_provider.project_dir)
-                        else None
-                    )
-
                     # Add appropriate color disable flag based on binary type
                     color_flag = get_color_disable_flag(config_provider.binary_type)
                     args = [
                         config_provider.dbt_path,
                         color_flag,
                         "show",
-                        "--inline",
+                        "--inline",  # TODO: execute with file path using selector instead?
                         m.sql_template,
-                        "--favor-state",  # TODO: need this?
+                        "--quiet",
                         "--limit",
                         "-1",  # negative limit means no limit
                         "--output",
@@ -167,13 +163,15 @@ def register_custom_tools(
                         args.extend(["--vars", vars_json])
 
                     # Execute the command
-                    process = subprocess.Popen(
-                        args=args,
-                        cwd=cwd_path,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        stdin=subprocess.DEVNULL,
-                        text=True,
+                    process = (
+                        subprocess.Popen(  # TODO: reuse code from dbt_cli/tools.py?
+                            args=args,
+                            cwd=config_provider.project_dir,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            stdin=subprocess.DEVNULL,
+                            text=True,
+                        )
                     )
                     output, _ = process.communicate(
                         timeout=config_provider.dbt_cli_timeout

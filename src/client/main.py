@@ -11,7 +11,7 @@ from dbt_mcp.config.config import load_config
 from dbt_mcp.mcp.server import create_dbt_mcp
 
 LLM_MODEL = "gpt-4o-mini"
-TOOL_RESPONSE_TRUNCATION = 100  # set to None for no truncation
+TOOL_RESPONSE_TRUNCATION = None  # = 100  # set to None for no truncation
 
 llm_client = OpenAI()
 config = load_config()
