@@ -94,6 +94,9 @@ tool_policies = {
     ToolName.GET_ALL_SOURCES.value: ToolPolicy(
         name=ToolName.GET_ALL_SOURCES.value, behavior=ToolBehavior.METADATA
     ),
+    ToolName.GET_SOURCE_DETAILS.value: ToolPolicy(
+        name=ToolName.GET_SOURCE_DETAILS.value, behavior=ToolBehavior.METADATA
+    ),
     ToolName.GET_EXPOSURES.value: ToolPolicy(
         name=ToolName.GET_EXPOSURES.value, behavior=ToolBehavior.METADATA
     ),
