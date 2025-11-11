@@ -378,43 +378,34 @@ async def test_fetch_source_details_with_unique_id(sources_fetcher, mock_api_cli
 
 
 async def test_fetch_source_details_with_source_name(sources_fetcher, mock_api_client):
-    """Test fetching source details using source_name (fallback to fetch_sources)."""
-    # Mock response for initial fetch_sources call
-    fetch_sources_response = {
+    """Test fetching source details using source_name with identifier filter."""
+    mock_response = {
         "data": {
             "environment": {
                 "applied": {
                     "sources": {
-                        "pageInfo": {"hasNextPage": False, "endCursor": None},
                         "edges": [
                             {
                                 "node": {
                                     "name": "customers",
                                     "uniqueId": "source.test_project.raw_data.customers",
+                                    "identifier": "customers",
+                                    "description": "Customer data from external system",
                                     "sourceName": "raw_data",
-                                }
-                            }
-                        ],
-                    }
-                }
-            }
-        }
-    }
-
-    # Mock response for the actual source details call
-    source_details_response = {
-        "data": {
-            "environment": {
-                "applied": {
-                    "sources": {
-                        "edges": [
-                            {
-                                "node": {
-                                    "name": "customers",
-                                    "uniqueId": "source.test_project.raw_data.customers",
+                                    "database": "analytics",
+                                    "schema": "raw",
+                                    "freshness": {
+                                        "maxLoadedAt": "2024-01-15T10:30:00Z",
+                                        "maxLoadedAtTimeAgoInS": 3600,
+                                        "freshnessStatus": "pass",
+                                    },
                                     "catalog": {
                                         "columns": [
-                                            {"name": "id", "type": "INTEGER", "description": ""}
+                                            {
+                                                "name": "customer_id",
+                                                "type": "INTEGER",
+                                                "description": "Unique customer identifier",
+                                            }
                                         ]
                                     },
                                 }
@@ -426,51 +417,52 @@ async def test_fetch_source_details_with_source_name(sources_fetcher, mock_api_c
         }
     }
 
-    # First call returns sources list, second returns details
-    mock_api_client.execute_query.side_effect = [
-        fetch_sources_response,
-        source_details_response,
-    ]
+    mock_api_client.execute_query.return_value = mock_response
 
     result = await sources_fetcher.fetch_source_details(source_name="customers")
 
-    # Should have called twice (once for fetch_sources, once for details)
-    assert mock_api_client.execute_query.call_count == 2
+    # Should have called once with identifier filter
+    mock_api_client.execute_query.assert_called_once()
+    call_args = mock_api_client.execute_query.call_args
+
+    # Check variables - should use identifier filter
+    variables = call_args[0][1]
+    assert variables["environmentId"] == 123
+    assert variables["first"] == 1
+    assert variables["sourcesFilter"] == {"identifier": "customers"}
 
     # Verify result
     assert result["name"] == "customers"
     assert result["uniqueId"] == "source.test_project.raw_data.customers"
+    assert len(result["catalog"]["columns"]) == 1
 
 
 async def test_fetch_source_details_source_not_found(sources_fetcher, mock_api_client):
-    """Test fetching source details when source name doesn't match any sources."""
-    # Mock response with no matching sources
-    fetch_sources_response = {
+    """Test fetching source details when source identifier doesn't match any sources."""
+    # Mock response with no matching sources (empty edges)
+    mock_response = {
         "data": {
             "environment": {
                 "applied": {
                     "sources": {
-                        "pageInfo": {"hasNextPage": False, "endCursor": None},
-                        "edges": [
-                            {
-                                "node": {
-                                    "name": "orders",
-                                    "uniqueId": "source.test_project.raw_data.orders",
-                                }
-                            }
-                        ],
+                        "edges": []
                     }
                 }
             }
         }
     }
 
-    mock_api_client.execute_query.return_value = fetch_sources_response
+    mock_api_client.execute_query.return_value = mock_response
 
     result = await sources_fetcher.fetch_source_details(source_name="nonexistent")
 
     # Should return empty dict when not found
     assert result == {}
+    
+    # Verify the API was called with identifier filter
+    call_args = mock_api_client.execute_query.call_args
+    variables = call_args[0][1]
+    assert variables["sourcesFilter"] == {"identifier": "nonexistent"}
 
 
 async def test_fetch_source_details_empty_response(sources_fetcher, mock_api_client):
