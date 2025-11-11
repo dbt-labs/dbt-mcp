@@ -38,7 +38,7 @@ def DEFAULT_RESULT_FORMATTER(table: pa.Table) -> str:
         orient="records",
         indent=2,
         date_format="iso",
-        date_unit="ms",
+        date_unit="s",
     )
 
 
