@@ -741,7 +741,7 @@ class SourcesFetcher:
             "sourcesFilter": source_filters,
             "first": 1,
         }
-        
+
         result = await self.api_client.execute_query(
             GraphQLQueries.GET_SOURCE_DETAILS, variables
         )

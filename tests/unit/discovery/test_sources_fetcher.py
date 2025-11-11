@@ -440,17 +440,7 @@ async def test_fetch_source_details_with_source_name(sources_fetcher, mock_api_c
 async def test_fetch_source_details_source_not_found(sources_fetcher, mock_api_client):
     """Test fetching source details when source identifier doesn't match any sources."""
     # Mock response with no matching sources (empty edges)
-    mock_response = {
-        "data": {
-            "environment": {
-                "applied": {
-                    "sources": {
-                        "edges": []
-                    }
-                }
-            }
-        }
-    }
+    mock_response = {"data": {"environment": {"applied": {"sources": {"edges": []}}}}}
 
     mock_api_client.execute_query.return_value = mock_response
 
@@ -458,7 +448,7 @@ async def test_fetch_source_details_source_not_found(sources_fetcher, mock_api_c
 
     # Should return empty dict when not found
     assert result == {}
-    
+
     # Verify the API was called with identifier filter
     call_args = mock_api_client.execute_query.call_args
     variables = call_args[0][1]
@@ -467,17 +457,7 @@ async def test_fetch_source_details_source_not_found(sources_fetcher, mock_api_c
 
 async def test_fetch_source_details_empty_response(sources_fetcher, mock_api_client):
     """Test fetching source details when API returns no edges."""
-    mock_response = {
-        "data": {
-            "environment": {
-                "applied": {
-                    "sources": {
-                        "edges": []
-                    }
-                }
-            }
-        }
-    }
+    mock_response = {"data": {"environment": {"applied": {"sources": {"edges": []}}}}}
 
     mock_api_client.execute_query.return_value = mock_response
 
@@ -503,17 +483,7 @@ async def test_fetch_source_details_graphql_error(
     mock_raise_gql_error, sources_fetcher, mock_api_client
 ):
     """Test that GraphQL errors are properly handled in fetch_source_details."""
-    mock_response = {
-        "data": {
-            "environment": {
-                "applied": {
-                    "sources": {
-                        "edges": []
-                    }
-                }
-            }
-        }
-    }
+    mock_response = {"data": {"environment": {"applied": {"sources": {"edges": []}}}}}
 
     mock_raise_gql_error.side_effect = GraphQLError("Test GraphQL error")
     mock_api_client.execute_query.return_value = mock_response
