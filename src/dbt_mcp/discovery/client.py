@@ -422,6 +422,7 @@ class ModelFilter(TypedDict, total=False):
 class SourceFilter(TypedDict, total=False):
     sourceNames: list[str]
     uniqueIds: list[str] | None
+    identifier: str
 
 
 class ModelsFetcher:
@@ -718,32 +719,29 @@ class SourcesFetcher:
 
         return all_edges
 
-    async def fetch_source_details(
+    def _get_source_filters(
         self, source_name: str | None = None, unique_id: str | None = None
-    ) -> dict:
-        """Fetch detailed information about a specific source including columns."""
-        source_filter: SourceFilter = {}
-
+    ) -> dict[str, list[str] | str]:
         if unique_id:
-            source_filter["uniqueIds"] = [unique_id]
+            return {"uniqueIds": [unique_id]}
         elif source_name:
-            # For backward compatibility, though unique_id is preferred
-            all_sources = await self.fetch_sources()
-            matching = [s for s in all_sources if s.get("name") == source_name]
-            if not matching:
-                return {}
-            source_filter["uniqueIds"] = [matching[0]["uniqueId"]]
+            return {"identifier": source_name}
         else:
             raise InvalidParameterError(
                 "Either source_name or unique_id must be provided"
             )
 
+    async def fetch_source_details(
+        self, source_name: str | None = None, unique_id: str | None = None
+    ) -> dict:
+        """Fetch detailed information about a specific source including columns."""
+        source_filters = self._get_source_filters(source_name, unique_id)
         variables = {
             "environmentId": await self.get_environment_id(),
-            "sourcesFilter": source_filter,
+            "sourcesFilter": source_filters,
             "first": 1,
         }
-
+        
         result = await self.api_client.execute_query(
             GraphQLQueries.GET_SOURCE_DETAILS, variables
         )
