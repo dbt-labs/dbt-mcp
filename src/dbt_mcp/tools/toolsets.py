@@ -42,6 +42,7 @@ toolsets = {
         ToolName.GET_MODEL_CHILDREN,
         ToolName.GET_MODEL_HEALTH,
         ToolName.GET_ALL_SOURCES,
+        ToolName.GET_SOURCE_DETAILS,
         ToolName.GET_EXPOSURES,
         ToolName.GET_EXPOSURE_DETAILS,
     },

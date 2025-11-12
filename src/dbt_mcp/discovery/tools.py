@@ -73,6 +73,11 @@ def create_discovery_tool_definitions(
     ) -> list[dict]:
         return await sources_fetcher.fetch_sources(source_names, unique_ids)
 
+    async def get_source_details(
+        source_name: str | None = None, unique_id: str | None = None
+    ) -> dict:
+        return await sources_fetcher.fetch_source_details(source_name, unique_id)
+
     return [
         ToolDefinition(
             description=get_prompt("discovery/get_mart_models"),
@@ -159,6 +164,16 @@ def create_discovery_tool_definitions(
             fn=get_all_sources,
             annotations=create_tool_annotations(
                 title="Get All Sources",
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+            ),
+        ),
+        ToolDefinition(
+            description=get_prompt("discovery/get_source_details"),
+            fn=get_source_details,
+            annotations=create_tool_annotations(
+                title="Get Source Details",
                 read_only_hint=True,
                 destructive_hint=False,
                 idempotent_hint=True,

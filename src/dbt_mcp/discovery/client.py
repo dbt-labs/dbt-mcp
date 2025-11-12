@@ -307,6 +307,44 @@ class GraphQLQueries:
         }
     """)
 
+    GET_SOURCE_DETAILS = textwrap.dedent("""
+        query GetSourceDetails(
+            $environmentId: BigInt!,
+            $sourcesFilter: SourceAppliedFilter,
+            $first: Int
+        ) {
+            environment(id: $environmentId) {
+                applied {
+                    sources(filter: $sourcesFilter, first: $first) {
+                        edges {
+                            node {
+                                name
+                                uniqueId
+                                identifier
+                                description
+                                sourceName
+                                database
+                                schema
+                                freshness {
+                                    maxLoadedAt
+                                    maxLoadedAtTimeAgoInS
+                                    freshnessStatus
+                                }
+                                catalog {
+                                    columns {
+                                        name
+                                        type
+                                        description
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    """)
+
     GET_EXPOSURES = textwrap.dedent("""
         query Exposures($environmentId: BigInt!, $first: Int, $after: String) {
             environment(id: $environmentId) {
@@ -384,6 +422,7 @@ class ModelFilter(TypedDict, total=False):
 class SourceFilter(TypedDict, total=False):
     sourceNames: list[str]
     uniqueIds: list[str] | None
+    identifier: str
 
 
 class ModelsFetcher:
@@ -679,3 +718,35 @@ class SourcesFetcher:
             after_cursor = page_info.get("endCursor")
 
         return all_edges
+
+    def _get_source_filters(
+        self, source_name: str | None = None, unique_id: str | None = None
+    ) -> dict[str, list[str] | str]:
+        if unique_id:
+            return {"uniqueIds": [unique_id]}
+        elif source_name:
+            return {"identifier": source_name}
+        else:
+            raise InvalidParameterError(
+                "Either source_name or unique_id must be provided"
+            )
+
+    async def fetch_source_details(
+        self, source_name: str | None = None, unique_id: str | None = None
+    ) -> dict:
+        """Fetch detailed information about a specific source including columns."""
+        source_filters = self._get_source_filters(source_name, unique_id)
+        variables = {
+            "environmentId": await self.get_environment_id(),
+            "sourcesFilter": source_filters,
+            "first": 1,
+        }
+
+        result = await self.api_client.execute_query(
+            GraphQLQueries.GET_SOURCE_DETAILS, variables
+        )
+        raise_gql_error(result)
+        edges = result["data"]["environment"]["applied"]["sources"]["edges"]
+        if not edges:
+            return {}
+        return edges[0]["node"]

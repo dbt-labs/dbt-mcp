@@ -33,7 +33,13 @@ from dbt_mcp.semantic_layer.types import (
 
 
 def DEFAULT_RESULT_FORMATTER(table: pa.Table) -> str:
-    return table.to_pandas().to_json(orient="records", indent=2)
+    dataframe = table.to_pandas()
+    return dataframe.to_json(
+        orient="records",
+        indent=2,
+        date_format="iso",
+        date_unit="s",
+    )
 
 
 class SemanticLayerClientProtocol(Protocol):
@@ -355,7 +361,7 @@ class SemanticLayerFetcher:
         order_by: list[OrderByParam] | None = None,
         where: str | None = None,
         limit: int | None = None,
-        result_formatter: Callable[[pa.Table], str] = DEFAULT_RESULT_FORMATTER,
+        result_formatter: Callable[[pa.Table], str] | None = None,
     ) -> QueryMetricsResult:
         validation_error = await self.validate_query_metrics_params(
             metrics=metrics,
@@ -385,7 +391,8 @@ class SemanticLayerFetcher:
                     query_error = e
             if query_error:
                 return self._format_query_failed_error(query_error)
-            json_result = result_formatter(query_result)
+            formatter = result_formatter or DEFAULT_RESULT_FORMATTER
+            json_result = formatter(query_result)
             return QueryMetricsSuccess(result=json_result or "")
         except Exception as e:
             return self._format_query_failed_error(e)
