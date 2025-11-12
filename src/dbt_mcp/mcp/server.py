@@ -149,7 +149,7 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
     if config.discovery_config_provider:
         logger.info("Registering discovery tools")
         register_discovery_tools(
-            dbt_mcp, config.discovery_config_provider, config.disable_tools
+            dbt_mcp, config.disable_tools
         )
 
     if config.dbt_cli_config:
