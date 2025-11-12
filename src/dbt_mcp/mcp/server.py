@@ -184,6 +184,6 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
             lsp_connection_provider=local_lsp_connection_provider,
         )
         dbt_mcp.lsp_connection_provider = local_lsp_connection_provider
-        await register_lsp_tools(dbt_mcp, lsp_client_provider)
+        await register_lsp_tools(dbt_mcp, lsp_client_provider, config.disable_tools)
 
     return dbt_mcp
