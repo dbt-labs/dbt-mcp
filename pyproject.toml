@@ -43,6 +43,7 @@ dependencies = [
   "pyyaml==6.0.2",
   "requests==2.32.4",
   "filelock>=3.18.0",
+  "makefun>=1.16.0",
 ]
 [dependency-groups]
 dev = [

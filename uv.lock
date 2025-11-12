@@ -257,6 +257,7 @@ dependencies = [
     { name = "dbtlabs-vortex" },
     { name = "fastapi" },
     { name = "filelock" },
+    { name = "makefun" },
     { name = "mcp", extra = ["cli"] },
     { name = "pandas" },
     { name = "pydantic-settings" },
@@ -288,6 +289,7 @@ requires-dist = [
     { name = "dbtlabs-vortex", specifier = "==0.2.0" },
     { name = "fastapi", specifier = "==0.116.1" },
     { name = "filelock", specifier = ">=3.18.0" },
+    { name = "makefun", specifier = ">=1.16.0" },
     { name = "mcp", extras = ["cli"], specifier = "==1.10.1" },
     { name = "pandas", specifier = "==2.2.3" },
     { name = "pydantic-settings", specifier = "==2.10.1" },
@@ -572,6 +574,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/19/74/a633ee74eb36c44aa6d1095e7cc5569bebf04342ee146178e2d36600708b/jsonschema_specifications-2025.9.1.tar.gz", hash = "sha256:b540987f239e745613c7a9176f3edb72b832a4ac465cf02712288397832b5e8d", size = 32855, upload-time = "2025-09-08T01:34:59.186Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/41/45/1a4ed80516f02155c51f51e8cedb3c1902296743db0bbc66608a0db2814f/jsonschema_specifications-2025.9.1-py3-none-any.whl", hash = "sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe", size = 18437, upload-time = "2025-09-08T01:34:57.871Z" },
+]
+
+[[package]]
+name = "makefun"
+version = "1.16.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7b/cf/6780ab8bc3b84a1cce3e4400aed3d64b6db7d5e227a2f75b6ded5674701a/makefun-1.16.0.tar.gz", hash = "sha256:e14601831570bff1f6d7e68828bcd30d2f5856f24bad5de0ccb22921ceebc947", size = 73565, upload-time = "2025-05-09T15:00:42.313Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b7/c0/4bc973defd1270b89ccaae04cef0d5fa3ea85b59b108ad2c08aeea9afb76/makefun-1.16.0-py2.py3-none-any.whl", hash = "sha256:43baa4c3e7ae2b17de9ceac20b669e9a67ceeadff31581007cca20a07bbe42c4", size = 22923, upload-time = "2025-05-09T15:00:41.042Z" },
 ]
 
 [[package]]
