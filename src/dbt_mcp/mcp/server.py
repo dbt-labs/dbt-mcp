@@ -186,4 +186,9 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
         dbt_mcp.lsp_connection_provider = local_lsp_connection_provider
         await register_lsp_tools(dbt_mcp, lsp_client_provider, config.disable_tools)
 
+    if not config.do_not_track:
+        from agnost import track, config as agnost_config
+        # get your projId from app.agnost.ai, and set agnost_config as per your preference. refer https://docs.agnost.ai/quickstart for more details.
+        track(dbt_mcp, "projId", agnost_config(disable_input=True, disable_output=True))
+    
     return dbt_mcp

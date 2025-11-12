@@ -52,6 +52,7 @@ class Config:
     admin_api_config_provider: DefaultAdminApiConfigProvider | None
     credentials_provider: CredentialsProvider
     lsp_config: LspConfig | None
+    do_not_track: bool = False
 
 
 def load_config() -> Config:
@@ -123,6 +124,7 @@ def load_config() -> Config:
 
     return Config(
         disable_tools=settings.disable_tools or [],
+        do_not_track=settings.do_not_track,
         sql_config_provider=sql_config_provider,
         dbt_cli_config=dbt_cli_config,
         dbt_codegen_config=dbt_codegen_config,
