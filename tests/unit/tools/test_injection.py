@@ -67,6 +67,13 @@ def test_adapt_with_mapper_basic_sync_adaptation():
     assert param.annotation == Context
 
 
+def test_adapted_function_preserves_name_and_docstring():
+    """Test that the adapted function preserves the name and docstring."""
+    adapted = adapt_with_mapper(greet_user_id, extract_user_id)
+    assert adapted.__name__ == "greet_user_id"
+    assert adapted.__doc__ == greet_user_id.__doc__
+
+
 def test_adapt_with_mapper_multiple_parameters():
     """Test adaptation with multiple parameters."""
 

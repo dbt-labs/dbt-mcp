@@ -194,15 +194,11 @@ def register_discovery_tools(
     discovery_config_provider: ConfigProvider[DiscoveryConfig],
     exclude_tools: Sequence[ToolName] = [],
 ) -> None:
+    def bind_context() -> DiscoveryToolContext:
+        return DiscoveryToolContext(config_provider=discovery_config_provider)
+
     register_tools(
         dbt_mcp,
-        [
-            tool.adapt_context(
-                lambda ctx: DiscoveryToolContext(
-                    config_provider=discovery_config_provider
-                )
-            )
-            for tool in DISCOVERY_TOOLS
-        ],
+        [tool.adapt_context(bind_context) for tool in DISCOVERY_TOOLS],
         exclude_tools,
     )

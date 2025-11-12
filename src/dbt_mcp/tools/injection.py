@@ -1,5 +1,6 @@
 import inspect
 from collections.abc import Callable, Iterable
+from functools import wraps
 from typing import Any, TypeVar, cast
 
 R = TypeVar("R")
@@ -65,26 +66,30 @@ def adapt_with_mapper[R](
                 func_args[func_param.name] = bound_args.arguments[func_param.name]
         return func(**func_args)
 
-    def _wrapper(*args: Any, **kwargs: Any) -> R:
-        bound_args = bind_args(*args, **kwargs)
-        mapped_value = invoke_mapper(bound_args)
-        return invoke_func(bound_args, mapped_value)
-
-    _wrapper.__signature__ = new_sig  # type: ignore[attr-defined]
-
-    async def _awrapper(*args: Any, **kwargs: Any) -> Any:
-        bound_args = bind_args(*args, **kwargs)
-        mapped_value = await invoke_mapper(bound_args)
-        return await invoke_func(bound_args, mapped_value)
-
-    _awrapper.__signature__ = new_sig  # type: ignore[attr-defined]
-
     if inspect.iscoroutinefunction(mapper):
         if not inspect.iscoroutinefunction(func):
             raise AdaptError("Async mapper used with sync function")
-        return cast(Callable[..., R], _awrapper)
+
+        @wraps(func)
+        async def awrapper(*args: Any, **kwargs: Any) -> Any:
+            bound_args = bind_args(*args, **kwargs)
+            mapped_value = await invoke_mapper(bound_args)
+            return await invoke_func(bound_args, mapped_value)
+
+        awrapper.__signature__ = new_sig  # type: ignore[attr-defined]
+        return cast(Callable[..., R], awrapper)
+
     else:
-        return _wrapper
+
+        @wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> R:
+            bound_args = bind_args(*args, **kwargs)
+            mapped_value = invoke_mapper(bound_args)
+            return invoke_func(bound_args, mapped_value)
+
+        wrapper.__signature__ = new_sig  # type: ignore[attr-defined]
+
+        return wrapper
 
 
 def adapt_with_mappers[R](
