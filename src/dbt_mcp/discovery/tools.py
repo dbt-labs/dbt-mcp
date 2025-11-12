@@ -1,9 +1,8 @@
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import cast
 
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.fastmcp import FastMCP
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.client import (
@@ -12,7 +11,6 @@ from dbt_mcp.discovery.client import (
     ModelsFetcher,
     SourcesFetcher,
 )
-from dbt_mcp.mcp.server import DbtMCP
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
@@ -191,19 +189,20 @@ DISCOVERY_TOOLS = [
 ]
 
 
-def adapt_dbt_mcp_context(context: Context) -> DiscoveryToolContext:
-    dbt_mcp = cast(DbtMCP, context.fastmcp)
-    config_provider = dbt_mcp.config.discovery_config_provider
-    assert config_provider is not None
-    return DiscoveryToolContext(config_provider=config_provider)
-
-
 def register_discovery_tools(
     dbt_mcp: FastMCP,
+    discovery_config_provider: ConfigProvider[DiscoveryConfig],
     exclude_tools: Sequence[ToolName] = [],
 ) -> None:
     register_tools(
         dbt_mcp,
-        [tool.adapt_context(adapt_dbt_mcp_context) for tool in DISCOVERY_TOOLS],
+        [
+            tool.adapt_context(
+                lambda ctx: DiscoveryToolContext(
+                    config_provider=discovery_config_provider
+                )
+            )
+            for tool in DISCOVERY_TOOLS
+        ],
         exclude_tools,
     )

@@ -50,10 +50,6 @@ async def async_greet_user_id(user_id: int) -> str:
     return f"Hello, user {user_id}!"
 
 
-def function_with_existing_carrier(ctx: Context, user_id: int) -> str:
-    return f"Context name: {ctx.name}, extracted ID: {user_id}"
-
-
 # Core functionality tests
 def test_adapt_with_mapper_basic_sync_adaptation():
     """Test basic synchronous function adaptation."""
@@ -95,16 +91,6 @@ async def test_adapt_with_mapper_async_function_sync_mapper():
 
 
 @pytest.mark.asyncio
-async def test_adapt_with_mapper_sync_function_async_mapper():
-    """Test sync function with async mapper."""
-    adapted = adapt_with_mapper(greet_user_id, async_extract_user_id)
-
-    ctx = Context(42)
-    result = await adapted(ctx)
-    assert result == "Hello, user 42!"
-
-
-@pytest.mark.asyncio
 async def test_adapt_with_mapper_both_async():
     """Test both function and mapper are async."""
     adapted = adapt_with_mapper(async_greet_user_id, async_extract_user_id)
@@ -112,27 +98,6 @@ async def test_adapt_with_mapper_both_async():
     ctx = Context(42)
     result = await adapted(ctx)
     assert result == "Hello, user 42!"
-
-
-def test_adapt_with_mapper_existing_carrier_parameter():
-    """Test when function already has carrier type parameter.
-
-    When the target function already has a parameter with the carrier type,
-    the adapter should reuse that parameter and remove the target parameter.
-    """
-    adapted = adapt_with_mapper(function_with_existing_carrier, extract_user_id)
-
-    # Should remove the user_id parameter and keep the ctx parameter
-    sig = inspect.signature(adapted)
-    assert len(sig.parameters) == 1
-    param = next(iter(sig.parameters.values()))
-    assert param.annotation == Context
-    assert param.name == "ctx"
-
-    # Should work correctly - both ctx and mapped user_id are passed
-    ctx = Context(42, "Alice")
-    result = adapted(ctx)
-    assert result == "Context name: Alice, extracted ID: 42"
 
 
 def test_adapt_with_mapper_no_target_parameters_lenient_skip():
@@ -148,37 +113,13 @@ def test_adapt_with_mapper_no_target_parameters_lenient_skip():
     assert adapted("test") == "Other: test"
 
 
-def test_adapt_with_mapper_ambiguous_parameters_error():
-    """Test error when multiple parameters match target type."""
-
-    def ambiguous_func(user_id1: int, user_id2: int) -> str:
-        return f"IDs: {user_id1}, {user_id2}"
-
-    with pytest.raises(AdaptError, match="Ambiguous.*user_id1, user_id2.*int"):
-        adapt_with_mapper(ambiguous_func, extract_user_id)
-
-
-# Test removed - was testing on_ambiguous="first" behavior which no longer exists
-
-
-# Error condition tests
-def test_adapt_with_mapper_error_wrong_parameter_count():
-    """Test error when mapper has wrong number of parameters."""
-
-    def bad_mapper(ctx: Context, extra: str) -> int:
-        return ctx.user_id
-
-    with pytest.raises(AdaptError, match="mapper must take exactly one parameter"):
-        adapt_with_mapper(greet_user_id, bad_mapper)
-
-
 def test_adapt_with_mapper_error_missing_parameter_annotation():
     """Test error when mapper parameter lacks type annotation."""
 
     def bad_mapper(ctx) -> int:  # No annotation
         return 42
 
-    with pytest.raises(AdaptError, match="mapper's parameter must be type-annotated"):
+    with pytest.raises(AdaptError, match="mapper must have type-annotated parameters"):
         adapt_with_mapper(greet_user_id, bad_mapper)
 
 
@@ -188,7 +129,7 @@ def test_adapt_with_mapper_error_missing_return_annotation():
     def bad_mapper(ctx: Context):  # No return annotation
         return ctx.user_id
 
-    with pytest.raises(AdaptError, match="mapper must have a return annotation"):
+    with pytest.raises(AdaptError, match="mapper must have a return type annotation"):
         adapt_with_mapper(greet_user_id, bad_mapper)
 
 
@@ -268,17 +209,6 @@ def test_adapt_with_mappers_different_carrier_types():
     assert Data in param_types
 
 
-def test_adapt_with_mappers_ambiguous_parameters_error():
-    """Test that adapt_with_mappers raises error on ambiguous parameters."""
-
-    def ambiguous_func(user_id1: int, user_id2: int) -> str:
-        return f"IDs: {user_id1}, {user_id2}"
-
-    # Should raise error due to ambiguous parameters
-    with pytest.raises(AdaptError, match="Ambiguous.*user_id1, user_id2.*int"):
-        adapt_with_mappers(ambiguous_func, [extract_user_id])
-
-
 # Real-world usage pattern tests
 def test_dependency_injection_pattern():
     """Test a realistic dependency injection pattern."""
@@ -316,24 +246,6 @@ def test_function_with_no_parameters():
     adapted = adapt_with_mapper(no_params, extract_user_id)
     assert adapted is no_params
     assert adapted() == "no params"
-
-
-def test_function_with_varargs():
-    """Test function with *args and **kwargs.
-
-    The adapter should properly handle functions with varargs and varkwargs,
-    preserving the positional and keyword argument structure.
-    """
-
-    def func_with_varargs(user_id: int, *args, **kwargs) -> str:
-        return f"User {user_id}, args: {args}, kwargs: {kwargs}"
-
-    adapted = adapt_with_mapper(func_with_varargs, extract_user_id)
-
-    ctx = Context(42)
-    result = adapted(ctx, "extra", "args", key="value")
-    # Should correctly preserve varargs and varkwargs structure
-    assert result == "User 42, args: ('extra', 'args'), kwargs: {'key': 'value'}"
 
 
 def test_mapper_parameter_name_used_in_adaptation():

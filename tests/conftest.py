@@ -1,8 +1,9 @@
 import os
 import shutil
-from collections.abc import Any, Callable
+from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 import pytest
 
