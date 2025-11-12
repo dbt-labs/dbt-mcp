@@ -74,6 +74,16 @@ def test_adapted_function_preserves_name_and_docstring():
     assert adapted.__doc__ == greet_user_id.__doc__
 
 
+def test_adapts_with_no_argument_mapper():
+    """Test that an adapter with no argument mapper works."""
+
+    def no_argument_mapper() -> int:
+        return 42
+
+    adapted = adapt_with_mapper(greet_user_id, no_argument_mapper)
+    assert adapted() == "Hello, user 42!"
+
+
 def test_adapt_with_mapper_multiple_parameters():
     """Test adaptation with multiple parameters."""
 

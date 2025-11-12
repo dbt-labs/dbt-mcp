@@ -1,21 +1,16 @@
 import asyncio
 import logging
 import time
+import traceback
 import uuid
 from collections.abc import AsyncIterator, Callable, Sequence
-from contextlib import (
-    AbstractAsyncContextManager,
-    asynccontextmanager,
-)
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from typing import Any
 
 from dbtlabs_vortex.producer import shutdown
 from mcp.server.fastmcp import FastMCP
 from mcp.server.lowlevel.server import LifespanResultT
-from mcp.types import (
-    ContentBlock,
-    TextContent,
-)
+from mcp.types import ContentBlock, TextContent
 
 from dbt_mcp.config.config import Config
 from dbt_mcp.dbt_admin.tools import register_admin_api_tools
@@ -149,7 +144,7 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
     if config.discovery_config_provider:
         logger.info("Registering discovery tools")
         register_discovery_tools(
-            dbt_mcp, config.disable_tools
+            dbt_mcp, config.discovery_config_provider, config.disable_tools
         )
 
     if config.dbt_cli_config:

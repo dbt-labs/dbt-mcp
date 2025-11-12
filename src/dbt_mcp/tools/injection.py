@@ -66,20 +66,23 @@ def adapt_with_mapper[R](
                 func_args[func_param.name] = bound_args.arguments[func_param.name]
         return func(**func_args)
 
-    if inspect.iscoroutinefunction(mapper):
-        if not inspect.iscoroutinefunction(func):
-            raise AdaptError("Async mapper used with sync function")
+    if inspect.iscoroutinefunction(func):
 
         @wraps(func)
         async def awrapper(*args: Any, **kwargs: Any) -> Any:
             bound_args = bind_args(*args, **kwargs)
-            mapped_value = await invoke_mapper(bound_args)
+            if inspect.iscoroutinefunction(mapper):
+                mapped_value = await invoke_mapper(bound_args)
+            else:
+                mapped_value = invoke_mapper(bound_args)
             return await invoke_func(bound_args, mapped_value)
 
         awrapper.__signature__ = new_sig  # type: ignore[attr-defined]
         return cast(Callable[..., R], awrapper)
 
     else:
+        if inspect.iscoroutinefunction(mapper):
+            raise AdaptError("Async mapper used with sync function")
 
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> R:
