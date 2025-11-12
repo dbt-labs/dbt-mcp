@@ -42,10 +42,6 @@ def greet_user_id(user_id: int) -> str:
     return f"Hello, user {user_id}!"
 
 
-def greet_user_with_name(user_id: int, name: str) -> str:
-    return f"Hello, {name} (ID: {user_id})!"
-
-
 async def async_greet_user_id(user_id: int) -> str:
     return f"Hello, user {user_id}!"
 
