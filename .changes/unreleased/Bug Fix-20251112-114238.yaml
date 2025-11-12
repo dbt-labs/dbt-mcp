@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: correctly apply config.disable_tools when registering lsp tools
-time: 2025-11-12T11:42:38.395835Z
