@@ -131,3 +131,21 @@ async def test_get_column_lineage_generic_exception() -> None:
     assert "error" in result
     assert "Failed to get column lineage" in result["error"]
     assert "Connection lost" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_register_lsp_tools_with_exclude_tools(
+    test_mcp_server: FastMCP, lsp_client_provider: LSPClientProvider
+) -> None:
+    """Test that excluded tools are not registered."""
+
+    # Register LSP tools with GET_COLUMN_LINEAGE excluded
+    await register_lsp_tools(
+        test_mcp_server,
+        lsp_client_provider,
+        exclude_tools=[ToolName.GET_COLUMN_LINEAGE],
+    )
+
+    # Verify GET_COLUMN_LINEAGE was not registered
+    tool_names = [tool.name for tool in await test_mcp_server.list_tools()]
+    assert ToolName.GET_COLUMN_LINEAGE.value not in tool_names
