@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import time
-import traceback
 import uuid
 from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import AbstractAsyncContextManager, asynccontextmanager

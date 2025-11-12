@@ -360,9 +360,9 @@ async def test_get_all_sources_tool():
             get_all_sources_tool = tool_def
             break
 
-    assert (
-        get_all_sources_tool is not None
-    ), "get_all_sources tool not found in tool definitions"
+    assert get_all_sources_tool is not None, (
+        "get_all_sources tool not found in tool definitions"
+    )
 
     # Execute the tool function
     result = await get_all_sources_tool.fn(
