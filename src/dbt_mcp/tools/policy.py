@@ -155,4 +155,11 @@ tool_policies = {
     ToolName.GET_COLUMN_LINEAGE.value: ToolPolicy(
         name=ToolName.GET_COLUMN_LINEAGE.value, behavior=ToolBehavior.METADATA
     ),
+    # Search tools
+    ToolName.GET_RELATED_MODELS.value: ToolPolicy(
+        name=ToolName.GET_RELATED_MODELS.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.KEYWORD_SEARCH.value: ToolPolicy(
+        name=ToolName.KEYWORD_SEARCH.value, behavior=ToolBehavior.METADATA
+    ),
 }

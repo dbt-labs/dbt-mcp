@@ -12,12 +12,22 @@ class Toolset(Enum):
     ADMIN_API = "admin_api"
     DBT_CODEGEN = "dbt_codegen"
     DBT_LSP = "dbt_lsp"
+    SEARCH = "search"
 
 
-proxied_tools: set[Literal[ToolName.TEXT_TO_SQL, ToolName.EXECUTE_SQL]] = set(
+proxied_tools: set[
+    Literal[
+        ToolName.TEXT_TO_SQL,
+        ToolName.EXECUTE_SQL,
+        ToolName.GET_RELATED_MODELS,
+        ToolName.KEYWORD_SEARCH,
+    ]
+] = set(
     [
         ToolName.TEXT_TO_SQL,
         ToolName.EXECUTE_SQL,
+        ToolName.GET_RELATED_MODELS,
+        ToolName.KEYWORD_SEARCH,
     ]
 )
 
@@ -75,5 +85,9 @@ toolsets = {
     },
     Toolset.DBT_LSP: {
         ToolName.GET_COLUMN_LINEAGE,
+    },
+    Toolset.SEARCH: {
+        ToolName.GET_RELATED_MODELS,
+        ToolName.KEYWORD_SEARCH,
     },
 }

@@ -63,6 +63,10 @@ class ToolName(Enum):
     # dbt LSP tools
     GET_COLUMN_LINEAGE = "get_column_lineage"
 
+    # Search tools
+    GET_RELATED_MODELS = "get_related_models"
+    KEYWORD_SEARCH = "keyword_search"
+
     @classmethod
     def get_all_tool_names(cls) -> set[str]:
         """Returns a set of all tool names as strings."""

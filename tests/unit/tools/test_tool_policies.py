@@ -6,7 +6,7 @@ from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo
 from dbt_mcp.mcp.server import create_dbt_mcp
 from dbt_mcp.tools.policy import tool_policies
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.toolsets import proxied_tools, Toolset, toolsets
+from dbt_mcp.tools.toolsets import Toolset, proxied_tools, toolsets
 
 
 async def test_tool_policies_match_server_tools(env_setup):

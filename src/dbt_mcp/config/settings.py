@@ -1,7 +1,7 @@
 import logging
+import shutil
 import socket
 import time
-import shutil
 from enum import Enum
 from pathlib import Path
 from typing import Annotated
@@ -77,6 +77,7 @@ class DbtMcpSettings(BaseSettings):
         None, alias="DISABLE_TOOLS"
     )
     disable_lsp: bool | None = Field(None, alias="DISABLE_LSP")
+    disable_search: bool | None = Field(None, alias="DISABLE_SEARCH")
 
     # Tracking settings
     do_not_track: str | None = Field(None, alias="DO_NOT_TRACK")

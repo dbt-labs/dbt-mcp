@@ -4,7 +4,7 @@ from dbt_mcp.config.config import load_config
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo
 from dbt_mcp.mcp.server import create_dbt_mcp
-from dbt_mcp.tools.toolsets import proxied_tools, toolsets, Toolset
+from dbt_mcp.tools.toolsets import Toolset, proxied_tools, toolsets
 
 
 async def test_toolsets_match_server_tools(env_setup):

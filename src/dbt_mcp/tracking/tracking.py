@@ -81,6 +81,9 @@ class DefaultUsageTracker:
                 case Toolset.DBT_LSP:
                     if settings.disable_lsp:
                         disabled_toolsets.append(toolset)
+                case Toolset.SEARCH:
+                    if settings.disable_search:
+                        disabled_toolsets.append(toolset)
                 case _:
                     assert_never(toolset)
         return disabled_toolsets
