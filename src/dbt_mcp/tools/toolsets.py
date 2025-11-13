@@ -14,10 +14,19 @@ class Toolset(Enum):
     DBT_LSP = "dbt_lsp"
 
 
-proxied_tools: set[Literal[ToolName.TEXT_TO_SQL, ToolName.EXECUTE_SQL]] = set(
+proxied_tools: set[
+    Literal[
+        ToolName.TEXT_TO_SQL,
+        ToolName.EXECUTE_SQL,
+        ToolName.GET_RELATED_MODELS,
+        ToolName.KEYWORD_SEARCH,
+    ]
+] = set(
     [
         ToolName.TEXT_TO_SQL,
         ToolName.EXECUTE_SQL,
+        ToolName.GET_RELATED_MODELS,
+        ToolName.KEYWORD_SEARCH,
     ]
 )
 
@@ -45,6 +54,8 @@ toolsets = {
         ToolName.GET_SOURCE_DETAILS,
         ToolName.GET_EXPOSURES,
         ToolName.GET_EXPOSURE_DETAILS,
+        ToolName.GET_RELATED_MODELS,
+        ToolName.KEYWORD_SEARCH,
     },
     Toolset.DBT_CLI: {
         ToolName.BUILD,
