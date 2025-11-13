@@ -18,7 +18,7 @@ async def test_disable_tools(env_setup):
             "dbt_mcp.config.config.detect_binary_type", return_value=BinaryType.DBT_CORE
         ),
     ):
-        config = load_config()
+        config = load_config(enable_proxied_tools=False)
         dbt_mcp = await create_dbt_mcp(config)
 
         # Get all tools from the server
@@ -39,7 +39,7 @@ async def test_disable_cli_tools(env_setup):
             "dbt_mcp.config.config.detect_binary_type", return_value=BinaryType.DBT_CORE
         ),
     ):
-        config = load_config()
+        config = load_config(enable_proxied_tools=False)
         dbt_mcp = await create_dbt_mcp(config)
 
         # Get all tools from the server

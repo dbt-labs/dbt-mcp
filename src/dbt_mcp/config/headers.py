@@ -40,6 +40,6 @@ class SemanticLayerHeadersProvider(TokenHeadersProvider):
         }
 
 
-class SqlHeadersProvider(TokenHeadersProvider):
+class ProxiedToolHeadersProvider(TokenHeadersProvider):
     def headers_from_token(self, token: str) -> dict[str, str]:
         return {"Authorization": f"Bearer {token}"}

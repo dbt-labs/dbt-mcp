@@ -1,8 +1,9 @@
-from pathlib import Path
-import shutil
-import pytest
-from contextlib import contextmanager
 import os
+import shutil
+from contextlib import contextmanager
+from pathlib import Path
+
+import pytest
 
 # During tests, avoid executing the real `dbt` executable (which in CI/tests
 # may be a placeholder file). Force the detection routine to a deterministic

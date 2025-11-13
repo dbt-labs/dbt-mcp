@@ -4,6 +4,7 @@ from contextlib import AsyncExitStack
 from typing import (
     Annotated,
     Any,
+    cast,
 )
 
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
@@ -25,10 +26,10 @@ from pydantic import Field, WithJsonSchema, create_model
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
-from dbt_mcp.config.config_providers import ConfigProvider, SqlConfig
+from dbt_mcp.config.config_providers import ConfigProvider, ProxiedToolConfig
 from dbt_mcp.errors import RemoteToolError
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.toolsets import Toolset, toolsets
+from dbt_mcp.tools.toolsets import Toolset, proxied_tools, toolsets
 
 logger = logging.getLogger(__name__)
 
@@ -60,18 +61,18 @@ def get_remote_tool_fn_metadata(tool: Tool) -> FuncMetadata:
     )
 
 
-async def _get_sql_tools(session: ClientSession) -> list[Tool]:
-    try:
-        sql_tool_names = {t.value for t in toolsets[Toolset.SQL]}
-        return [
-            t for t in (await session.list_tools()).tools if t.name in sql_tool_names
-        ]
-    except Exception as e:
-        logger.error(f"Error getting SQL tools: {e}")
-        return []
+async def get_proxied_tools(
+    session: ClientSession,
+    configured_proxied_tools: set[ToolName],
+) -> list[Tool]:
+    tools = (await session.list_tools()).tools
+    normalized_configured_proxied_tools = {
+        t.value.lower() for t in configured_proxied_tools
+    }
+    return [t for t in tools if t.name.lower() in normalized_configured_proxied_tools]
 
 
-class SqlToolsManager:
+class ProxiedToolsManager:
     _stack = AsyncExitStack()
 
     async def get_remote_mcp_session(
@@ -97,31 +98,55 @@ class SqlToolsManager:
         await cls._stack.aclose()
 
 
-async def register_sql_tools(
+def resolve_proxied_tools_configuration(
+    config: ProxiedToolConfig,
+    exclude_tools: Sequence[ToolName],
+) -> set[ToolName]:
+    configured_proxied_tools = cast(set[ToolName], proxied_tools) - set(exclude_tools)
+    if config.are_sql_tools_disabled:
+        configured_proxied_tools = configured_proxied_tools - toolsets[Toolset.SQL]
+    if config.are_discovery_tools_disabled:
+        configured_proxied_tools = (
+            configured_proxied_tools - toolsets[Toolset.DISCOVERY]
+        )
+    return configured_proxied_tools
+
+
+async def register_proxied_tools(
     dbt_mcp: FastMCP,
-    config_provider: ConfigProvider[SqlConfig],
+    config_provider: ConfigProvider[ProxiedToolConfig],
     exclude_tools: Sequence[ToolName] = [],
 ) -> None:
     """
-    Register SQL MCP tools.
+    Register proxied MCP tools.
 
-    SQL tools are hosted remotely, so their definitions aren't found in this repo.
+    Proxied tools are hosted remotely, so their definitions aren't found in this repo.
     """
     config = await config_provider.get_config()
-    headers = {
-        "x-dbt-prod-environment-id": str(config.prod_environment_id),
-        "x-dbt-dev-environment-id": str(config.dev_environment_id),
-        "x-dbt-user-id": str(config.user_id),
-    } | config.headers_provider.get_headers()
-    sql_tools_manager = SqlToolsManager()
-    session = await sql_tools_manager.get_remote_mcp_session(config.url, headers)
-    await session.initialize()
-    sql_tools = await _get_sql_tools(session)
-    logger.info(f"Loaded sql tools: {', '.join([tool.name for tool in sql_tools])}")
-    for tool in sql_tools:
-        if tool.name.lower() in [tool.value.lower() for tool in exclude_tools]:
-            continue
-
+    configured_proxied_tools = resolve_proxied_tools_configuration(
+        config, exclude_tools
+    )
+    if not configured_proxied_tools:
+        return
+    headers = config.headers_provider.get_headers()
+    if config.prod_environment_id:
+        headers["x-dbt-prod-environment-id"] = str(config.prod_environment_id)
+    if config.dev_environment_id:
+        headers["x-dbt-dev-environment-id"] = str(config.dev_environment_id)
+    if config.user_id:
+        headers["x-dbt-user-id"] = str(config.user_id)
+    proxied_tools_manager = ProxiedToolsManager()
+    try:
+        session = await proxied_tools_manager.get_remote_mcp_session(
+            config.url, headers
+        )
+        await session.initialize()
+        tools = await get_proxied_tools(session, configured_proxied_tools)
+    except BaseException as e:
+        logger.error(f"Error getting proxied tools: {e}")
+        return
+    logger.info(f"Loaded proxied tools: {', '.join([tool.name for tool in tools])}")
+    for tool in tools:
         # Create a new function using a factory to avoid closure issues
         def create_tool_function(tool_name: str):
             async def tool_function(*args, **kwargs) -> Sequence[ContentBlock]:

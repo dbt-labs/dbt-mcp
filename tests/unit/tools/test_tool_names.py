@@ -1,20 +1,21 @@
 from unittest.mock import patch
 
-import pytest
-
 from dbt_mcp.config.config import load_config
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo
 from dbt_mcp.mcp.server import create_dbt_mcp
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.toolsets import proxied_tools, toolsets, Toolset
+from dbt_mcp.tools.toolsets import proxied_tools
 
 
-@pytest.mark.asyncio
 async def test_tool_names_match_server_tools(env_setup):
     """Test that the ToolName enum matches the tools registered in the server."""
     with (
-        env_setup() as (project_dir, helpers),
+        env_setup(
+            env_vars={
+                "DISABLE_DBT_CODEGEN": "false",
+            }
+        ),
         patch(
             "dbt_mcp.config.config.detect_binary_type", return_value=BinaryType.DBT_CORE
         ),
@@ -23,20 +24,17 @@ async def test_tool_names_match_server_tools(env_setup):
             return_value=LspBinaryInfo(path="/path/to/lsp", version="1.0.0"),
         ),
     ):
-        config = load_config()
+        config = load_config(enable_proxied_tools=False)
 
         dbt_mcp = await create_dbt_mcp(config)
 
         # Get all tools from the server
         server_tools = await dbt_mcp.list_tools()
-        # Manually adding SQL tools here because the server doesn't get them
+        # Manually adding proxied tools here because the server doesn't get them
         # in this unit test.
-        server_tool_names = (
-            {tool.name for tool in server_tools}
-            | {p.value for p in proxied_tools}
-            # Also adding codegen because it's default off
-            | {t.value for t in toolsets[Toolset.DBT_CODEGEN]}
-        )
+        server_tool_names = {tool.name for tool in server_tools} | {
+            p.value for p in proxied_tools
+        }
         enum_names = {n for n in ToolName.get_all_tool_names()}
 
         # This should not raise any errors if the enum is in sync

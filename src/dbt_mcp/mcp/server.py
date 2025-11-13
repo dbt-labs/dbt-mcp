@@ -26,11 +26,11 @@ from dbt_mcp.lsp.providers.local_lsp_client_provider import LocalLSPClientProvid
 from dbt_mcp.lsp.providers.local_lsp_connection_provider import (
     LocalLSPConnectionProvider,
 )
+from dbt_mcp.lsp.tools import register_lsp_tools
+from dbt_mcp.proxy.tools import ProxiedToolsManager, register_proxied_tools
 from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
 from dbt_mcp.semantic_layer.tools import register_sl_tools
-from dbt_mcp.sql.tools import SqlToolsManager, register_sql_tools
 from dbt_mcp.tracking.tracking import DefaultUsageTracker, ToolCalledEvent, UsageTracker
-from dbt_mcp.lsp.tools import register_lsp_tools
 
 logger = logging.getLogger(__name__)
 
@@ -110,9 +110,9 @@ async def app_lifespan(server: DbtMCP) -> AsyncIterator[None]:
     finally:
         logger.info("Shutting down MCP server")
         try:
-            await SqlToolsManager.close()
+            await ProxiedToolsManager.close()
         except Exception:
-            logger.exception("Error closing SQL tools manager")
+            logger.exception("Error closing proxied tools manager")
         try:
             if server.lsp_connection_provider:
                 await server.lsp_connection_provider.cleanup_connection()
@@ -168,10 +168,10 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
             dbt_mcp, config.admin_api_config_provider, config.disable_tools
         )
 
-    if config.sql_config_provider:
-        logger.info("Registering SQL tools")
-        await register_sql_tools(
-            dbt_mcp, config.sql_config_provider, config.disable_tools
+    if config.proxied_tool_config_provider:
+        logger.info("Registering proxied tools")
+        await register_proxied_tools(
+            dbt_mcp, config.proxied_tool_config_provider, config.disable_tools
         )
 
     if config.lsp_config and config.lsp_config.lsp_binary_info:

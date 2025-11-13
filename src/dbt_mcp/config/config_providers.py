@@ -5,8 +5,8 @@ from dbt_mcp.config.headers import (
     AdminApiHeadersProvider,
     DiscoveryHeadersProvider,
     HeadersProvider,
+    ProxiedToolHeadersProvider,
     SemanticLayerHeadersProvider,
-    SqlHeadersProvider,
 )
 from dbt_mcp.config.settings import CredentialsProvider
 
@@ -36,12 +36,14 @@ class AdminApiConfig:
 
 
 @dataclass
-class SqlConfig:
-    user_id: int
-    dev_environment_id: int
-    prod_environment_id: int
+class ProxiedToolConfig:
+    user_id: int | None
+    dev_environment_id: int | None
+    prod_environment_id: int | None
     url: str
-    headers_provider: HeadersProvider
+    headers_provider: ProxiedToolHeadersProvider
+    are_sql_tools_disabled: bool
+    are_discovery_tools_disabled: bool
 
 
 class ConfigProvider[ConfigType](ABC):
@@ -125,19 +127,20 @@ class DefaultAdminApiConfigProvider(ConfigProvider[AdminApiConfig]):
         )
 
 
-class DefaultSqlConfigProvider(ConfigProvider[SqlConfig]):
-    def __init__(self, credentials_provider: CredentialsProvider):
+class DefaultProxiedToolConfigProvider(ConfigProvider[ProxiedToolConfig]):
+    def __init__(
+        self,
+        credentials_provider: CredentialsProvider,
+        are_sql_tools_disabled: bool,
+        are_discovery_tools_disabled: bool,
+    ):
         self.credentials_provider = credentials_provider
+        self.are_sql_tools_disabled = are_sql_tools_disabled
+        self.are_discovery_tools_disabled = are_discovery_tools_disabled
 
-    async def get_config(self) -> SqlConfig:
+    async def get_config(self) -> ProxiedToolConfig:
         settings, token_provider = await self.credentials_provider.get_credentials()
-        assert (
-            settings.dbt_user_id
-            and settings.dbt_token
-            and settings.dbt_dev_env_id
-            and settings.actual_prod_environment_id
-            and settings.actual_host
-        )
+        assert settings.dbt_token and settings.actual_host
         is_local = settings.actual_host and settings.actual_host.startswith("localhost")
         path = "/v1/mcp/" if is_local else "/api/ai/v1/mcp/"
         scheme = "http://" if is_local else "https://"
@@ -146,10 +149,12 @@ class DefaultSqlConfigProvider(ConfigProvider[SqlConfig]):
         )
         url = f"{scheme}{host_prefix}{settings.actual_host}{path}"
 
-        return SqlConfig(
+        return ProxiedToolConfig(
             user_id=settings.dbt_user_id,
             dev_environment_id=settings.dbt_dev_env_id,
             prod_environment_id=settings.actual_prod_environment_id,
             url=url,
-            headers_provider=SqlHeadersProvider(token_provider=token_provider),
+            headers_provider=ProxiedToolHeadersProvider(token_provider=token_provider),
+            are_sql_tools_disabled=self.are_sql_tools_disabled,
+            are_discovery_tools_disabled=self.are_discovery_tools_disabled,
         )

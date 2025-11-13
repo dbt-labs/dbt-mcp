@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from dbt_mcp.config.config_providers import (
     DefaultAdminApiConfigProvider,
     DefaultDiscoveryConfigProvider,
+    DefaultProxiedToolConfigProvider,
     DefaultSemanticLayerConfigProvider,
-    DefaultSqlConfigProvider,
 )
 from dbt_mcp.config.settings import (
     CredentialsProvider,
@@ -44,7 +44,7 @@ class LspConfig:
 @dataclass
 class Config:
     disable_tools: list[ToolName]
-    sql_config_provider: DefaultSqlConfigProvider | None
+    proxied_tool_config_provider: DefaultProxiedToolConfigProvider | None
     dbt_cli_config: DbtCliConfig | None
     dbt_codegen_config: DbtCodegenConfig | None
     discovery_config_provider: DefaultDiscoveryConfigProvider | None
@@ -54,7 +54,7 @@ class Config:
     lsp_config: LspConfig | None
 
 
-def load_config() -> Config:
+def load_config(enable_proxied_tools: bool = True) -> Config:
     settings = DbtMcpSettings()  # type: ignore
     configure_logging(settings.file_logging)
     credentials_provider = CredentialsProvider(settings)
@@ -65,10 +65,14 @@ def load_config() -> Config:
         os.environ["DBT_WARN_ERROR_OPTIONS"] = warn_error_options
 
     # Build configurations
-    sql_config_provider = None
-    if not settings.actual_disable_sql:
-        sql_config_provider = DefaultSqlConfigProvider(
+    proxied_tool_config_provider = None
+    if enable_proxied_tools and (
+        not settings.actual_disable_sql or not settings.disable_discovery
+    ):
+        proxied_tool_config_provider = DefaultProxiedToolConfigProvider(
             credentials_provider=credentials_provider,
+            are_sql_tools_disabled=settings.actual_disable_sql,
+            are_discovery_tools_disabled=settings.disable_discovery,
         )
 
     admin_api_config_provider = None
@@ -123,7 +127,7 @@ def load_config() -> Config:
 
     return Config(
         disable_tools=settings.disable_tools or [],
-        sql_config_provider=sql_config_provider,
+        proxied_tool_config_provider=proxied_tool_config_provider,
         dbt_cli_config=dbt_cli_config,
         dbt_codegen_config=dbt_codegen_config,
         discovery_config_provider=discovery_config_provider,
