@@ -1,4 +1,5 @@
 import inspect
+from typing import get_type_hints
 
 import pytest
 
@@ -272,3 +273,14 @@ def test_mapper_parameter_name_used_in_adaptation():
     sig = inspect.signature(adapted)
     param_name = next(iter(sig.parameters.keys()))
     assert param_name == "my_context"
+
+
+def test_adapt_with_mapper_provides_type_hints():
+    """Test that the adapted function provides type hints."""
+
+    adapted = adapt_with_mapper(greet_user_id, extract_user_id)
+
+    hints = get_type_hints(adapted)
+
+    assert hints["ctx"] is Context
+    assert hints["return"] is str

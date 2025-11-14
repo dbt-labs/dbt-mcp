@@ -46,6 +46,14 @@ def adapt_with_mapper[R](
 
     new_sig = func_sig.replace(parameters=new_params)
 
+    def get_annotations(sig: inspect.Signature) -> dict[str, Any]:
+        annotations = {}
+        annotations["return"] = sig.return_annotation
+        for param in sig.parameters.values():
+            if param.annotation is not inspect._empty:
+                annotations[param.name] = param.annotation
+        return annotations
+
     def bind_args(*args, **kwargs) -> inspect.BoundArguments:
         bound_args = new_sig.bind(*args, **kwargs)
         bound_args.apply_defaults()
@@ -91,6 +99,7 @@ def adapt_with_mapper[R](
             return invoke_func(bound_args, mapped_value)
 
         wrapper.__signature__ = new_sig  # type: ignore[attr-defined]
+        wrapper.__annotations__ = get_annotations(new_sig)
 
         return wrapper
 
