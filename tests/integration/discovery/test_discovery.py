@@ -185,6 +185,48 @@ async def test_fetch_model_children_with_uniqueId(models_fetcher: ModelsFetcher)
 
 
 @pytest.mark.asyncio
+async def test_fetch_model_lineage(models_fetcher: ModelsFetcher):
+    models = await models_fetcher.fetch_models()
+    model_name = models[0]["name"]
+
+    # Fetch lineage
+    result = await models_fetcher.fetch_model_lineage(model_name)
+
+    # Validate result structure
+    assert isinstance(result, dict)
+    assert "name" in result
+    assert "uniqueId" in result
+    assert "ancestors" in result
+    assert "descendants" in result
+    assert isinstance(result["ancestors"], list)
+    assert isinstance(result["descendants"], list)
+
+
+@pytest.mark.asyncio
+async def test_fetch_model_lineage_with_uniqueId(models_fetcher: ModelsFetcher):
+    models = await models_fetcher.fetch_models()
+    model = models[0]
+    model_name = model["name"]
+    unique_id = model["uniqueId"]
+
+    # Fetch by name
+    results_by_name = await models_fetcher.fetch_model_lineage(model_name)
+
+    # Fetch by uniqueId
+    results_by_uniqueId = await models_fetcher.fetch_model_lineage(
+        model_name, unique_id
+    )
+
+    # Validate that both methods return the same result
+    assert results_by_name["uniqueId"] == results_by_uniqueId["uniqueId"]
+    assert results_by_name["name"] == results_by_uniqueId["name"]
+    assert len(results_by_name["ancestors"]) == len(results_by_uniqueId["ancestors"])
+    assert len(results_by_name["descendants"]) == len(
+        results_by_uniqueId["descendants"]
+    )
+
+
+@pytest.mark.asyncio
 async def test_fetch_exposures(exposures_fetcher: ExposuresFetcher):
     results = await exposures_fetcher.fetch_exposures()
 

@@ -270,6 +270,36 @@ class GraphQLQueries:
     """)
     )
 
+    GET_MODEL_LINEAGE = (
+        textwrap.dedent("""
+        query GetModelLineage(
+            $environmentId: BigInt!,
+            $modelsFilter: ModelAppliedFilter
+            $first: Int,
+        ) {
+            environment(id: $environmentId) {
+                applied {
+                    models(filter: $modelsFilter, first: $first) {
+                        edges {
+                            node {
+                                name
+                                uniqueId
+                                description
+                                resourceType
+                                ancestors {
+    """)
+        + COMMON_FIELDS_PARENTS_CHILDREN
+        + textwrap.dedent("""
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    """)
+    )
+
     GET_SOURCES = textwrap.dedent("""
         query GetSources(
             $environmentId: BigInt!,
@@ -560,6 +590,98 @@ class ModelsFetcher:
         if not edges:
             return []
         return edges[0]["node"]
+
+    async def fetch_model_lineage(
+        self,
+        model_name: str | None = None,
+        unique_id: str | None = None,
+        max_depth: int = 50,
+    ) -> dict:
+        """Fetch complete lineage (ancestors and descendants) for a model.
+
+        Args:
+            model_name: The name of the model
+            unique_id: The unique ID of the model
+            max_depth: Maximum depth for descendants traversal (default: 50)
+
+        Returns:
+            Dictionary containing model info, ancestors list, and descendants list
+        """
+        # Validate parameters and get model with ancestors
+        model_filters = self._get_model_filters(model_name, unique_id)
+        variables = {
+            "environmentId": await self.get_environment_id(),
+            "modelsFilter": model_filters,
+            "first": 1,
+        }
+        result = await self.api_client.execute_query(
+            GraphQLQueries.GET_MODEL_LINEAGE, variables
+        )
+        raise_gql_error(result)
+        edges = result["data"]["environment"]["applied"]["models"]["edges"]
+        if not edges:
+            return {}
+
+        node = edges[0]["node"]
+        model_unique_id = node.get("uniqueId")
+
+        # Fetch all descendants using BFS traversal
+        descendants = []
+        if model_unique_id:
+            try:
+                descendants = await self._fetch_all_descendants(
+                    model_unique_id, max_depth
+                )
+            except Exception:
+                # If descendants fetching fails, return partial result with ancestors only
+                pass
+
+        # Return complete lineage
+        return {
+            "name": node.get("name"),
+            "uniqueId": node.get("uniqueId"),
+            "description": node.get("description"),
+            "resourceType": node.get("resourceType"),
+            "ancestors": node.get("ancestors", []),
+            "descendants": descendants,
+        }
+
+    async def _fetch_all_descendants(
+        self, unique_id: str, max_depth: int = 50
+    ) -> list[dict]:
+        """Recursively fetch all descendants using BFS traversal.
+
+        Args:
+            unique_id: The unique ID of the starting model
+            max_depth: Maximum depth to traverse (prevents runaway queries)
+
+        Returns:
+            List of all descendant nodes
+        """
+        visited: set[str] = set()
+        all_descendants: list[dict] = []
+        current_level = [unique_id]
+        visited.add(unique_id)
+
+        for _ in range(max_depth):
+            if not current_level:
+                break
+
+            next_level = []
+            for node_id in current_level:
+                # Fetch children for this node
+                children = await self.fetch_model_children(unique_id=node_id)
+
+                for child in children:
+                    child_unique_id = child.get("uniqueId")
+                    if child_unique_id and child_unique_id not in visited:
+                        visited.add(child_unique_id)
+                        all_descendants.append(child)
+                        next_level.append(child_unique_id)
+
+            current_level = next_level
+
+        return all_descendants
 
 
 class ExposuresFetcher:
