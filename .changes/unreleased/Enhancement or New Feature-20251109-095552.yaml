@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Extend get_job_run_error to support optional warnings
+time: 2025-11-09T09:55:52.473429-08:00
