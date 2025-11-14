@@ -10,7 +10,7 @@ from dbt_mcp.config.config_providers import (
 )
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.dbt_admin.constants import JobRunStatus, STATUS_MAP
-from dbt_mcp.dbt_admin.run_results_errors import ErrorFetcher
+from dbt_mcp.dbt_admin.run_artifacts import ErrorFetcher, WarningFetcher
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.annotations import create_tool_annotations
 from dbt_mcp.tools.definitions import ToolDefinition
@@ -126,21 +126,41 @@ def create_admin_api_tool_definitions(
             admin_api_config.account_id, run_id, artifact_path, step
         )
 
-    async def get_job_run_error(run_id: int) -> dict[str, Any] | str:
-        """Get focused error information for a failed job run."""
-        try:
-            admin_api_config = await admin_api_config_provider.get_config()
+    async def get_job_run_error(
+        run_id: int, include_warnings: bool = False, warning_only: bool = False
+    ) -> dict[str, Any]:
+        """Get focused error/warning information for a job run."""
+        admin_api_config = await admin_api_config_provider.get_config()
+
+        if warning_only:
             run_details = await admin_client.get_job_run_details(
                 admin_api_config.account_id, run_id, include_logs=True
             )
-            error_fetcher = ErrorFetcher(
+            warning_fetcher = WarningFetcher(
                 run_id, run_details, admin_client, admin_api_config
             )
-            return await error_fetcher.analyze_run_errors()
+            return await warning_fetcher.analyze_run_warnings()
 
-        except Exception as e:
-            logger.error(f"Error getting run error details for {run_id}: {e}")
-            return str(e)
+        run_details = await admin_client.get_job_run_details(
+            admin_api_config.account_id, run_id, include_logs=True
+        )
+        error_fetcher = ErrorFetcher(
+            run_id, run_details, admin_client, admin_api_config
+        )
+        error_result = await error_fetcher.analyze_run_errors()
+
+        if include_warnings:
+            warning_fetcher = WarningFetcher(
+                run_id, run_details, admin_client, admin_api_config
+            )
+            warning_result = await warning_fetcher.analyze_run_warnings()
+
+            return {
+                **error_result,
+                "warnings": warning_result,
+            }
+
+        return error_result
 
     return [
         ToolDefinition(

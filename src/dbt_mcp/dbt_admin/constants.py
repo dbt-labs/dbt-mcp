@@ -19,6 +19,15 @@ class RunResultsStatus(str, Enum):
     ERROR = "error"
     FAIL = "fail"
     SKIP = "skip"
+    WARN = "warn"
+
+
+class FreshnessStatus(str, Enum):
+    """Enum for source freshness status values."""
+
+    PASS = "pass"
+    WARN = "warn"
+    FAIL = "fail"
 
 
 STATUS_MAP = {
@@ -30,6 +39,4 @@ STATUS_MAP = {
     JobRunStatus.CANCELLED: 30,
 }
 
-# String match in run_results_errors/parser.py to identify source freshness step
-# in run_details response
-SOURCE_FRESHNESS_STEP_NAME = "source freshness"
+TRUNCATED_LOGS_LENGTH = 50  # Number of log lines to keep when truncating logs
