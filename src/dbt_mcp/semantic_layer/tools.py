@@ -20,8 +20,7 @@ from dbt_mcp.semantic_layer.types import (
     QueryMetricsSuccess,
     SavedQueryToolResponse,
 )
-from dbt_mcp.tools.annotations import create_tool_annotations
-from dbt_mcp.tools.definitions import ToolDefinition, dbt_mcp_tool
+from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 
@@ -171,7 +170,6 @@ def register_sl_tools(
     client_provider: SemanticLayerClientProvider,
     exclude_tools: Sequence[ToolName] = [],
 ) -> None:
-
     def bind_context() -> SemanticLayerToolContext:
         return SemanticLayerToolContext(
             config_provider=config_provider, client_provider=client_provider
