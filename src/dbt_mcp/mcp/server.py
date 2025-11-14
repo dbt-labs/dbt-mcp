@@ -3,19 +3,13 @@ import logging
 import time
 import uuid
 from collections.abc import AsyncIterator, Callable, Sequence
-from contextlib import (
-    AbstractAsyncContextManager,
-    asynccontextmanager,
-)
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from typing import Any
 
 from dbtlabs_vortex.producer import shutdown
 from mcp.server.fastmcp import FastMCP
 from mcp.server.lowlevel.server import LifespanResultT
-from mcp.types import (
-    ContentBlock,
-    TextContent,
-)
+from mcp.types import ContentBlock, TextContent
 
 from dbt_mcp.config.config import Config
 from dbt_mcp.dbt_admin.tools import register_admin_api_tools

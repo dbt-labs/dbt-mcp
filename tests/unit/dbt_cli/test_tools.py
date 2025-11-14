@@ -16,23 +16,6 @@ def mock_process():
     return MockProcess()
 
 
-@pytest.fixture
-def mock_fastmcp():
-    class MockFastMCP:
-        def __init__(self):
-            self.tools = {}
-
-        def tool(self, **kwargs):
-            def decorator(func):
-                self.tools[func.__name__] = func
-                return func
-
-            return decorator
-
-    fastmcp = MockFastMCP()
-    return fastmcp, fastmcp.tools
-
-
 @pytest.mark.parametrize(
     "sql_query,limit_param,expected_args",
     [

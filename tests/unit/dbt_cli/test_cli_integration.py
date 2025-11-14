@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+from tests.conftest import MockFastMCP
 from tests.mocks.config import mock_config
 
 
@@ -19,20 +20,7 @@ class TestDbtCliIntegration(unittest.TestCase):
         mock_process.communicate.return_value = ("command output", None)
         mock_popen.return_value = mock_process
 
-        # Create a mock FastMCP and Config
-        mock_fastmcp = MagicMock()
-
-        # Patch the tool decorator to capture functions
-        tools = {}
-
-        def mock_tool_decorator(**kwargs):
-            def decorator(func):
-                tools[func.__name__] = func
-                return func
-
-            return decorator
-
-        mock_fastmcp.tool = mock_tool_decorator
+        mock_fastmcp = MockFastMCP()
 
         # Register the tools
         register_dbt_cli_tools(mock_fastmcp, mock_config.dbt_cli_config)
@@ -96,7 +84,7 @@ class TestDbtCliIntegration(unittest.TestCase):
             mock_popen.reset_mock()
 
             # Call the function
-            result = tools[command_name](*args)
+            result = mock_fastmcp.tools[command_name](*args)
 
             # Verify the command was called correctly
             mock_popen.assert_called_once()

@@ -1,4 +1,4 @@
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -8,23 +8,6 @@ from dbt_mcp.dbt_admin.tools import (
     register_admin_api_tools,
 )
 from tests.mocks.config import mock_config
-
-
-@pytest.fixture
-def mock_fastmcp():
-    class MockFastMCP:
-        def __init__(self):
-            self.tools = {}
-
-        def tool(self, **kwargs):
-            def decorator(func):
-                self.tools[func.__name__] = func
-                return func
-
-            return decorator
-
-    fastmcp = MockFastMCP()
-    return fastmcp, fastmcp.tools
 
 
 @pytest.fixture

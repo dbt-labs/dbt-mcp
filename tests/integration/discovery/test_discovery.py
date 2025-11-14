@@ -11,6 +11,7 @@ from dbt_mcp.discovery.client import (
     ModelsFetcher,
     SourcesFetcher,
 )
+from dbt_mcp.discovery.tools import DISCOVERY_TOOLS, DiscoveryToolContext
 
 
 @pytest.fixture
@@ -333,7 +334,6 @@ async def test_get_all_sources_tool():
     """Test the get_all_sources tool function integration."""
     from dbt_mcp.config.config_providers import DefaultDiscoveryConfigProvider
     from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
-    from dbt_mcp.discovery.tools import create_discovery_tool_definitions
 
     # Set up environment variables needed by DbtMcpSettings
     host = os.getenv("DBT_HOST")
@@ -351,7 +351,7 @@ async def test_get_all_sources_tool():
     config_provider = DefaultDiscoveryConfigProvider(credentials_provider)
 
     # Create tool definitions
-    tool_definitions = create_discovery_tool_definitions(config_provider)
+    tool_definitions = DISCOVERY_TOOLS
 
     # Find the get_all_sources tool
     get_all_sources_tool = None
@@ -365,7 +365,9 @@ async def test_get_all_sources_tool():
     )
 
     # Execute the tool function
-    result = await get_all_sources_tool.fn()
+    result = await get_all_sources_tool.fn(
+        context=DiscoveryToolContext(config_provider=config_provider)
+    )
 
     # Validate the result
     assert isinstance(result, list)
