@@ -86,6 +86,7 @@ def adapt_with_mapper[R](
             return await invoke_func(bound_args, mapped_value)
 
         awrapper.__signature__ = new_sig  # type: ignore[attr-defined]
+        awrapper.__annotations__ = get_annotations(new_sig)
         return cast(Callable[..., R], awrapper)
 
     else:

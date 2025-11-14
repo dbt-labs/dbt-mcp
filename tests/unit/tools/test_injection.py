@@ -284,3 +284,12 @@ def test_adapt_with_mapper_provides_type_hints():
 
     assert hints["ctx"] is Context
     assert hints["return"] is str
+
+
+def test_adapt_with_mapper_provides_type_hints_for_async_functions():
+    adapted = adapt_with_mapper(async_greet_user_id, extract_user_id)
+
+    hints = get_type_hints(adapted)
+
+    assert hints["ctx"] is Context
+    assert hints["return"] is str
