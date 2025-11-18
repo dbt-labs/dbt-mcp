@@ -422,18 +422,10 @@ class PaginatedResourceFetcher:
         *,
         edges_path: tuple[str, ...],
         page_info_path: tuple[str, ...],
-        initial_cursor: str | None = None,
-        after_variable_name: str = "after",
-        default_page_size: int = PAGE_SIZE,
-        max_node_limit: int | None = MAX_NODE_QUERY_LIMIT,
     ):
         self.api_client = api_client
         self._edges_path = edges_path
         self._page_info_path = page_info_path
-        self._initial_cursor = initial_cursor
-        self._after_variable_name = after_variable_name
-        self._default_page_size = default_page_size
-        self._max_node_limit = max_node_limit
 
     async def get_environment_id(self) -> int:
         config = await self.api_client.config_provider.get_config()
@@ -473,39 +465,33 @@ class PaginatedResourceFetcher:
     ) -> bool:
         has_next_value = page_info.get("hasNextPage")
         if isinstance(has_next_value, bool):
-            if not has_next_value:
-                return False
-            if not next_cursor or next_cursor == previous_cursor:
-                return False
-            return True
+            return (
+                has_next_value and bool(next_cursor) and next_cursor != previous_cursor
+            )
 
-        if not next_cursor or next_cursor == previous_cursor:
-            return False
-        return True
+        return bool(next_cursor) and next_cursor != previous_cursor
 
     async def _fetch_paginated(
         self,
         query: str,
-        *,
         base_variables: dict[str, Any] | None = None,
-        page_size: int | None = None,
-        max_nodes: int | None = None,
     ) -> list[dict]:
         environment_id = await self.get_environment_id()
-        resolved_page_size = page_size or self._default_page_size
-        resolved_limit = max_nodes if max_nodes is not None else self._max_node_limit
         collected: list[dict] = []
-        current_cursor = self._initial_cursor
+        current_cursor = None
 
         while True:
-            if resolved_limit is not None and len(collected) >= resolved_limit:
+            if (
+                MAX_NODE_QUERY_LIMIT is not None
+                and len(collected) >= MAX_NODE_QUERY_LIMIT
+            ):
                 break
 
             variables: dict[str, Any] = dict(base_variables or {})
             variables["environmentId"] = environment_id
-            variables["first"] = resolved_page_size
+            variables["first"] = PAGE_SIZE
             if current_cursor is not None:
-                variables[self._after_variable_name] = current_cursor
+                variables["after"] = current_cursor
 
             result = await self.api_client.execute_query(query, variables)
             page_edges = self._parse_edges(result)
@@ -515,14 +501,8 @@ class PaginatedResourceFetcher:
             previous_cursor = current_cursor
             current_cursor = page_info.get("endCursor")
 
-            if resolved_limit is not None and len(collected) >= resolved_limit:
-                break
-
             if not self._should_continue(page_info, previous_cursor, current_cursor):
                 break
-
-        if resolved_limit is not None:
-            return collected[:resolved_limit]
         return collected
 
 
@@ -542,7 +522,6 @@ class ModelsFetcher(PaginatedResourceFetcher):
             api_client,
             edges_path=("data", "environment", "applied", "models", "edges"),
             page_info_path=("data", "environment", "applied", "models", "pageInfo"),
-            initial_cursor="",
         )
 
     def _get_model_filters(
@@ -651,8 +630,6 @@ class ExposuresFetcher(PaginatedResourceFetcher):
                 "exposures",
                 "pageInfo",
             ),
-            initial_cursor=None,
-            max_node_limit=None,
         )
 
     async def fetch_exposures(self) -> list[dict]:
@@ -710,7 +687,6 @@ class SourcesFetcher(PaginatedResourceFetcher):
             api_client,
             edges_path=("data", "environment", "applied", "sources", "edges"),
             page_info_path=("data", "environment", "applied", "sources", "pageInfo"),
-            initial_cursor="",
         )
 
     async def fetch_sources(
