@@ -273,10 +273,10 @@ class DbtMcpSettings(BaseSettings):
             if not toolset_name_stripped:
                 continue
             try:
-                # Normalize to lowercase with underscores (matching Toolset enum values)
+                # Normalize and store
                 toolset_normalized = toolset_name_stripped.lower().replace("-", "_")
-                Toolset(toolset_normalized)  # Validate
-                toolset_names.append(toolset_normalized)  # Store in canonical form
+                Toolset(toolset_normalized)
+                toolset_names.append(toolset_normalized)
             except ValueError:
                 valid_toolsets = ", ".join([ts.value for ts in Toolset])
                 errors.append(
@@ -339,7 +339,7 @@ def _parse_tool_list(env_var: str | None, field_name: str) -> list[ToolName]:
         if not tool_name_stripped:
             continue
         try:
-            # Normalize to lowercase (ToolName values are lowercase)
+            # Normalize
             tool_names.append(ToolName(tool_name_stripped.lower()))
         except ValueError:
             errors.append(
