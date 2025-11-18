@@ -258,7 +258,8 @@ def _parse_tool_list(env_var: str | None, field_name: str) -> list[ToolName]:
         if not tool_name_stripped:
             continue
         try:
-            tool_names.append(ToolName(tool_name_stripped))
+            # Normalize to lowercase (ToolName values are lowercase)
+            tool_names.append(ToolName(tool_name_stripped.lower()))
         except ValueError:
             errors.append(
                 f"Invalid tool name in {field_name}: {tool_name_stripped}. "
@@ -310,9 +311,10 @@ class DbtMcpSettings(BaseSettings):
             if not toolset_name_stripped:
                 continue
             try:
-                # Validate it's a valid toolset
-                Toolset(toolset_name_stripped)
-                toolset_names.append(toolset_name_stripped)
+                # Normalize to uppercase (Toolset values are ALL CAPS)
+                toolset_upper = toolset_name_stripped.upper()
+                Toolset(toolset_upper)  # Validate with normalized case
+                toolset_names.append(toolset_upper)  # Store in canonical form
             except ValueError:
                 valid_toolsets = ", ".join([ts.value for ts in Toolset])
                 errors.append(
