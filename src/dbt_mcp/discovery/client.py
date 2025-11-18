@@ -454,53 +454,39 @@ class PaginatedResourceFetcher:
             parsed_edges.append(node)
         return parsed_edges
 
-    def _extract_page_info(self, result: dict) -> dict:
-        return self._extract_path(result, self._page_info_path)
-
     def _should_continue(
         self,
         page_info: dict,
         previous_cursor: str | None,
         next_cursor: str | None,
     ) -> bool:
-        has_next_value = page_info.get("hasNextPage")
-        if isinstance(has_next_value, bool):
-            return (
-                has_next_value and bool(next_cursor) and next_cursor != previous_cursor
-            )
-
-        return bool(next_cursor) and next_cursor != previous_cursor
+        has_next = page_info.get("hasNextPage")
+        next_cursor_valid = bool(next_cursor) and next_cursor != previous_cursor
+        if isinstance(has_next, bool):
+            return has_next and next_cursor_valid
+        return next_cursor_valid
 
     async def _fetch_paginated(
         self,
         query: str,
-        base_variables: dict[str, Any] | None = None,
+        variables: dict[str, Any],
     ) -> list[dict]:
         environment_id = await self.get_environment_id()
         collected: list[dict] = []
         current_cursor = None
-
         while True:
-            if (
-                MAX_NODE_QUERY_LIMIT is not None
-                and len(collected) >= MAX_NODE_QUERY_LIMIT
-            ):
+            if len(collected) >= MAX_NODE_QUERY_LIMIT:
                 break
-
-            variables: dict[str, Any] = dict(base_variables or {})
             variables["environmentId"] = environment_id
             variables["first"] = PAGE_SIZE
             if current_cursor is not None:
                 variables["after"] = current_cursor
-
             result = await self.api_client.execute_query(query, variables)
             page_edges = self._parse_edges(result)
             collected.extend(page_edges)
-
-            page_info = self._extract_page_info(result)
+            page_info = self._extract_path(result, self._page_info_path)
             previous_cursor = current_cursor
             current_cursor = page_info.get("endCursor")
-
             if not self._should_continue(page_info, previous_cursor, current_cursor):
                 break
         return collected
@@ -539,7 +525,7 @@ class ModelsFetcher(PaginatedResourceFetcher):
     async def fetch_models(self, model_filter: ModelFilter | None = None) -> list[dict]:
         return await self._fetch_paginated(
             GraphQLQueries.GET_MODELS,
-            base_variables={
+            variables={
                 "modelsFilter": model_filter or {},
                 "sort": {"field": "queryUsageCount", "direction": "desc"},
             },
@@ -633,7 +619,10 @@ class ExposuresFetcher(PaginatedResourceFetcher):
         )
 
     async def fetch_exposures(self) -> list[dict]:
-        return await self._fetch_paginated(GraphQLQueries.GET_EXPOSURES)
+        return await self._fetch_paginated(
+            GraphQLQueries.GET_EXPOSURES,
+            variables={},
+        )
 
     def _get_exposure_filters(
         self, exposure_name: str | None = None, unique_ids: list[str] | None = None
@@ -702,7 +691,7 @@ class SourcesFetcher(PaginatedResourceFetcher):
 
         return await self._fetch_paginated(
             GraphQLQueries.GET_SOURCES,
-            base_variables={"sourcesFilter": source_filter},
+            variables={"sourcesFilter": source_filter},
         )
 
     def _get_source_filters(
