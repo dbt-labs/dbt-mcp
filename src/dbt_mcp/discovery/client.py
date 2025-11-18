@@ -8,7 +8,7 @@ from dbt_mcp.errors import GraphQLError, InvalidParameterError
 from dbt_mcp.gql.errors import raise_gql_error
 
 PAGE_SIZE = 100
-MAX_NODE_QUERY_LIMIT = 1000
+MAX_NODE_QUERY_LIMIT = 10000
 
 
 class GraphQLQueries:
