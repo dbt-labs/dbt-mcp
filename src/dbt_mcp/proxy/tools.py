@@ -28,6 +28,7 @@ from pydantic_core import PydanticUndefined
 
 from dbt_mcp.config.config_providers import ConfigProvider, ProxiedToolConfig
 from dbt_mcp.errors import RemoteToolError
+from dbt_mcp.tools.register import should_register_tool
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset, proxied_tools, toolsets
 
@@ -126,6 +127,12 @@ async def register_proxied_tools(
 
     Proxied tools are hosted remotely, so their definitions aren't found in this repo.
     """
+    # Convert None to empty sets for precedence logic
+    enabled_tools = enabled_tools or set()
+    enabled_toolsets = enabled_toolsets or set()
+    disabled_toolsets = disabled_toolsets or set()
+    disabled_tools = set(exclude_tools) if exclude_tools else set()
+
     config = await config_provider.get_config()
     configured_proxied_tools = resolve_proxied_tools_configuration(
         config, exclude_tools
@@ -151,6 +158,17 @@ async def register_proxied_tools(
         return
     logger.info(f"Loaded proxied tools: {', '.join([tool.name for tool in tools])}")
     for tool in tools:
+        # Apply precedence logic to each proxied tool
+        # Proxied tools bypass the standard register_tools() flow, so we check here
+        if not should_register_tool(
+            tool_name_str=tool.name,
+            enabled_tools=enabled_tools,
+            disabled_tools=disabled_tools,
+            enabled_toolsets=enabled_toolsets,
+            disabled_toolsets=disabled_toolsets,
+        ):
+            continue  # Skip this tool if precedence rules say it shouldn't be registered
+
         # Create a new function using a factory to avoid closure issues
         def create_tool_function(tool_name: str):
             async def tool_function(*args, **kwargs) -> Sequence[ContentBlock]:
