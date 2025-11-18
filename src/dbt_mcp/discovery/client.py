@@ -7,8 +7,8 @@ from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.errors import GraphQLError, InvalidParameterError
 from dbt_mcp.gql.errors import raise_gql_error
 
-PAGE_SIZE = 100
-MAX_NODE_QUERY_LIMIT = 10000
+DEFAULT_PAGE_SIZE = 100
+DEFAULT_MAX_NODE_QUERY_LIMIT = 10000
 
 
 class GraphQLQueries:
@@ -422,10 +422,14 @@ class PaginatedResourceFetcher:
         *,
         edges_path: tuple[str, ...],
         page_info_path: tuple[str, ...],
+        page_size: int = DEFAULT_PAGE_SIZE,
+        max_node_query_limit: int = DEFAULT_MAX_NODE_QUERY_LIMIT,
     ):
         self.api_client = api_client
         self._edges_path = edges_path
         self._page_info_path = page_info_path
+        self._page_size = page_size
+        self._max_node_query_limit = max_node_query_limit
 
     async def get_environment_id(self) -> int:
         config = await self.api_client.config_provider.get_config()
@@ -466,7 +470,7 @@ class PaginatedResourceFetcher:
             return has_next and next_cursor_valid
         return next_cursor_valid
 
-    async def _fetch_paginated(
+    async def fetch_paginated(
         self,
         query: str,
         variables: dict[str, Any],
@@ -475,10 +479,10 @@ class PaginatedResourceFetcher:
         collected: list[dict] = []
         current_cursor = None
         while True:
-            if len(collected) >= MAX_NODE_QUERY_LIMIT:
+            if len(collected) >= self._max_node_query_limit:
                 break
             variables["environmentId"] = environment_id
-            variables["first"] = PAGE_SIZE
+            variables["first"] = self._page_size
             if current_cursor is not None:
                 variables["after"] = current_cursor
             result = await self.api_client.execute_query(query, variables)
@@ -502,13 +506,14 @@ class SourceFilter(TypedDict, total=False):
     identifier: str
 
 
-class ModelsFetcher(PaginatedResourceFetcher):
-    def __init__(self, api_client: MetadataAPIClient):
-        super().__init__(
-            api_client,
-            edges_path=("data", "environment", "applied", "models", "edges"),
-            page_info_path=("data", "environment", "applied", "models", "pageInfo"),
-        )
+class ModelsFetcher:
+    def __init__(
+        self,
+        api_client: MetadataAPIClient,
+        paginator: PaginatedResourceFetcher,
+    ):
+        self.api_client = api_client
+        self._paginator = paginator
 
     def _get_model_filters(
         self, model_name: str | None = None, unique_id: str | None = None
@@ -523,7 +528,7 @@ class ModelsFetcher(PaginatedResourceFetcher):
             )
 
     async def fetch_models(self, model_filter: ModelFilter | None = None) -> list[dict]:
-        return await self._fetch_paginated(
+        return await self._paginator.fetch_paginated(
             GraphQLQueries.GET_MODELS,
             variables={
                 "modelsFilter": model_filter or {},
@@ -536,7 +541,7 @@ class ModelsFetcher(PaginatedResourceFetcher):
     ) -> dict:
         model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
-            "environmentId": await self.get_environment_id(),
+            "environmentId": await self._paginator.get_environment_id(),
             "modelsFilter": model_filters,
             "first": 1,
         }
@@ -554,7 +559,7 @@ class ModelsFetcher(PaginatedResourceFetcher):
     ) -> list[dict]:
         model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
-            "environmentId": await self.get_environment_id(),
+            "environmentId": await self._paginator.get_environment_id(),
             "modelsFilter": model_filters,
             "first": 1,
         }
@@ -572,7 +577,7 @@ class ModelsFetcher(PaginatedResourceFetcher):
     ) -> list[dict]:
         model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
-            "environmentId": await self.get_environment_id(),
+            "environmentId": await self._paginator.get_environment_id(),
             "modelsFilter": model_filters,
             "first": 1,
         }
@@ -590,7 +595,7 @@ class ModelsFetcher(PaginatedResourceFetcher):
     ) -> list[dict]:
         model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
-            "environmentId": await self.get_environment_id(),
+            "environmentId": await self._paginator.get_environment_id(),
             "modelsFilter": model_filters,
             "first": 1,
         }
@@ -604,22 +609,17 @@ class ModelsFetcher(PaginatedResourceFetcher):
         return edges[0]["node"]
 
 
-class ExposuresFetcher(PaginatedResourceFetcher):
-    def __init__(self, api_client: MetadataAPIClient):
-        super().__init__(
-            api_client,
-            edges_path=("data", "environment", "definition", "exposures", "edges"),
-            page_info_path=(
-                "data",
-                "environment",
-                "definition",
-                "exposures",
-                "pageInfo",
-            ),
-        )
+class ExposuresFetcher:
+    def __init__(
+        self,
+        api_client: MetadataAPIClient,
+        paginator: PaginatedResourceFetcher,
+    ):
+        self.api_client = api_client
+        self._paginator = paginator
 
     async def fetch_exposures(self) -> list[dict]:
-        return await self._fetch_paginated(
+        return await self._paginator.fetch_paginated(
             GraphQLQueries.GET_EXPOSURES,
             variables={},
         )
@@ -631,7 +631,8 @@ class ExposuresFetcher(PaginatedResourceFetcher):
             return {"uniqueIds": unique_ids}
         elif exposure_name:
             raise InvalidParameterError(
-                "ExposureFilter only supports uniqueIds. Please use unique_ids parameter instead of exposure_name."
+                "ExposureFilter only supports uniqueIds. Please use "
+                "unique_ids parameter instead of exposure_name."
             )
         else:
             raise InvalidParameterError(
@@ -652,7 +653,7 @@ class ExposuresFetcher(PaginatedResourceFetcher):
         elif unique_ids:
             exposure_filters = self._get_exposure_filters(unique_ids=unique_ids)
             variables = {
-                "environmentId": await self.get_environment_id(),
+                "environmentId": await self._paginator.get_environment_id(),
                 "filter": exposure_filters,
                 "first": len(unique_ids),  # Request as many as we're filtering for
             }
@@ -670,13 +671,14 @@ class ExposuresFetcher(PaginatedResourceFetcher):
             )
 
 
-class SourcesFetcher(PaginatedResourceFetcher):
-    def __init__(self, api_client: MetadataAPIClient):
-        super().__init__(
-            api_client,
-            edges_path=("data", "environment", "applied", "sources", "edges"),
-            page_info_path=("data", "environment", "applied", "sources", "pageInfo"),
-        )
+class SourcesFetcher:
+    def __init__(
+        self,
+        api_client: MetadataAPIClient,
+        paginator: PaginatedResourceFetcher,
+    ):
+        self.api_client = api_client
+        self._paginator = paginator
 
     async def fetch_sources(
         self,
@@ -689,7 +691,7 @@ class SourcesFetcher(PaginatedResourceFetcher):
         if unique_ids is not None:
             source_filter["uniqueIds"] = unique_ids
 
-        return await self._fetch_paginated(
+        return await self._paginator.fetch_paginated(
             GraphQLQueries.GET_SOURCES,
             variables={"sourcesFilter": source_filter},
         )
@@ -712,7 +714,7 @@ class SourcesFetcher(PaginatedResourceFetcher):
         """Fetch detailed information about a specific source including columns."""
         source_filters = self._get_source_filters(source_name, unique_id)
         variables = {
-            "environmentId": await self.get_environment_id(),
+            "environmentId": await self._paginator.get_environment_id(),
             "sourcesFilter": source_filters,
             "first": 1,
         }

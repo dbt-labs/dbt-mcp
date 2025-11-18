@@ -9,6 +9,7 @@ from dbt_mcp.discovery.client import (
     ExposuresFetcher,
     MetadataAPIClient,
     ModelsFetcher,
+    PaginatedResourceFetcher,
     SourcesFetcher,
 )
 from dbt_mcp.prompts.prompts import get_prompt
@@ -27,9 +28,42 @@ class DiscoveryToolContext:
 
     def __init__(self, config_provider: ConfigProvider[DiscoveryConfig]):
         api_client = MetadataAPIClient(config_provider=config_provider)
-        self.models_fetcher = ModelsFetcher(api_client=api_client)
-        self.exposures_fetcher = ExposuresFetcher(api_client=api_client)
-        self.sources_fetcher = SourcesFetcher(api_client=api_client)
+        self.models_fetcher = ModelsFetcher(
+            api_client=api_client,
+            paginator=PaginatedResourceFetcher(
+                api_client=api_client,
+                edges_path=("data", "environment", "applied", "models", "edges"),
+                page_info_path=("data", "environment", "applied", "models", "pageInfo"),
+            ),
+        )
+        self.exposures_fetcher = ExposuresFetcher(
+            api_client=api_client,
+            paginator=PaginatedResourceFetcher(
+                api_client=api_client,
+                edges_path=("data", "environment", "definition", "exposures", "edges"),
+                page_info_path=(
+                    "data",
+                    "environment",
+                    "definition",
+                    "exposures",
+                    "pageInfo",
+                ),
+            ),
+        )
+        self.sources_fetcher = SourcesFetcher(
+            api_client=api_client,
+            paginator=PaginatedResourceFetcher(
+                api_client,
+                edges_path=("data", "environment", "applied", "sources", "edges"),
+                page_info_path=(
+                    "data",
+                    "environment",
+                    "applied",
+                    "sources",
+                    "pageInfo",
+                ),
+            ),
+        )
 
 
 @dbt_mcp_tool(
