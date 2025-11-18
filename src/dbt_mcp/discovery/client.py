@@ -147,14 +147,6 @@ class GraphQLQueries:
                                 name
                                 uniqueId
                                 description
-                                compiledCode
-                                catalog {
-                                    columns {
-                                        description
-                                        name
-                                        type
-                                    }
-                                }
                             }
                         }
                     }
