@@ -4,12 +4,15 @@ Retrieves all downstream dependencies (descendants) for a specific dbt model. Th
 **What's included:**
 - **descendants**: All downstream dependencies (models, metrics, exposures) at any depth
 - **model info**: Basic information about the model itself (name, uniqueId, description, resourceType)
+- **warnings** (optional): List of warning messages if results were truncated due to hitting safety limits
 
 **Use this tool when:** You need to understand the impact of changes to a model - what other models and reports will be affected if this model changes.
 
 You can provide either a model_name or a uniqueId to identify the model. Using uniqueId is more precise and guarantees a unique match, which is especially useful when models might have the same name in different projects.
 
 **Performance note:** This tool uses breadth-first search (BFS) traversal to efficiently fetch all downstream dependencies. By default, it will traverse up to 50 levels deep and collect up to 1000 descendant nodes.
+
+**Truncation warnings:** If the results hit the max_nodes or max_depth limits, the response will include a `warnings` field with messages explaining which limit was hit and suggesting how to get complete results. This helps you know when you're seeing partial lineage.
 </instructions>
 
 <parameters>

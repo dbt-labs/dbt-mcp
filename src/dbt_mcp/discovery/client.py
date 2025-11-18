@@ -649,7 +649,7 @@ class ModelsFetcher:
     
     async def _fetch_all_descendants(
         self, unique_id: str, max_depth: int = 50, max_nodes: int = 1000
-    ) -> list[dict]:
+    ) -> tuple[list[dict], bool, int]:
         """Recursively fetch all descendants using BFS traversal.
 
         Args:
@@ -658,19 +658,27 @@ class ModelsFetcher:
             max_nodes: Maximum total descendant nodes to collect (prevents wide graphs)
 
         Returns:
-            List of all descendant nodes (limited by max_depth and max_nodes)
+            Tuple of (descendants_list, was_truncated, depth_reached):
+                - descendants_list: List of all descendant nodes (limited by max_depth and max_nodes)
+                - was_truncated: True if results were truncated due to hitting limits
+                - depth_reached: The actual depth reached during traversal
         """
         visited: set[str] = set()
         all_descendants: list[dict] = []
         current_level = [unique_id]
         visited.add(unique_id)
+        was_truncated = False
+        depth_reached = 0
 
-        for _ in range(max_depth):
+        for depth in range(max_depth):
             if not current_level:
                 break
 
+            depth_reached = depth
+
             # Stop if we've already collected enough nodes
             if len(all_descendants) >= max_nodes:
+                was_truncated = True
                 break
 
             next_level = []
@@ -688,15 +696,20 @@ class ModelsFetcher:
 
                         # Stop collecting if we hit the node limit
                         if len(all_descendants) >= max_nodes:
+                            was_truncated = True
                             break
 
                 # Break outer loop if we hit limit
                 if len(all_descendants) >= max_nodes:
                     break
 
+            # Check if we stopped early due to max_depth
+            if next_level and depth + 1 >= max_depth:
+                was_truncated = True
+
             current_level = next_level
 
-        return all_descendants
+        return all_descendants, was_truncated, depth_reached
 
     async def fetch_model_ancestors(
         self,
@@ -773,19 +786,32 @@ class ModelsFetcher:
 
         # Fetch all descendants using BFS traversal
         descendants = []
-        error_message = None
+        warnings = []
         if model_unique_id:
             try:
-                descendants = await self._fetch_all_descendants(
+                descendants, was_truncated, depth_reached = await self._fetch_all_descendants(
                     model_unique_id, max_depth, max_nodes
                 )
+
+                # Add warnings if limits were hit
+                if was_truncated:
+                    if len(descendants) >= max_nodes:
+                        warnings.append(
+                            f"Reached max_nodes limit ({max_nodes}). Results may be incomplete. "
+                            f"Increase max_nodes parameter to fetch more descendants."
+                        )
+                    if depth_reached >= max_depth - 1:
+                        warnings.append(
+                            f"Reached max_depth limit ({max_depth}). Results may be incomplete. "
+                            f"Increase max_depth parameter to traverse deeper."
+                        )
             except Exception as e:
                 # Log the error for debugging
                 logger.error(
                     f"Failed to fetch descendants for {model_unique_id}: {type(e).__name__}: {str(e)}",
                     exc_info=True,
                 )
-                error_message = f"Descendants fetch failed: {type(e).__name__}: {str(e)}"
+                warnings.append(f"Descendants fetch failed: {type(e).__name__}: {str(e)}")
 
         # Return model info with descendants
         result_dict = {
@@ -796,9 +822,9 @@ class ModelsFetcher:
             "descendants": descendants,
         }
 
-        # Add warning if descendants fetch failed
-        if error_message:
-            result_dict["warning"] = error_message
+        # Add warnings if any exist
+        if warnings:
+            result_dict["warnings"] = warnings
 
         return result_dict
 

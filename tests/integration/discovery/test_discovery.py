@@ -261,6 +261,115 @@ async def test_fetch_model_descendants_with_uniqueId(models_fetcher: ModelsFetch
 
 
 @pytest.mark.asyncio
+async def test_fetch_children_batch(models_fetcher: ModelsFetcher):
+    """Test that _fetch_children_batch efficiently fetches children for multiple models."""
+    # Get some models to test with
+    models = await models_fetcher.fetch_models()
+
+    # Get at least 3 models with unique IDs
+    if len(models) < 3:
+        pytest.skip("Need at least 3 models for batch testing")
+
+    # Take first 3 models
+    test_models = models[:3]
+    unique_ids = [model["uniqueId"] for model in test_models]
+
+    # Fetch children in batch
+    children_map = await models_fetcher._fetch_children_batch(unique_ids)
+
+    # Verify we get a result for each model
+    assert isinstance(children_map, dict)
+    assert len(children_map) == len(unique_ids)
+
+    # Verify all requested IDs are in the map
+    for uid in unique_ids:
+        assert uid in children_map
+        assert isinstance(children_map[uid], list)
+
+    # Verify batch results match individual fetches (spot check first model)
+    first_model_children = await models_fetcher.fetch_model_children(
+        unique_id=unique_ids[0]
+    )
+    assert len(children_map[unique_ids[0]]) == len(first_model_children)
+
+    # Verify empty batch returns empty dict
+    empty_result = await models_fetcher._fetch_children_batch([])
+    assert empty_result == {}
+
+
+@pytest.mark.asyncio
+async def test_fetch_descendants_with_limits(models_fetcher: ModelsFetcher):
+    """Test that max_depth and max_nodes limits work correctly for descendants."""
+    # Get a model that likely has descendants
+    models = await models_fetcher.fetch_models()
+    if not models:
+        pytest.skip("No models available for testing")
+
+    # Pick a model (preferably one with descendants)
+    test_model = models[0]
+    model_name = test_model["name"]
+
+    # Test with very small max_nodes limit
+    result_limited = await models_fetcher.fetch_model_descendants(
+        model_name, max_nodes=5
+    )
+    assert isinstance(result_limited, dict)
+    assert "descendants" in result_limited
+    assert len(result_limited["descendants"]) <= 5
+
+    # Test with very small max_depth limit
+    result_shallow = await models_fetcher.fetch_model_descendants(
+        model_name, max_depth=1
+    )
+    assert isinstance(result_shallow, dict)
+    assert "descendants" in result_shallow
+    # With depth=1, we should only get direct children (if any)
+
+    # Test with default limits (should work normally)
+    result_default = await models_fetcher.fetch_model_descendants(model_name)
+    assert isinstance(result_default, dict)
+    assert "descendants" in result_default
+    # Default should return more or equal results than limited versions
+    assert len(result_default["descendants"]) >= len(result_limited["descendants"])
+
+
+@pytest.mark.asyncio
+async def test_fetch_descendants_warnings_on_truncation(models_fetcher: ModelsFetcher):
+    """Test that warnings are returned when results are truncated due to limits."""
+    # Get a model that likely has descendants
+    models = await models_fetcher.fetch_models()
+    if not models:
+        pytest.skip("No models available for testing")
+
+    # Pick a model (preferably one with descendants)
+    test_model = models[0]
+    model_name = test_model["name"]
+
+    # Test with very restrictive limits to trigger warnings
+    result = await models_fetcher.fetch_model_descendants(
+        model_name, max_nodes=2, max_depth=1
+    )
+
+    # If descendants were found and truncated, warnings should be present
+    if len(result["descendants"]) >= 2:
+        assert "warnings" in result
+        assert isinstance(result["warnings"], list)
+        assert len(result["warnings"]) > 0
+        # Check that warning message mentions the limit
+        warning_text = " ".join(result["warnings"])
+        assert "max_nodes" in warning_text or "max_depth" in warning_text
+
+    # Test with generous limits - should not have truncation warnings
+    result_generous = await models_fetcher.fetch_model_descendants(
+        model_name, max_nodes=10000, max_depth=100
+    )
+    # Warnings might still exist for errors, but not for truncation
+    # We just verify the result is valid
+    assert isinstance(result_generous, dict)
+    assert "descendants" in result_generous
+
+
+@pytest.mark.asyncio
 async def test_fetch_exposures(exposures_fetcher: ExposuresFetcher):
     results = await exposures_fetcher.fetch_exposures()
 
