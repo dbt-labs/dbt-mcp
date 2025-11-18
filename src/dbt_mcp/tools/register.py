@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Sequence
 
 from mcp.server.fastmcp import FastMCP
@@ -5,6 +6,8 @@ from mcp.server.fastmcp import FastMCP
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import TOOL_TO_TOOLSET, Toolset
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_tool_name(tool_name_str: str) -> ToolName | None:
@@ -53,6 +56,7 @@ def should_register_tool(
 
     if tool_name is None:
         # Unknown tool, default to registering it for backward compatibility
+        logger.debug(f"Unknown tool '{tool_name_str}' - registering with default behavior")
         return True
 
     # Precedence 1: Individual tool enable (highest)
@@ -83,6 +87,7 @@ def register_tools(
     dbt_mcp: FastMCP,
     tool_definitions: list[ToolDefinition],
     exclude_tools: Sequence[ToolName] = [],
+    *,
     enabled_tools: set[ToolName] | None = None,
     enabled_toolsets: set[Toolset] | None = None,
     disabled_toolsets: set[Toolset] | None = None,

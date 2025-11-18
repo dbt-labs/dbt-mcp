@@ -115,6 +115,15 @@ class DbtMcpSettings(BaseSettings):
             f"disable_sql={self.disable_sql}, "
             f"disable_tools={self.disable_tools}, "
             f"disable_lsp={self.disable_lsp}, "
+            # enable settings
+            f"enable_tools={self.enable_tools}, "
+            f"enable_semantic_layer={self.enable_semantic_layer}, "
+            f"enable_admin_api={self.enable_admin_api}, "
+            f"enable_cli={self.enable_cli}, "
+            f"enable_codegen={self.enable_codegen}, "
+            f"enable_discovery={self.enable_discovery}, "
+            f"enable_lsp={self.enable_lsp}, "
+            f"enable_sql={self.enable_sql}, "
             # everything else
             f"dbt_prod_env_id={self.dbt_prod_env_id}, "
             f"dbt_dev_env_id={self.dbt_dev_env_id}, "
@@ -236,49 +245,52 @@ class DbtMcpSettings(BaseSettings):
                 raise ValueError(f"{field_name} directory does not exist: {v}")
         return v
 
+
+def _parse_tool_list(env_var: str | None, field_name: str) -> list[ToolName]:
+    """Parse comma-separated tool names from environment variable.
+    
+    Args:
+        env_var: Comma-separated tool names
+        field_name: Name of the field for error messages
+        
+    Returns:
+        List of validated ToolName enums
+        
+    Raises:
+        ValueError: If any tool names are invalid
+    """
+    if not env_var:
+        return []
+    errors: list[str] = []
+    tool_names: list[ToolName] = []
+    for tool_name in env_var.split(","):
+        tool_name_stripped = tool_name.strip()
+        if not tool_name_stripped:
+            continue
+        try:
+            tool_names.append(ToolName(tool_name_stripped))
+        except ValueError:
+            errors.append(
+                f"Invalid tool name in {field_name}: {tool_name_stripped}. "
+                "Must be a valid tool name."
+            )
+    if errors:
+        raise ValueError("\n".join(errors))
+    return tool_names
+
+
+class DbtMcpSettings(BaseSettings):
+    # ... (continuing with the existing class definition)
+
     @field_validator("disable_tools", mode="before")
     @classmethod
     def parse_disable_tools(cls, env_var: str | None) -> list[ToolName]:
-        if not env_var:
-            return []
-        errors: list[str] = []
-        tool_names: list[ToolName] = []
-        for tool_name in env_var.split(","):
-            tool_name_stripped = tool_name.strip()
-            if tool_name_stripped == "":
-                continue
-            try:
-                tool_names.append(ToolName(tool_name_stripped))
-            except ValueError:
-                errors.append(
-                    f"Invalid tool name in DISABLE_TOOLS: {tool_name_stripped}."
-                    + " Must be a valid tool name."
-                )
-        if errors:
-            raise ValueError("\n".join(errors))
-        return tool_names
+        return _parse_tool_list(env_var, "DISABLE_TOOLS")
 
     @field_validator("enable_tools", mode="before")
     @classmethod
     def parse_enable_tools(cls, env_var: str | None) -> list[ToolName]:
-        if not env_var:
-            return []
-        errors: list[str] = []
-        tool_names: list[ToolName] = []
-        for tool_name in env_var.split(","):
-            tool_name_stripped = tool_name.strip()
-            if tool_name_stripped == "":
-                continue
-            try:
-                tool_names.append(ToolName(tool_name_stripped))
-            except ValueError:
-                errors.append(
-                    f"Invalid tool name in DBT_MCP_ENABLE_TOOLS: {tool_name_stripped}."
-                    + " Must be a valid tool name."
-                )
-        if errors:
-            raise ValueError("\n".join(errors))
-        return tool_names
+        return _parse_tool_list(env_var, "DBT_MCP_ENABLE_TOOLS")
 
     @model_validator(mode="after")
     def auto_disable(self) -> "DbtMcpSettings":
