@@ -2,12 +2,30 @@ from unittest.mock import patch
 
 import pytest
 
-from dbt_mcp.discovery.client import ExposuresFetcher
+from dbt_mcp.discovery.client import (
+    DEFAULT_MAX_NODE_QUERY_LIMIT,
+    DEFAULT_PAGE_SIZE,
+    ExposuresFetcher,
+    PaginatedResourceFetcher,
+)
 
 
 @pytest.fixture
 def exposures_fetcher(mock_api_client):
-    return ExposuresFetcher(api_client=mock_api_client)
+    paginator = PaginatedResourceFetcher(
+        mock_api_client,
+        edges_path=("data", "environment", "definition", "exposures", "edges"),
+        page_info_path=(
+            "data",
+            "environment",
+            "definition",
+            "exposures",
+            "pageInfo",
+        ),
+        page_size=DEFAULT_PAGE_SIZE,
+        max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
+    )
+    return ExposuresFetcher(api_client=mock_api_client, paginator=paginator)
 
 
 async def test_fetch_exposures_single_page(exposures_fetcher, mock_api_client):

@@ -9,6 +9,7 @@ from dbt_mcp.discovery.client import (
     ExposuresFetcher,
     MetadataAPIClient,
     ModelsFetcher,
+    PaginatedResourceFetcher,
     ResourceDetailsFetcher,
     SourcesFetcher,
 )
@@ -29,10 +30,50 @@ class DiscoveryToolContext:
 
     def __init__(self, config_provider: ConfigProvider[DiscoveryConfig]):
         api_client = MetadataAPIClient(config_provider=config_provider)
-        self.models_fetcher = ModelsFetcher(api_client=api_client)
-        self.exposures_fetcher = ExposuresFetcher(api_client=api_client)
-        self.sources_fetcher = SourcesFetcher(api_client=api_client)
-        self.resource_details_fetcher = ResourceDetailsFetcher(api_client=api_client)
+        models_paginator = PaginatedResourceFetcher(
+            api_client=api_client,
+            edges_path=("data", "environment", "applied", "models", "edges"),
+            page_info_path=("data", "environment", "applied", "models", "pageInfo"),
+        )
+        exposures_paginator = PaginatedResourceFetcher(
+            api_client=api_client,
+            edges_path=("data", "environment", "definition", "exposures", "edges"),
+            page_info_path=(
+                "data",
+                "environment",
+                "definition",
+                "exposures",
+                "pageInfo",
+            ),
+        )
+        sources_paginator = PaginatedResourceFetcher(
+            api_client=api_client,
+            edges_path=("data", "environment", "applied", "sources", "edges"),
+            page_info_path=("data", "environment", "applied", "sources", "pageInfo"),
+        )
+        resource_details_paginator = PaginatedResourceFetcher(
+            api_client=api_client,
+            edges_path=("data", "environment", "applied", "resources", "edges"),
+            page_info_path=("data", "environment", "applied", "resources", "pageInfo"),
+            max_node_query_limit=None,
+        )
+
+        self.models_fetcher = ModelsFetcher(
+            api_client=api_client,
+            paginator=models_paginator,
+        )
+        self.exposures_fetcher = ExposuresFetcher(
+            api_client=api_client,
+            paginator=exposures_paginator,
+        )
+        self.sources_fetcher = SourcesFetcher(
+            api_client=api_client,
+            paginator=sources_paginator,
+        )
+        self.resource_details_fetcher = ResourceDetailsFetcher(
+            api_client=api_client,
+            paginator=resource_details_paginator,
+        )
 
 
 @dbt_mcp_tool(
