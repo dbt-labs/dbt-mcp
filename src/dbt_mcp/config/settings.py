@@ -235,44 +235,6 @@ class DbtMcpSettings(BaseSettings):
                 raise ValueError(f"{field_name} directory does not exist: {v}")
         return v
 
-
-def _parse_tool_list(env_var: str | None, field_name: str) -> list[ToolName]:
-    """Parse comma-separated tool names from environment variable.
-    
-    Args:
-        env_var: Comma-separated tool names
-        field_name: Name of the field for error messages
-        
-    Returns:
-        List of validated ToolName enums
-        
-    Raises:
-        ValueError: If any tool names are invalid
-    """
-    if not env_var:
-        return []
-    errors: list[str] = []
-    tool_names: list[ToolName] = []
-    for tool_name in env_var.split(","):
-        tool_name_stripped = tool_name.strip()
-        if not tool_name_stripped:
-            continue
-        try:
-            # Normalize to lowercase (ToolName values are lowercase)
-            tool_names.append(ToolName(tool_name_stripped.lower()))
-        except ValueError:
-            errors.append(
-                f"Invalid tool name in {field_name}: {tool_name_stripped}. "
-                "Must be a valid tool name."
-            )
-    if errors:
-        raise ValueError("\n".join(errors))
-    return tool_names
-
-
-class DbtMcpSettings(BaseSettings):
-    # ... (continuing with the existing class definition)
-
     @field_validator("disable_tools", mode="before")
     @classmethod
     def parse_disable_tools(cls, env_var: str | None) -> list[ToolName]:
@@ -353,6 +315,40 @@ class DbtMcpSettings(BaseSettings):
                 f"CLI features have been automatically disabled due to misconfigurations:\n    {'\n    '.join(cli_errors)}."
             )
         return self
+
+
+def _parse_tool_list(env_var: str | None, field_name: str) -> list[ToolName]:
+    """Parse comma-separated tool names from environment variable.
+    
+    Args:
+        env_var: Comma-separated tool names
+        field_name: Name of the field for error messages
+        
+    Returns:
+        List of validated ToolName enums
+        
+    Raises:
+        ValueError: If any tool names are invalid
+    """
+    if not env_var:
+        return []
+    errors: list[str] = []
+    tool_names: list[ToolName] = []
+    for tool_name in env_var.split(","):
+        tool_name_stripped = tool_name.strip()
+        if not tool_name_stripped:
+            continue
+        try:
+            # Normalize to lowercase (ToolName values are lowercase)
+            tool_names.append(ToolName(tool_name_stripped.lower()))
+        except ValueError:
+            errors.append(
+                f"Invalid tool name in {field_name}: {tool_name_stripped}. "
+                "Must be a valid tool name."
+            )
+    if errors:
+        raise ValueError("\n".join(errors))
+    return tool_names
 
 
 def _find_available_port(*, start_port: int, max_attempts: int = 20) -> int:
