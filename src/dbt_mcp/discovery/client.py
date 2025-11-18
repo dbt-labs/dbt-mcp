@@ -15,6 +15,122 @@ PaginationMode = Literal["has_next_page", "end_cursor_repeat"]
 
 
 class GraphQLQueries:
+    GET_RESOURCE_DETAILS = textwrap.dedent("""
+        query GetResourceDetails(
+            $environmentId: BigInt!,
+            $filter: AppliedResourcesFilter!,
+            $after: String,
+            $first: Int
+        ) {
+            environment(id: $environmentId) {
+                applied {
+                    resources(filter: $filter, after: $after, first: $first) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
+                        edges {
+                            node {
+                                __typename
+                                resourceType
+                                uniqueId
+                                name
+                                description
+                                ... on ModelAppliedStateNode {
+                                    compiledCode
+                                    database
+                                    schema
+                                    alias
+                                    catalog {
+                                        columns {
+                                            description
+                                            name
+                                            type
+                                        }
+                                    }
+                                }
+                                ... on SourceAppliedStateNode {
+                                    identifier
+                                    sourceName
+                                    database
+                                    schema
+                                    loader
+                                    freshness {
+                                        maxLoadedAt
+                                        maxLoadedAtTimeAgoInS
+                                        freshnessStatus
+                                    }
+                                    catalog {
+                                        columns {
+                                            description
+                                            name
+                                            type
+                                        }
+                                    }
+                                }
+                                ... on ExposureAppliedStateNode {
+                                    ownerEmail
+                                    ownerName
+                                    url
+                                    maturity
+                                    exposureType
+                                    description
+                                }
+                                ... on TestAppliedStateNode {
+                                    columnName
+                                    testType
+                                    rawCode
+                                }
+                                ... on SeedAppliedStateNode {
+                                    database
+                                    schema
+                                    alias
+                                    catalog {
+                                        columns {
+                                            description
+                                            name
+                                            type
+                                        }
+                                    }
+                                }
+                                ... on SnapshotAppliedStateNode {
+                                    database
+                                    schema
+                                    alias
+                                    compiledCode
+                                }
+                                ... on MacroDefinitionNode {
+                                    packageName
+                                    macroSql
+                                    arguments {
+                                        name
+                                        type
+                                        description
+                                    }
+                                }
+                                ... on SemanticModelDefinitionNode {
+                                    description
+                                    entities {
+                                        name
+                                        type
+                                    }
+                                    dimensions {
+                                        name
+                                        type
+                                    }
+                                    measures {
+                                        name
+                                        agg
+                                        expr
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    """)
     GET_MODELS = textwrap.dedent("""
         query GetModels(
             $environmentId: BigInt!,
@@ -548,6 +664,18 @@ class SourceFilter(TypedDict, total=False):
     identifier: str
 
 
+RESOURCE_TYPE_TO_FILTER_VALUE = {
+    "model": "Model",
+    "source": "Source",
+    "exposure": "Exposure",
+    "test": "Test",
+    "seed": "Seed",
+    "snapshot": "Snapshot",
+    "macro": "Macro",
+    "semantic_model": "SemanticModel",
+}
+
+
 class ModelsFetcher(PaginatedResourceFetcher):
     def __init__(self, api_client: MetadataAPIClient):
         super().__init__(
@@ -775,3 +903,104 @@ class SourcesFetcher(PaginatedResourceFetcher):
         if not edges:
             return {}
         return edges[0]["node"]
+
+
+class ResourceDetailsFetcher(PaginatedResourceFetcher):
+    def __init__(self, api_client: MetadataAPIClient):
+        super().__init__(
+            api_client,
+            edges_path=("data", "environment", "applied", "resources", "edges"),
+            page_info_path=("data", "environment", "applied", "resources", "pageInfo"),
+            pagination_mode="has_next_page",
+            initial_cursor=None,
+            max_node_limit=None,
+        )
+
+    def _to_filter_payload(
+        self,
+        resource_types: list[str] | None,
+        unique_ids: list[str] | None,
+        search: str | None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if resource_types:
+            payload["types"] = [
+                RESOURCE_TYPE_TO_FILTER_VALUE.get(
+                    resource_type.lower(), resource_type.upper()
+                )
+                for resource_type in resource_types
+            ]
+        if unique_ids:
+            payload["uniqueIds"] = unique_ids
+        if search:
+            payload["search"] = search
+        return payload
+
+    def _normalize_semantic_model(self, node: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "resourceType": node.get("resourceType"),
+            "uniqueId": node.get("uniqueId"),
+            "name": node.get("name"),
+            "description": node.get("description"),
+            "entities": node.get("entities") or [],
+            "dimensions": node.get("dimensions") or [],
+            "measures": node.get("measures") or [],
+        }
+
+    def _normalize_macro(self, node: dict[str, Any]) -> dict[str, Any]:
+        arguments = node.get("arguments") or []
+        return {
+            "resourceType": node.get("resourceType"),
+            "uniqueId": node.get("uniqueId"),
+            "name": node.get("name"),
+            "description": node.get("description"),
+            "packageName": node.get("packageName"),
+            "macroSql": node.get("macroSql"),
+            "arguments": [
+                {
+                    "name": argument.get("name"),
+                    "type": argument.get("type"),
+                    "description": argument.get("description"),
+                }
+                for argument in arguments
+                if isinstance(argument, dict)
+            ],
+        }
+
+    def _normalize_generic(self, node: dict[str, Any]) -> dict[str, Any]:
+        normalized = {key: value for key, value in node.items() if key != "__typename"}
+        depends_on = normalized.get("dependsOn", {})
+        if isinstance(depends_on, dict) and "nodes" in depends_on:
+            normalized["dependsOn"] = depends_on["nodes"]
+        return normalized
+
+    def _normalize_node(self, node: dict[str, Any]) -> dict[str, Any]:
+        resource_type = (node.get("resourceType") or "").lower()
+        if resource_type == "semantic_model":
+            return self._normalize_semantic_model(node)
+        if resource_type == "macro":
+            return self._normalize_macro(node)
+        return self._normalize_generic(node)
+
+    async def fetch_resource_details(
+        self,
+        resource_types: list[str] | None = None,
+        unique_ids: list[str] | None = None,
+        search: str | None = None,
+        limit: int | None = None,
+    ) -> dict[str, list[dict[str, Any]]]:
+        filter_payload = self._to_filter_payload(resource_types, unique_ids, search)
+        nodes = await self._fetch_paginated(
+            GraphQLQueries.GET_RESOURCE_DETAILS,
+            base_variables={"filter": filter_payload},
+            page_size=limit if limit is not None else None,
+            max_nodes=limit,
+        )
+
+        normalized: dict[str, list[dict[str, Any]]] = {}
+        for node in nodes:
+            resource_type = node.get("resourceType")
+            if not resource_type:
+                continue
+            normalized.setdefault(resource_type, []).append(self._normalize_node(node))
+        return normalized

@@ -9,6 +9,7 @@ from dbt_mcp.discovery.client import (
     MetadataAPIClient,
     ModelFilter,
     ModelsFetcher,
+    ResourceDetailsFetcher,
     SourcesFetcher,
 )
 from dbt_mcp.discovery.tools import DISCOVERY_TOOLS, DiscoveryToolContext
@@ -48,6 +49,11 @@ def exposures_fetcher(api_client: MetadataAPIClient) -> ExposuresFetcher:
 @pytest.fixture
 def sources_fetcher(api_client: MetadataAPIClient) -> SourcesFetcher:
     return SourcesFetcher(api_client)
+
+
+@pytest.fixture
+def resource_details_fetcher(api_client: MetadataAPIClient) -> ResourceDetailsFetcher:
+    return ResourceDetailsFetcher(api_client)
 
 
 @pytest.mark.asyncio
@@ -329,6 +335,63 @@ async def test_fetch_sources_with_filter(sources_fetcher: SourcesFetcher):
             assert source["sourceName"] == source_name
 
 
+def _extract_resources(
+    results: dict[str, list[dict]], resource_type: str
+) -> list[dict]:
+    return (
+        results.get(resource_type)
+        or results.get(resource_type.lower())
+        or results.get(resource_type.upper())
+        or []
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("resource_type", "expected_fields"),
+    [
+        ("model", ["compiledCode", "catalog"]),
+        ("source", ["sourceName", "catalog"]),
+        ("exposure", ["exposureType", "ownerEmail"]),
+        ("test", ["testType"]),
+        ("seed", ["catalog"]),
+        ("snapshot", ["compiledCode"]),
+        ("macro", ["macroSql", "arguments"]),
+        ("semantic_model", ["dimensions", "measures", "entities"]),
+    ],
+)
+async def test_fetch_resource_details_by_type(
+    resource_details_fetcher: ResourceDetailsFetcher,
+    resource_type: str,
+    expected_fields: list[str],
+):
+    results = await resource_details_fetcher.fetch_resource_details(
+        resource_types=[resource_type]
+    )
+
+    resources = _extract_resources(results, resource_type)
+    if not resources:
+        pytest.skip(f"No resources returned for type {resource_type}")
+
+    resource = resources[0]
+    for field in expected_fields:
+        assert field in resource
+    assert resource.get("resourceType") is not None
+
+
+@pytest.mark.asyncio
+async def test_fetch_resource_details_limit(
+    resource_details_fetcher: ResourceDetailsFetcher,
+):
+    results = await resource_details_fetcher.fetch_resource_details(
+        resource_types=["model"], limit=1
+    )
+    models = _extract_resources(results, "model")
+    if not models:
+        pytest.skip("No models returned to validate limit")
+    assert len(models) == 1
+
+
 @pytest.mark.asyncio
 async def test_get_all_sources_tool():
     """Test the get_all_sources tool function integration."""
@@ -380,3 +443,45 @@ async def test_get_all_sources_tool():
             assert "sourceName" in source
             assert "resourceType" in source
             assert source["resourceType"] == "source"
+
+
+@pytest.mark.asyncio
+async def test_get_resource_details_tool():
+    from dbt_mcp.config.config_providers import DefaultDiscoveryConfigProvider
+    from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
+
+    host = os.getenv("DBT_HOST")
+    token = os.getenv("DBT_TOKEN")
+    prod_env_id = os.getenv("DBT_PROD_ENV_ID")
+
+    if not host or not token or not prod_env_id:
+        pytest.skip(
+            "DBT_HOST, DBT_TOKEN, and DBT_PROD_ENV_ID environment variables are required"
+        )
+
+    settings = DbtMcpSettings()  # type: ignore
+    credentials_provider = CredentialsProvider(settings)
+    config_provider = DefaultDiscoveryConfigProvider(credentials_provider)
+
+    tool_definitions = DISCOVERY_TOOLS
+    get_resource_details_tool = None
+    for tool_def in tool_definitions:
+        if tool_def.get_name() == "get_resource_details":
+            get_resource_details_tool = tool_def
+            break
+
+    assert get_resource_details_tool is not None, (
+        "get_resource_details tool not found in tool definitions"
+    )
+
+    result = await get_resource_details_tool.fn(
+        context=DiscoveryToolContext(config_provider=config_provider),
+        resource_types=["model"],
+        limit=1,
+    )
+
+    assert isinstance(result, dict)
+    models = _extract_resources(result, "model")
+    if models:
+        assert len(models) == 1
+        assert "compiledCode" in models[0]
