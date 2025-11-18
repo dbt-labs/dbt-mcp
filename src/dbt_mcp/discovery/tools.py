@@ -193,6 +193,10 @@ def register_discovery_tools(
     dbt_mcp: FastMCP,
     discovery_config_provider: ConfigProvider[DiscoveryConfig],
     exclude_tools: Sequence[ToolName] = [],
+    *,
+    enabled_tools: set[ToolName] | None = None,
+    enabled_toolsets: set | None = None,
+    disabled_toolsets: set | None = None,
 ) -> None:
     def bind_context() -> DiscoveryToolContext:
         return DiscoveryToolContext(config_provider=discovery_config_provider)
@@ -201,4 +205,7 @@ def register_discovery_tools(
         dbt_mcp,
         [tool.adapt_context(bind_context) for tool in DISCOVERY_TOOLS],
         exclude_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
     )

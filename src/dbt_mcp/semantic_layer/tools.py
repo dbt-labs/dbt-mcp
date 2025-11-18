@@ -166,9 +166,16 @@ def register_sl_tools(
     config_provider: ConfigProvider[SemanticLayerConfig],
     client_provider: SemanticLayerClientProvider,
     exclude_tools: Sequence[ToolName] = [],
+    *,
+    enabled_tools: set[ToolName] | None = None,
+    enabled_toolsets: set | None = None,
+    disabled_toolsets: set | None = None,
 ) -> None:
     register_tools(
         dbt_mcp,
         create_sl_tool_definitions(config_provider, client_provider),
         exclude_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
     )

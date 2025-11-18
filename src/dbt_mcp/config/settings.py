@@ -251,10 +251,10 @@ class DbtMcpSettings(BaseSettings):
         """Parse comma-separated toolset names from environment variable.
         
         Args:
-            env_var: Comma-separated toolset names (e.g., "SEMANTIC_LAYER,CLI,ADMIN_API")
+            env_var: Comma-separated toolset names (e.g., "semantic_layer,dbt_cli,admin_api")
             
         Returns:
-            List of toolset name strings
+            List of toolset name strings in canonical lowercase_underscore format
             
         Raises:
             ValueError: If any toolset names are invalid
@@ -273,10 +273,10 @@ class DbtMcpSettings(BaseSettings):
             if not toolset_name_stripped:
                 continue
             try:
-                # Normalize to uppercase (Toolset values are ALL CAPS)
-                toolset_upper = toolset_name_stripped.upper()
-                Toolset(toolset_upper)  # Validate with normalized case
-                toolset_names.append(toolset_upper)  # Store in canonical form
+                # Normalize to lowercase with underscores (matching Toolset enum values)
+                toolset_normalized = toolset_name_stripped.lower().replace("-", "_")
+                Toolset(toolset_normalized)  # Validate
+                toolset_names.append(toolset_normalized)  # Store in canonical form
             except ValueError:
                 valid_toolsets = ", ".join([ts.value for ts in Toolset])
                 errors.append(

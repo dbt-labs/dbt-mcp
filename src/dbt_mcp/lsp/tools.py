@@ -20,11 +20,18 @@ async def register_lsp_tools(
     server: FastMCP,
     lspClientProvider: LSPClientProvider,
     exclude_tools: Sequence[ToolName] | None = None,
+    *,
+    enabled_tools: set[ToolName] | None = None,
+    enabled_toolsets: set | None = None,
+    disabled_toolsets: set | None = None,
 ) -> None:
     register_tools(
         server,
         await list_lsp_tools(lspClientProvider),
         exclude_tools or [],
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
     )
 
 

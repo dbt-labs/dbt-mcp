@@ -270,6 +270,10 @@ def register_admin_api_tools(
     dbt_mcp: FastMCP,
     admin_config_provider: ConfigProvider[AdminApiConfig],
     exclude_tools: Sequence[ToolName] = [],
+    *,
+    enabled_tools: set[ToolName] | None = None,
+    enabled_toolsets: set | None = None,
+    disabled_toolsets: set | None = None,
 ) -> None:
     """Register dbt Admin API tools."""
     admin_client = DbtAdminAPIClient(admin_config_provider)
@@ -277,4 +281,7 @@ def register_admin_api_tools(
         dbt_mcp,
         create_admin_api_tool_definitions(admin_client, admin_config_provider),
         exclude_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
     )

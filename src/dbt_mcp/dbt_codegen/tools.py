@@ -185,9 +185,16 @@ def register_dbt_codegen_tools(
     dbt_mcp: FastMCP,
     config: DbtCodegenConfig,
     exclude_tools: Sequence[ToolName] = [],
+    *,
+    enabled_tools: set[ToolName] | None = None,
+    enabled_toolsets: set | None = None,
+    disabled_toolsets: set | None = None,
 ) -> None:
     register_tools(
         dbt_mcp,
         create_dbt_codegen_tool_definitions(config),
         exclude_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
     )
