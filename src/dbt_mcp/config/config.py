@@ -131,14 +131,8 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
 
     # Build enabled toolset set from settings
     enabled_toolsets = {
-        Toolset.SEMANTIC_LAYER if settings.enable_semantic_layer else None,
-        Toolset.ADMIN_API if settings.enable_admin_api else None,
-        Toolset.CLI if settings.enable_cli else None,
-        Toolset.CODEGEN if settings.enable_codegen else None,
-        Toolset.DISCOVERY if settings.enable_discovery else None,
-        Toolset.LSP if settings.enable_lsp else None,
-        Toolset.SQL if settings.enable_sql else None,
-    } - {None}
+        Toolset(ts) for ts in (settings.enable_toolsets or [])
+    }
 
     # Build disabled toolset set from settings
     disabled_toolsets = {

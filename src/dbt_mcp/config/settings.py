@@ -82,13 +82,9 @@ class DbtMcpSettings(BaseSettings):
     enable_tools: Annotated[list[ToolName] | None, NoDecode] = Field(
         None, alias="DBT_MCP_ENABLE_TOOLS"
     )
-    enable_semantic_layer: bool | None = Field(None, alias="DBT_MCP_ENABLE_SEMANTIC_LAYER")
-    enable_admin_api: bool | None = Field(None, alias="DBT_MCP_ENABLE_ADMIN_API")
-    enable_cli: bool | None = Field(None, alias="DBT_MCP_ENABLE_CLI")
-    enable_codegen: bool | None = Field(None, alias="DBT_MCP_ENABLE_CODEGEN")
-    enable_discovery: bool | None = Field(None, alias="DBT_MCP_ENABLE_DISCOVERY")
-    enable_lsp: bool | None = Field(None, alias="DBT_MCP_ENABLE_LSP")
-    enable_sql: bool | None = Field(None, alias="DBT_MCP_ENABLE_SQL")
+    enable_toolsets: Annotated[list[str] | None, NoDecode] = Field(
+        None, alias="DBT_MCP_ENABLE_TOOLSETS"
+    )
 
     # Tracking settings
     do_not_track: str | None = Field(None, alias="DO_NOT_TRACK")
@@ -117,13 +113,7 @@ class DbtMcpSettings(BaseSettings):
             f"disable_lsp={self.disable_lsp}, "
             # enable settings
             f"enable_tools={self.enable_tools}, "
-            f"enable_semantic_layer={self.enable_semantic_layer}, "
-            f"enable_admin_api={self.enable_admin_api}, "
-            f"enable_cli={self.enable_cli}, "
-            f"enable_codegen={self.enable_codegen}, "
-            f"enable_discovery={self.enable_discovery}, "
-            f"enable_lsp={self.enable_lsp}, "
-            f"enable_sql={self.enable_sql}, "
+            f"enable_toolsets={self.enable_toolsets}, "
             # everything else
             f"dbt_prod_env_id={self.dbt_prod_env_id}, "
             f"dbt_dev_env_id={self.dbt_dev_env_id}, "
@@ -291,6 +281,49 @@ class DbtMcpSettings(BaseSettings):
     @classmethod
     def parse_enable_tools(cls, env_var: str | None) -> list[ToolName]:
         return _parse_tool_list(env_var, "DBT_MCP_ENABLE_TOOLS")
+
+    @field_validator("enable_toolsets", mode="before")
+    @classmethod
+    def parse_enable_toolsets(cls, env_var: str | None) -> list[str]:
+        """Parse comma-separated toolset names from environment variable.
+        
+        Args:
+            env_var: Comma-separated toolset names (e.g., "SEMANTIC_LAYER,CLI,ADMIN_API")
+            
+        Returns:
+            List of toolset name strings
+            
+        Raises:
+            ValueError: If any toolset names are invalid
+        """
+        if not env_var:
+            return []
+        
+        # Import here to avoid circular dependency
+        from dbt_mcp.tools.toolsets import Toolset
+        
+        errors: list[str] = []
+        toolset_names: list[str] = []
+        
+        for toolset_name in env_var.split(","):
+            toolset_name_stripped = toolset_name.strip()
+            if not toolset_name_stripped:
+                continue
+            try:
+                # Validate it's a valid toolset
+                Toolset(toolset_name_stripped)
+                toolset_names.append(toolset_name_stripped)
+            except ValueError:
+                valid_toolsets = ", ".join([ts.value for ts in Toolset])
+                errors.append(
+                    f"Invalid toolset name in DBT_MCP_ENABLE_TOOLSETS: {toolset_name_stripped}. "
+                    f"Must be one of: {valid_toolsets}"
+                )
+        
+        if errors:
+            raise ValueError("\n".join(errors))
+        
+        return toolset_names
 
     @model_validator(mode="after")
     def auto_disable(self) -> "DbtMcpSettings":
