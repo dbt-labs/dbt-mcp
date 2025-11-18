@@ -78,6 +78,18 @@ class DbtMcpSettings(BaseSettings):
     )
     disable_lsp: bool | None = Field(None, alias="DISABLE_LSP")
 
+    # Enable tool settings (allowlist)
+    enable_tools: Annotated[list[ToolName] | None, NoDecode] = Field(
+        None, alias="DBT_MCP_ENABLE_TOOLS"
+    )
+    enable_semantic_layer: bool | None = Field(None, alias="DBT_MCP_ENABLE_SEMANTIC_LAYER")
+    enable_admin_api: bool | None = Field(None, alias="DBT_MCP_ENABLE_ADMIN_API")
+    enable_cli: bool | None = Field(None, alias="DBT_MCP_ENABLE_CLI")
+    enable_codegen: bool | None = Field(None, alias="DBT_MCP_ENABLE_CODEGEN")
+    enable_discovery: bool | None = Field(None, alias="DBT_MCP_ENABLE_DISCOVERY")
+    enable_lsp: bool | None = Field(None, alias="DBT_MCP_ENABLE_LSP")
+    enable_sql: bool | None = Field(None, alias="DBT_MCP_ENABLE_SQL")
+
     # Tracking settings
     do_not_track: str | None = Field(None, alias="DO_NOT_TRACK")
     send_anonymous_usage_data: str | None = Field(
@@ -240,6 +252,28 @@ class DbtMcpSettings(BaseSettings):
             except ValueError:
                 errors.append(
                     f"Invalid tool name in DISABLE_TOOLS: {tool_name_stripped}."
+                    + " Must be a valid tool name."
+                )
+        if errors:
+            raise ValueError("\n".join(errors))
+        return tool_names
+
+    @field_validator("enable_tools", mode="before")
+    @classmethod
+    def parse_enable_tools(cls, env_var: str | None) -> list[ToolName]:
+        if not env_var:
+            return []
+        errors: list[str] = []
+        tool_names: list[ToolName] = []
+        for tool_name in env_var.split(","):
+            tool_name_stripped = tool_name.strip()
+            if tool_name_stripped == "":
+                continue
+            try:
+                tool_names.append(ToolName(tool_name_stripped))
+            except ValueError:
+                errors.append(
+                    f"Invalid tool name in DBT_MCP_ENABLE_TOOLS: {tool_name_stripped}."
                     + " Must be a valid tool name."
                 )
         if errors:
