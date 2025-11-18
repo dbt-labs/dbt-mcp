@@ -249,25 +249,25 @@ class DbtMcpSettings(BaseSettings):
     @classmethod
     def parse_enable_toolsets(cls, env_var: str | None) -> list[str]:
         """Parse comma-separated toolset names from environment variable.
-        
+
         Args:
             env_var: Comma-separated toolset names (e.g., "semantic_layer,dbt_cli,admin_api")
-            
+
         Returns:
             List of toolset name strings in canonical lowercase_underscore format
-            
+
         Raises:
             ValueError: If any toolset names are invalid
         """
         if not env_var:
             return []
-        
+
         # Import here to avoid circular dependency
         from dbt_mcp.tools.toolsets import Toolset
-        
+
         errors: list[str] = []
         toolset_names: list[str] = []
-        
+
         for toolset_name in env_var.split(","):
             toolset_name_stripped = toolset_name.strip()
             if not toolset_name_stripped:
@@ -283,10 +283,10 @@ class DbtMcpSettings(BaseSettings):
                     f"Invalid toolset name in DBT_MCP_ENABLE_TOOLSETS: {toolset_name_stripped}. "
                     f"Must be one of: {valid_toolsets}"
                 )
-        
+
         if errors:
             raise ValueError("\n".join(errors))
-        
+
         return toolset_names
 
     @model_validator(mode="after")
@@ -319,14 +319,14 @@ class DbtMcpSettings(BaseSettings):
 
 def _parse_tool_list(env_var: str | None, field_name: str) -> list[ToolName]:
     """Parse comma-separated tool names from environment variable.
-    
+
     Args:
         env_var: Comma-separated tool names
         field_name: Name of the field for error messages
-        
+
     Returns:
         List of validated ToolName enums
-        
+
     Raises:
         ValueError: If any tool names are invalid
     """

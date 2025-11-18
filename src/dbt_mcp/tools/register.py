@@ -12,10 +12,10 @@ logger = logging.getLogger(__name__)
 
 def _parse_tool_name(tool_name_str: str) -> ToolName | None:
     """Helper to find ToolName enum from string.
-    
+
     Args:
         tool_name_str: The tool name as a string
-        
+
     Returns:
         Matching ToolName enum or None if not found
     """
@@ -56,7 +56,9 @@ def should_register_tool(
 
     if tool_name is None:
         # Unknown tool, default to registering it for backward compatibility
-        logger.debug(f"Unknown tool '{tool_name_str}' - registering with default behavior")
+        logger.debug(
+            f"Unknown tool '{tool_name_str}' - registering with default behavior"
+        )
         return True
 
     # Precedence 1: Individual tool enable (highest)

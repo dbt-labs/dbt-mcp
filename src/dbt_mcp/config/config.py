@@ -130,20 +130,22 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         )
 
     # Build enabled toolset set from settings
-    enabled_toolsets = {
-        Toolset(ts) for ts in (settings.enable_toolsets or [])
-    }
+    enabled_toolsets = {Toolset(ts) for ts in (settings.enable_toolsets or [])}
 
     # Build disabled toolset set from settings
-    disabled_toolsets = {
-        Toolset.SEMANTIC_LAYER if settings.disable_semantic_layer else None,
-        Toolset.ADMIN_API if settings.disable_admin_api else None,
-        Toolset.DBT_CLI if settings.disable_dbt_cli else None,
-        Toolset.DBT_CODEGEN if settings.disable_dbt_codegen else None,
-        Toolset.DISCOVERY if settings.disable_discovery else None,
-        Toolset.DBT_LSP if settings.disable_lsp else None,
-        Toolset.SQL if settings.actual_disable_sql else None,
-    } - {None}
+    disabled_toolsets: set[Toolset] = {
+        ts
+        for ts in {
+            Toolset.SEMANTIC_LAYER if settings.disable_semantic_layer else None,
+            Toolset.ADMIN_API if settings.disable_admin_api else None,
+            Toolset.DBT_CLI if settings.disable_dbt_cli else None,
+            Toolset.DBT_CODEGEN if settings.disable_dbt_codegen else None,
+            Toolset.DISCOVERY if settings.disable_discovery else None,
+            Toolset.DBT_LSP if settings.disable_lsp else None,
+            Toolset.SQL if settings.actual_disable_sql else None,
+        }
+        if ts is not None
+    }
 
     return Config(
         disable_tools=settings.disable_tools or [],

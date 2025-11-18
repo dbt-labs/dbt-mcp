@@ -106,7 +106,7 @@ for toolset, tools in toolsets.items():
 
 def validate_tool_mapping() -> None:
     """Ensure all ToolName members are mapped to a toolset.
-    
+
     Raises:
         ValueError: If any tools are not mapped to a toolset
     """

@@ -1,7 +1,5 @@
 """Unit tests for tool registration precedence logic."""
 
-import pytest
-
 from dbt_mcp.tools.register import should_register_tool
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
