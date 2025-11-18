@@ -273,7 +273,6 @@ class DbtMcpSettings(BaseSettings):
             if not toolset_name_stripped:
                 continue
             try:
-                # Normalize and store
                 toolset_normalized = toolset_name_stripped.lower().replace("-", "_")
                 Toolset(toolset_normalized)
                 toolset_names.append(toolset_normalized)
@@ -339,7 +338,6 @@ def _parse_tool_list(env_var: str | None, field_name: str) -> list[ToolName]:
         if not tool_name_stripped:
             continue
         try:
-            # Normalize
             tool_names.append(ToolName(tool_name_stripped.lower()))
         except ValueError:
             errors.append(
