@@ -1,5 +1,5 @@
 import textwrap
-from typing import Literal, TypedDict
+from typing import Any, Literal, TypedDict
 
 import requests
 
@@ -9,6 +9,9 @@ from dbt_mcp.gql.errors import raise_gql_error
 
 PAGE_SIZE = 100
 MAX_NODE_QUERY_LIMIT = 1000
+
+
+PaginationMode = Literal["has_next_page", "end_cursor_repeat"]
 
 
 class GraphQLQueries:
@@ -31,6 +34,14 @@ class GraphQLQueries:
                                 name
                                 uniqueId
                                 description
+                                compiledCode
+                                catalog {
+                                    columns {
+                                        description
+                                        name
+                                        type
+                                    }
+                                }
                             }
                         }
                     }
@@ -415,6 +426,118 @@ class MetadataAPIClient:
         return response.json()
 
 
+class PaginatedResourceFetcher:
+    def __init__(
+        self,
+        api_client: MetadataAPIClient,
+        *,
+        edges_path: tuple[str, ...],
+        page_info_path: tuple[str, ...],
+        pagination_mode: PaginationMode,
+        initial_cursor: str | None = None,
+        after_variable_name: str = "after",
+        default_page_size: int = PAGE_SIZE,
+        max_node_limit: int | None = MAX_NODE_QUERY_LIMIT,
+    ):
+        self.api_client = api_client
+        self._edges_path = edges_path
+        self._page_info_path = page_info_path
+        self._pagination_mode = pagination_mode
+        self._initial_cursor = initial_cursor
+        self._after_variable_name = after_variable_name
+        self._default_page_size = default_page_size
+        self._max_node_limit = max_node_limit
+
+    async def get_environment_id(self) -> int:
+        config = await self.api_client.config_provider.get_config()
+        return config.environment_id
+
+    def _extract_path(self, payload: dict, path: tuple[str, ...]) -> Any:
+        current = payload
+        for key in path:
+            current = current[key]
+        return current
+
+    def _parse_edges(self, result: dict) -> list[dict]:
+        raise_gql_error(result)
+        edges = self._extract_path(result, self._edges_path)
+        if result.get("errors"):
+            raise GraphQLError(f"GraphQL query failed: {result['errors']}")
+        parsed_edges: list[dict] = []
+        if not edges:
+            return parsed_edges
+        for edge in edges:
+            if not isinstance(edge, dict) or "node" not in edge:
+                continue
+            node = edge["node"]
+            if not isinstance(node, dict):
+                continue
+            parsed_edges.append(node)
+        return parsed_edges
+
+    def _extract_page_info(self, result: dict) -> dict:
+        return self._extract_path(result, self._page_info_path)
+
+    def _should_continue(
+        self,
+        page_info: dict,
+        previous_cursor: str | None,
+        next_cursor: str | None,
+    ) -> bool:
+        if self._pagination_mode == "has_next_page":
+            has_next = bool(page_info.get("hasNextPage"))
+            if not has_next:
+                return False
+            if not next_cursor or next_cursor == previous_cursor:
+                return False
+            return True
+        if not next_cursor or next_cursor == previous_cursor:
+            return False
+        return True
+
+    async def _fetch_paginated(
+        self,
+        query: str,
+        *,
+        base_variables: dict[str, Any] | None = None,
+        page_size: int | None = None,
+        max_nodes: int | None = None,
+    ) -> list[dict]:
+        environment_id = await self.get_environment_id()
+        resolved_page_size = page_size or self._default_page_size
+        resolved_limit = max_nodes if max_nodes is not None else self._max_node_limit
+        collected: list[dict] = []
+        current_cursor = self._initial_cursor
+
+        while True:
+            if resolved_limit is not None and len(collected) >= resolved_limit:
+                break
+
+            variables: dict[str, Any] = dict(base_variables or {})
+            variables["environmentId"] = environment_id
+            variables["first"] = resolved_page_size
+            if current_cursor is not None:
+                variables[self._after_variable_name] = current_cursor
+
+            result = await self.api_client.execute_query(query, variables)
+            page_edges = self._parse_edges(result)
+            collected.extend(page_edges)
+
+            page_info = self._extract_page_info(result)
+            previous_cursor = current_cursor
+            current_cursor = page_info.get("endCursor")
+
+            if resolved_limit is not None and len(collected) >= resolved_limit:
+                break
+
+            if not self._should_continue(page_info, previous_cursor, current_cursor):
+                break
+
+        if resolved_limit is not None:
+            return collected[:resolved_limit]
+        return collected
+
+
 class ModelFilter(TypedDict, total=False):
     modelingLayer: Literal["marts"] | None
 
@@ -425,30 +548,15 @@ class SourceFilter(TypedDict, total=False):
     identifier: str
 
 
-class ModelsFetcher:
+class ModelsFetcher(PaginatedResourceFetcher):
     def __init__(self, api_client: MetadataAPIClient):
-        self.api_client = api_client
-
-    async def get_environment_id(self) -> int:
-        config = await self.api_client.config_provider.get_config()
-        return config.environment_id
-
-    def _parse_response_to_json(self, result: dict) -> list[dict]:
-        raise_gql_error(result)
-        edges = result["data"]["environment"]["applied"]["models"]["edges"]
-        parsed_edges: list[dict] = []
-        if not edges:
-            return parsed_edges
-        if result.get("errors"):
-            raise GraphQLError(f"GraphQL query failed: {result['errors']}")
-        for edge in edges:
-            if not isinstance(edge, dict) or "node" not in edge:
-                continue
-            node = edge["node"]
-            if not isinstance(node, dict):
-                continue
-            parsed_edges.append(node)
-        return parsed_edges
+        super().__init__(
+            api_client,
+            edges_path=("data", "environment", "applied", "models", "edges"),
+            page_info_path=("data", "environment", "applied", "models", "pageInfo"),
+            pagination_mode="end_cursor_repeat",
+            initial_cursor="",
+        )
 
     def _get_model_filters(
         self, model_name: str | None = None, unique_id: str | None = None
@@ -463,31 +571,13 @@ class ModelsFetcher:
             )
 
     async def fetch_models(self, model_filter: ModelFilter | None = None) -> list[dict]:
-        has_next_page = True
-        after_cursor: str = ""
-        all_edges: list[dict] = []
-        while has_next_page and len(all_edges) < MAX_NODE_QUERY_LIMIT:
-            variables = {
-                "environmentId": await self.get_environment_id(),
-                "after": after_cursor,
-                "first": PAGE_SIZE,
+        return await self._fetch_paginated(
+            GraphQLQueries.GET_MODELS,
+            base_variables={
                 "modelsFilter": model_filter or {},
                 "sort": {"field": "queryUsageCount", "direction": "desc"},
-            }
-
-            result = await self.api_client.execute_query(
-                GraphQLQueries.GET_MODELS, variables
-            )
-            all_edges.extend(self._parse_response_to_json(result))
-
-            previous_after_cursor = after_cursor
-            after_cursor = result["data"]["environment"]["applied"]["models"][
-                "pageInfo"
-            ]["endCursor"]
-            if previous_after_cursor == after_cursor:
-                has_next_page = False
-
-        return all_edges
+            },
+        )
 
     async def fetch_model_details(
         self, model_name: str | None = None, unique_id: str | None = None
@@ -562,57 +652,25 @@ class ModelsFetcher:
         return edges[0]["node"]
 
 
-class ExposuresFetcher:
+class ExposuresFetcher(PaginatedResourceFetcher):
     def __init__(self, api_client: MetadataAPIClient):
-        self.api_client = api_client
-
-    async def get_environment_id(self) -> int:
-        config = await self.api_client.config_provider.get_config()
-        return config.environment_id
-
-    def _parse_response_to_json(self, result: dict) -> list[dict]:
-        raise_gql_error(result)
-        edges = result["data"]["environment"]["definition"]["exposures"]["edges"]
-        parsed_edges: list[dict] = []
-        if not edges:
-            return parsed_edges
-        if result.get("errors"):
-            raise GraphQLError(f"GraphQL query failed: {result['errors']}")
-        for edge in edges:
-            if not isinstance(edge, dict) or "node" not in edge:
-                continue
-            node = edge["node"]
-            if not isinstance(node, dict):
-                continue
-            parsed_edges.append(node)
-        return parsed_edges
+        super().__init__(
+            api_client,
+            edges_path=("data", "environment", "definition", "exposures", "edges"),
+            page_info_path=(
+                "data",
+                "environment",
+                "definition",
+                "exposures",
+                "pageInfo",
+            ),
+            pagination_mode="has_next_page",
+            initial_cursor=None,
+            max_node_limit=None,
+        )
 
     async def fetch_exposures(self) -> list[dict]:
-        has_next_page = True
-        after_cursor: str | None = None
-        all_edges: list[dict] = []
-
-        while has_next_page:
-            variables: dict[str, int | str] = {
-                "environmentId": await self.get_environment_id(),
-                "first": PAGE_SIZE,
-            }
-            if after_cursor:
-                variables["after"] = after_cursor
-
-            result = await self.api_client.execute_query(
-                GraphQLQueries.GET_EXPOSURES, variables
-            )
-            new_edges = self._parse_response_to_json(result)
-            all_edges.extend(new_edges)
-
-            page_info = result["data"]["environment"]["definition"]["exposures"][
-                "pageInfo"
-            ]
-            has_next_page = page_info.get("hasNextPage", False)
-            after_cursor = page_info.get("endCursor")
-
-        return all_edges
+        return await self._fetch_paginated(GraphQLQueries.GET_EXPOSURES)
 
     def _get_exposure_filters(
         self, exposure_name: str | None = None, unique_ids: list[str] | None = None
@@ -660,30 +718,15 @@ class ExposuresFetcher:
             )
 
 
-class SourcesFetcher:
+class SourcesFetcher(PaginatedResourceFetcher):
     def __init__(self, api_client: MetadataAPIClient):
-        self.api_client = api_client
-
-    async def get_environment_id(self) -> int:
-        config = await self.api_client.config_provider.get_config()
-        return config.environment_id
-
-    def _parse_response_to_json(self, result: dict) -> list[dict]:
-        raise_gql_error(result)
-        edges = result["data"]["environment"]["applied"]["sources"]["edges"]
-        parsed_edges: list[dict] = []
-        if not edges:
-            return parsed_edges
-        if result.get("errors"):
-            raise GraphQLError(f"GraphQL query failed: {result['errors']}")
-        for edge in edges:
-            if not isinstance(edge, dict) or "node" not in edge:
-                continue
-            node = edge["node"]
-            if not isinstance(node, dict):
-                continue
-            parsed_edges.append(node)
-        return parsed_edges
+        super().__init__(
+            api_client,
+            edges_path=("data", "environment", "applied", "sources", "edges"),
+            page_info_path=("data", "environment", "applied", "sources", "pageInfo"),
+            pagination_mode="has_next_page",
+            initial_cursor="",
+        )
 
     async def fetch_sources(
         self,
@@ -696,28 +739,10 @@ class SourcesFetcher:
         if unique_ids is not None:
             source_filter["uniqueIds"] = unique_ids
 
-        has_next_page = True
-        after_cursor: str = ""
-        all_edges: list[dict] = []
-
-        while has_next_page and len(all_edges) < MAX_NODE_QUERY_LIMIT:
-            variables = {
-                "environmentId": await self.get_environment_id(),
-                "after": after_cursor,
-                "first": PAGE_SIZE,
-                "sourcesFilter": source_filter,
-            }
-
-            result = await self.api_client.execute_query(
-                GraphQLQueries.GET_SOURCES, variables
-            )
-            all_edges.extend(self._parse_response_to_json(result))
-
-            page_info = result["data"]["environment"]["applied"]["sources"]["pageInfo"]
-            has_next_page = page_info.get("hasNextPage", False)
-            after_cursor = page_info.get("endCursor")
-
-        return all_edges
+        return await self._fetch_paginated(
+            GraphQLQueries.GET_SOURCES,
+            base_variables={"sourcesFilter": source_filter},
+        )
 
     def _get_source_filters(
         self, source_name: str | None = None, unique_id: str | None = None
