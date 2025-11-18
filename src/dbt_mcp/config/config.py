@@ -133,6 +133,8 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
     enabled_toolsets = {Toolset(ts) for ts in (settings.enable_toolsets or [])}
 
     # Build disabled toolset set from settings
+    # Note: Using set comprehension with None filtering for type safety
+    # The inner set contains Toolset|None, the comprehension filters to Toolset only
     disabled_toolsets: set[Toolset] = {
         ts
         for ts in {

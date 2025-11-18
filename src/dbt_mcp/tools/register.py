@@ -79,9 +79,11 @@ def should_register_tool(
         if tool_toolset in disabled_toolsets:
             return False
 
-    # Precedence 5: Default behavior
-    # If any explicit enables are set, default to False (opt-in mode)
-    # Otherwise default to True (backward compatibility)
+    # Precedence 5: Fallback behavior (only when rules 1-4 don't apply)
+    # This is the key mechanism that switches between denylist and allowlist modes:
+    # - If NO enable configuration exists → return True (original default: enable all tools)
+    # - If ANY enable configuration exists → return False (allowlist mode: disable unless explicitly allowed)
+    # This preserves backward compatibility while enabling opt-in allowlist functionality
     return not bool(enabled_tools or enabled_toolsets)
 
 
