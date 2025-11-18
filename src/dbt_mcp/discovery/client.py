@@ -11,9 +11,6 @@ PAGE_SIZE = 100
 MAX_NODE_QUERY_LIMIT = 1000
 
 
-PaginationMode = Literal["has_next_page", "end_cursor_repeat"]
-
-
 class GraphQLQueries:
     GET_MODELS = textwrap.dedent("""
         query GetModels(
@@ -433,7 +430,6 @@ class PaginatedResourceFetcher:
         *,
         edges_path: tuple[str, ...],
         page_info_path: tuple[str, ...],
-        pagination_mode: PaginationMode,
         initial_cursor: str | None = None,
         after_variable_name: str = "after",
         default_page_size: int = PAGE_SIZE,
@@ -442,7 +438,6 @@ class PaginatedResourceFetcher:
         self.api_client = api_client
         self._edges_path = edges_path
         self._page_info_path = page_info_path
-        self._pagination_mode = pagination_mode
         self._initial_cursor = initial_cursor
         self._after_variable_name = after_variable_name
         self._default_page_size = default_page_size
@@ -484,13 +479,14 @@ class PaginatedResourceFetcher:
         previous_cursor: str | None,
         next_cursor: str | None,
     ) -> bool:
-        if self._pagination_mode == "has_next_page":
-            has_next = bool(page_info.get("hasNextPage"))
-            if not has_next:
+        has_next_value = page_info.get("hasNextPage")
+        if isinstance(has_next_value, bool):
+            if not has_next_value:
                 return False
             if not next_cursor or next_cursor == previous_cursor:
                 return False
             return True
+
         if not next_cursor or next_cursor == previous_cursor:
             return False
         return True
@@ -554,7 +550,6 @@ class ModelsFetcher(PaginatedResourceFetcher):
             api_client,
             edges_path=("data", "environment", "applied", "models", "edges"),
             page_info_path=("data", "environment", "applied", "models", "pageInfo"),
-            pagination_mode="end_cursor_repeat",
             initial_cursor="",
         )
 
@@ -664,7 +659,6 @@ class ExposuresFetcher(PaginatedResourceFetcher):
                 "exposures",
                 "pageInfo",
             ),
-            pagination_mode="has_next_page",
             initial_cursor=None,
             max_node_limit=None,
         )
@@ -724,7 +718,6 @@ class SourcesFetcher(PaginatedResourceFetcher):
             api_client,
             edges_path=("data", "environment", "applied", "sources", "edges"),
             page_info_path=("data", "environment", "applied", "sources", "pageInfo"),
-            pagination_mode="has_next_page",
             initial_cursor="",
         )
 
