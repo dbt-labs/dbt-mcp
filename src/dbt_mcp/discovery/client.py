@@ -273,7 +273,7 @@ class GraphQLQueries:
     """)
     )
 
-    GET_MODEL_LINEAGE = (
+    GET_MODEL_ANCESTORS = (
         textwrap.dedent("""
         query GetModelLineage(
             $environmentId: BigInt!,
@@ -719,7 +719,7 @@ class ModelsFetcher:
             "first": 1,
         }
         result = await self.api_client.execute_query(
-            GraphQLQueries.GET_MODEL_LINEAGE, variables
+            GraphQLQueries.GET_MODEL_ANCESTORS, variables
         )
         raise_gql_error(result)
         edges = result["data"]["environment"]["applied"]["models"]["edges"]
@@ -761,7 +761,7 @@ class ModelsFetcher:
             "first": 1,
         }
         result = await self.api_client.execute_query(
-            GraphQLQueries.GET_MODEL_LINEAGE, variables
+            GraphQLQueries.GET_MODEL_ANCESTORS, variables
         )
         raise_gql_error(result)
         edges = result["data"]["environment"]["applied"]["models"]["edges"]
