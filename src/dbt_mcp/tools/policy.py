@@ -79,8 +79,11 @@ tool_policies = {
     ToolName.GET_MODEL_CHILDREN.value: ToolPolicy(
         name=ToolName.GET_MODEL_CHILDREN.value, behavior=ToolBehavior.METADATA
     ),
-    ToolName.GET_MODEL_LINEAGE.value: ToolPolicy(
-        name=ToolName.GET_MODEL_LINEAGE.value, behavior=ToolBehavior.METADATA
+    ToolName.GET_MODEL_ANCESTORS.value: ToolPolicy(
+        name=ToolName.GET_MODEL_ANCESTORS.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.GET_MODEL_DESCENDANTS.value: ToolPolicy(
+        name=ToolName.GET_MODEL_DESCENDANTS.value, behavior=ToolBehavior.METADATA
     ),
     ToolName.GET_MODEL_DETAILS.value: ToolPolicy(
         name=ToolName.GET_MODEL_DETAILS.value, behavior=ToolBehavior.METADATA

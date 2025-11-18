@@ -54,10 +54,15 @@ def create_discovery_tool_definitions(
     ) -> list[dict]:
         return await models_fetcher.fetch_model_children(model_name, unique_id)
 
-    async def get_model_lineage(
+    async def get_model_ancestors(
         model_name: str | None = None, unique_id: str | None = None
     ) -> dict:
-        return await models_fetcher.fetch_model_lineage(model_name, unique_id)
+        return await models_fetcher.fetch_model_ancestors(model_name, unique_id)
+
+    async def get_model_descendants(
+        model_name: str | None = None, unique_id: str | None = None
+    ) -> dict:
+        return await models_fetcher.fetch_model_descendants(model_name, unique_id)
 
     async def get_model_health(
         model_name: str | None = None, unique_id: str | None = None
@@ -135,10 +140,20 @@ def create_discovery_tool_definitions(
             ),
         ),
         ToolDefinition(
-            description=get_prompt("discovery/get_model_lineage"),
-            fn=get_model_lineage,
+            description=get_prompt("discovery/get_model_ancestors"),
+            fn=get_model_ancestors,
             annotations=create_tool_annotations(
-                title="Get Model Lineage",
+                title="Get Model Ancestors",
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+            ),
+        ),
+        ToolDefinition(
+            description=get_prompt("discovery/get_model_descendants"),
+            fn=get_model_descendants,
+            annotations=create_tool_annotations(
+                title="Get Model Descendants",
                 read_only_hint=True,
                 destructive_hint=False,
                 idempotent_hint=True,

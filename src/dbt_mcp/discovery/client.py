@@ -1,3 +1,4 @@
+import logging
 import textwrap
 from typing import Literal, TypedDict
 
@@ -6,6 +7,8 @@ import requests
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.errors import GraphQLError, InvalidParameterError
 from dbt_mcp.gql.errors import raise_gql_error
+
+logger = logging.getLogger(__name__)
 
 PAGE_SIZE = 100
 MAX_NODE_QUERY_LIMIT = 1000
@@ -591,23 +594,166 @@ class ModelsFetcher:
             return []
         return edges[0]["node"]
 
-    async def fetch_model_lineage(
+    async def _fetch_children_batch(
+        self, unique_ids: list[str]
+    ) -> dict[str, list[dict]]:
+        """Fetch children for multiple models in a single API call.
+
+        This method is optimized for batch operations during lineage traversal,
+        reducing API calls from O(nodes) to O(depth).
+
+        Args:
+            unique_ids: List of model unique IDs to fetch children for
+
+        Returns:
+            Dictionary mapping each parent unique_id to its list of children.
+            Parents with no children will have an empty list.
+
+        Example:
+            >>> await fetcher._fetch_children_batch(["model.A", "model.B"])
+            {
+                "model.A": [{"name": "child1", ...}, {"name": "child2", ...}],
+                "model.B": []
+            }
+        """
+        if not unique_ids:
+            return {}
+
+        variables = {
+            "environmentId": await self.get_environment_id(),
+            "modelsFilter": {"uniqueIds": unique_ids},
+            "first": len(unique_ids),
+        }
+
+        result = await self.api_client.execute_query(
+            GraphQLQueries.GET_MODEL_CHILDREN, variables
+        )
+        raise_gql_error(result)
+        edges = result["data"]["environment"]["applied"]["models"]["edges"]
+
+        # Build mapping: parent_id -> children
+        children_map: dict[str, list[dict]] = {}
+        for edge in edges:
+            node = edge["node"]
+            parent_id = node.get("uniqueId")
+            children = node.get("children", [])
+            if parent_id:
+                children_map[parent_id] = children
+
+        # Ensure all requested IDs are in the map (even if no children)
+        for uid in unique_ids:
+            if uid not in children_map:
+                children_map[uid] = []
+
+        return children_map
+    
+    async def _fetch_all_descendants(
+        self, unique_id: str, max_depth: int = 50, max_nodes: int = 1000
+    ) -> list[dict]:
+        """Recursively fetch all descendants using BFS traversal.
+
+        Args:
+            unique_id: The unique ID of the starting model
+            max_depth: Maximum depth (levels) to traverse (prevents deep chains)
+            max_nodes: Maximum total descendant nodes to collect (prevents wide graphs)
+
+        Returns:
+            List of all descendant nodes (limited by max_depth and max_nodes)
+        """
+        visited: set[str] = set()
+        all_descendants: list[dict] = []
+        current_level = [unique_id]
+        visited.add(unique_id)
+
+        for _ in range(max_depth):
+            if not current_level:
+                break
+
+            # Stop if we've already collected enough nodes
+            if len(all_descendants) >= max_nodes:
+                break
+
+            next_level = []
+            # Fetch children for all nodes at this level in a single batch API call
+            children_by_parent = await self._fetch_children_batch(current_level)
+
+            for node_id in current_level:
+                children = children_by_parent.get(node_id, [])
+                for child in children:
+                    child_unique_id = child.get("uniqueId")
+                    if child_unique_id and child_unique_id not in visited:
+                        visited.add(child_unique_id)
+                        all_descendants.append(child)
+                        next_level.append(child_unique_id)
+
+                        # Stop collecting if we hit the node limit
+                        if len(all_descendants) >= max_nodes:
+                            break
+
+                # Break outer loop if we hit limit
+                if len(all_descendants) >= max_nodes:
+                    break
+
+            current_level = next_level
+
+        return all_descendants
+
+    async def fetch_model_ancestors(
         self,
         model_name: str | None = None,
         unique_id: str | None = None,
-        max_depth: int = 50,
     ) -> dict:
-        """Fetch complete lineage (ancestors and descendants) for a model.
+        """Fetch all ancestors (upstream dependencies) for a model.
 
         Args:
             model_name: The name of the model
             unique_id: The unique ID of the model
-            max_depth: Maximum depth for descendants traversal (default: 50)
 
         Returns:
-            Dictionary containing model info, ancestors list, and descendants list
+            Dictionary containing model info and ancestors list
         """
-        # Validate parameters and get model with ancestors
+        model_filters = self._get_model_filters(model_name, unique_id)
+        variables = {
+            "environmentId": await self.get_environment_id(),
+            "modelsFilter": model_filters,
+            "first": 1,
+        }
+        result = await self.api_client.execute_query(
+            GraphQLQueries.GET_MODEL_LINEAGE, variables
+        )
+        raise_gql_error(result)
+        edges = result["data"]["environment"]["applied"]["models"]["edges"]
+        if not edges:
+            return {}
+
+        node = edges[0]["node"]
+        return {
+            "name": node.get("name"),
+            "uniqueId": node.get("uniqueId"),
+            "description": node.get("description"),
+            "resourceType": node.get("resourceType"),
+            "ancestors": node.get("ancestors", []),
+        }
+
+    async def fetch_model_descendants(
+        self,
+        model_name: str | None = None,
+        unique_id: str | None = None,
+        max_depth: int = 50,
+        max_nodes: int = 1000,
+    ) -> dict:
+        """Fetch all descendants (downstream dependencies) for a model.
+
+        Args:
+            model_name: The name of the model
+            unique_id: The unique ID of the model
+            max_depth: Maximum depth (levels) to traverse in the dependency graph (default: 50)
+            max_nodes: Maximum total descendant nodes to collect (default: 1000)
+
+        Returns:
+            Dictionary containing model info and descendants list
+        """
+        # Get model basic info and uniqueId
         model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
             "environmentId": await self.get_environment_id(),
@@ -627,61 +773,34 @@ class ModelsFetcher:
 
         # Fetch all descendants using BFS traversal
         descendants = []
+        error_message = None
         if model_unique_id:
             try:
                 descendants = await self._fetch_all_descendants(
-                    model_unique_id, max_depth
+                    model_unique_id, max_depth, max_nodes
                 )
-            except Exception:
-                # If descendants fetching fails, return partial result with ancestors only
-                pass
+            except Exception as e:
+                # Log the error for debugging
+                logger.error(
+                    f"Failed to fetch descendants for {model_unique_id}: {type(e).__name__}: {str(e)}",
+                    exc_info=True,
+                )
+                error_message = f"Descendants fetch failed: {type(e).__name__}: {str(e)}"
 
-        # Return complete lineage
-        return {
+        # Return model info with descendants
+        result_dict = {
             "name": node.get("name"),
             "uniqueId": node.get("uniqueId"),
             "description": node.get("description"),
             "resourceType": node.get("resourceType"),
-            "ancestors": node.get("ancestors", []),
             "descendants": descendants,
         }
 
-    async def _fetch_all_descendants(
-        self, unique_id: str, max_depth: int = 50
-    ) -> list[dict]:
-        """Recursively fetch all descendants using BFS traversal.
+        # Add warning if descendants fetch failed
+        if error_message:
+            result_dict["warning"] = error_message
 
-        Args:
-            unique_id: The unique ID of the starting model
-            max_depth: Maximum depth to traverse (prevents runaway queries)
-
-        Returns:
-            List of all descendant nodes
-        """
-        visited: set[str] = set()
-        all_descendants: list[dict] = []
-        current_level = [unique_id]
-        visited.add(unique_id)
-
-        for _ in range(max_depth):
-            if not current_level:
-                break
-
-            next_level = []
-            for node_id in current_level:
-                # Fetch children for this node
-                children = await self.fetch_model_children(unique_id=node_id)
-
-                for child in children:
-                    child_unique_id = child.get("uniqueId")
-                    if child_unique_id and child_unique_id not in visited:
-                        visited.add(child_unique_id)
-                        all_descendants.append(child)
-                        next_level.append(child_unique_id)
-
-            current_level = next_level
-
-        return all_descendants
+        return result_dict
 
 
 class ExposuresFetcher:
