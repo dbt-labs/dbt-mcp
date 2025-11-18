@@ -1,90 +1,79 @@
+"""Toolset definitions and tool-to-toolset mappings.
+
+This module defines the toolsets available in dbt-mcp and provides
+a mapping from individual tools to their respective toolsets. This
+enables toolset-level enablement/disablement configuration.
+"""
+
 from enum import Enum
-from typing import Literal
 
 from dbt_mcp.tools.tool_names import ToolName
 
 
-class Toolset(Enum):
-    SQL = "sql"
-    SEMANTIC_LAYER = "semantic_layer"
-    DISCOVERY = "discovery"
-    DBT_CLI = "dbt_cli"
-    ADMIN_API = "admin_api"
-    DBT_CODEGEN = "dbt_codegen"
-    DBT_LSP = "dbt_lsp"
+class Toolset(str, Enum):
+    """Available toolsets in dbt-mcp.
+    
+    Each toolset represents a logical grouping of related tools.
+    """
+
+    SEMANTIC_LAYER = "SEMANTIC_LAYER"
+    ADMIN_API = "ADMIN_API"
+    CLI = "CLI"
+    CODEGEN = "CODEGEN"
+    DISCOVERY = "DISCOVERY"
+    LSP = "LSP"
+    SQL = "SQL"
 
 
-proxied_tools: set[
-    Literal[
-        ToolName.TEXT_TO_SQL,
-        ToolName.EXECUTE_SQL,
-        ToolName.GET_RELATED_MODELS,
-        ToolName.KEYWORD_SEARCH,
-    ]
-] = set(
-    [
-        ToolName.TEXT_TO_SQL,
-        ToolName.EXECUTE_SQL,
-        ToolName.GET_RELATED_MODELS,
-        ToolName.KEYWORD_SEARCH,
-    ]
-)
-
-toolsets = {
-    Toolset.SQL: {
-        ToolName.TEXT_TO_SQL,
-        ToolName.EXECUTE_SQL,
-    },
-    Toolset.SEMANTIC_LAYER: {
-        ToolName.LIST_METRICS,
-        ToolName.LIST_SAVED_QUERIES,
-        ToolName.GET_DIMENSIONS,
-        ToolName.GET_ENTITIES,
-        ToolName.QUERY_METRICS,
-        ToolName.GET_METRICS_COMPILED_SQL,
-    },
-    Toolset.DISCOVERY: {
-        ToolName.GET_MART_MODELS,
-        ToolName.GET_ALL_MODELS,
-        ToolName.GET_MODEL_DETAILS,
-        ToolName.GET_MODEL_PARENTS,
-        ToolName.GET_MODEL_CHILDREN,
-        ToolName.GET_MODEL_HEALTH,
-        ToolName.GET_ALL_SOURCES,
-        ToolName.GET_SOURCE_DETAILS,
-        ToolName.GET_EXPOSURES,
-        ToolName.GET_EXPOSURE_DETAILS,
-        ToolName.GET_RELATED_MODELS,
-        ToolName.KEYWORD_SEARCH,
-    },
-    Toolset.DBT_CLI: {
-        ToolName.BUILD,
-        ToolName.COMPILE,
-        ToolName.DOCS,
-        ToolName.LIST,
-        ToolName.PARSE,
-        ToolName.RUN,
-        ToolName.TEST,
-        ToolName.SHOW,
-    },
-    Toolset.ADMIN_API: {
-        ToolName.LIST_JOBS,
-        ToolName.GET_JOB_DETAILS,
-        ToolName.TRIGGER_JOB_RUN,
-        ToolName.LIST_JOBS_RUNS,
-        ToolName.GET_JOB_RUN_DETAILS,
-        ToolName.CANCEL_JOB_RUN,
-        ToolName.RETRY_JOB_RUN,
-        ToolName.LIST_JOB_RUN_ARTIFACTS,
-        ToolName.GET_JOB_RUN_ARTIFACT,
-        ToolName.GET_JOB_RUN_ERROR,
-    },
-    Toolset.DBT_CODEGEN: {
-        ToolName.GENERATE_SOURCE,
-        ToolName.GENERATE_MODEL_YAML,
-        ToolName.GENERATE_STAGING_MODEL,
-    },
-    Toolset.DBT_LSP: {
-        ToolName.GET_COLUMN_LINEAGE,
-    },
+# Mapping from individual tools to their toolsets
+TOOL_TO_TOOLSET: dict[ToolName, Toolset] = {
+    # Semantic Layer tools
+    ToolName.LIST_METRICS: Toolset.SEMANTIC_LAYER,
+    ToolName.LIST_SAVED_QUERIES: Toolset.SEMANTIC_LAYER,
+    ToolName.GET_DIMENSIONS: Toolset.SEMANTIC_LAYER,
+    ToolName.GET_ENTITIES: Toolset.SEMANTIC_LAYER,
+    ToolName.QUERY_METRICS: Toolset.SEMANTIC_LAYER,
+    ToolName.GET_METRICS_COMPILED_SQL: Toolset.SEMANTIC_LAYER,
+    # Admin API tools
+    ToolName.LIST_JOBS: Toolset.ADMIN_API,
+    ToolName.GET_JOB_DETAILS: Toolset.ADMIN_API,
+    ToolName.TRIGGER_JOB_RUN: Toolset.ADMIN_API,
+    ToolName.LIST_JOBS_RUNS: Toolset.ADMIN_API,
+    ToolName.GET_JOB_RUN_DETAILS: Toolset.ADMIN_API,
+    ToolName.CANCEL_JOB_RUN: Toolset.ADMIN_API,
+    ToolName.RETRY_JOB_RUN: Toolset.ADMIN_API,
+    ToolName.LIST_JOB_RUN_ARTIFACTS: Toolset.ADMIN_API,
+    ToolName.GET_JOB_RUN_ARTIFACT: Toolset.ADMIN_API,
+    ToolName.GET_JOB_RUN_ERROR: Toolset.ADMIN_API,
+    # CLI tools
+    ToolName.BUILD: Toolset.CLI,
+    ToolName.COMPILE: Toolset.CLI,
+    ToolName.DOCS: Toolset.CLI,
+    ToolName.LIST: Toolset.CLI,
+    ToolName.PARSE: Toolset.CLI,
+    ToolName.RUN: Toolset.CLI,
+    ToolName.TEST: Toolset.CLI,
+    ToolName.SHOW: Toolset.CLI,
+    # Codegen tools
+    ToolName.GENERATE_SOURCE: Toolset.CODEGEN,
+    ToolName.GENERATE_MODEL_YAML: Toolset.CODEGEN,
+    ToolName.GENERATE_STAGING_MODEL: Toolset.CODEGEN,
+    # Discovery tools
+    ToolName.GET_MART_MODELS: Toolset.DISCOVERY,
+    ToolName.GET_ALL_MODELS: Toolset.DISCOVERY,
+    ToolName.GET_MODEL_DETAILS: Toolset.DISCOVERY,
+    ToolName.GET_MODEL_PARENTS: Toolset.DISCOVERY,
+    ToolName.GET_MODEL_CHILDREN: Toolset.DISCOVERY,
+    ToolName.GET_MODEL_HEALTH: Toolset.DISCOVERY,
+    ToolName.GET_ALL_SOURCES: Toolset.DISCOVERY,
+    ToolName.GET_SOURCE_DETAILS: Toolset.DISCOVERY,
+    ToolName.GET_EXPOSURES: Toolset.DISCOVERY,
+    ToolName.GET_EXPOSURE_DETAILS: Toolset.DISCOVERY,
+    ToolName.GET_RELATED_MODELS: Toolset.DISCOVERY,
+    ToolName.KEYWORD_SEARCH: Toolset.DISCOVERY,
+    # LSP tools
+    ToolName.GET_COLUMN_LINEAGE: Toolset.LSP,
+    # SQL tools (proxied)
+    ToolName.TEXT_TO_SQL: Toolset.SQL,
+    ToolName.EXECUTE_SQL: Toolset.SQL,
 }
