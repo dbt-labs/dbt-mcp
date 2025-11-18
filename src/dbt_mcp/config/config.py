@@ -15,6 +15,7 @@ from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo, dbt_lsp_binary_info
 from dbt_mcp.telemetry.logging import configure_logging
 from dbt_mcp.tools.tool_names import ToolName
+from dbt_mcp.tools.toolsets import Toolset
 
 PACKAGE_NAME = "dbt-mcp"
 
@@ -44,6 +45,9 @@ class LspConfig:
 @dataclass
 class Config:
     disable_tools: list[ToolName]
+    enable_tools: list[ToolName]
+    disabled_toolsets: set[Toolset]
+    enabled_toolsets: set[Toolset]
     proxied_tool_config_provider: DefaultProxiedToolConfigProvider | None
     dbt_cli_config: DbtCliConfig | None
     dbt_codegen_config: DbtCodegenConfig | None
@@ -125,8 +129,33 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
             lsp_binary_info=lsp_binary_info,
         )
 
+    # Build enabled toolset set from settings
+    enabled_toolsets = {
+        Toolset.SEMANTIC_LAYER if settings.enable_semantic_layer else None,
+        Toolset.ADMIN_API if settings.enable_admin_api else None,
+        Toolset.CLI if settings.enable_cli else None,
+        Toolset.CODEGEN if settings.enable_codegen else None,
+        Toolset.DISCOVERY if settings.enable_discovery else None,
+        Toolset.LSP if settings.enable_lsp else None,
+        Toolset.SQL if settings.enable_sql else None,
+    } - {None}
+
+    # Build disabled toolset set from settings
+    disabled_toolsets = {
+        Toolset.SEMANTIC_LAYER if settings.disable_semantic_layer else None,
+        Toolset.ADMIN_API if settings.disable_admin_api else None,
+        Toolset.CLI if settings.disable_dbt_cli else None,
+        Toolset.CODEGEN if settings.disable_dbt_codegen else None,
+        Toolset.DISCOVERY if settings.disable_discovery else None,
+        Toolset.LSP if settings.disable_lsp else None,
+        Toolset.SQL if settings.actual_disable_sql else None,
+    } - {None}
+
     return Config(
         disable_tools=settings.disable_tools or [],
+        enable_tools=settings.enable_tools or [],
+        disabled_toolsets=disabled_toolsets,
+        enabled_toolsets=enabled_toolsets,
         proxied_tool_config_provider=proxied_tool_config_provider,
         dbt_cli_config=dbt_cli_config,
         dbt_codegen_config=dbt_codegen_config,
