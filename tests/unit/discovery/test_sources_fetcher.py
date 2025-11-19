@@ -264,7 +264,7 @@ async def test_fetch_sources_pagination(sources_fetcher, mock_api_client):
     second_call_args = mock_api_client.execute_query.call_args_list[1]
 
     # First call should have empty after cursor
-    assert first_call_args[0][1]["after"] == ""
+    assert "after" not in first_call_args[0][1]
 
     # Second call should have the cursor from first response
     assert second_call_args[0][1]["after"] == "cursor_page_1"

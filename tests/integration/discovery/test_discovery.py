@@ -81,11 +81,6 @@ def sources_fetcher(api_client: MetadataAPIClient) -> SourcesFetcher:
     return SourcesFetcher(api_client, paginator=paginator)
 
 
-@pytest.fixture
-def resource_details_fetcher(api_client: MetadataAPIClient) -> ResourceDetailsFetcher:
-    return ResourceDetailsFetcher(api_client)
-
-
 @pytest.mark.asyncio
 async def test_fetch_models(models_fetcher: ModelsFetcher):
     results = await models_fetcher.fetch_models()
@@ -326,7 +321,7 @@ async def test_fetch_sources(sources_fetcher: SourcesFetcher):
             assert "description" in source
 
             # Validate freshness data if present
-            if "freshness" in source and source["freshness"]:
+            if source.get("freshness"):
                 freshness = source["freshness"]
                 assert isinstance(freshness, dict)
                 # These fields may be present depending on configuration

@@ -539,7 +539,7 @@ class PaginatedResourceFetcher:
         edges_path: tuple[str, ...],
         page_info_path: tuple[str, ...],
         page_size: int = DEFAULT_PAGE_SIZE,
-        max_node_query_limit: int | None = DEFAULT_MAX_NODE_QUERY_LIMIT,
+        max_node_query_limit: int = DEFAULT_MAX_NODE_QUERY_LIMIT,
     ):
         self.api_client = api_client
         self._edges_path = edges_path
@@ -590,45 +590,23 @@ class PaginatedResourceFetcher:
         self,
         query: str,
         variables: dict[str, Any],
-        *,
-        page_size: int | None = None,
-        max_nodes: int | None = None,
     ) -> list[dict]:
         environment_id = await self.get_environment_id()
         collected: list[dict] = []
-        current_cursor = None
-        base_variables = dict(variables)
-        effective_max_nodes: int | None = (
-            min(max_nodes, self._max_node_query_limit)
-            if max_nodes is not None and self._max_node_query_limit is not None
-            else self._max_node_query_limit
-        )
-        if max_nodes is not None and self._max_node_query_limit is None:
-            effective_max_nodes = max_nodes
+        base_variables = variables.copy()
+        current_cursor: str | None = None
         while True:
-            if (
-                effective_max_nodes is not None
-                and len(collected) >= effective_max_nodes
-            ):
+            if len(collected) >= self._max_node_query_limit:
                 break
-            request_variables = dict(base_variables)
+            remaining_capacity = self._max_node_query_limit - len(collected)
+            request_variables = base_variables.copy()
             request_variables["environmentId"] = environment_id
-            requested_page_size = page_size or self._page_size
-            if effective_max_nodes is not None:
-                remaining = effective_max_nodes - len(collected)
-                requested_page_size = min(requested_page_size, remaining)
-                if requested_page_size <= 0:
-                    break
-            request_variables["first"] = requested_page_size
+            request_variables["first"] = min(self._page_size, remaining_capacity)
             if current_cursor is not None:
                 request_variables["after"] = current_cursor
             result = await self.api_client.execute_query(query, request_variables)
             page_edges = self._parse_edges(result)
-            if effective_max_nodes is not None:
-                remaining_slots = effective_max_nodes - len(collected)
-                collected.extend(page_edges[:remaining_slots])
-            else:
-                collected.extend(page_edges)
+            collected.extend(page_edges)
             page_info = self._extract_path(result, self._page_info_path)
             previous_cursor = current_cursor
             current_cursor = page_info.get("endCursor")
@@ -663,19 +641,10 @@ class ModelsFetcher:
     def __init__(
         self,
         api_client: MetadataAPIClient,
-        *,
-        paginator: PaginatedResourceFetcher | None = None,
-        page_size: int = DEFAULT_PAGE_SIZE,
-        max_node_query_limit: int | None = DEFAULT_MAX_NODE_QUERY_LIMIT,
+        paginator: PaginatedResourceFetcher,
     ):
         self.api_client = api_client
-        self._paginator = paginator or PaginatedResourceFetcher(
-            api_client,
-            edges_path=("data", "environment", "applied", "models", "edges"),
-            page_info_path=("data", "environment", "applied", "models", "pageInfo"),
-            page_size=page_size,
-            max_node_query_limit=max_node_query_limit,
-        )
+        self._paginator = paginator
 
     def _get_model_filters(
         self, model_name: str | None = None, unique_id: str | None = None
@@ -775,25 +744,10 @@ class ExposuresFetcher:
     def __init__(
         self,
         api_client: MetadataAPIClient,
-        *,
-        paginator: PaginatedResourceFetcher | None = None,
-        page_size: int = DEFAULT_PAGE_SIZE,
-        max_node_query_limit: int | None = DEFAULT_MAX_NODE_QUERY_LIMIT,
+        paginator: PaginatedResourceFetcher,
     ):
         self.api_client = api_client
-        self._paginator = paginator or PaginatedResourceFetcher(
-            api_client,
-            edges_path=("data", "environment", "definition", "exposures", "edges"),
-            page_info_path=(
-                "data",
-                "environment",
-                "definition",
-                "exposures",
-                "pageInfo",
-            ),
-            page_size=page_size,
-            max_node_query_limit=max_node_query_limit,
-        )
+        self._paginator = paginator
 
     async def fetch_exposures(self) -> list[dict]:
         return await self._paginator.fetch_paginated(
@@ -852,19 +806,13 @@ class SourcesFetcher:
     def __init__(
         self,
         api_client: MetadataAPIClient,
-        *,
-        paginator: PaginatedResourceFetcher | None = None,
-        page_size: int = DEFAULT_PAGE_SIZE,
-        max_node_query_limit: int | None = DEFAULT_MAX_NODE_QUERY_LIMIT,
+        paginator: PaginatedResourceFetcher,
     ):
         self.api_client = api_client
-        self._paginator = paginator or PaginatedResourceFetcher(
-            api_client,
-            edges_path=("data", "environment", "applied", "sources", "edges"),
-            page_info_path=("data", "environment", "applied", "sources", "pageInfo"),
-            page_size=page_size,
-            max_node_query_limit=max_node_query_limit,
-        )
+        self._paginator = paginator
+
+    async def get_environment_id(self) -> int:
+        return await self._paginator.get_environment_id()
 
     async def fetch_sources(
         self,
@@ -925,13 +873,7 @@ class ResourceDetailsFetcher:
         max_node_query_limit: int | None = None,
     ):
         self.api_client = api_client
-        self._paginator = paginator or PaginatedResourceFetcher(
-            api_client,
-            edges_path=("data", "environment", "applied", "resources", "edges"),
-            page_info_path=("data", "environment", "applied", "resources", "pageInfo"),
-            page_size=page_size,
-            max_node_query_limit=max_node_query_limit,
-        )
+        self._paginator = paginator
 
     def _to_filter_payload(
         self,
