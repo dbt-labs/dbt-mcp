@@ -1,52 +1,12 @@
-import os
-
 import pytest
 
-from dbt_mcp.config.config_providers import DefaultDiscoveryConfigProvider
-from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
 from dbt_mcp.discovery.client import (
     ExposuresFetcher,
-    MetadataAPIClient,
     ModelFilter,
     ModelsFetcher,
     SourcesFetcher,
 )
-
-
-@pytest.fixture
-def api_client() -> MetadataAPIClient:
-    # Set up environment variables needed by DbtMcpSettings
-    host = os.getenv("DBT_HOST")
-    token = os.getenv("DBT_TOKEN")
-    prod_env_id = os.getenv("DBT_PROD_ENV_ID")
-
-    if not host or not token or not prod_env_id:
-        raise ValueError(
-            "DBT_HOST, DBT_TOKEN, and DBT_PROD_ENV_ID environment variables are required"
-        )
-
-    # Create settings and credentials provider
-    # DbtMcpSettings will automatically pick up from environment variables
-    settings = DbtMcpSettings()  # type: ignore
-    credentials_provider = CredentialsProvider(settings)
-    config_provider = DefaultDiscoveryConfigProvider(credentials_provider)
-
-    return MetadataAPIClient(config_provider)
-
-
-@pytest.fixture
-def models_fetcher(api_client: MetadataAPIClient) -> ModelsFetcher:
-    return ModelsFetcher(api_client)
-
-
-@pytest.fixture
-def exposures_fetcher(api_client: MetadataAPIClient) -> ExposuresFetcher:
-    return ExposuresFetcher(api_client)
-
-
-@pytest.fixture
-def sources_fetcher(api_client: MetadataAPIClient) -> SourcesFetcher:
-    return SourcesFetcher(api_client)
+from tests.integration.discovery.conftest import assert_basic_lineage_structure
 
 
 @pytest.mark.asyncio
@@ -185,79 +145,52 @@ async def test_fetch_model_children_with_uniqueId(models_fetcher: ModelsFetcher)
 
 
 @pytest.mark.asyncio
-async def test_fetch_model_ancestors(models_fetcher: ModelsFetcher):
-    models = await models_fetcher.fetch_models()
-    model_name = models[0]["name"]
+@pytest.mark.parametrize(
+    "lineage_type,lineage_key",
+    [
+        ("ancestors", "ancestors"),
+        ("descendants", "descendants"),
+    ],
+)
+async def test_fetch_model_lineage(
+    sample_models, lineage_methods, lineage_type, lineage_key
+):
+    """Test basic functionality of fetching model lineage (ancestors or descendants)."""
+    model_name = sample_models[0]["name"]
 
-    # Fetch ancestors
-    result = await models_fetcher.fetch_model_ancestors(model_name)
+    # Fetch lineage
+    result = await lineage_methods[lineage_type](model_name)
 
-    # Validate result structure
-    assert isinstance(result, dict)
-    assert "name" in result
-    assert "uniqueId" in result
-    assert "ancestors" in result
-    assert isinstance(result["ancestors"], list)
+    # Validate structure using shared helper
+    assert_basic_lineage_structure(result, lineage_key)
 
 
 @pytest.mark.asyncio
-async def test_fetch_model_ancestors_with_uniqueId(models_fetcher: ModelsFetcher):
-    models = await models_fetcher.fetch_models()
-    model = models[0]
+@pytest.mark.parametrize(
+    "lineage_type,lineage_key",
+    [
+        ("ancestors", "ancestors"),
+        ("descendants", "descendants"),
+    ],
+)
+async def test_fetch_model_lineage_with_uniqueId(
+    sample_models, lineage_methods, lineage_type, lineage_key
+):
+    """Test that name vs uniqueId lookup returns same results."""
+    model = sample_models[0]
     model_name = model["name"]
     unique_id = model["uniqueId"]
 
-    # Fetch by name
-    results_by_name = await models_fetcher.fetch_model_ancestors(model_name)
+    fetch_fn = lineage_methods[lineage_type]
 
-    # Fetch by uniqueId
-    results_by_uniqueId = await models_fetcher.fetch_model_ancestors(
-        model_name, unique_id
-    )
+    # Fetch by name and by uniqueId
+    by_name = await fetch_fn(model_name)
+    by_id = await fetch_fn(model_name, unique_id)
 
-    # Validate that both methods return the same result
-    assert results_by_name["uniqueId"] == results_by_uniqueId["uniqueId"]
-    assert results_by_name["name"] == results_by_uniqueId["name"]
-    assert len(results_by_name["ancestors"]) == len(results_by_uniqueId["ancestors"])
-
-
-@pytest.mark.asyncio
-async def test_fetch_model_descendants(models_fetcher: ModelsFetcher):
-    models = await models_fetcher.fetch_models()
-    model_name = models[0]["name"]
-
-    # Fetch descendants
-    result = await models_fetcher.fetch_model_descendants(model_name)
-
-    # Validate result structure
-    assert isinstance(result, dict)
-    assert "name" in result
-    assert "uniqueId" in result
-    assert "descendants" in result
-    assert isinstance(result["descendants"], list)
-
-
-@pytest.mark.asyncio
-async def test_fetch_model_descendants_with_uniqueId(models_fetcher: ModelsFetcher):
-    models = await models_fetcher.fetch_models()
-    model = models[0]
-    model_name = model["name"]
-    unique_id = model["uniqueId"]
-
-    # Fetch by name
-    results_by_name = await models_fetcher.fetch_model_descendants(model_name)
-
-    # Fetch by uniqueId
-    results_by_uniqueId = await models_fetcher.fetch_model_descendants(
-        model_name, unique_id
-    )
-
-    # Validate that both methods return the same result
-    assert results_by_name["uniqueId"] == results_by_uniqueId["uniqueId"]
-    assert results_by_name["name"] == results_by_uniqueId["name"]
-    assert len(results_by_name["descendants"]) == len(
-        results_by_uniqueId["descendants"]
-    )
+    # Compare results
+    assert by_name["uniqueId"] == by_id["uniqueId"]
+    assert by_name["name"] == by_id["name"]
+    assert len(by_name[lineage_key]) == len(by_id[lineage_key])
 
 
 @pytest.mark.asyncio
