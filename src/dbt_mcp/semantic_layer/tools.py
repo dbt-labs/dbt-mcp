@@ -23,6 +23,7 @@ from dbt_mcp.semantic_layer.types import (
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
+from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
 
@@ -171,8 +172,8 @@ def register_sl_tools(
     exclude_tools: Sequence[ToolName] = [],
     *,
     enabled_tools: set[ToolName] | None = None,
-    enabled_toolsets: set | None = None,
-    disabled_toolsets: set | None = None,
+    enabled_toolsets: set[Toolset] | None = None,
+    disabled_toolsets: set[Toolset] | None = None,
 ) -> None:
     def bind_context() -> SemanticLayerToolContext:
         return SemanticLayerToolContext(

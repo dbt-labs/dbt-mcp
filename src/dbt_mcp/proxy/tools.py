@@ -119,8 +119,8 @@ async def register_proxied_tools(
     exclude_tools: Sequence[ToolName] = [],
     *,
     enabled_tools: set[ToolName] | None = None,
-    enabled_toolsets: set | None = None,
-    disabled_toolsets: set | None = None,
+    enabled_toolsets: set[Toolset] | None = None,
+    disabled_toolsets: set[Toolset] | None = None,
 ) -> None:
     """
     Register proxied MCP tools.

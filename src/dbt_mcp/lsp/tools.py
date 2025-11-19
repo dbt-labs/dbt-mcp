@@ -12,6 +12,7 @@ from dbt_mcp.tools.annotations import create_tool_annotations
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
+from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +23,8 @@ async def register_lsp_tools(
     exclude_tools: Sequence[ToolName] | None = None,
     *,
     enabled_tools: set[ToolName] | None = None,
-    enabled_toolsets: set | None = None,
-    disabled_toolsets: set | None = None,
+    enabled_toolsets: set[Toolset] | None = None,
+    disabled_toolsets: set[Toolset] | None = None,
 ) -> None:
     register_tools(
         server,
