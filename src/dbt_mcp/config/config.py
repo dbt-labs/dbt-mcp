@@ -29,6 +29,16 @@ TOOLSET_TO_DISABLE_ATTR = {
     Toolset.SQL: "actual_disable_sql",
 }
 
+TOOLSET_TO_ENABLE_ATTR = {
+    Toolset.SEMANTIC_LAYER: "enable_semantic_layer",
+    Toolset.ADMIN_API: "enable_admin_api",
+    Toolset.DBT_CLI: "enable_dbt_cli",
+    Toolset.DBT_CODEGEN: "enable_dbt_codegen",
+    Toolset.DISCOVERY: "enable_discovery",
+    Toolset.DBT_LSP: "enable_lsp",
+    Toolset.SQL: "enable_sql",
+}
+
 
 @dataclass
 class DbtCliConfig:
@@ -139,7 +149,11 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
             lsp_binary_info=lsp_binary_info,
         )
 
-    enabled_toolsets = set(settings.enable_toolsets or [])
+    enabled_toolsets: set[Toolset] = {
+        toolset
+        for toolset, attr_name in TOOLSET_TO_ENABLE_ATTR.items()
+        if getattr(settings, attr_name, False)
+    }
 
     disabled_toolsets: set[Toolset] = {
         toolset
