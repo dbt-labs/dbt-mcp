@@ -13,7 +13,8 @@ from dbt_mcp.discovery.client import (
 
 
 @pytest.fixture
-def api_client() -> MetadataAPIClient:
+def config_provider() -> DefaultDiscoveryConfigProvider:
+    """Provides a configured DefaultDiscoveryConfigProvider for tests."""
     # Set up environment variables needed by DbtMcpSettings
     host = os.getenv("DBT_HOST")
     token = os.getenv("DBT_TOKEN")
@@ -28,8 +29,12 @@ def api_client() -> MetadataAPIClient:
     # DbtMcpSettings will automatically pick up from environment variables
     settings = DbtMcpSettings()  # type: ignore
     credentials_provider = CredentialsProvider(settings)
-    config_provider = DefaultDiscoveryConfigProvider(credentials_provider)
+    return DefaultDiscoveryConfigProvider(credentials_provider)
 
+
+@pytest.fixture
+def api_client(config_provider: DefaultDiscoveryConfigProvider) -> MetadataAPIClient:
+    """Provides a configured MetadataAPIClient for tests."""
     return MetadataAPIClient(config_provider)
 
 

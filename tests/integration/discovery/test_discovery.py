@@ -447,36 +447,18 @@ async def test_fetch_sources_with_filter(sources_fetcher: SourcesFetcher):
 
 
 @pytest.mark.asyncio
-async def test_get_all_sources_tool():
+async def test_get_all_sources_tool(config_provider):
     """Test the get_all_sources tool function integration."""
-    from dbt_mcp.config.config_providers import DefaultDiscoveryConfigProvider
-    from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
     from dbt_mcp.discovery.tools import create_discovery_tool_definitions
-
-    # Set up environment variables needed by DbtMcpSettings
-    host = os.getenv("DBT_HOST")
-    token = os.getenv("DBT_TOKEN")
-    prod_env_id = os.getenv("DBT_PROD_ENV_ID")
-
-    if not host or not token or not prod_env_id:
-        pytest.skip(
-            "DBT_HOST, DBT_TOKEN, and DBT_PROD_ENV_ID environment variables are required"
-        )
-
-    # Create settings and config provider
-    settings = DbtMcpSettings()  # type: ignore
-    credentials_provider = CredentialsProvider(settings)
-    config_provider = DefaultDiscoveryConfigProvider(credentials_provider)
 
     # Create tool definitions
     tool_definitions = create_discovery_tool_definitions(config_provider)
 
     # Find the get_all_sources tool
-    get_all_sources_tool = None
-    for tool_def in tool_definitions:
-        if tool_def.get_name() == "get_all_sources":
-            get_all_sources_tool = tool_def
-            break
+    get_all_sources_tool = next(
+        (tool_def for tool_def in tool_definitions if tool_def.get_name() == "get_all_sources"),
+        None,
+    )
 
     assert get_all_sources_tool is not None, (
         "get_all_sources tool not found in tool definitions"
