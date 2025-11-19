@@ -56,6 +56,7 @@ toolsets = {
         ToolName.GET_EXPOSURE_DETAILS,
         ToolName.GET_RELATED_MODELS,
         ToolName.SEARCH,
+        ToolName.GET_RESOURCE_DETAILS,
     },
     Toolset.DBT_CLI: {
         ToolName.BUILD,

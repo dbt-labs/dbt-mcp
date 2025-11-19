@@ -40,6 +40,7 @@ class ToolName(Enum):
     GET_EXPOSURE_DETAILS = "get_exposure_details"
     GET_RELATED_MODELS = "get_related_models"
     SEARCH = "search"
+    GET_RESOURCE_DETAILS = "get_resource_details"
 
     # SQL tools
     TEXT_TO_SQL = "text_to_sql"

@@ -109,6 +109,9 @@ tool_policies = {
     ToolName.SEARCH.value: ToolPolicy(
         name=ToolName.SEARCH.value, behavior=ToolBehavior.METADATA
     ),
+    ToolName.GET_RESOURCE_DETAILS.value: ToolPolicy(
+        name=ToolName.GET_RESOURCE_DETAILS.value, behavior=ToolBehavior.METADATA
+    ),
     # SQL tools
     ToolName.TEXT_TO_SQL.value: ToolPolicy(
         name=ToolName.TEXT_TO_SQL.value, behavior=ToolBehavior.METADATA

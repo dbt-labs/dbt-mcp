@@ -10,6 +10,7 @@ from dbt_mcp.discovery.client import (
     MetadataAPIClient,
     ModelsFetcher,
     PaginatedResourceFetcher,
+    ResourceDetailsFetcher,
     SourcesFetcher,
 )
 from dbt_mcp.prompts.prompts import get_prompt
@@ -25,6 +26,7 @@ class DiscoveryToolContext:
     models_fetcher: ModelsFetcher
     exposures_fetcher: ExposuresFetcher
     sources_fetcher: SourcesFetcher
+    resource_details_fetcher: ResourceDetailsFetcher
 
     def __init__(self, config_provider: ConfigProvider[DiscoveryConfig]):
         api_client = MetadataAPIClient(config_provider=config_provider)
@@ -63,6 +65,19 @@ class DiscoveryToolContext:
                     "pageInfo",
                 ),
             ),
+        )
+        self.resource_details_fetcher = ResourceDetailsFetcher(
+            paginator=PaginatedResourceFetcher(
+                api_client,
+                edges_path=("data", "environment", "applied", "resources", "edges"),
+                page_info_path=(
+                    "data",
+                    "environment",
+                    "applied",
+                    "resources",
+                    "pageInfo",
+                ),
+            )
         )
 
 
@@ -209,6 +224,24 @@ async def get_source_details(
     return await context.sources_fetcher.fetch_source_details(source_name, unique_id)
 
 
+@dbt_mcp_tool(
+    description=get_prompt("discovery/get_resource_details"),
+    title="Get Resource Details",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+)
+async def get_resource_details(
+    context: DiscoveryToolContext,
+    resource_type: str,
+    unique_id: str,
+) -> list[dict]:
+    return await context.resource_details_fetcher.fetch_details(
+        resource_type=resource_type,
+        unique_id=unique_id,
+    )
+
+
 DISCOVERY_TOOLS = [
     get_mart_models,
     get_all_models,
@@ -220,6 +253,7 @@ DISCOVERY_TOOLS = [
     get_exposure_details,
     get_all_sources,
     get_source_details,
+    get_resource_details,
 ]
 
 
