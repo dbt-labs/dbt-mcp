@@ -2,13 +2,25 @@ from unittest.mock import patch
 
 import pytest
 
-from dbt_mcp.discovery.client import SourcesFetcher
+from dbt_mcp.discovery.client import (
+    DEFAULT_MAX_NODE_QUERY_LIMIT,
+    DEFAULT_PAGE_SIZE,
+    PaginatedResourceFetcher,
+    SourcesFetcher,
+)
 from dbt_mcp.errors import GraphQLError
 
 
 @pytest.fixture
 def sources_fetcher(mock_api_client):
-    return SourcesFetcher(api_client=mock_api_client)
+    paginator = PaginatedResourceFetcher(
+        mock_api_client,
+        edges_path=("data", "environment", "applied", "sources", "edges"),
+        page_info_path=("data", "environment", "applied", "sources", "pageInfo"),
+        page_size=DEFAULT_PAGE_SIZE,
+        max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
+    )
+    return SourcesFetcher(api_client=mock_api_client, paginator=paginator)
 
 
 async def test_fetch_sources_single_page(sources_fetcher, mock_api_client):
@@ -252,7 +264,7 @@ async def test_fetch_sources_pagination(sources_fetcher, mock_api_client):
     second_call_args = mock_api_client.execute_query.call_args_list[1]
 
     # First call should have empty after cursor
-    assert first_call_args[0][1]["after"] == ""
+    assert "after" not in first_call_args[0][1]
 
     # Second call should have the cursor from first response
     assert second_call_args[0][1]["after"] == "cursor_page_1"
