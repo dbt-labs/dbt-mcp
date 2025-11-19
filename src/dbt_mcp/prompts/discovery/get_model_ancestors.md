@@ -1,15 +1,9 @@
 <instructions>
-Retrieves all upstream dependencies (ancestors) for a specific dbt model. This shows what the model depends on - sources, seeds, snapshots, and other models at any depth in the dependency tree.
+Retrieves all upstream dependencies (ancestors) for a specific dbt model at any depth in the dependency tree. This shows all sources, seeds, snapshots, and models that this model depends on, directly or indirectly.
 
-**What's included:**
-- **ancestors**: All upstream dependencies (sources, seeds, snapshots, models) at any depth
-- **model info**: Basic information about the model itself (name, uniqueId, description, resourceType)
+You can provide either a model_name or a uniqueId, if known, to identify the model. Using uniqueId is more precise and guarantees a unique match, which is especially useful when models might have the same name in different projects.
 
-**Use this tool when:** You need to understand what data sources and models feed into a specific model, or trace back to the root data sources.
-
-You can provide either a model_name or a uniqueId to identify the model. Using uniqueId is more precise and guarantees a unique match, which is especially useful when models might have the same name in different projects.
-
-For upstream sources in the ancestors list, the response includes `sourceName` and `uniqueId` so lineage can be linked back via `get_all_sources`.
+Returns the model info plus an `ancestors` list containing all upstream dependencies. For upstream sources, the response includes `sourceName` and `uniqueId` so lineage can be linked back via `get_all_sources`.
 </instructions>
 
 <parameters>
@@ -24,20 +18,6 @@ uniqueId: The unique identifier of the model. If provided, this will be used ins
 2. Getting ancestors for a model by uniqueId (more precise):
    get_model_ancestors(uniqueId="model.my_project.customer_orders")
 
-3. Interpreting the response structure:
-   The response includes:
-   - name, uniqueId, description, resourceType: Basic model information
-   - ancestors: List of all upstream dependencies (all levels)
-
-   Example response:
-   {
-     "name": "customer_orders",
-     "uniqueId": "model.my_project.customer_orders",
-     "description": "Customer order history",
-     "resourceType": "model",
-     "ancestors": [
-       {"name": "customers", "resourceType": "model", ...},
-       {"name": "orders", "resourceType": "source", "sourceName": "raw", ...}
-     ]
-   }
+3. Getting ancestors using only uniqueId:
+   get_model_ancestors(uniqueId="model.my_project.customer_orders")
 </examples>
