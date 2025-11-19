@@ -24,6 +24,7 @@ from dbt_mcp.oauth.token_provider import (
     StaticTokenProvider,
 )
 from dbt_mcp.tools.tool_names import ToolName
+from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
 
@@ -261,9 +262,6 @@ class DbtMcpSettings(BaseSettings):
         """
         if not env_var:
             return []
-
-        # Import here to avoid circular dependency
-        from dbt_mcp.tools.toolsets import Toolset
 
         errors: list[str] = []
         toolset_names: list[str] = []
