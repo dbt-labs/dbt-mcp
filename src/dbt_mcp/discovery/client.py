@@ -608,13 +608,6 @@ class ModelsFetcher:
         Returns:
             Dictionary mapping each parent unique_id to its list of children.
             Parents with no children will have an empty list.
-
-        Example:
-            >>> await fetcher._fetch_children_batch(["model.A", "model.B"])
-            {
-                "model.A": [{"name": "child1", ...}, {"name": "child2", ...}],
-                "model.B": []
-            }
         """
         if not unique_ids:
             return {}
