@@ -1,6 +1,6 @@
+import pyarrow as pa
 import pytest
 from dbtsl.api.shared.query_params import GroupByParam, GroupByType
-import pyarrow as pa
 
 from dbt_mcp.config.config import load_config
 from dbt_mcp.semantic_layer.client import (

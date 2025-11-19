@@ -106,8 +106,8 @@ tool_policies = {
     ToolName.GET_RELATED_MODELS.value: ToolPolicy(
         name=ToolName.GET_RELATED_MODELS.value, behavior=ToolBehavior.METADATA
     ),
-    ToolName.KEYWORD_SEARCH.value: ToolPolicy(
-        name=ToolName.KEYWORD_SEARCH.value, behavior=ToolBehavior.METADATA
+    ToolName.SEARCH.value: ToolPolicy(
+        name=ToolName.SEARCH.value, behavior=ToolBehavior.METADATA
     ),
     # SQL tools
     ToolName.TEXT_TO_SQL.value: ToolPolicy(
