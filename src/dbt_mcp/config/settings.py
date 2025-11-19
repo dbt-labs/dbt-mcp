@@ -83,7 +83,7 @@ class DbtMcpSettings(BaseSettings):
     enable_tools: Annotated[list[ToolName] | None, NoDecode] = Field(
         None, alias="DBT_MCP_ENABLE_TOOLS"
     )
-    enable_toolsets: Annotated[list[str] | None, NoDecode] = Field(
+    enable_toolsets: Annotated[list[Toolset] | None, NoDecode] = Field(
         None, alias="DBT_MCP_ENABLE_TOOLSETS"
     )
 
@@ -248,14 +248,14 @@ class DbtMcpSettings(BaseSettings):
 
     @field_validator("enable_toolsets", mode="before")
     @classmethod
-    def parse_enable_toolsets(cls, env_var: str | None) -> list[str]:
+    def parse_enable_toolsets(cls, env_var: str | None) -> list[Toolset]:
         """Parse comma-separated toolset names from environment variable.
 
         Args:
             env_var: Comma-separated toolset names (e.g., "semantic_layer,dbt_cli,admin_api")
 
         Returns:
-            List of toolset name strings in canonical lowercase_underscore format
+            List of validated Toolset enums
 
         Raises:
             ValueError: If any toolset names are invalid
@@ -264,7 +264,7 @@ class DbtMcpSettings(BaseSettings):
             return []
 
         errors: list[str] = []
-        toolset_names: list[str] = []
+        toolsets: list[Toolset] = []
 
         for toolset_name in env_var.split(","):
             toolset_name_stripped = toolset_name.strip()
@@ -272,8 +272,7 @@ class DbtMcpSettings(BaseSettings):
                 continue
             try:
                 toolset_normalized = toolset_name_stripped.lower().replace("-", "_")
-                Toolset(toolset_normalized)
-                toolset_names.append(toolset_normalized)
+                toolsets.append(Toolset(toolset_normalized))
             except ValueError:
                 valid_toolsets = ", ".join([ts.value for ts in Toolset])
                 errors.append(
@@ -284,7 +283,7 @@ class DbtMcpSettings(BaseSettings):
         if errors:
             raise ValueError("\n".join(errors))
 
-        return toolset_names
+        return toolsets
 
     @model_validator(mode="after")
     def auto_disable(self) -> "DbtMcpSettings":
