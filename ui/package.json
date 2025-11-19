@@ -17,11 +17,6 @@
     "vite": "^7.1.11"
   },
   "name": "dbt-mcp",
-  "pnpm": {
-    "overrides": {
-      "js-yaml": "4.1.1"
-    }
-  },
   "private": true,
   "scripts": {
     "build": "tsc -b && vite build",
