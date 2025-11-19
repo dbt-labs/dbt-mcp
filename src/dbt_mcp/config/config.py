@@ -19,6 +19,16 @@ from dbt_mcp.tools.toolsets import Toolset
 
 PACKAGE_NAME = "dbt-mcp"
 
+TOOLSET_TO_DISABLE_ATTR = {
+    Toolset.SEMANTIC_LAYER: "disable_semantic_layer",
+    Toolset.ADMIN_API: "disable_admin_api",
+    Toolset.DBT_CLI: "disable_dbt_cli",
+    Toolset.DBT_CODEGEN: "disable_dbt_codegen",
+    Toolset.DISCOVERY: "disable_discovery",
+    Toolset.DBT_LSP: "disable_lsp",
+    Toolset.SQL: "actual_disable_sql",
+}
+
 
 @dataclass
 class DbtCliConfig:
@@ -129,23 +139,12 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
             lsp_binary_info=lsp_binary_info,
         )
 
-    # Build enabled toolset set from settings
     enabled_toolsets = set(settings.enable_toolsets or [])
 
-    # Build disabled toolset set from settings
-    # Note: Using set comprehension with None filtering for type safety
     disabled_toolsets: set[Toolset] = {
-        ts
-        for ts in {
-            Toolset.SEMANTIC_LAYER if settings.disable_semantic_layer else None,
-            Toolset.ADMIN_API if settings.disable_admin_api else None,
-            Toolset.DBT_CLI if settings.disable_dbt_cli else None,
-            Toolset.DBT_CODEGEN if settings.disable_dbt_codegen else None,
-            Toolset.DISCOVERY if settings.disable_discovery else None,
-            Toolset.DBT_LSP if settings.disable_lsp else None,
-            Toolset.SQL if settings.actual_disable_sql else None,
-        }
-        if ts is not None
+        toolset
+        for toolset, attr_name in TOOLSET_TO_DISABLE_ATTR.items()
+        if getattr(settings, attr_name, False)
     }
 
     return Config(
