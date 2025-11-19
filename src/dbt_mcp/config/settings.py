@@ -24,7 +24,6 @@ from dbt_mcp.oauth.token_provider import (
     StaticTokenProvider,
 )
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
 
