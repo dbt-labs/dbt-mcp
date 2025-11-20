@@ -1,40 +1,42 @@
-query AppliedSeedResources(
-    $environmentId: BigInt!,
-    $filter: AppliedResourcesFilter!,
-    $after: String,
-    $first: Int
+query SeedDetails(
+  $environmentId: BigInt!
+  $filter: AppliedResourcesFilter!
+  $after: String
+  $first: Int
 ) {
-    environment(id: $environmentId) {
-        applied {
-            resources(filter: $filter, after: $after, first: $first) {
-                pageInfo {
-                    hasNextPage
-                    endCursor
-                }
-                edges {
-                    node {
-                        __typename
-                        ... on SeedAppliedStateNode {
-                            resourceType
-                            uniqueId
-                            name
-                            description
-                            database
-                            schema
-                            alias
-                            path
-                            compiledCode
-                            catalog {
-                                columns {
-                                    name
-                                    type
-                                    description
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+  environment(id: $environmentId) {
+    applied {
+      resources(filter: $filter, after: $after, first: $first) {
+        pageInfo {
+          hasNextPage
+          endCursor
         }
+        edges {
+          node {
+            ... on SeedAppliedStateNode {
+              alias
+              catalog {
+                columns {
+                  description
+                  type
+                  tags
+                  name
+                  meta
+                  index
+                  comment
+                }
+                comment
+                owner
+                rowCountStat
+                runGeneratedAt
+                type
+                uniqueId
+                runId
+              }
+            }
+          }
+        }
+      }
     }
+  }
 }

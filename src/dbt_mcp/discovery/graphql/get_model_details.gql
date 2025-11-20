@@ -1,39 +1,91 @@
-query AppliedModelResources(
-    $environmentId: BigInt!,
-    $filter: AppliedResourcesFilter!,
-    $after: String,
-    $first: Int
+query ModelDetails(
+  $environmentId: BigInt!
+  $filter: AppliedResourcesFilter!
+  $after: String
+  $first: Int
+  $types: [AncestorNodeType!]!
 ) {
-    environment(id: $environmentId) {
-        applied {
-            resources(filter: $filter, after: $after, first: $first) {
-                pageInfo {
-                    hasNextPage
-                    endCursor
-                }
-                edges {
-                    node {
-                        __typename
-                        ... on ModelAppliedStateNode {
-                            resourceType
-                            uniqueId
-                            name
-                            description
-                            compiledCode
-                            database
-                            schema
-                            alias
-                            catalog {
-                                columns {
-                                    name
-                                    type
-                                    description
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+  environment(id: $environmentId) {
+    applied {
+      resources(filter: $filter, after: $after, first: $first) {
+        pageInfo {
+          hasNextPage
+          endCursor
         }
+        edges {
+          node {
+            ... on ModelAppliedStateNode {
+              access
+              alias
+              ancestors(types: $types) {
+                uniqueId
+                resourceType
+                description
+              }
+              catalog {
+                columns {
+                  comment
+                  description
+                  meta
+                  name
+                  tags
+                  type
+                  index
+                }
+              }
+              children {
+                resourceType
+                uniqueId
+                description
+              }
+              config
+              compiledCode
+              constraints {
+                type
+                name
+                expression
+                columns
+                warnUnenforced
+                warnUnsupported
+              }
+              contractEnforced
+              database
+              deprecationDate
+              description
+              executionInfo {
+                lastRunError
+                lastRunGeneratedAt
+                lastRunStatus
+              }
+              filePath
+              group
+              isDescriptionInherited
+              meta
+              modelingLayer
+              name
+              parents {
+                description
+                resourceType
+                uniqueId
+              }
+              rawCode
+              resourceType
+              schema
+              tags
+              tests {
+                columnName
+                description
+                uniqueId
+              }
+              uniqueId
+              latestVersion
+              version
+              language
+              fqn
+            }
+          }
+        }
+      }
     }
+  }
 }

@@ -1,39 +1,42 @@
-query AppliedSnapshotResources(
-    $environmentId: BigInt!,
-    $filter: AppliedResourcesFilter!,
-    $after: String,
-    $first: Int
+query SnapshotDetails(
+  $environmentId: BigInt!
+  $filter: AppliedResourcesFilter!
+  $after: String
+  $first: Int
 ) {
-    environment(id: $environmentId) {
-        applied {
-            resources(filter: $filter, after: $after, first: $first) {
-                pageInfo {
-                    hasNextPage
-                    endCursor
-                }
-                edges {
-                    node {
-                        __typename
-                        ... on SnapshotAppliedStateNode {
-                            resourceType
-                            uniqueId
-                            name
-                            description
-                            database
-                            schema
-                            targetDatabase
-                            targetSchema
-                            strategy
-                            primaryKey
-                            snapshotExecutionInfo {
-                                lastRunStatus
-                                executeCompletedAt
-                                executeStartedAt
-                            }
-                        }
-                    }
-                }
-            }
+  environment(id: $environmentId) {
+    applied {
+      resources(filter: $filter, after: $after, first: $first) {
+        pageInfo {
+          hasNextPage
+          endCursor
         }
+        edges {
+          node {
+            ... on SnapshotAppliedStateNode {
+              alias
+              catalog {
+                comment
+                environmentId
+                columns {
+                  comment
+                  description
+                  index
+                  meta
+                  name
+                  tags
+                  type
+                }
+                owner
+                rowCountStat
+                runGeneratedAt
+                type
+                uniqueId
+              }
+            }
+          }
+        }
+      }
     }
+  }
 }
