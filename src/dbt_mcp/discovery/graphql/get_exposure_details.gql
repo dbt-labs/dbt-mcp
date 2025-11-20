@@ -1,0 +1,26 @@
+query ExposureDetails($environmentId: BigInt!, $filter: ExposureFilter, $first: Int) {
+    environment(id: $environmentId) {
+        definition {
+            exposures(first: $first, filter: $filter) {
+                edges {
+                    node {
+                        name
+                        maturity
+                        label
+                        ownerEmail
+                        ownerName
+                        uniqueId
+                        url
+                        meta
+                        freshnessStatus
+                        exposureType
+                        description
+                        parents {
+                            uniqueId
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

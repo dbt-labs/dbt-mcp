@@ -1,0 +1,35 @@
+query GetSourceDetails(
+    $environmentId: BigInt!,
+    $sourcesFilter: SourceAppliedFilter,
+    $first: Int
+) {
+    environment(id: $environmentId) {
+        applied {
+            sources(filter: $sourcesFilter, first: $first) {
+                edges {
+                    node {
+                        name
+                        uniqueId
+                        identifier
+                        description
+                        sourceName
+                        database
+                        schema
+                        freshness {
+                            maxLoadedAt
+                            maxLoadedAtTimeAgoInS
+                            freshnessStatus
+                        }
+                        catalog {
+                            columns {
+                                name
+                                type
+                                description
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

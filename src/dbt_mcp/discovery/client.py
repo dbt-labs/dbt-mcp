@@ -5,6 +5,7 @@ from typing import Any, ClassVar, Literal, TypedDict
 import requests
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
+from dbt_mcp.discovery.graphql import load_query
 from dbt_mcp.errors import GraphQLError, InvalidParameterError
 from dbt_mcp.gql.errors import raise_gql_error
 
@@ -750,351 +751,26 @@ class AppliedResourceType(StrEnum):
 class ResourceDetailsFetcher:
     """Fetch applied resource details via AppliedResources."""
 
-    GET_APPLIED_RESOURCE_MODELS = textwrap.dedent("""
-        query AppliedModelResources(
-            $environmentId: BigInt!,
-            $filter: AppliedResourcesFilter!,
-            $after: String,
-            $first: Int
-        ) {
-            environment(id: $environmentId) {
-                applied {
-                    resources(filter: $filter, after: $after, first: $first) {
-                        pageInfo {
-                            hasNextPage
-                            endCursor
-                        }
-                        edges {
-                            node {
-                                __typename
-                                ... on ModelAppliedStateNode {
-                                    resourceType
-                                    uniqueId
-                                    name
-                                    description
-                                    compiledCode
-                                    database
-                                    schema
-                                    alias
-                                    catalog {
-                                        columns {
-                                            name
-                                            type
-                                            description
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    """)
+    GET_APPLIED_RESOURCE_MODELS = load_query("get_applied_resource_models.gql")
+    GET_APPLIED_RESOURCE_SOURCES = load_query("get_applied_resource_sources.gql")
+    GET_APPLIED_RESOURCE_EXPOSURES = load_query("get_applied_resource_exposures.gql")
+    GET_APPLIED_RESOURCE_TESTS = load_query("get_applied_resource_tests.gql")
+    GET_APPLIED_RESOURCE_SEEDS = load_query("get_applied_resource_seeds.gql")
+    GET_APPLIED_RESOURCE_SNAPSHOTS = load_query("get_applied_resource_snapshots.gql")
+    GET_APPLIED_RESOURCE_MACROS = load_query("get_applied_resource_macros.gql")
+    GET_APPLIED_RESOURCE_SEMANTIC_MODELS = load_query(
+        "get_applied_resource_semantic_models.gql"
+    )
 
-    GET_APPLIED_RESOURCE_SOURCES = textwrap.dedent("""
-        query AppliedSourceResources(
-            $environmentId: BigInt!,
-            $filter: AppliedResourcesFilter!,
-            $after: String,
-            $first: Int
-        ) {
-            environment(id: $environmentId) {
-                applied {
-                    resources(filter: $filter, after: $after, first: $first) {
-                        pageInfo {
-                            hasNextPage
-                            endCursor
-                        }
-                        edges {
-                            node {
-                                __typename
-                                ... on SourceAppliedStateNode {
-                                    resourceType
-                                    uniqueId
-                                    name
-                                    description
-                                    sourceName
-                                    identifier
-                                    database
-                                    schema
-                                    freshness {
-                                        maxLoadedAt
-                                        maxLoadedAtTimeAgoInS
-                                        freshnessStatus
-                                    }
-                                    catalog {
-                                        columns {
-                                            name
-                                            type
-                                            description
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    """)
-
-    GET_APPLIED_RESOURCE_EXPOSURES = textwrap.dedent("""
-        query AppliedExposureResources(
-            $environmentId: BigInt!,
-            $filter: AppliedResourcesFilter!,
-            $after: String,
-            $first: Int
-        ) {
-            environment(id: $environmentId) {
-                applied {
-                    resources(filter: $filter, after: $after, first: $first) {
-                        pageInfo {
-                            hasNextPage
-                            endCursor
-                        }
-                        edges {
-                            node {
-                                __typename
-                                ... on ExposureDefinitionNode {
-                                    resourceType
-                                    uniqueId
-                                    name
-                                    description
-                                    exposureType
-                                    maturity
-                                    label
-                                    ownerEmail
-                                    ownerName
-                                    url
-                                    meta
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    """)
-
-    GET_APPLIED_RESOURCE_TESTS = textwrap.dedent("""
-        query AppliedTestResources(
-            $environmentId: BigInt!,
-            $filter: AppliedResourcesFilter!,
-            $after: String,
-            $first: Int
-        ) {
-            environment(id: $environmentId) {
-                applied {
-                    resources(filter: $filter, after: $after, first: $first) {
-                        pageInfo {
-                            hasNextPage
-                            endCursor
-                        }
-                        edges {
-                            node {
-                                __typename
-                                ... on TestAppliedStateNode {
-                                    resourceType
-                                    uniqueId
-                                    name
-                                    description
-                                    columnName
-                                    testType
-                                    dependsOnMacros {
-                                        uniqueId
-                                        name
-                                    }
-                                    meta
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    """)
-
-    GET_APPLIED_RESOURCE_SEEDS = textwrap.dedent("""
-        query AppliedSeedResources(
-            $environmentId: BigInt!,
-            $filter: AppliedResourcesFilter!,
-            $after: String,
-            $first: Int
-        ) {
-            environment(id: $environmentId) {
-                applied {
-                    resources(filter: $filter, after: $after, first: $first) {
-                        pageInfo {
-                            hasNextPage
-                            endCursor
-                        }
-                        edges {
-                            node {
-                                __typename
-                                ... on SeedAppliedStateNode {
-                                    resourceType
-                                    uniqueId
-                                    name
-                                    description
-                                    database
-                                    schema
-                                    alias
-                                    path
-                                    compiledCode
-                                    catalog {
-                                        columns {
-                                            name
-                                            type
-                                            description
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    """)
-
-    GET_APPLIED_RESOURCE_SNAPSHOTS = textwrap.dedent("""
-        query AppliedSnapshotResources(
-            $environmentId: BigInt!,
-            $filter: AppliedResourcesFilter!,
-            $after: String,
-            $first: Int
-        ) {
-            environment(id: $environmentId) {
-                applied {
-                    resources(filter: $filter, after: $after, first: $first) {
-                        pageInfo {
-                            hasNextPage
-                            endCursor
-                        }
-                        edges {
-                            node {
-                                __typename
-                                ... on SnapshotAppliedStateNode {
-                                    resourceType
-                                    uniqueId
-                                    name
-                                    description
-                                    database
-                                    schema
-                                    targetDatabase
-                                    targetSchema
-                                    strategy
-                                    primaryKey
-                                    snapshotExecutionInfo {
-                                        lastRunStatus
-                                        executeCompletedAt
-                                        executeStartedAt
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    """)
-
-    GET_APPLIED_RESOURCE_MACROS = textwrap.dedent("""
-        query AppliedMacroResources(
-            $environmentId: BigInt!,
-            $filter: AppliedResourcesFilter!,
-            $after: String,
-            $first: Int
-        ) {
-            environment(id: $environmentId) {
-                applied {
-                    resources(filter: $filter, after: $after, first: $first) {
-                        pageInfo {
-                            hasNextPage
-                            endCursor
-                        }
-                        edges {
-                            node {
-                                __typename
-                                ... on MacroDefinitionNode {
-                                    uniqueId
-                                    name
-                                    description
-                                    path
-                                    macroSql
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    """)
-
-    GET_APPLIED_RESOURCE_SEMANTIC_MODELS = textwrap.dedent("""
-        query AppliedSemanticModelResources(
-            $environmentId: BigInt!,
-            $filter: AppliedResourcesFilter!,
-            $after: String,
-            $first: Int
-        ) {
-            environment(id: $environmentId) {
-                applied {
-                    resources(filter: $filter, after: $after, first: $first) {
-                        pageInfo {
-                            hasNextPage
-                            endCursor
-                        }
-                        edges {
-                            node {
-                                __typename
-                                ... on SemanticModelDefinitionNode {
-                                    uniqueId
-                                    name
-                                    description
-                                    defaults {
-                                        aggTimeDimension
-                                    }
-                                    entities {
-                                        name
-                                        type
-                                        description
-                                    }
-                                    dimensions {
-                                        name
-                                        type
-                                        description
-                                        typeParams {
-                                            timeGranularity
-                                        }
-                                    }
-                                    measures {
-                                        name
-                                        expr
-                                        description
-                                        agg
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    """)
-
-    _SUPPORTED_TYPES: ClassVar[dict[AppliedResourceType, str]] = {
-        AppliedResourceType.MODEL: ResourceDetailsFetcher.GET_APPLIED_RESOURCE_MODELS,
-        AppliedResourceType.SOURCE: GraphQLQueries.GET_APPLIED_RESOURCE_SOURCES,
-        AppliedResourceType.EXPOSURE: GraphQLQueries.GET_APPLIED_RESOURCE_EXPOSURES,
-        AppliedResourceType.TEST: GraphQLQueries.GET_APPLIED_RESOURCE_TESTS,
-        AppliedResourceType.SEED: GraphQLQueries.GET_APPLIED_RESOURCE_SEEDS,
-        AppliedResourceType.SNAPSHOT: GraphQLQueries.GET_APPLIED_RESOURCE_SNAPSHOTS,
-        AppliedResourceType.MACRO: GraphQLQueries.GET_APPLIED_RESOURCE_MACROS,
-        AppliedResourceType.SEMANTIC_MODEL: (
-            GraphQLQueries.GET_APPLIED_RESOURCE_SEMANTIC_MODELS
-        ),
+    GQL_QUERIES: ClassVar[dict[AppliedResourceType, str]] = {
+        AppliedResourceType.MODEL: GET_APPLIED_RESOURCE_MODELS,
+        AppliedResourceType.SOURCE: GET_APPLIED_RESOURCE_SOURCES,
+        AppliedResourceType.EXPOSURE: GET_APPLIED_RESOURCE_EXPOSURES,
+        AppliedResourceType.TEST: GET_APPLIED_RESOURCE_TESTS,
+        AppliedResourceType.SEED: GET_APPLIED_RESOURCE_SEEDS,
+        AppliedResourceType.SNAPSHOT: GET_APPLIED_RESOURCE_SNAPSHOTS,
+        AppliedResourceType.MACRO: GET_APPLIED_RESOURCE_MACROS,
+        AppliedResourceType.SEMANTIC_MODEL: GET_APPLIED_RESOURCE_SEMANTIC_MODELS,
     }
 
     def __init__(
@@ -1109,16 +785,17 @@ class ResourceDetailsFetcher:
         resource_type: AppliedResourceType,
         unique_id: str,
     ) -> dict:
-        query = self._SUPPORTED_TYPES[resource_type]
+        query = self.GQL_QUERIES[resource_type]
         variables = {
-            "environmentId": await self.api_client.get_environment_id(),
+            "environmentId": (
+                await self.api_client.config_provider.get_config()
+            ).environment_id,
             "filter": {"uniqueIds": [unique_id]},
             "first": 1,
         }
-
         result = await self.api_client.execute_query(query, variables)
         raise_gql_error(result)
-        edges = result["data"]["environment"]["applied"]["sources"]["edges"]
+        edges = result["data"]["environment"]["applied"][resource_type.value]["edges"]
         if not edges:
             return {}
         return edges[0]["node"]

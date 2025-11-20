@@ -67,19 +67,7 @@ class DiscoveryToolContext:
                 ),
             ),
         )
-        self.resource_details_fetcher = ResourceDetailsFetcher(
-            paginator=PaginatedResourceFetcher(
-                api_client,
-                edges_path=("data", "environment", "applied", "resources", "edges"),
-                page_info_path=(
-                    "data",
-                    "environment",
-                    "applied",
-                    "resources",
-                    "pageInfo",
-                ),
-            )
-        )
+        self.resource_details_fetcher = ResourceDetailsFetcher(api_client=api_client)
 
 
 @dbt_mcp_tool(
@@ -234,9 +222,9 @@ async def get_source_details(
 )
 async def get_resource_details(
     context: DiscoveryToolContext,
-    resource_type: AppliedResourceType | str,
+    resource_type: AppliedResourceType,
     unique_id: str,
-) -> list[dict]:
+) -> dict:
     return await context.resource_details_fetcher.fetch_details(
         resource_type=resource_type,
         unique_id=unique_id,

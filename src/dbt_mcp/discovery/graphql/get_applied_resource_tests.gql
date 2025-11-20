@@ -1,0 +1,35 @@
+query AppliedTestResources(
+    $environmentId: BigInt!,
+    $filter: AppliedResourcesFilter!,
+    $after: String,
+    $first: Int
+) {
+    environment(id: $environmentId) {
+        applied {
+            resources(filter: $filter, after: $after, first: $first) {
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+                edges {
+                    node {
+                        __typename
+                        ... on TestAppliedStateNode {
+                            resourceType
+                            uniqueId
+                            name
+                            description
+                            columnName
+                            testType
+                            dependsOnMacros {
+                                uniqueId
+                                name
+                            }
+                            meta
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

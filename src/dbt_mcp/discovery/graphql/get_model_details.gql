@@ -1,0 +1,30 @@
+query GetModelDetails(
+    $environmentId: BigInt!,
+    $modelsFilter: ModelAppliedFilter
+    $first: Int,
+) {
+    environment(id: $environmentId) {
+        applied {
+            models(filter: $modelsFilter, first: $first) {
+                edges {
+                    node {
+                        name
+                        uniqueId
+                        compiledCode
+                        description
+                        database
+                        schema
+                        alias
+                        catalog {
+                            columns {
+                                description
+                                name
+                                type
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
