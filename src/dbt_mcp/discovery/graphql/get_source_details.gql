@@ -1,30 +1,39 @@
-query GetSourceDetails(
+query AppliedSourceResources(
     $environmentId: BigInt!,
-    $sourcesFilter: SourceAppliedFilter,
+    $filter: AppliedResourcesFilter!,
+    $after: String,
     $first: Int
 ) {
     environment(id: $environmentId) {
         applied {
-            sources(filter: $sourcesFilter, first: $first) {
+            resources(filter: $filter, after: $after, first: $first) {
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
                 edges {
                     node {
-                        name
-                        uniqueId
-                        identifier
-                        description
-                        sourceName
-                        database
-                        schema
-                        freshness {
-                            maxLoadedAt
-                            maxLoadedAtTimeAgoInS
-                            freshnessStatus
-                        }
-                        catalog {
-                            columns {
-                                name
-                                type
-                                description
+                        __typename
+                        ... on SourceAppliedStateNode {
+                            resourceType
+                            uniqueId
+                            name
+                            description
+                            sourceName
+                            identifier
+                            database
+                            schema
+                            freshness {
+                                maxLoadedAt
+                                maxLoadedAtTimeAgoInS
+                                freshnessStatus
+                            }
+                            catalog {
+                                columns {
+                                    name
+                                    type
+                                    description
+                                }
                             }
                         }
                     }

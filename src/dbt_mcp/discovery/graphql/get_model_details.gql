@@ -1,25 +1,34 @@
-query GetModelDetails(
+query AppliedModelResources(
     $environmentId: BigInt!,
-    $modelsFilter: ModelAppliedFilter
-    $first: Int,
+    $filter: AppliedResourcesFilter!,
+    $after: String,
+    $first: Int
 ) {
     environment(id: $environmentId) {
         applied {
-            models(filter: $modelsFilter, first: $first) {
+            resources(filter: $filter, after: $after, first: $first) {
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
                 edges {
                     node {
-                        name
-                        uniqueId
-                        compiledCode
-                        description
-                        database
-                        schema
-                        alias
-                        catalog {
-                            columns {
-                                description
-                                name
-                                type
+                        __typename
+                        ... on ModelAppliedStateNode {
+                            resourceType
+                            uniqueId
+                            name
+                            description
+                            compiledCode
+                            database
+                            schema
+                            alias
+                            catalog {
+                                columns {
+                                    name
+                                    type
+                                    description
+                                }
                             }
                         }
                     }

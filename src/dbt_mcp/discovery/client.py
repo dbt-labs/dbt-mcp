@@ -749,28 +749,24 @@ class AppliedResourceType(StrEnum):
 
 
 class ResourceDetailsFetcher:
-    """Fetch applied resource details via AppliedResources."""
-
-    GET_APPLIED_RESOURCE_MODELS = load_query("get_applied_resource_models.gql")
-    GET_APPLIED_RESOURCE_SOURCES = load_query("get_applied_resource_sources.gql")
-    GET_APPLIED_RESOURCE_EXPOSURES = load_query("get_applied_resource_exposures.gql")
-    GET_APPLIED_RESOURCE_TESTS = load_query("get_applied_resource_tests.gql")
-    GET_APPLIED_RESOURCE_SEEDS = load_query("get_applied_resource_seeds.gql")
-    GET_APPLIED_RESOURCE_SNAPSHOTS = load_query("get_applied_resource_snapshots.gql")
-    GET_APPLIED_RESOURCE_MACROS = load_query("get_applied_resource_macros.gql")
-    GET_APPLIED_RESOURCE_SEMANTIC_MODELS = load_query(
-        "get_applied_resource_semantic_models.gql"
-    )
+    GET_MODELS_DETAILS_QUERY = load_query("get_model_details.gql")
+    GET_SOURCES_QUERY = load_query("get_source_details.gql")
+    GET_EXPOSURES_QUERY = load_query("get_exposure_details.gql")
+    GET_TESTS_QUERY = load_query("get_test_details.gql")
+    GET_SEEDS_QUERY = load_query("get_seed_details.gql")
+    GET_SNAPSHOTS_QUERY = load_query("get_snapshot_details.gql")
+    GET_MACROS_QUERY = load_query("get_macro_details.gql")
+    GET_SEMANTIC_MODELS_QUERY = load_query("get_semantic_model_details.gql")
 
     GQL_QUERIES: ClassVar[dict[AppliedResourceType, str]] = {
-        AppliedResourceType.MODEL: GET_APPLIED_RESOURCE_MODELS,
-        AppliedResourceType.SOURCE: GET_APPLIED_RESOURCE_SOURCES,
-        AppliedResourceType.EXPOSURE: GET_APPLIED_RESOURCE_EXPOSURES,
-        AppliedResourceType.TEST: GET_APPLIED_RESOURCE_TESTS,
-        AppliedResourceType.SEED: GET_APPLIED_RESOURCE_SEEDS,
-        AppliedResourceType.SNAPSHOT: GET_APPLIED_RESOURCE_SNAPSHOTS,
-        AppliedResourceType.MACRO: GET_APPLIED_RESOURCE_MACROS,
-        AppliedResourceType.SEMANTIC_MODEL: GET_APPLIED_RESOURCE_SEMANTIC_MODELS,
+        AppliedResourceType.MODEL: GET_MODELS_DETAILS_QUERY,
+        AppliedResourceType.SOURCE: GET_SOURCES_QUERY,
+        AppliedResourceType.EXPOSURE: GET_EXPOSURES_QUERY,
+        AppliedResourceType.TEST: GET_TESTS_QUERY,
+        AppliedResourceType.SEED: GET_SEEDS_QUERY,
+        AppliedResourceType.SNAPSHOT: GET_SNAPSHOTS_QUERY,
+        AppliedResourceType.MACRO: GET_MACROS_QUERY,
+        AppliedResourceType.SEMANTIC_MODEL: GET_SEMANTIC_MODELS_QUERY,
     }
 
     def __init__(
@@ -781,7 +777,6 @@ class ResourceDetailsFetcher:
 
     async def fetch_details(
         self,
-        *,
         resource_type: AppliedResourceType,
         unique_id: str,
     ) -> dict:
