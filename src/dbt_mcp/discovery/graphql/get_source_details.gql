@@ -24,12 +24,23 @@ query SourceDetails(
                   tags
                   type
                 }
-                comment
-                owner
-                rowCountStat
-                type
-                uniqueId
               }
+              freshness {
+                maxLoadedAt
+                maxLoadedAtTimeAgoInS
+                freshnessStatus
+              }
+              comment
+              owner
+              rowCountStat
+              type
+              uniqueId
+              name
+              identifier
+              description
+              sourceName
+              database
+              schema
             }
           }
         }

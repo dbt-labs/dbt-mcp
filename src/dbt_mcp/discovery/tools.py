@@ -12,6 +12,7 @@ from dbt_mcp.discovery.client import (
     ModelsFetcher,
     PaginatedResourceFetcher,
     ResourceDetailsFetcher,
+    ResourceDetailsModel,
     SourcesFetcher,
 )
 from dbt_mcp.prompts.prompts import get_prompt
@@ -198,6 +199,7 @@ async def get_all_sources(
     return await context.sources_fetcher.fetch_sources(source_names, unique_ids)
 
 
+# TODO: deprecate prompt
 @dbt_mcp_tool(
     description=get_prompt("discovery/get_source_details"),
     title="Get Source Details",
@@ -210,7 +212,7 @@ async def get_source_details(
     source_name: str | None = None,
     unique_id: str | None = None,
 ) -> dict:
-    return await context.sources_fetcher.fetch_source_details(source_name, unique_id)
+    return {}
 
 
 @dbt_mcp_tool(
@@ -224,7 +226,7 @@ async def get_resource_details(
     context: DiscoveryToolContext,
     resource_type: AppliedResourceType,
     unique_id: str,
-) -> dict:
+) -> ResourceDetailsModel | None:
     return await context.resource_details_fetcher.fetch_details(
         resource_type=resource_type,
         unique_id=unique_id,

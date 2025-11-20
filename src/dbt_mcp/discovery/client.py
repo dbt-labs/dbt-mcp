@@ -1,11 +1,12 @@
 import textwrap
 from enum import StrEnum
-from typing import Any, ClassVar, Literal, TypedDict
+from typing import Any, ClassVar, Literal, TypedDict, cast
 
 import requests
+from pydantic import BaseModel, Field
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
-from dbt_mcp.discovery.graphql import load_query
+from dbt_mcp.discovery.graphql.load import load_query
 from dbt_mcp.errors import GraphQLError, InvalidParameterError
 from dbt_mcp.gql.errors import raise_gql_error
 
@@ -748,6 +749,249 @@ class AppliedResourceType(StrEnum):
     SEMANTIC_MODEL = "semantic_model"
 
 
+class FreshnessInfo(BaseModel):
+    maxLoadedAt: str | None = None
+    maxLoadedAtTimeAgoInS: float | None = None
+    freshnessStatus: str | None = None
+
+
+class NodeReference(BaseModel):
+    description: str | None = None
+    resourceType: str | None = None
+    uniqueId: str | None = None
+
+
+class CatalogColumn(BaseModel):
+    comment: str | None = None
+    description: str | None = None
+    index: int | None = None
+    meta: dict[str, Any] | None = None
+    name: str | None = None
+    tags: list[str] | None = None
+    type: str | None = None
+
+
+class CatalogInfo(BaseModel):
+    columns: list[CatalogColumn] | None = None
+    comment: str | None = None
+    environmentId: int | None = None
+    owner: str | None = None
+    rowCountStat: Any | None = None
+    runGeneratedAt: str | None = None
+    runId: str | None = None
+    type: str | None = None
+    uniqueId: str | None = None
+
+
+class ExecutionInfo(BaseModel):
+    executeCompletedAt: str | None = None
+    executeStartedAt: str | None = None
+    lastRunError: str | None = None
+    lastRunFailures: int | None = None
+    lastRunGeneratedAt: str | None = None
+    lastRunStatus: str | None = None
+
+
+class ModelConstraint(BaseModel):
+    columns: list[str] | None = None
+    expression: str | None = None
+    name: str | None = None
+    type: str | None = None
+    warnUnenforced: bool | None = None
+    warnUnsupported: bool | None = None
+
+
+class ModelTestSummary(BaseModel):
+    columnName: str | None = None
+    description: str | None = None
+    uniqueId: str | None = None
+
+
+class ModelDetails(BaseModel):
+    access: str | None = None
+    alias: str | None = None
+    ancestors: list[NodeReference] | None = None
+    catalog: CatalogInfo | None = None
+    children: list[NodeReference] | None = None
+    compiledCode: str | None = None
+    config: dict[str, Any] | None = None
+    constraints: list[ModelConstraint] | None = None
+    contractEnforced: bool | None = None
+    database: str | None = None
+    deprecationDate: str | None = None
+    description: str | None = None
+    executionInfo: ExecutionInfo | None = None
+    filePath: str | None = None
+    fqn: list[str] | None = None
+    group: str | None = None
+    isDescriptionInherited: bool | None = None
+    language: str | None = None
+    latestVersion: int | None = None
+    meta: dict[str, Any] | None = None
+    modelingLayer: str | None = None
+    name: str | None = None
+    parents: list[NodeReference] | None = None
+    rawCode: str | None = None
+    resourceType: str | None = None
+    dbt_schema: str | None = Field(default=None, alias="schema")
+    tags: list[str] | None = None
+    tests: list[ModelTestSummary] | None = None
+    uniqueId: str | None = None
+    version: int | None = None
+
+
+class SourceDetails(BaseModel):
+    catalog: CatalogInfo | None = None
+    comment: str | None = None
+    database: str | None = None
+    description: str | None = None
+    freshness: FreshnessInfo | None = None
+    identifier: str | None = None
+    name: str | None = None
+    owner: str | None = None
+    resourceType: str | None = None
+    rowCountStat: Any | None = None
+    dbt_schema: str | None = Field(default=None, alias="schema")
+    sourceName: str | None = None
+    type: str | None = None
+    uniqueId: str | None = None
+
+
+class ExposureDetails(BaseModel):
+    description: str | None = None
+    exposureType: str | None = None
+    filePath: str | None = None
+    label: str | None = None
+    manifestGeneratedAt: str | None = None
+    meta: dict[str, Any] | None = None
+    maturity: str | None = None
+    name: str | None = None
+    ownerEmail: str | None = None
+    ownerName: str | None = None
+    parents: list[NodeReference] | None = None
+    resourceType: str | None = None
+    tags: list[str] | None = None
+    uniqueId: str | None = None
+    url: str | None = None
+
+
+class TestMetadata(BaseModel):
+    columnName: str | None = None
+    kwargs: dict[str, Any] | None = None
+    name: str | None = None
+    namespace: str | None = None
+
+
+class TestDetails(BaseModel):
+    columnName: str | None = None
+    compiledCode: str | None = None
+    config: dict[str, Any] | None = None
+    description: str | None = None
+    executionInfo: ExecutionInfo | None = None
+    expect: Any | None = None
+    filePath: str | None = None
+    fqn: list[str] | None = None
+    given: Any | None = None
+    lastKnownResult: dict[str, Any] | None = None
+    meta: dict[str, Any] | None = None
+    model: str | None = None
+    name: str | None = None
+    numExpectRows: int | None = None
+    numGiven: int | None = None
+    numGivenRows: int | None = None
+    overrides: dict[str, Any] | None = None
+    parents: list[NodeReference] | None = None
+    rawCode: str | None = None
+    resourceType: str | None = None
+    tags: list[str] | None = None
+    testMetadata: TestMetadata | None = None
+    testType: str | None = None
+    testedNodeUniqueId: str | None = None
+    thisInputNodeUniqueId: str | None = None
+    uniqueId: str | None = None
+
+
+class SeedDetails(BaseModel):
+    alias: str | None = None
+    catalog: CatalogInfo | None = None
+    resourceType: str | None = None
+    uniqueId: str | None = None
+
+
+class SnapshotDetails(BaseModel):
+    alias: str | None = None
+    catalog: CatalogInfo | None = None
+    resourceType: str | None = None
+    uniqueId: str | None = None
+
+
+class MacroArgument(BaseModel):
+    description: str | None = None
+    name: str | None = None
+    type: str | None = None
+
+
+class MacroDetails(BaseModel):
+    arguments: list[MacroArgument] | None = None
+    description: str | None = None
+    filePath: str | None = None
+    macroSql: str | None = None
+    meta: dict[str, Any] | None = None
+    name: str | None = None
+    packageName: str | None = None
+    resourceType: str | None = None
+    runGeneratedAt: str | None = None
+    tags: list[str] | None = None
+    uniqueId: str | None = None
+
+
+class SemanticDimension(BaseModel):
+    description: str | None = None
+    name: str | None = None
+    type: str | None = None
+    typeParams: dict[str, Any] | None = None
+
+
+class SemanticEntity(BaseModel):
+    description: str | None = None
+    name: str | None = None
+    type: str | None = None
+
+
+class SemanticMeasure(BaseModel):
+    agg: str | None = None
+    createMetric: bool | None = None
+    description: str | None = None
+    expr: str | None = None
+    name: str | None = None
+
+
+class SemanticModelDetails(BaseModel):
+    description: str | None = None
+    dimensions: list[SemanticDimension] | None = None
+    entities: list[SemanticEntity] | None = None
+    filePath: str | None = None
+    fqn: list[str] | None = None
+    measures: list[SemanticMeasure] | None = None
+    meta: dict[str, Any] | None = None
+    name: str | None = None
+    resourceType: str | None = None
+    tags: list[str] | None = None
+    uniqueId: str | None = None
+
+
+ResourceDetailsModel = (
+    ModelDetails
+    | SourceDetails
+    | ExposureDetails
+    | TestDetails
+    | SeedDetails
+    | SnapshotDetails
+    | MacroDetails
+    | SemanticModelDetails
+)
+
+
 class ResourceDetailsFetcher:
     GET_MODELS_DETAILS_QUERY = load_query("get_model_details.gql")
     GET_SOURCES_QUERY = load_query("get_source_details.gql")
@@ -768,6 +1012,30 @@ class ResourceDetailsFetcher:
         AppliedResourceType.MACRO: GET_MACROS_QUERY,
         AppliedResourceType.SEMANTIC_MODEL: GET_SEMANTIC_MODELS_QUERY,
     }
+    RESOURCE_MODELS: ClassVar[dict[AppliedResourceType, type[BaseModel]]] = {
+        AppliedResourceType.MODEL: ModelDetails,
+        AppliedResourceType.SOURCE: SourceDetails,
+        AppliedResourceType.EXPOSURE: ExposureDetails,
+        AppliedResourceType.TEST: TestDetails,
+        AppliedResourceType.SEED: SeedDetails,
+        AppliedResourceType.SNAPSHOT: SnapshotDetails,
+        AppliedResourceType.MACRO: MacroDetails,
+        AppliedResourceType.SEMANTIC_MODEL: SemanticModelDetails,
+    }
+    MODEL_ANCESTOR_TYPES: ClassVar[tuple[str, ...]] = (
+        "MODEL",
+        "SOURCE",
+        "SEED",
+        "SNAPSHOT",
+        "EXPOSURE",
+        "MACRO",
+        "MODEL",
+        "SEED",
+        "SNAPSHOT",
+        "SOURCE",
+        "TEST",
+        "SEMANTIC_MODEL",
+    )
 
     def __init__(
         self,
@@ -779,18 +1047,30 @@ class ResourceDetailsFetcher:
         self,
         resource_type: AppliedResourceType,
         unique_id: str,
-    ) -> dict:
+    ) -> ResourceDetailsModel | None:
         query = self.GQL_QUERIES[resource_type]
-        variables = {
-            "environmentId": (
-                await self.api_client.config_provider.get_config()
-            ).environment_id,
-            "filter": {"uniqueIds": [unique_id]},
+        environment_id = (
+            await self.api_client.config_provider.get_config()
+        ).environment_id
+        variables: dict[str, Any] = {
+            "environmentId": environment_id,
+            "filter": {
+                "resourceTypes": [resource_type.name],
+                "uniqueIds": [unique_id],
+            },
             "first": 1,
         }
+        if resource_type is AppliedResourceType.MODEL:
+            variables["types"] = list(self.MODEL_ANCESTOR_TYPES)
         result = await self.api_client.execute_query(query, variables)
         raise_gql_error(result)
-        edges = result["data"]["environment"]["applied"][resource_type.value]["edges"]
+        edges = (
+            result["data"]["environment"]["applied"]
+            .get("resources", {})
+            .get("edges", [])
+        )
         if not edges:
-            return {}
-        return edges[0]["node"]
+            return None
+        node = edges[0]["node"]
+        model_cls = self.RESOURCE_MODELS[resource_type]
+        return cast(ResourceDetailsModel, model_cls.model_validate(node))
