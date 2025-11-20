@@ -6,6 +6,7 @@ from mcp.server.fastmcp import FastMCP
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.client import (
+    AppliedResourceType,
     ExposuresFetcher,
     MetadataAPIClient,
     ModelsFetcher,
@@ -233,7 +234,7 @@ async def get_source_details(
 )
 async def get_resource_details(
     context: DiscoveryToolContext,
-    resource_type: str,
+    resource_type: AppliedResourceType | str,
     unique_id: str,
 ) -> list[dict]:
     return await context.resource_details_fetcher.fetch_details(

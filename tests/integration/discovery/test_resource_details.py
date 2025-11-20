@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from dbt_mcp.discovery.client import (
+    AppliedResourceType,
     MetadataAPIClient,
     PaginatedResourceFetcher,
     ResourceDetailsFetcher,
@@ -58,7 +59,7 @@ def resource_details_fetcher(
 
 RESOURCE_CASES = [
     (
-        "model",
+        AppliedResourceType.MODEL,
         "AppliedModelResources",
         {
             "__typename": "ModelAppliedStateNode",
@@ -82,10 +83,10 @@ RESOURCE_CASES = [
             },
         },
         {"compiledCode", "catalog"},
-        "model",
+        AppliedResourceType.MODEL.value,
     ),
     (
-        "source",
+        AppliedResourceType.SOURCE,
         "AppliedSourceResources",
         {
             "__typename": "SourceAppliedStateNode",
@@ -109,10 +110,10 @@ RESOURCE_CASES = [
             },
         },
         {"freshness", "catalog"},
-        "source",
+        AppliedResourceType.SOURCE.value,
     ),
     (
-        "exposure",
+        AppliedResourceType.EXPOSURE,
         "AppliedExposureResources",
         {
             "__typename": "ExposureDefinitionNode",
@@ -129,10 +130,10 @@ RESOURCE_CASES = [
             "meta": {"team": "analytics"},
         },
         {"exposureType", "ownerEmail"},
-        "exposure",
+        AppliedResourceType.EXPOSURE.value,
     ),
     (
-        "test",
+        AppliedResourceType.TEST,
         "AppliedTestResources",
         {
             "__typename": "TestAppliedStateNode",
@@ -148,10 +149,10 @@ RESOURCE_CASES = [
             "meta": {"severity": "error"},
         },
         {"columnName", "dependsOnMacros"},
-        "test",
+        AppliedResourceType.TEST.value,
     ),
     (
-        "seed",
+        AppliedResourceType.SEED,
         "AppliedSeedResources",
         {
             "__typename": "SeedAppliedStateNode",
@@ -171,10 +172,10 @@ RESOURCE_CASES = [
             },
         },
         {"path", "catalog"},
-        "seed",
+        AppliedResourceType.SEED.value,
     ),
     (
-        "snapshot",
+        AppliedResourceType.SNAPSHOT,
         "AppliedSnapshotResources",
         {
             "__typename": "SnapshotAppliedStateNode",
@@ -195,10 +196,10 @@ RESOURCE_CASES = [
             },
         },
         {"strategy", "snapshotExecutionInfo"},
-        "snapshot",
+        AppliedResourceType.SNAPSHOT.value,
     ),
     (
-        "macro",
+        AppliedResourceType.MACRO,
         "AppliedMacroResources",
         {
             "__typename": "MacroDefinitionNode",
@@ -209,10 +210,10 @@ RESOURCE_CASES = [
             "macroSql": "{% macro generate_calendar() %} ... {% endmacro %}",
         },
         {"macroSql"},
-        "macro",
+        AppliedResourceType.MACRO.value,
     ),
     (
-        "semantic_model",
+        AppliedResourceType.SEMANTIC_MODEL,
         "AppliedSemanticModelResources",
         {
             "__typename": "SemanticModelDefinitionNode",
@@ -241,7 +242,7 @@ RESOURCE_CASES = [
             ],
         },
         {"dimensions", "measures"},
-        "semantic_model",
+        AppliedResourceType.SEMANTIC_MODEL.value,
     ),
 ]
 
@@ -254,7 +255,7 @@ RESOURCE_CASES = [
 async def test_fetch_resource_details_per_type(
     resource_details_fetcher: ResourceDetailsFetcher,
     mock_api_client: MetadataAPIClient,
-    resource_type: str,
+    resource_type: AppliedResourceType,
     query_name: str,
     node_payload: dict,
     query_fields: set[str],
@@ -266,7 +267,8 @@ async def test_fetch_resource_details_per_type(
     )
 
     results = await resource_details_fetcher.fetch_details(
-        resource_type, unique_ids=[node_payload["uniqueId"]]
+        resource_type=resource_type,
+        unique_id=node_payload["uniqueId"],
     )
 
     assert mock_api_client.execute_query.await_count == 1
@@ -304,7 +306,7 @@ async def test_fetch_resource_details_with_unique_id_parameter(
     )
 
     results = await resource_details_fetcher.fetch_details(
-        "model",
+        resource_type=AppliedResourceType.MODEL,
         unique_id="model.analytics.stg_payments",
     )
 
@@ -315,20 +317,13 @@ async def test_fetch_resource_details_with_unique_id_parameter(
 
 
 @pytest.mark.asyncio
-async def test_fetch_resource_details_requires_unique_ids(
-    resource_details_fetcher: ResourceDetailsFetcher,
-) -> None:
-    with pytest.raises(InvalidParameterError):
-        await resource_details_fetcher.fetch_details("model")
-
-
-@pytest.mark.asyncio
 async def test_fetch_resource_details_rejects_unknown_type(
     resource_details_fetcher: ResourceDetailsFetcher,
 ) -> None:
     with pytest.raises(InvalidParameterError):
         await resource_details_fetcher.fetch_details(
-            "invalid_type", unique_ids=["model.analytics.stg_orders"]
+            resource_type="invalid_type",
+            unique_id="model.analytics.stg_orders",
         )
 
 
@@ -348,7 +343,8 @@ async def test_fetch_resource_details_filters_mismatched_types(
     )
 
     results = await resource_details_fetcher.fetch_details(
-        "model", unique_ids=[mismatched_node["uniqueId"]]
+        resource_type=AppliedResourceType.MODEL,
+        unique_id=mismatched_node["uniqueId"],
     )
     assert results == []
 
@@ -367,7 +363,6 @@ async def test_get_resource_details_tool_delegates_to_fetcher() -> None:
 
     fetcher.fetch_details.assert_awaited_once_with(
         resource_type="model",
-        unique_ids=None,
         unique_id="model.analytics.stg_orders",
     )
     assert result == [{"resourceType": "model"}]
