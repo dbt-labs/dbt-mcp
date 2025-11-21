@@ -1,0 +1,75 @@
+query ModelDetails(
+  $environmentId: BigInt!
+  $filter: AppliedResourcesFilter!
+  $after: String
+  $first: Int
+) {
+  environment(id: $environmentId) {
+    applied {
+      resources(filter: $filter, after: $after, first: $first) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        edges {
+          node {
+            ... on ModelAppliedStateNode {
+              config
+              compiledCode
+              contractEnforced
+              database
+              deprecationDate
+              description
+              filePath
+              group
+              isDescriptionInherited
+              meta
+              modelingLayer
+              name
+              rawCode
+              resourceType
+              schema
+              tags
+              access
+              alias
+              uniqueId
+              latestVersion
+              version
+              language
+              fqn
+              catalog {
+                columns {
+                  comment
+                  description
+                  meta
+                  name
+                  tags
+                  type
+                  index
+                }
+              }
+              constraints {
+                type
+                name
+                expression
+                columns
+                warnUnenforced
+                warnUnsupported
+              }
+              executionInfo {
+                lastRunError
+                lastRunGeneratedAt
+                lastRunStatus
+              }
+              tests {
+                columnName
+                description
+                uniqueId
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

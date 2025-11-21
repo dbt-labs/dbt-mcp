@@ -2,12 +2,7 @@ from enum import Enum
 
 
 class ToolName(Enum):
-    """Tool names available in the FastMCP server.
-
-    This enum provides type safety and autocompletion for tool names.
-    The validate_server_tools() function should be used to ensure
-    this enum stays in sync with the actual server tools.
-    """
+    """Tool names available in the FastMCP server."""
 
     # dbt CLI tools
     BUILD = "build"
@@ -40,6 +35,11 @@ class ToolName(Enum):
     GET_EXPOSURE_DETAILS = "get_exposure_details"
     GET_RELATED_MODELS = "get_related_models"
     SEARCH = "search"
+    GET_MACRO_DETAILS = "get_macro_details"
+    GET_SEED_DETAILS = "get_seed_details"
+    GET_SEMANTIC_MODEL_DETAILS = "get_semantic_model_details"
+    GET_SNAPSHOT_DETAILS = "get_snapshot_details"
+    GET_TEST_DETAILS = "get_test_details"
 
     # SQL tools
     TEXT_TO_SQL = "text_to_sql"

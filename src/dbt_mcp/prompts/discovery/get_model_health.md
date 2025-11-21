@@ -6,7 +6,7 @@ IMPORTANT: Use uniqueId when available.
 - Using only model_name may return incorrect results or fail entirely
 - If you obtained models via get_all_models(), you should always use the uniqueId from those results
 
-ASSESSING MODEL HEALTH: 
+ASSESSING MODEL HEALTH:
 For all of the below, summarize whether the model is healthy, questionable, or unhealthy. Only provide more details when asked.
 
 - for the model executionInfo, if the lastRunStatus is "success" consider the model healthy
@@ -29,8 +29,8 @@ model_name: The name of the dbt model. Only use this when uniqueId is unavailabl
 
 <examples>
 1. PREFERRED METHOD - Using uniqueId (always use this when available):
-   get_model_details(uniqueId="model.my_project.customer_orders")
-   
+   get_model_health(uniqueId="model.my_project.customer_orders")
+
 2. FALLBACK METHOD - Using only model_name (only when uniqueId is unknown):
-   get_model_details(model_name="customer_orders")
+   get_model_health(model_name="customer_orders")
 </examples>
