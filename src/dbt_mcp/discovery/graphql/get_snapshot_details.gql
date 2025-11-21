@@ -1,0 +1,42 @@
+query SnapshotDetails(
+  $environmentId: BigInt!
+  $filter: AppliedResourcesFilter!
+  $after: String
+  $first: Int
+) {
+  environment(id: $environmentId) {
+    applied {
+      resources(filter: $filter, after: $after, first: $first) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        edges {
+          node {
+            ... on SnapshotAppliedStateNode {
+              alias
+              catalog {
+                comment
+                environmentId
+                columns {
+                  comment
+                  description
+                  index
+                  meta
+                  name
+                  tags
+                  type
+                }
+                owner
+                rowCountStat
+                runGeneratedAt
+                type
+                uniqueId
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

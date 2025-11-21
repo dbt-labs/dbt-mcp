@@ -15,7 +15,7 @@ source_name: The table name within the source. Only use this when uniqueId is un
 <examples>
 1. PREFERRED METHOD - Using uniqueId (always use this when available):
    get_source_details(uniqueId="source.my_project.raw_data.customers")
-   
+
 2. FALLBACK METHOD - Using only source_name (only when uniqueId is unknown):
    get_source_details(source_name="customers")
 </examples>

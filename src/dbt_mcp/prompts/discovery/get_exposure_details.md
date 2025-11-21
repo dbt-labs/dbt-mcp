@@ -1,7 +1,7 @@
 Get detailed information about one or more exposures by name or unique IDs.
 
 Parameters:
-- unique_ids (optional): List of unique IDs of exposures (e.g., ["exposure.project.exposure1", "exposure.project.exposure2"]) (more efficient - uses GraphQL filter)
+- unique_id (optional): List of unique IDs of exposures (e.g., ["exposure.project.exposure1", "exposure.project.exposure2"]) (more efficient - uses GraphQL filter)
 
 Returns a list of detailed information dictionaries, each including:
 - name: The name of the exposure
@@ -18,5 +18,4 @@ Returns a list of detailed information dictionaries, each including:
 - uniqueId: The unique identifier for this exposure
 
 Example usage:
-- Get single exposure by unique ID: get_exposure_details(unique_ids=["exposure.analytics.customer_dashboard"])
-- Get multiple exposures by unique IDs: get_exposure_details(unique_ids=["exposure.analytics.dashboard1", "exposure.sales.report2"])
+- Get an exposure by unique ID: get_exposure_details(unique_ids="exposure.analytics.customer_dashboard")

@@ -1,0 +1,63 @@
+query TestDetails(
+  $environmentId: BigInt!
+  $filter: AppliedResourcesFilter!
+  $after: String
+  $first: Int
+) {
+  environment(id: $environmentId) {
+    applied {
+      resources(filter: $filter, after: $after, first: $first) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        edges {
+          node {
+            ... on TestAppliedStateNode {
+              columnName
+              compiledCode
+              config
+              description
+              executionInfo {
+                lastRunError
+                lastRunFailures
+                lastRunStatus
+                lastRunGeneratedAt
+              }
+              expect
+              filePath
+              fqn
+              given
+              meta
+              model
+              name
+              lastKnownResult
+              numExpectRows
+              numGiven
+              numGivenRows
+              overrides
+              parents {
+                uniqueId
+                description
+                resourceType
+              }
+              rawCode
+              resourceType
+              tags
+              testMetadata {
+                columnName
+                kwargs
+                name
+                namespace
+              }
+              testType
+              uniqueId
+              testedNodeUniqueId
+              thisInputNodeUniqueId
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -56,6 +56,11 @@ toolsets = {
         ToolName.GET_EXPOSURE_DETAILS,
         ToolName.GET_RELATED_MODELS,
         ToolName.SEARCH,
+        ToolName.GET_MACRO_DETAILS,
+        ToolName.GET_SEED_DETAILS,
+        ToolName.GET_SEMANTIC_MODEL_DETAILS,
+        ToolName.GET_SNAPSHOT_DETAILS,
+        ToolName.GET_TEST_DETAILS,
     },
     Toolset.DBT_CLI: {
         ToolName.BUILD,

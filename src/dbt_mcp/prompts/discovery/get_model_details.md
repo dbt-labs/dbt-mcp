@@ -15,6 +15,6 @@ model_name: The name of the dbt model. Only use this when uniqueId is unavailabl
 <examples>
 1. PREFERRED METHOD - Using uniqueId (always use this when available):
    get_model_details(uniqueId="model.my_project.customer_orders")
-   
+
 2. FALLBACK METHOD - Using only model_name (only when uniqueId is unknown):
    get_model_details(model_name="customer_orders")

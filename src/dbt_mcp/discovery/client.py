@@ -1,9 +1,12 @@
+import asyncio
 import textwrap
-from typing import Any, Literal, TypedDict
+from enum import StrEnum
+from typing import Any, ClassVar, Literal, TypedDict
 
 import requests
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
+from dbt_mcp.discovery.graphql import load_query
 from dbt_mcp.errors import GraphQLError, InvalidParameterError
 from dbt_mcp.gql.errors import raise_gql_error
 
@@ -110,39 +113,6 @@ class GraphQLQueries:
                                     }
                                   }
                               }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    """)
-
-    GET_MODEL_DETAILS = textwrap.dedent("""
-        query GetModelDetails(
-            $environmentId: BigInt!,
-            $modelsFilter: ModelAppliedFilter
-            $first: Int,
-        ) {
-            environment(id: $environmentId) {
-                applied {
-                    models(filter: $modelsFilter, first: $first) {
-                        edges {
-                            node {
-                                name
-                                uniqueId
-                                compiledCode
-                                description
-                                database
-                                schema
-                                alias
-                                catalog {
-                                    columns {
-                                        description
-                                        name
-                                        type
-                                    }
-                                }
                             }
                         }
                     }
@@ -307,44 +277,6 @@ class GraphQLQueries:
         }
     """)
 
-    GET_SOURCE_DETAILS = textwrap.dedent("""
-        query GetSourceDetails(
-            $environmentId: BigInt!,
-            $sourcesFilter: SourceAppliedFilter,
-            $first: Int
-        ) {
-            environment(id: $environmentId) {
-                applied {
-                    sources(filter: $sourcesFilter, first: $first) {
-                        edges {
-                            node {
-                                name
-                                uniqueId
-                                identifier
-                                description
-                                sourceName
-                                database
-                                schema
-                                freshness {
-                                    maxLoadedAt
-                                    maxLoadedAtTimeAgoInS
-                                    freshnessStatus
-                                }
-                                catalog {
-                                    columns {
-                                        name
-                                        type
-                                        description
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    """)
-
     GET_EXPOSURES = textwrap.dedent("""
         query Exposures($environmentId: BigInt!, $first: Int, $after: String) {
             environment(id: $environmentId) {
@@ -361,35 +293,6 @@ class GraphQLQueries:
                                 uniqueId
                                 url
                                 description
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    """)
-
-    GET_EXPOSURE_DETAILS = textwrap.dedent("""
-        query ExposureDetails($environmentId: BigInt!, $filter: ExposureFilter, $first: Int) {
-            environment(id: $environmentId) {
-                definition {
-                    exposures(first: $first, filter: $filter) {
-                        edges {
-                            node {
-                                name
-                                maturity
-                                label
-                                ownerEmail
-                                ownerName
-                                uniqueId
-                                url
-                                meta
-                                freshnessStatus
-                                exposureType
-                                description
-                                parents {
-                                    uniqueId
-                                }
                             }
                         }
                     }
@@ -539,24 +442,6 @@ class ModelsFetcher:
             },
         )
 
-    async def fetch_model_details(
-        self, model_name: str | None = None, unique_id: str | None = None
-    ) -> dict:
-        model_filters = self._get_model_filters(model_name, unique_id)
-        variables = {
-            "environmentId": await self._paginator.get_environment_id(),
-            "modelsFilter": model_filters,
-            "first": 1,
-        }
-        result = await self.api_client.execute_query(
-            GraphQLQueries.GET_MODEL_DETAILS, variables
-        )
-        raise_gql_error(result)
-        edges = result["data"]["environment"]["applied"]["models"]["edges"]
-        if not edges:
-            return {}
-        return edges[0]["node"]
-
     async def fetch_model_parents(
         self, model_name: str | None = None, unique_id: str | None = None
     ) -> list[dict]:
@@ -627,52 +512,6 @@ class ExposuresFetcher:
             variables={},
         )
 
-    def _get_exposure_filters(
-        self, exposure_name: str | None = None, unique_ids: list[str] | None = None
-    ) -> dict[str, list[str]]:
-        if unique_ids:
-            return {"uniqueIds": unique_ids}
-        elif exposure_name:
-            raise InvalidParameterError(
-                "ExposureFilter only supports uniqueIds. Please use "
-                "unique_ids parameter instead of exposure_name."
-            )
-        else:
-            raise InvalidParameterError(
-                "unique_ids must be provided for exposure filtering"
-            )
-
-    async def fetch_exposure_details(
-        self, exposure_name: str | None = None, unique_ids: list[str] | None = None
-    ) -> list[dict]:
-        if exposure_name and not unique_ids:
-            # Since ExposureFilter doesn't support filtering by name,
-            # we need to fetch all exposures and find the one with matching name
-            all_exposures = await self.fetch_exposures()
-            for exposure in all_exposures:
-                if exposure.get("name") == exposure_name:
-                    return [exposure]
-            return []
-        elif unique_ids:
-            exposure_filters = self._get_exposure_filters(unique_ids=unique_ids)
-            variables = {
-                "environmentId": await self._paginator.get_environment_id(),
-                "filter": exposure_filters,
-                "first": len(unique_ids),  # Request as many as we're filtering for
-            }
-            result = await self.api_client.execute_query(
-                GraphQLQueries.GET_EXPOSURE_DETAILS, variables
-            )
-            raise_gql_error(result)
-            edges = result["data"]["environment"]["definition"]["exposures"]["edges"]
-            if not edges:
-                return []
-            return [edge["node"] for edge in edges]
-        else:
-            raise InvalidParameterError(
-                "Either exposure_name or unique_ids must be provided"
-            )
-
 
 class SourcesFetcher:
     def __init__(
@@ -702,34 +541,120 @@ class SourcesFetcher:
             variables={"sourcesFilter": source_filter},
         )
 
-    def _get_source_filters(
-        self, source_name: str | None = None, unique_id: str | None = None
-    ) -> dict[str, list[str] | str]:
-        if unique_id:
-            return {"uniqueIds": [unique_id]}
-        elif source_name:
-            return {"identifier": source_name}
-        else:
+
+class AppliedResourceType(StrEnum):
+    MODEL = "model"
+    SOURCE = "source"
+    EXPOSURE = "exposure"
+    TEST = "test"
+    SEED = "seed"
+    SNAPSHOT = "snapshot"
+    MACRO = "macro"
+    SEMANTIC_MODEL = "semantic_model"
+
+
+class ResourceDetailsFetcher:
+    GET_PACKAGES_QUERY = load_query("get_packages.gql")
+    GET_MODELS_DETAILS_QUERY = load_query("get_model_details.gql")
+    GET_SOURCES_QUERY = load_query("get_source_details.gql")
+    GET_EXPOSURES_QUERY = load_query("get_exposure_details.gql")
+    GET_TESTS_QUERY = load_query("get_test_details.gql")
+    GET_SEEDS_QUERY = load_query("get_seed_details.gql")
+    GET_SNAPSHOTS_QUERY = load_query("get_snapshot_details.gql")
+    GET_MACROS_QUERY = load_query("get_macro_details.gql")
+    GET_SEMANTIC_MODELS_QUERY = load_query("get_semantic_model_details.gql")
+
+    GQL_QUERIES: ClassVar[dict[AppliedResourceType, str]] = {
+        AppliedResourceType.MODEL: GET_MODELS_DETAILS_QUERY,
+        AppliedResourceType.SOURCE: GET_SOURCES_QUERY,
+        AppliedResourceType.EXPOSURE: GET_EXPOSURES_QUERY,
+        AppliedResourceType.TEST: GET_TESTS_QUERY,
+        AppliedResourceType.SEED: GET_SEEDS_QUERY,
+        AppliedResourceType.SNAPSHOT: GET_SNAPSHOTS_QUERY,
+        AppliedResourceType.MACRO: GET_MACROS_QUERY,
+        AppliedResourceType.SEMANTIC_MODEL: GET_SEMANTIC_MODELS_QUERY,
+    }
+
+    RESOURCE_TYPE_TO_GQL_TYPE: ClassVar[dict[AppliedResourceType, str]] = {
+        AppliedResourceType.MODEL: "Model",
+        AppliedResourceType.SOURCE: "Source",
+        AppliedResourceType.EXPOSURE: "Exposure",
+        AppliedResourceType.TEST: "Test",
+        AppliedResourceType.SEED: "Seed",
+        AppliedResourceType.SNAPSHOT: "Snapshot",
+        AppliedResourceType.MACRO: "Macro",
+        AppliedResourceType.SEMANTIC_MODEL: "SemanticModel",
+    }
+
+    def __init__(
+        self,
+        api_client: MetadataAPIClient,
+    ):
+        self.api_client = api_client
+
+    async def fetch_details(
+        self,
+        resource_type: AppliedResourceType,
+        name: str | None = None,
+        unique_id: str | None = None,
+    ) -> list[dict]:
+        normalized_name = name.strip().lower() if name else None
+        normalized_unique_id = unique_id.strip().lower() if unique_id else None
+        environment_id = (
+            await self.api_client.config_provider.get_config()
+        ).environment_id
+        if not normalized_name and not normalized_unique_id:
+            raise InvalidParameterError("Either name or unique_id must be provided")
+        if (
+            normalized_name
+            and normalized_unique_id
+            and normalized_name != normalized_unique_id.split(".")[-1]
+        ):
             raise InvalidParameterError(
-                "Either source_name or unique_id must be provided"
+                f"Name and unique_id do not match. The unique_id does not end with {normalized_name}."
             )
-
-    async def fetch_source_details(
-        self, source_name: str | None = None, unique_id: str | None = None
-    ) -> dict:
-        """Fetch detailed information about a specific source including columns."""
-        source_filters = self._get_source_filters(source_name, unique_id)
+        if not normalized_unique_id:
+            assert normalized_name is not None, "Name must be provided"
+            packages_result = await asyncio.gather(
+                self.api_client.execute_query(
+                    self.GET_PACKAGES_QUERY,
+                    variables={"resource": "macro", "environmentId": environment_id},
+                ),
+                self.api_client.execute_query(
+                    self.GET_PACKAGES_QUERY,
+                    variables={"resource": "model", "environmentId": environment_id},
+                ),
+            )
+            raise_gql_error(packages_result[0])
+            raise_gql_error(packages_result[1])
+            macro_packages = packages_result[0]["data"]["environment"]["applied"][
+                "packages"
+            ]
+            model_packages = packages_result[1]["data"]["environment"]["applied"][
+                "packages"
+            ]
+            if not macro_packages and not model_packages:
+                raise InvalidParameterError("No packages found for project")
+            unique_ids = [
+                f"{resource_type.value.lower()}.{package_name}.{normalized_name}"
+                for package_name in macro_packages + model_packages
+            ]
+        else:
+            unique_ids = [normalized_unique_id]
+        query = self.GQL_QUERIES[resource_type]
         variables = {
-            "environmentId": await self._paginator.get_environment_id(),
-            "sourcesFilter": source_filters,
-            "first": 1,
+            "environmentId": environment_id,
+            "filter": {
+                "uniqueIds": unique_ids,
+                "types": [self.RESOURCE_TYPE_TO_GQL_TYPE[resource_type]],
+            },
+            "first": len(unique_ids),
         }
-
-        result = await self.api_client.execute_query(
-            GraphQLQueries.GET_SOURCE_DETAILS, variables
-        )
-        raise_gql_error(result)
-        edges = result["data"]["environment"]["applied"]["sources"]["edges"]
+        get_details_result = await self.api_client.execute_query(query, variables)
+        raise_gql_error(get_details_result)
+        edges = get_details_result["data"]["environment"]["applied"]["resources"][
+            "edges"
+        ]
         if not edges:
-            return {}
-        return edges[0]["node"]
+            return []
+        return [e["node"] for e in edges]

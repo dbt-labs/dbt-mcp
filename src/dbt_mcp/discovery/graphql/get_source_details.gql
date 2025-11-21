@@ -1,0 +1,60 @@
+query SourceDetails(
+  $environmentId: BigInt!
+  $filter: AppliedResourcesFilter!
+  $after: String
+  $first: Int
+) {
+  environment(id: $environmentId) {
+    applied {
+      resources(filter: $filter, after: $after, first: $first) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        edges {
+          node {
+            ... on SourceAppliedStateNode {
+              uniqueId
+              name
+              identifier
+              description
+              sourceName
+              database
+              schema
+              filePath
+              fqn
+              meta
+              sourceDescription
+              tags
+              loader
+              catalog {
+                columns {
+                  comment
+                  description
+                  index
+                  meta
+                  name
+                  tags
+                  type
+                }
+              }
+              freshness {
+                maxLoadedAt
+                maxLoadedAtTimeAgoInS
+                freshnessStatus
+              }
+              tests {
+                columnName
+                description
+                lastKnownResult
+                name
+                resourceType
+                uniqueId
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
