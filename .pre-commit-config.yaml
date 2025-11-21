@@ -36,12 +36,5 @@ repos:
       - id: mypy
         language: system
         pass_filenames: false
-        args:
-          [
-            "--show-error-codes",
-            "--namespace-packages",
-            "--exclude",
-            "(examples/|worktrees/)",
-            ".",
-          ]
+        args: ["--show-error-codes", "--namespace-packages", "--exclude", "examples/", "."]
         exclude: examples/
