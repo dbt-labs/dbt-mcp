@@ -5,10 +5,13 @@ import pytest
 from dbt_mcp.config.config_providers import DefaultDiscoveryConfigProvider
 from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
 from dbt_mcp.discovery.client import (
+    DEFAULT_MAX_NODE_QUERY_LIMIT,
+    DEFAULT_PAGE_SIZE,
     ExposuresFetcher,
     MetadataAPIClient,
     ModelFilter,
     ModelsFetcher,
+    PaginatedResourceFetcher,
     SourcesFetcher,
 )
 from dbt_mcp.discovery.tools import DISCOVERY_TOOLS, DiscoveryToolContext
@@ -37,17 +40,44 @@ def api_client() -> MetadataAPIClient:
 
 @pytest.fixture
 def models_fetcher(api_client: MetadataAPIClient) -> ModelsFetcher:
-    return ModelsFetcher(api_client)
+    paginator = PaginatedResourceFetcher(
+        api_client,
+        edges_path=("data", "environment", "applied", "models", "edges"),
+        page_info_path=("data", "environment", "applied", "models", "pageInfo"),
+        page_size=DEFAULT_PAGE_SIZE,
+        max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
+    )
+    return ModelsFetcher(api_client, paginator=paginator)
 
 
 @pytest.fixture
 def exposures_fetcher(api_client: MetadataAPIClient) -> ExposuresFetcher:
-    return ExposuresFetcher(api_client)
+    paginator = PaginatedResourceFetcher(
+        api_client,
+        edges_path=("data", "environment", "definition", "exposures", "edges"),
+        page_info_path=(
+            "data",
+            "environment",
+            "definition",
+            "exposures",
+            "pageInfo",
+        ),
+        page_size=DEFAULT_PAGE_SIZE,
+        max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
+    )
+    return ExposuresFetcher(api_client, paginator=paginator)
 
 
 @pytest.fixture
 def sources_fetcher(api_client: MetadataAPIClient) -> SourcesFetcher:
-    return SourcesFetcher(api_client)
+    paginator = PaginatedResourceFetcher(
+        api_client,
+        edges_path=("data", "environment", "applied", "sources", "edges"),
+        page_info_path=("data", "environment", "applied", "sources", "pageInfo"),
+        page_size=DEFAULT_PAGE_SIZE,
+        max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
+    )
+    return SourcesFetcher(api_client, paginator=paginator)
 
 
 @pytest.mark.asyncio

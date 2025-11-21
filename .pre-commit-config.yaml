@@ -38,4 +38,3 @@ repos:
         pass_filenames: false
         args: ["--show-error-codes", "--namespace-packages", "--exclude", "examples/", "."]
         exclude: examples/
-
