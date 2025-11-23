@@ -213,8 +213,8 @@ class TestGetLineageResolution:
 
             assert result["target"]["uniqueId"] == "model.test.customers"
 
-    async def test_multiple_matches_raises_error(self, mock_config_provider):
-        """Should raise error with options when multiple matches found."""
+    async def test_multiple_matches_returns_disambiguation(self, mock_config_provider):
+        """Should return disambiguation response when multiple matches found."""
         from dbt_mcp.discovery.tools import create_discovery_tool_definitions
 
         with patch('dbt_mcp.discovery.tools.MetadataAPIClient') as mock_client_class:
@@ -272,13 +272,16 @@ class TestGetLineageResolution:
                 t for t in tool_definitions if t.get_name() == "get_lineage"
             )
 
-            with pytest.raises(InvalidParameterError) as exc_info:
-                await get_lineage_tool.fn(name="customers")
+            result = await get_lineage_tool.fn(name="customers")
 
-            error_msg = str(exc_info.value)
-            assert "Multiple resources found" in error_msg
-            assert "model.test.customers" in error_msg
-            assert "source.test.raw.customers" in error_msg
+            # Should return disambiguation response, not an error
+            assert result["status"] == "disambiguation_required"
+            assert "Multiple resources found" in result["message"]
+            assert len(result["matches"]) == 2
+            # Verify both matches are in the response
+            unique_ids = [m["uniqueId"] for m in result["matches"]]
+            assert "model.test.customers" in unique_ids
+            assert "source.test.raw.customers" in unique_ids
 
     async def test_unique_id_skips_resolution(self, mock_config_provider):
         """Should skip resolution when unique_id is provided."""
@@ -536,7 +539,7 @@ class TestGetLineageElicitation:
     async def test_fallback_when_no_context(
         self, mock_config_provider, multiple_matches_responses
     ):
-        """Should fall back to error message when context is None."""
+        """Should return disambiguation response when context is None."""
         from dbt_mcp.discovery.tools import create_discovery_tool_definitions
 
         with patch('dbt_mcp.discovery.tools.MetadataAPIClient') as mock_client_class:
@@ -552,17 +555,18 @@ class TestGetLineageElicitation:
             )
 
             # Call without context (ctx=None is default)
-            with pytest.raises(InvalidParameterError) as exc_info:
-                await get_lineage_tool.fn(name="customers")
+            result = await get_lineage_tool.fn(name="customers")
 
-            error_msg = str(exc_info.value)
-            assert "Multiple resources found" in error_msg
-            assert "Please specify the full unique_id instead" in error_msg
+            # Should return disambiguation response, not an error
+            assert result["status"] == "disambiguation_required"
+            assert "Multiple resources found" in result["message"]
+            assert len(result["matches"]) == 2
+            assert "unique_id parameter" in result["instruction"]
 
     async def test_elicitation_timeout_fallback(
         self, mock_config_provider, multiple_matches_responses
     ):
-        """Should fall back to error message when elicitation times out or fails."""
+        """Should return disambiguation response when elicitation times out."""
         from dbt_mcp.discovery.tools import create_discovery_tool_definitions
 
         with patch('dbt_mcp.discovery.tools.MetadataAPIClient') as mock_client_class:
@@ -586,20 +590,18 @@ class TestGetLineageElicitation:
                 side_effect=Exception("MCP error -32001: Request timed out")
             )
 
-            with pytest.raises(InvalidParameterError) as exc_info:
-                await get_lineage_tool.fn(name="customers", ctx=mock_ctx)
+            result = await get_lineage_tool.fn(name="customers", ctx=mock_ctx)
 
-            # Should get helpful error with match list, not the timeout exception
-            error_msg = str(exc_info.value)
-            assert "Multiple resources found" in error_msg
-            assert "model.test.customers" in error_msg
-            assert "source.test.raw.customers" in error_msg
-            assert "Please specify the full unique_id instead" in error_msg
+            # Should return disambiguation response, not an error
+            assert result["status"] == "disambiguation_required"
+            assert "Multiple resources found" in result["message"]
+            assert len(result["matches"]) == 2
+            assert "unique_id parameter" in result["instruction"]
 
     async def test_fallback_when_no_elicitation_capability(
         self, mock_config_provider, multiple_matches_responses
     ):
-        """Should fall back to error message when client doesn't support elicitation."""
+        """Should return disambiguation response when client doesn't support elicitation."""
         from dbt_mcp.discovery.tools import create_discovery_tool_definitions
 
         with patch('dbt_mcp.discovery.tools.MetadataAPIClient') as mock_client_class:
@@ -620,12 +622,10 @@ class TestGetLineageElicitation:
                 return_value=False  # Client doesn't support elicitation
             )
 
-            with pytest.raises(InvalidParameterError) as exc_info:
-                await get_lineage_tool.fn(name="customers", ctx=mock_ctx)
+            result = await get_lineage_tool.fn(name="customers", ctx=mock_ctx)
 
-            # Should get helpful error with match list (elicitation skipped)
-            error_msg = str(exc_info.value)
-            assert "Multiple resources found" in error_msg
-            assert "model.test.customers" in error_msg
-            assert "source.test.raw.customers" in error_msg
-            assert "Please specify the full unique_id instead" in error_msg
+            # Should return disambiguation response, not an error
+            assert result["status"] == "disambiguation_required"
+            assert "Multiple resources found" in result["message"]
+            assert len(result["matches"]) == 2
+            assert "unique_id parameter" in result["instruction"]

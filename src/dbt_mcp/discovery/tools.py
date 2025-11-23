@@ -132,19 +132,22 @@ def create_discovery_tool_definitions(
                         raise  # Re-raise our own errors (declined/cancelled/invalid)
                     except Exception:
                         # Elicitation failed (timeout, unsupported, etc.)
-                        # Fall back to helpful error message
-                        match_list = ", ".join(m["uniqueId"] for m in matches)
-                        raise InvalidParameterError(
-                            f"Multiple resources found with name '{name}': {match_list}. "
-                            "Please specify the full unique_id instead."
-                        )
+                        # Return helpful response instead of error
+                        return {
+                            "status": "disambiguation_required",
+                            "message": f"Multiple resources found with name '{name}'",
+                            "matches": matches,
+                            "instruction": "Please call get_lineage again with the unique_id parameter set to one of the matches above.",
+                        }
                 else:
-                    # No context or client doesn't support elicitation - use fallback
-                    match_list = ", ".join(m["uniqueId"] for m in matches)
-                    raise InvalidParameterError(
-                        f"Multiple resources found with name '{name}': {match_list}. "
-                        "Please specify the full unique_id instead."
-                    )
+                    # No context or client doesn't support elicitation
+                    # Return helpful response instead of error
+                    return {
+                        "status": "disambiguation_required",
+                        "message": f"Multiple resources found with name '{name}'",
+                        "matches": matches,
+                        "instruction": "Please call get_lineage again with the unique_id parameter set to one of the matches above.",
+                    }
 
         return await lineage_fetcher.fetch_lineage(
             unique_id=resolved_unique_id,  # type: ignore[arg-type]
