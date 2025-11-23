@@ -394,24 +394,30 @@ class TestFetchLineage:
         assert "ancestors" not in result
 
     async def test_fetch_both_directions(self, lineage_fetcher, mock_api_client):
-        mock_response = {
+        """Test that 'both' direction makes two API calls and correctly categorizes results.
+
+        This test verifies BUG-001 fix: ancestors and descendants are properly separated
+        by making two separate API calls instead of incorrectly putting all nodes in ancestors.
+        """
+        # Mock response for ancestors query (+uniqueId)
+        ancestors_response = {
             "data": {
                 "environment": {
                     "applied": {
                         "lineage": [
                             {
-                                "uniqueId": "model.jaffle_shop.customers",
-                                "name": "customers",
+                                "uniqueId": "model.jaffle_shop.stg_orders",
+                                "name": "stg_orders",
                                 "resourceType": "Model",
                                 "matchesMethod": True,
-                                "filePath": "models/customers.sql",
+                                "filePath": "models/staging/stg_orders.sql",
                             },
                             {
-                                "uniqueId": "source.jaffle_shop.raw.customers",
-                                "name": "customers",
-                                "resourceType": "Source",
+                                "uniqueId": "seed.jaffle_shop.raw_orders",
+                                "name": "raw_orders",
+                                "resourceType": "Seed",
                                 "matchesMethod": False,
-                                "filePath": "models/sources.yml",
+                                "filePath": "seeds/raw_orders.csv",
                             },
                         ]
                     }
@@ -419,16 +425,59 @@ class TestFetchLineage:
             }
         }
 
-        mock_api_client.execute_query.return_value = mock_response
+        # Mock response for descendants query (uniqueId+)
+        descendants_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "lineage": [
+                            {
+                                "uniqueId": "model.jaffle_shop.stg_orders",
+                                "name": "stg_orders",
+                                "resourceType": "Model",
+                                "matchesMethod": True,
+                                "filePath": "models/staging/stg_orders.sql",
+                            },
+                            {
+                                "uniqueId": "model.jaffle_shop.orders",
+                                "name": "orders",
+                                "resourceType": "Model",
+                                "matchesMethod": False,
+                                "filePath": "models/marts/orders.sql",
+                            },
+                        ]
+                    }
+                }
+            }
+        }
+
+        # Return different responses for the two API calls
+        mock_api_client.execute_query.side_effect = [
+            ancestors_response,
+            descendants_response,
+        ]
 
         result = await lineage_fetcher.fetch_lineage(
-            unique_id="model.jaffle_shop.customers",
+            unique_id="model.jaffle_shop.stg_orders",
             direction=LineageDirection.BOTH,
         )
 
+        # Verify two API calls were made
+        assert mock_api_client.execute_query.call_count == 2
+
+        # Verify target is present
         assert result["target"] is not None
+        assert result["target"]["uniqueId"] == "model.jaffle_shop.stg_orders"
+
+        # Verify ancestors contains the upstream seed (not the downstream model)
         assert "ancestors" in result
+        assert len(result["ancestors"]) == 1
+        assert result["ancestors"][0]["uniqueId"] == "seed.jaffle_shop.raw_orders"
+
+        # Verify descendants contains the downstream model (not the upstream seed)
         assert "descendants" in result
+        assert len(result["descendants"]) == 1
+        assert result["descendants"][0]["uniqueId"] == "model.jaffle_shop.orders"
 
     async def test_fetch_with_types_filter(self, lineage_fetcher, mock_api_client):
         mock_response = {

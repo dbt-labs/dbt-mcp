@@ -1027,6 +1027,39 @@ class LineageFetcher:
         Returns:
             Dict with 'target', 'ancestors', and/or 'descendants' keys
         """
+        # For "both" direction, make two separate API calls to correctly
+        # categorize ancestors and descendants (BUG-001 fix)
+        if direction == LineageDirection.BOTH:
+            ancestors_result = await self._fetch_lineage_single_direction(
+                unique_id, LineageDirection.ANCESTORS, types
+            )
+            descendants_result = await self._fetch_lineage_single_direction(
+                unique_id, LineageDirection.DESCENDANTS, types
+            )
+            # Merge results - use target from either (they should be the same)
+            target = (
+                ancestors_result.get("target") or descendants_result.get("target")
+            )
+            return {
+                "target": target,
+                "ancestors": ancestors_result.get("ancestors", []),
+                "descendants": descendants_result.get("descendants", []),
+            }
+        else:
+            return await self._fetch_lineage_single_direction(
+                unique_id, direction, types
+            )
+
+    async def _fetch_lineage_single_direction(
+        self,
+        unique_id: str,
+        direction: str,
+        types: list[str] | None = None,
+    ) -> dict:
+        """Fetch lineage for a single direction (ancestors or descendants).
+
+        Internal method used by fetch_lineage.
+        """
         selector = self._build_selector(unique_id, direction)
 
         lineage_filter: dict = {"uniqueIds": [selector]}
@@ -1054,36 +1087,25 @@ class LineageFetcher:
     ) -> dict:
         """Transform raw lineage response into structured output.
 
-        Separates target node (matchesMethod=true) from lineage nodes,
-        and categorizes lineage into ancestors and descendants.
+        Separates target node (matchesMethod=true) from lineage nodes.
+        This method handles single-direction queries only (ancestors OR descendants).
+        The "both" direction is handled by fetch_lineage via two separate calls.
         """
         target: dict | None = None
-        ancestors: list[dict] = []
-        descendants: list[dict] = []
+        lineage_nodes: list[dict] = []
 
         for node in nodes:
             if node.get("matchesMethod"):
                 target = node
             else:
-                # For now, add to appropriate list based on direction requested
-                # The API with selector syntax returns only the requested direction
-                if direction == LineageDirection.ANCESTORS:
-                    ancestors.append(node)
-                elif direction == LineageDirection.DESCENDANTS:
-                    descendants.append(node)
-                else:
-                    # For "both", we need to determine if node is ancestor or descendant
-                    # This requires comparing positions in the DAG
-                    # For now, we'll include in both lists and let the caller filter
-                    # A more sophisticated approach would use the fqn or graph position
-                    ancestors.append(node)
+                lineage_nodes.append(node)
 
         # Build response based on direction
         response: dict = {"target": target}
 
-        if direction in (LineageDirection.ANCESTORS, LineageDirection.BOTH):
-            response["ancestors"] = ancestors
-        if direction in (LineageDirection.DESCENDANTS, LineageDirection.BOTH):
-            response["descendants"] = descendants
+        if direction == LineageDirection.ANCESTORS:
+            response["ancestors"] = lineage_nodes
+        elif direction == LineageDirection.DESCENDANTS:
+            response["descendants"] = lineage_nodes
 
         return response

@@ -2,7 +2,13 @@ import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.elicitation import (
+    AcceptedElicitation,
+    CancelledElicitation,
+    DeclinedElicitation,
+)
+from mcp.server.fastmcp import Context, FastMCP
+from pydantic import BaseModel, Field
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.client import (
@@ -23,6 +29,12 @@ from dbt_mcp.tools.tool_names import ToolName
 logger = logging.getLogger(__name__)
 
 
+class ResourceSelection(BaseModel):
+    """Schema for user to select from multiple matching resources."""
+
+    unique_id: str = Field(description="The unique_id of the selected resource")
+
+
 def create_discovery_tool_definitions(
     config_provider: ConfigProvider[DiscoveryConfig],
 ) -> list[ToolDefinition]:
@@ -37,6 +49,7 @@ def create_discovery_tool_definitions(
         unique_id: str | None = None,
         direction: str = "both",
         types: list[str] | None = None,
+        ctx: Context | None = None,
     ) -> dict:
         # Validate mutual exclusivity
         if name is None and unique_id is None:
@@ -72,13 +85,44 @@ def create_discovery_tool_definitions(
             if len(matches) == 1:
                 resolved_unique_id = matches[0]["uniqueId"]
             else:
-                # Multiple matches - for now, raise error with options
-                # TODO: Implement MCP elicitation when Context support is confirmed
-                match_list = ", ".join(m["uniqueId"] for m in matches)
-                raise InvalidParameterError(
-                    f"Multiple resources found with name '{name}': {match_list}. "
-                    "Please specify the full unique_id instead."
-                )
+                # Multiple matches - use elicitation if context available
+                if ctx is not None:
+                    # Build user-friendly message
+                    options_text = "\n".join(
+                        f"  • {m['uniqueId']} ({m['resourceType']})"
+                        for m in matches
+                    )
+                    message = (
+                        f"Multiple resources found with name '{name}':\n\n"
+                        f"{options_text}\n\n"
+                        "Enter the unique_id of the resource you want:"
+                    )
+
+                    result = await ctx.elicit(
+                        message=message,
+                        schema=ResourceSelection,
+                    )
+
+                    if isinstance(result, AcceptedElicitation):
+                        # Validate the selection exists in matches
+                        selected_id = result.data.unique_id
+                        if selected_id not in [m["uniqueId"] for m in matches]:
+                            raise InvalidParameterError(
+                                f"Invalid selection '{selected_id}'. "
+                                f"Must be one of: {', '.join(m['uniqueId'] for m in matches)}"
+                            )
+                        resolved_unique_id = selected_id
+                    elif isinstance(result, DeclinedElicitation):
+                        raise InvalidParameterError("User declined to select a resource")
+                    else:  # CancelledElicitation
+                        raise InvalidParameterError("Operation cancelled by user")
+                else:
+                    # Fallback for non-interactive mode (no context)
+                    match_list = ", ".join(m["uniqueId"] for m in matches)
+                    raise InvalidParameterError(
+                        f"Multiple resources found with name '{name}': {match_list}. "
+                        "Please specify the full unique_id instead."
+                    )
 
         return await lineage_fetcher.fetch_lineage(
             unique_id=resolved_unique_id,  # type: ignore[arg-type]
