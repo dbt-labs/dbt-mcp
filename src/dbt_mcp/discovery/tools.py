@@ -2,6 +2,7 @@ import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+import mcp.types as mcp_types
 from mcp.server.elicitation import (
     AcceptedElicitation,
     CancelledElicitation,
@@ -85,8 +86,16 @@ def create_discovery_tool_definitions(
             if len(matches) == 1:
                 resolved_unique_id = matches[0]["uniqueId"]
             else:
-                # Multiple matches - use elicitation if context available
+                # Multiple matches - check if client supports elicitation
+                has_elicitation = False
                 if ctx is not None:
+                    has_elicitation = (
+                        ctx.request_context.session.check_client_capability(
+                            mcp_types.ClientCapabilities(elicitation={})
+                        )
+                    )
+
+                if ctx is not None and has_elicitation:
                     try:
                         # Build user-friendly message
                         options_text = "\n".join(
@@ -130,7 +139,7 @@ def create_discovery_tool_definitions(
                             "Please specify the full unique_id instead."
                         )
                 else:
-                    # Fallback for non-interactive mode (no context)
+                    # No context or client doesn't support elicitation - use fallback
                     match_list = ", ".join(m["uniqueId"] for m in matches)
                     raise InvalidParameterError(
                         f"Multiple resources found with name '{name}': {match_list}. "

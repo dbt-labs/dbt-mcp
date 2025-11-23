@@ -416,8 +416,11 @@ class TestGetLineageElicitation:
                 t for t in tool_definitions if t.get_name() == "get_lineage"
             )
 
-            # Create mock context with elicitation
+            # Create mock context with elicitation capability
             mock_ctx = Mock()
+            mock_ctx.request_context.session.check_client_capability = Mock(
+                return_value=True
+            )
             mock_ctx.elicit = AsyncMock(
                 return_value=AcceptedElicitation(
                     data=ResourceSelection(unique_id="model.test.customers")
@@ -453,8 +456,11 @@ class TestGetLineageElicitation:
                 t for t in tool_definitions if t.get_name() == "get_lineage"
             )
 
-            # Create mock context with invalid selection
+            # Create mock context with elicitation capability and invalid selection
             mock_ctx = Mock()
+            mock_ctx.request_context.session.check_client_capability = Mock(
+                return_value=True
+            )
             mock_ctx.elicit = AsyncMock(
                 return_value=AcceptedElicitation(
                     data=ResourceSelection(unique_id="model.test.invalid")
@@ -485,8 +491,11 @@ class TestGetLineageElicitation:
                 t for t in tool_definitions if t.get_name() == "get_lineage"
             )
 
-            # Create mock context with declined elicitation
+            # Create mock context with elicitation capability and declined elicitation
             mock_ctx = Mock()
+            mock_ctx.request_context.session.check_client_capability = Mock(
+                return_value=True
+            )
             mock_ctx.elicit = AsyncMock(return_value=DeclinedElicitation())
 
             with pytest.raises(InvalidParameterError) as exc_info:
@@ -512,8 +521,11 @@ class TestGetLineageElicitation:
                 t for t in tool_definitions if t.get_name() == "get_lineage"
             )
 
-            # Create mock context with cancelled elicitation
+            # Create mock context with elicitation capability and cancelled elicitation
             mock_ctx = Mock()
+            mock_ctx.request_context.session.check_client_capability = Mock(
+                return_value=True
+            )
             mock_ctx.elicit = AsyncMock(return_value=CancelledElicitation())
 
             with pytest.raises(InvalidParameterError) as exc_info:
@@ -565,8 +577,11 @@ class TestGetLineageElicitation:
                 t for t in tool_definitions if t.get_name() == "get_lineage"
             )
 
-            # Create mock context where elicitation raises an exception (timeout)
+            # Create mock context with elicitation capability but timeout
             mock_ctx = Mock()
+            mock_ctx.request_context.session.check_client_capability = Mock(
+                return_value=True
+            )
             mock_ctx.elicit = AsyncMock(
                 side_effect=Exception("MCP error -32001: Request timed out")
             )
@@ -575,6 +590,40 @@ class TestGetLineageElicitation:
                 await get_lineage_tool.fn(name="customers", ctx=mock_ctx)
 
             # Should get helpful error with match list, not the timeout exception
+            error_msg = str(exc_info.value)
+            assert "Multiple resources found" in error_msg
+            assert "model.test.customers" in error_msg
+            assert "source.test.raw.customers" in error_msg
+            assert "Please specify the full unique_id instead" in error_msg
+
+    async def test_fallback_when_no_elicitation_capability(
+        self, mock_config_provider, multiple_matches_responses
+    ):
+        """Should fall back to error message when client doesn't support elicitation."""
+        from dbt_mcp.discovery.tools import create_discovery_tool_definitions
+
+        with patch('dbt_mcp.discovery.tools.MetadataAPIClient') as mock_client_class:
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            mock_client.config_provider = mock_config_provider
+
+            mock_client.execute_query = AsyncMock(side_effect=multiple_matches_responses)
+
+            tool_definitions = create_discovery_tool_definitions(mock_config_provider)
+            get_lineage_tool = next(
+                t for t in tool_definitions if t.get_name() == "get_lineage"
+            )
+
+            # Create mock context WITHOUT elicitation capability
+            mock_ctx = Mock()
+            mock_ctx.request_context.session.check_client_capability = Mock(
+                return_value=False  # Client doesn't support elicitation
+            )
+
+            with pytest.raises(InvalidParameterError) as exc_info:
+                await get_lineage_tool.fn(name="customers", ctx=mock_ctx)
+
+            # Should get helpful error with match list (elicitation skipped)
             error_msg = str(exc_info.value)
             assert "Multiple resources found" in error_msg
             assert "model.test.customers" in error_msg
