@@ -546,3 +546,37 @@ class TestGetLineageElicitation:
             error_msg = str(exc_info.value)
             assert "Multiple resources found" in error_msg
             assert "Please specify the full unique_id instead" in error_msg
+
+    async def test_elicitation_timeout_fallback(
+        self, mock_config_provider, multiple_matches_responses
+    ):
+        """Should fall back to error message when elicitation times out or fails."""
+        from dbt_mcp.discovery.tools import create_discovery_tool_definitions
+
+        with patch('dbt_mcp.discovery.tools.MetadataAPIClient') as mock_client_class:
+            mock_client = Mock()
+            mock_client_class.return_value = mock_client
+            mock_client.config_provider = mock_config_provider
+
+            mock_client.execute_query = AsyncMock(side_effect=multiple_matches_responses)
+
+            tool_definitions = create_discovery_tool_definitions(mock_config_provider)
+            get_lineage_tool = next(
+                t for t in tool_definitions if t.get_name() == "get_lineage"
+            )
+
+            # Create mock context where elicitation raises an exception (timeout)
+            mock_ctx = Mock()
+            mock_ctx.elicit = AsyncMock(
+                side_effect=Exception("MCP error -32001: Request timed out")
+            )
+
+            with pytest.raises(InvalidParameterError) as exc_info:
+                await get_lineage_tool.fn(name="customers", ctx=mock_ctx)
+
+            # Should get helpful error with match list, not the timeout exception
+            error_msg = str(exc_info.value)
+            assert "Multiple resources found" in error_msg
+            assert "model.test.customers" in error_msg
+            assert "source.test.raw.customers" in error_msg
+            assert "Please specify the full unique_id instead" in error_msg

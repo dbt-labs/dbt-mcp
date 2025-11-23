@@ -49,7 +49,7 @@ def create_discovery_tool_definitions(
         unique_id: str | None = None,
         direction: str = "both",
         types: list[str] | None = None,
-        ctx: Context | None = None,
+        ctx: Context = None,  # type: ignore[assignment]
     ) -> dict:
         # Validate mutual exclusivity
         if name is None and unique_id is None:
@@ -87,35 +87,48 @@ def create_discovery_tool_definitions(
             else:
                 # Multiple matches - use elicitation if context available
                 if ctx is not None:
-                    # Build user-friendly message
-                    options_text = "\n".join(
-                        f"  • {m['uniqueId']} ({m['resourceType']})"
-                        for m in matches
-                    )
-                    message = (
-                        f"Multiple resources found with name '{name}':\n\n"
-                        f"{options_text}\n\n"
-                        "Enter the unique_id of the resource you want:"
-                    )
+                    try:
+                        # Build user-friendly message
+                        options_text = "\n".join(
+                            f"  • {m['uniqueId']} ({m['resourceType']})"
+                            for m in matches
+                        )
+                        message = (
+                            f"Multiple resources found with name '{name}':\n\n"
+                            f"{options_text}\n\n"
+                            "Enter the unique_id of the resource you want:"
+                        )
 
-                    result = await ctx.elicit(
-                        message=message,
-                        schema=ResourceSelection,
-                    )
+                        result = await ctx.elicit(
+                            message=message,
+                            schema=ResourceSelection,
+                        )
 
-                    if isinstance(result, AcceptedElicitation):
-                        # Validate the selection exists in matches
-                        selected_id = result.data.unique_id
-                        if selected_id not in [m["uniqueId"] for m in matches]:
+                        if isinstance(result, AcceptedElicitation):
+                            # Validate the selection exists in matches
+                            selected_id = result.data.unique_id
+                            if selected_id not in [m["uniqueId"] for m in matches]:
+                                raise InvalidParameterError(
+                                    f"Invalid selection '{selected_id}'. "
+                                    f"Must be one of: {', '.join(m['uniqueId'] for m in matches)}"
+                                )
+                            resolved_unique_id = selected_id
+                        elif isinstance(result, DeclinedElicitation):
                             raise InvalidParameterError(
-                                f"Invalid selection '{selected_id}'. "
-                                f"Must be one of: {', '.join(m['uniqueId'] for m in matches)}"
+                                "User declined to select a resource"
                             )
-                        resolved_unique_id = selected_id
-                    elif isinstance(result, DeclinedElicitation):
-                        raise InvalidParameterError("User declined to select a resource")
-                    else:  # CancelledElicitation
-                        raise InvalidParameterError("Operation cancelled by user")
+                        else:  # CancelledElicitation
+                            raise InvalidParameterError("Operation cancelled by user")
+                    except InvalidParameterError:
+                        raise  # Re-raise our own errors (declined/cancelled/invalid)
+                    except Exception:
+                        # Elicitation failed (timeout, unsupported, etc.)
+                        # Fall back to helpful error message
+                        match_list = ", ".join(m["uniqueId"] for m in matches)
+                        raise InvalidParameterError(
+                            f"Multiple resources found with name '{name}': {match_list}. "
+                            "Please specify the full unique_id instead."
+                        )
                 else:
                     # Fallback for non-interactive mode (no context)
                     match_list = ", ".join(m["uniqueId"] for m in matches)
