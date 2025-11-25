@@ -211,6 +211,8 @@ def get_lsp_binary_version(path: str) -> str:
     """
     if path.endswith("dbt-lsp"):
         return Path(path[:-7], ".version").read_text().strip()
+    elif path.endswith("dbt-lsp.exe"):
+        return Path(path[:-11], ".version").read_text().strip()
     else:
         return subprocess.run(
             [path, "--version"], capture_output=True, text=True
