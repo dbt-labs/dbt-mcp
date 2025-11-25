@@ -19,26 +19,31 @@ def _find_repo_root() -> Path:
     return module_path
 
 
-def configure_logging(file_logging: bool) -> None:
-    if not file_logging:
+def configure_logging(
+    *, file_logging: bool, log_level: str | int | None = None
+) -> None:
+    if not file_logging and log_level is None:
         return
 
-    repo_root = _find_repo_root()
-    log_path = repo_root / LOG_FILENAME
-
     root_logger = logging.getLogger()
-    for handler in root_logger.handlers:
-        if (
-            isinstance(handler, logging.FileHandler)
-            and Path(handler.baseFilename) == log_path
-        ):
-            return
 
-    file_handler = logging.FileHandler(log_path, encoding="utf-8")
-    file_handler.setLevel(logging.INFO)
-    file_handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
-    )
+    if log_level is not None:
+        root_logger.setLevel(log_level)
 
-    root_logger.setLevel(logging.INFO)
-    root_logger.addHandler(file_handler)
+    if file_logging:
+        repo_root = _find_repo_root()
+        log_path = repo_root / LOG_FILENAME
+
+        for handler in root_logger.handlers:
+            if (
+                isinstance(handler, logging.FileHandler)
+                and Path(handler.baseFilename) == log_path
+            ):
+                return
+
+        file_handler = logging.FileHandler(log_path, encoding="utf-8")
+        file_handler.setLevel(log_level or logging.INFO)
+        file_handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
+        )
+        root_logger.addHandler(file_handler)
