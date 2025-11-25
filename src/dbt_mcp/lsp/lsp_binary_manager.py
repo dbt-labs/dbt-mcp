@@ -110,7 +110,7 @@ def dbt_lsp_binary_info(lsp_path: str | None = None) -> LspBinaryInfo | None:
         falling back to auto-detection.
     """
     if lsp_path:
-        logger.debug(f"Using custom LSP binary path: {lsp_path}")
+        logger.info(f"Using custom LSP binary path: {lsp_path}")
         if Path(lsp_path).exists() and Path(lsp_path).is_file():
             version = get_lsp_binary_version(lsp_path)
             return LspBinaryInfo(path=lsp_path, version=version)
