@@ -30,52 +30,6 @@ class LspBinaryInfo:
     version: str
 
 
-def get_platform_specific_binary_names(tag: str) -> str:
-    """Generate platform-specific binary filename for the dbt LSP.
-
-    Creates a standardized binary filename based on the current platform's
-    operating system and architecture. This follows the naming convention
-    used by dbt LSP releases.
-
-    Args:
-        tag: Version tag or identifier for the LSP binary.
-
-    Returns:
-        Platform-specific binary filename including extension.
-        Format: fs-lsp-{tag}-{arch}-{platform}{extension}
-
-    Raises:
-        ValueError: If the current platform or architecture is not supported.
-
-    Examples:
-        >>> get_platform_specific_binary_names("v1.0.0")
-        'fs-lsp-v1.0.0-x86_64-apple-darwin.tar.gz'  # on macOS Intel
-    """
-    system = platform.system().lower()
-    machine = platform.machine().lower()
-
-    if system == "windows":
-        platform_name = "pc-windows-msvc"
-        extension = ".zip"
-    elif system == "darwin":
-        platform_name = "apple-darwin"
-        extension = ".tar.gz"
-    elif system == "linux":
-        platform_name = "unknown-linux-gnu"
-        extension = ".tar.gz"
-    else:
-        raise ValueError(f"Unsupported platform: {system}")
-
-    if machine in ("x86_64", "amd64"):
-        arch_name = "x86_64"
-    elif machine in ("arm64", "aarch64"):
-        arch_name = "aarch64"
-    else:
-        raise ValueError(f"Unsupported architecture: {machine}")
-
-    return f"fs-lsp-{tag}-{arch_name}-{platform_name}{extension}"
-
-
 class CodeEditor(StrEnum):
     """Supported code editors that can install the dbt LSP.
 
