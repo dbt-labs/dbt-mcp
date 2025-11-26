@@ -22,18 +22,18 @@ def _find_repo_root() -> Path:
 def configure_logging(
     *, file_logging: bool, log_level: str | int | None = None
 ) -> None:
-    lg_lvl = logging.INFO if log_level is None else log_level
+    log_level = logging.INFO if log_level is None else log_level
     root_logger = logging.getLogger()
-    root_logger.setLevel(lg_lvl)
+    root_logger.setLevel(log_level)
 
     # ensure stderr handler exists
-    configure_stderr_logging(root_logger, lg_lvl)
+    configure_stderr_logging(root_logger, log_level)
 
     if file_logging:
-        configure_file_logging(root_logger, lg_lvl)
+        configure_file_logging(root_logger, log_level)
 
 
-def configure_stderr_logging(root_logger: logging.Logger, lg_lvl: str | int) -> None:
+def configure_stderr_logging(root_logger: logging.Logger, log_level: str | int) -> None:
     """Configure stderr logging for the root logger."""
     for handler in root_logger.handlers:
         if isinstance(handler, logging.StreamHandler) and hasattr(handler, "stream"):
@@ -41,21 +41,21 @@ def configure_stderr_logging(root_logger: logging.Logger, lg_lvl: str | int) -> 
                 hasattr(handler.stream, "name") and handler.stream.name == "<stderr>"
             ):
                 # update existing stderr handler's level
-                handler.setLevel(lg_lvl)
-                root_logger.debug(f"Updated stderr handler level to {lg_lvl}")
+                handler.setLevel(log_level)
+                root_logger.debug(f"Updated stderr handler level to {log_level}")
                 return
 
     # add stderr handler if not found
     stderr_handler = logging.StreamHandler(sys.stderr)
-    stderr_handler.setLevel(lg_lvl)
+    stderr_handler.setLevel(log_level)
     stderr_handler.setFormatter(
         logging.Formatter("%(levelname)s [%(name)s] %(message)s")
     )
     root_logger.addHandler(stderr_handler)
-    root_logger.debug(f"Added stderr handler with level {lg_lvl}")
+    root_logger.debug(f"Added stderr handler with level {log_level}")
 
 
-def configure_file_logging(root_logger: logging.Logger, lg_lvl: str | int) -> None:
+def configure_file_logging(root_logger: logging.Logger, log_level: str | int) -> None:
     """Configure file logging for the root logger."""
     repo_root = _find_repo_root()
     log_path = repo_root / LOG_FILENAME
@@ -67,12 +67,12 @@ def configure_file_logging(root_logger: logging.Logger, lg_lvl: str | int) -> No
             and Path(handler.baseFilename) == log_path
         ):
             # Update existing file handler's level
-            handler.setLevel(lg_lvl)
+            handler.setLevel(log_level)
             return
 
     # Add new file handler
     file_handler = logging.FileHandler(log_path, encoding="utf-8")
-    file_handler.setLevel(lg_lvl)
+    file_handler.setLevel(log_level)
     file_handler.setFormatter(
         logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
     )
