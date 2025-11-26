@@ -50,3 +50,23 @@ jobs:
         run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
       - name: Run tests
         run: task test:unit
+
+  # validates README.md tools documentation is up to date
+  validate-readme:
+    name: Validate README
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write
+    needs:
+      - check
+    steps:
+      - name: checkout code
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # actions/checkout@v4
+      - name: setup python
+        uses: ./.github/actions/setup-python
+        id: setup-python
+      - name: Install go-task
+        run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+      - name: Validate README tools section is up to date
+        run: task docs:tools CHECK_FLAG=--check
