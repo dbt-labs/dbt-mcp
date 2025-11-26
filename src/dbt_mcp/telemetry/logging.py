@@ -42,7 +42,7 @@ def configure_stderr_logging(root_logger: logging.Logger, lg_lvl: str | int) -> 
             ):
                 # update existing stderr handler's level
                 handler.setLevel(lg_lvl)
-                root_logger.info(f"Updated stderr handler level to {lg_lvl}")
+                root_logger.debug(f"Updated stderr handler level to {lg_lvl}")
                 return
 
     # add stderr handler if not found
@@ -52,7 +52,7 @@ def configure_stderr_logging(root_logger: logging.Logger, lg_lvl: str | int) -> 
         logging.Formatter("%(levelname)s [%(name)s] %(message)s")
     )
     root_logger.addHandler(stderr_handler)
-    root_logger.info(f"added stderr handler with level {lg_lvl}")
+    root_logger.debug(f"Added stderr handler with level {lg_lvl}")
 
 
 def configure_file_logging(root_logger: logging.Logger, lg_lvl: str | int) -> None:
