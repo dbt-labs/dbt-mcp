@@ -27,7 +27,7 @@ class TestGetStoragePath:
         result = get_storage_path(CodeEditor.CODE)
 
         expected = Path(
-            "C:/Users/TestUser/AppData/Roaming/code/User/globalStorage/dbtlabsinc.dbt/bin/dbt-lsp"
+            "C:/Users/TestUser/AppData/Roaming/code/User/globalStorage/dbtlabsinc.dbt/bin/dbt-lsp.exe"
         )
         assert result == expected
 
@@ -40,7 +40,7 @@ class TestGetStoragePath:
         result = get_storage_path(CodeEditor.CURSOR)
 
         expected = Path(
-            "C:/Users/TestUser/AppData/Roaming/cursor/User/globalStorage/dbtlabsinc.dbt/bin/dbt-lsp"
+            "C:/Users/TestUser/AppData/Roaming/cursor/User/globalStorage/dbtlabsinc.dbt/bin/dbt-lsp.exe"
         )
         assert result == expected
 
@@ -53,7 +53,7 @@ class TestGetStoragePath:
         result = get_storage_path(CodeEditor.WINDSURF)
 
         expected = Path(
-            "C:/Users/TestUser/AppData/Roaming/windsurf/User/globalStorage/dbtlabsinc.dbt/bin/dbt-lsp"
+            "C:/Users/TestUser/AppData/Roaming/windsurf/User/globalStorage/dbtlabsinc.dbt/bin/dbt-lsp.exe"
         )
         assert result == expected
 
@@ -66,7 +66,7 @@ class TestGetStoragePath:
         result = get_storage_path(CodeEditor.CODE)
 
         expected = Path(
-            "C:/Users/TestUser/AppData/Roaming/code/User/globalStorage/dbtlabsinc.dbt/bin/dbt-lsp"
+            "C:/Users/TestUser/AppData/Roaming/code/User/globalStorage/dbtlabsinc.dbt/bin/dbt-lsp.exe"
         )
         assert result == expected
 

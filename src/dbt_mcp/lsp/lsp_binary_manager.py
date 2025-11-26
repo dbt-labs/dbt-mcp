@@ -69,9 +69,12 @@ def get_storage_path(editor: CodeEditor) -> Path:
         This function returns the expected path regardless of whether the binary
         actually exists at that location. Use Path.exists() to verify.
     """
+    binary_name = "dbt-lsp"
+
     if system == "Windows":
         appdata = os.environ.get("APPDATA", home / "AppData" / "Roaming")
         base = Path(appdata) / editor.value
+        binary_name = "dbt-lsp.exe"
 
     elif system == "Darwin":  # macOS
         base = home / "Library" / "Application Support" / editor.value
@@ -83,7 +86,7 @@ def get_storage_path(editor: CodeEditor) -> Path:
     else:
         raise ValueError(f"Unsupported OS: {system}")
 
-    return Path(base, "User", "globalStorage", "dbtlabsinc.dbt", "bin", "dbt-lsp")
+    return Path(base, "User", "globalStorage", "dbtlabsinc.dbt", "bin", binary_name)
 
 
 def dbt_lsp_binary_info(lsp_path: str | None = None) -> LspBinaryInfo | None:
