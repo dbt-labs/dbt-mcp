@@ -9,6 +9,7 @@ from dbt_mcp.gql.errors import raise_gql_error
 
 PAGE_SIZE = 100
 MAX_NODE_QUERY_LIMIT = 1000
+LINEAGE_LIMIT = 50  # Max nodes per direction (ancestors/descendants)
 
 
 class GraphQLQueries:
@@ -1040,10 +1041,28 @@ class LineageFetcher:
             target = (
                 ancestors_result.get("target") or descendants_result.get("target")
             )
+
+            # Merge pagination from both directions
+            ancestors_pagination = ancestors_result.get("pagination", {})
+            descendants_pagination = descendants_result.get("pagination", {})
+
             return {
                 "target": target,
                 "ancestors": ancestors_result.get("ancestors", []),
                 "descendants": descendants_result.get("descendants", []),
+                "pagination": {
+                    "limit": LINEAGE_LIMIT,
+                    "ancestors_total": ancestors_pagination.get("ancestors_total", 0),
+                    "ancestors_truncated": ancestors_pagination.get(
+                        "ancestors_truncated", False
+                    ),
+                    "descendants_total": descendants_pagination.get(
+                        "descendants_total", 0
+                    ),
+                    "descendants_truncated": descendants_pagination.get(
+                        "descendants_truncated", False
+                    ),
+                },
             }
         else:
             return await self._fetch_lineage_single_direction(
@@ -1088,6 +1107,7 @@ class LineageFetcher:
         """Transform raw lineage response into structured output.
 
         Separates target node (matchesMethod=true) from lineage nodes.
+        Applies LINEAGE_LIMIT and includes pagination metadata.
         This method handles single-direction queries only (ancestors OR descendants).
         The "both" direction is handled by fetch_lineage via two separate calls.
         """
@@ -1100,12 +1120,27 @@ class LineageFetcher:
             else:
                 lineage_nodes.append(node)
 
+        # Apply limit and track truncation
+        total = len(lineage_nodes)
+        truncated = total > LINEAGE_LIMIT
+        lineage_nodes = lineage_nodes[:LINEAGE_LIMIT]
+
         # Build response based on direction
         response: dict = {"target": target}
 
         if direction == LineageDirection.ANCESTORS:
             response["ancestors"] = lineage_nodes
+            response["pagination"] = {
+                "limit": LINEAGE_LIMIT,
+                "ancestors_total": total,
+                "ancestors_truncated": truncated,
+            }
         elif direction == LineageDirection.DESCENDANTS:
             response["descendants"] = lineage_nodes
+            response["pagination"] = {
+                "limit": LINEAGE_LIMIT,
+                "descendants_total": total,
+                "descendants_truncated": truncated,
+            }
 
         return response

@@ -26,6 +26,12 @@ The response includes:
 - target: the resource you queried for (identified by matchesMethod=true)
 - ancestors: upstream dependencies (if direction is "ancestors" or "both")
 - descendants: downstream dependencies (if direction is "descendants" or "both")
+- pagination: metadata about result limits and truncation
+
+**Limits:**
+- Maximum 50 nodes returned per direction (ancestors/descendants)
+- If results are truncated, `pagination` metadata shows total count and `truncated: true`
+- Use `types` parameter to filter results if you need specific resource types
 </instructions>
 
 <parameters>

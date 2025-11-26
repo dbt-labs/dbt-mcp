@@ -540,3 +540,212 @@ class TestFetchLineage:
                 unique_id="model.jaffle_shop.customers",
                 direction=LineageDirection.ANCESTORS,
             )
+
+
+class TestPaginationAndTruncation:
+    """Tests for pagination metadata and truncation behavior."""
+
+    async def test_no_truncation_under_limit(self, lineage_fetcher, mock_api_client):
+        """Results under 50 nodes should not be truncated."""
+        # Create 10 ancestor nodes (under limit of 50)
+        lineage_nodes = [
+            {
+                "uniqueId": "model.jaffle_shop.target",
+                "name": "target",
+                "resourceType": "Model",
+                "matchesMethod": True,
+            }
+        ] + [
+            {
+                "uniqueId": f"model.jaffle_shop.ancestor_{i}",
+                "name": f"ancestor_{i}",
+                "resourceType": "Model",
+                "matchesMethod": False,
+            }
+            for i in range(10)
+        ]
+
+        mock_response = {
+            "data": {"environment": {"applied": {"lineage": lineage_nodes}}}
+        }
+        mock_api_client.execute_query.return_value = mock_response
+
+        result = await lineage_fetcher.fetch_lineage(
+            unique_id="model.jaffle_shop.target",
+            direction=LineageDirection.ANCESTORS,
+        )
+
+        assert len(result["ancestors"]) == 10
+        assert result["pagination"]["limit"] == 50
+        assert result["pagination"]["ancestors_total"] == 10
+        assert result["pagination"]["ancestors_truncated"] is False
+
+    async def test_truncation_over_limit(self, lineage_fetcher, mock_api_client):
+        """Results over 50 nodes should be truncated to 50."""
+        # Create 60 ancestor nodes (over limit of 50)
+        lineage_nodes = [
+            {
+                "uniqueId": "model.jaffle_shop.target",
+                "name": "target",
+                "resourceType": "Model",
+                "matchesMethod": True,
+            }
+        ] + [
+            {
+                "uniqueId": f"model.jaffle_shop.ancestor_{i}",
+                "name": f"ancestor_{i}",
+                "resourceType": "Model",
+                "matchesMethod": False,
+            }
+            for i in range(60)
+        ]
+
+        mock_response = {
+            "data": {"environment": {"applied": {"lineage": lineage_nodes}}}
+        }
+        mock_api_client.execute_query.return_value = mock_response
+
+        result = await lineage_fetcher.fetch_lineage(
+            unique_id="model.jaffle_shop.target",
+            direction=LineageDirection.ANCESTORS,
+        )
+
+        assert len(result["ancestors"]) == 50  # Truncated to limit
+        assert result["pagination"]["limit"] == 50
+        assert result["pagination"]["ancestors_total"] == 60  # Original count
+        assert result["pagination"]["ancestors_truncated"] is True
+
+    async def test_pagination_metadata_descendants(self, lineage_fetcher, mock_api_client):
+        """Descendants direction should have descendants_* pagination fields."""
+        lineage_nodes = [
+            {
+                "uniqueId": "model.jaffle_shop.target",
+                "name": "target",
+                "resourceType": "Model",
+                "matchesMethod": True,
+            }
+        ] + [
+            {
+                "uniqueId": f"model.jaffle_shop.descendant_{i}",
+                "name": f"descendant_{i}",
+                "resourceType": "Model",
+                "matchesMethod": False,
+            }
+            for i in range(5)
+        ]
+
+        mock_response = {
+            "data": {"environment": {"applied": {"lineage": lineage_nodes}}}
+        }
+        mock_api_client.execute_query.return_value = mock_response
+
+        result = await lineage_fetcher.fetch_lineage(
+            unique_id="model.jaffle_shop.target",
+            direction=LineageDirection.DESCENDANTS,
+        )
+
+        assert "pagination" in result
+        assert result["pagination"]["descendants_total"] == 5
+        assert result["pagination"]["descendants_truncated"] is False
+
+    async def test_both_directions_merges_pagination(
+        self, lineage_fetcher, mock_api_client
+    ):
+        """Both direction should merge pagination from ancestors and descendants."""
+        # Ancestors response (70 nodes - will be truncated)
+        ancestors_nodes = [
+            {
+                "uniqueId": "model.jaffle_shop.target",
+                "name": "target",
+                "resourceType": "Model",
+                "matchesMethod": True,
+            }
+        ] + [
+            {
+                "uniqueId": f"model.jaffle_shop.ancestor_{i}",
+                "name": f"ancestor_{i}",
+                "resourceType": "Model",
+                "matchesMethod": False,
+            }
+            for i in range(70)
+        ]
+
+        ancestors_response = {
+            "data": {"environment": {"applied": {"lineage": ancestors_nodes}}}
+        }
+
+        # Descendants response (30 nodes - not truncated)
+        descendants_nodes = [
+            {
+                "uniqueId": "model.jaffle_shop.target",
+                "name": "target",
+                "resourceType": "Model",
+                "matchesMethod": True,
+            }
+        ] + [
+            {
+                "uniqueId": f"model.jaffle_shop.descendant_{i}",
+                "name": f"descendant_{i}",
+                "resourceType": "Model",
+                "matchesMethod": False,
+            }
+            for i in range(30)
+        ]
+
+        descendants_response = {
+            "data": {"environment": {"applied": {"lineage": descendants_nodes}}}
+        }
+
+        mock_api_client.execute_query.side_effect = [
+            ancestors_response,
+            descendants_response,
+        ]
+
+        result = await lineage_fetcher.fetch_lineage(
+            unique_id="model.jaffle_shop.target",
+            direction=LineageDirection.BOTH,
+        )
+
+        # Check merged pagination
+        assert result["pagination"]["limit"] == 50
+        assert result["pagination"]["ancestors_total"] == 70
+        assert result["pagination"]["ancestors_truncated"] is True
+        assert result["pagination"]["descendants_total"] == 30
+        assert result["pagination"]["descendants_truncated"] is False
+
+        # Check actual data is truncated
+        assert len(result["ancestors"]) == 50
+        assert len(result["descendants"]) == 30
+
+    async def test_exactly_at_limit(self, lineage_fetcher, mock_api_client):
+        """Exactly 50 nodes should not be marked as truncated."""
+        lineage_nodes = [
+            {
+                "uniqueId": "model.jaffle_shop.target",
+                "name": "target",
+                "resourceType": "Model",
+                "matchesMethod": True,
+            }
+        ] + [
+            {
+                "uniqueId": f"model.jaffle_shop.ancestor_{i}",
+                "name": f"ancestor_{i}",
+                "resourceType": "Model",
+                "matchesMethod": False,
+            }
+            for i in range(50)
+        ]
+
+        mock_response = {
+            "data": {"environment": {"applied": {"lineage": lineage_nodes}}}
+        }
+        mock_api_client.execute_query.return_value = mock_response
+
+        result = await lineage_fetcher.fetch_lineage(
+            unique_id="model.jaffle_shop.target",
+            direction=LineageDirection.ANCESTORS,
+        )
+
+        assert len(result["ancestors"]) == 50
+        assert result["pagination"]["ancestors_total"] == 50
+        assert result["pagination"]["ancestors_truncated"] is False
