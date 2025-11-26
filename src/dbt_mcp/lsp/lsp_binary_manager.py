@@ -16,6 +16,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+system = platform.system()
+home = Path.home()
+
 
 @dataclass
 class LspBinaryInfo:
@@ -66,9 +69,6 @@ def get_storage_path(editor: CodeEditor) -> Path:
         This function returns the expected path regardless of whether the binary
         actually exists at that location. Use Path.exists() to verify.
     """
-    system = platform.system()
-    home = Path.home()
-
     if system == "Windows":
         appdata = os.environ.get("APPDATA", home / "AppData" / "Roaming")
         base = Path(appdata) / editor.value
@@ -146,8 +146,8 @@ def get_lsp_binary_version(path: str) -> str:
     """Extract the version string from a dbt LSP binary.
 
     Retrieves the version of the dbt LSP binary using one of two methods:
-    1. For standard 'dbt-lsp' binaries, reads from the adjacent .version file
-    2. For other binaries, executes the binary with --version flag
+    1. If a .version file exists in the same directory as the binary, read from it
+    2. Otherwise, execute the binary with --version flag
 
     Args:
         path: Full filesystem path to the dbt LSP binary.
@@ -156,17 +156,17 @@ def get_lsp_binary_version(path: str) -> str:
         Version string of the binary (whitespace stripped).
 
     Raises:
-        FileNotFoundError: If the .version file doesn't exist (for dbt-lsp binaries).
-        subprocess.SubprocessError: If the binary execution fails (for non-dbt-lsp binaries).
+        subprocess.SubprocessError: If the binary execution fails when .version file
+            doesn't exist.
 
     Note:
-        The .version file is expected to be in the same directory as the dbt-lsp
-        binary and should be named '.version'.
+        The .version file is expected to be in the same directory as the binary
+        and should be named '.version'. This fallback behavior allows the function
+        to work with both standard dbt-lsp installations and custom LSP binaries.
     """
-    if path.endswith("dbt-lsp"):
-        return Path(path[:-7], ".version").read_text().strip()
-    elif path.endswith("dbt-lsp.exe"):
-        return Path(path[:-11], ".version").read_text().strip()
+    version_file = Path(path).parent / ".version"
+    if version_file.exists():
+        return version_file.read_text().strip()
     else:
         return subprocess.run(
             [path, "--version"], capture_output=True, text=True
