@@ -15,8 +15,29 @@ from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo, dbt_lsp_binary_info
 from dbt_mcp.telemetry.logging import configure_logging
 from dbt_mcp.tools.tool_names import ToolName
+from dbt_mcp.tools.toolsets import Toolset
 
 PACKAGE_NAME = "dbt-mcp"
+
+TOOLSET_TO_DISABLE_ATTR = {
+    Toolset.SEMANTIC_LAYER: "disable_semantic_layer",
+    Toolset.ADMIN_API: "disable_admin_api",
+    Toolset.DBT_CLI: "disable_dbt_cli",
+    Toolset.DBT_CODEGEN: "disable_dbt_codegen",
+    Toolset.DISCOVERY: "disable_discovery",
+    Toolset.DBT_LSP: "disable_lsp",
+    Toolset.SQL: "actual_disable_sql",
+}
+
+TOOLSET_TO_ENABLE_ATTR = {
+    Toolset.SEMANTIC_LAYER: "enable_semantic_layer",
+    Toolset.ADMIN_API: "enable_admin_api",
+    Toolset.DBT_CLI: "enable_dbt_cli",
+    Toolset.DBT_CODEGEN: "enable_dbt_codegen",
+    Toolset.DISCOVERY: "enable_discovery",
+    Toolset.DBT_LSP: "enable_lsp",
+    Toolset.SQL: "enable_sql",
+}
 
 
 @dataclass
@@ -44,6 +65,9 @@ class LspConfig:
 @dataclass
 class Config:
     disable_tools: list[ToolName]
+    enable_tools: list[ToolName]
+    disabled_toolsets: set[Toolset]
+    enabled_toolsets: set[Toolset]
     proxied_tool_config_provider: DefaultProxiedToolConfigProvider | None
     dbt_cli_config: DbtCliConfig | None
     dbt_codegen_config: DbtCodegenConfig | None
@@ -125,8 +149,23 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
             lsp_binary_info=lsp_binary_info,
         )
 
+    enabled_toolsets: set[Toolset] = {
+        toolset
+        for toolset, attr_name in TOOLSET_TO_ENABLE_ATTR.items()
+        if getattr(settings, attr_name, False)
+    }
+
+    disabled_toolsets: set[Toolset] = {
+        toolset
+        for toolset, attr_name in TOOLSET_TO_DISABLE_ATTR.items()
+        if getattr(settings, attr_name, False)
+    }
+
     return Config(
         disable_tools=settings.disable_tools or [],
+        enable_tools=settings.enable_tools or [],
+        disabled_toolsets=disabled_toolsets,
+        enabled_toolsets=enabled_toolsets,
         proxied_tool_config_provider=proxied_tool_config_provider,
         dbt_cli_config=dbt_cli_config,
         dbt_codegen_config=dbt_codegen_config,

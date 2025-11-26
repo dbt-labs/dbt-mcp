@@ -139,5 +139,8 @@ mock_config = Config(
     admin_api_config_provider=MockAdminApiConfigProvider(),
     lsp_config=mock_lsp_config,
     disable_tools=[],
+    enable_tools=[],
+    disabled_toolsets=set(),
+    enabled_toolsets=set(),
     credentials_provider=MockCredentialsProvider(),
 )
