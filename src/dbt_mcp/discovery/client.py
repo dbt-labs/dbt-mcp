@@ -399,16 +399,6 @@ class GraphQLQueries:
         }
     """)
 
-    # Common fields for all LineageNode types
-    LINEAGE_COMMON_FIELDS = """
-        uniqueId
-        name
-        resourceType
-        filePath
-        matchesMethod
-        tags
-        projectId
-    """
 
     GET_LINEAGE = textwrap.dedent("""
         query GetLineage($environmentId: BigInt!, $filter: LineageFilter) {
