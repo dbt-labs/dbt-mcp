@@ -5,7 +5,6 @@ from dataclasses import dataclass
 import mcp.types as mcp_types
 from mcp.server.elicitation import (
     AcceptedElicitation,
-    CancelledElicitation,
     DeclinedElicitation,
 )
 from mcp.server.fastmcp import Context, FastMCP
