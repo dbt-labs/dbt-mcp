@@ -1,6 +1,11 @@
 # Python
 __pycache__/
 .venv/
+<<<<<<< HEAD
+=======
+.env
+.env*/
+>>>>>>> 2f93ff6 (added-new-get-lineage)
 .mypy_cache/
 .pytest_cache/
 *.egg-info/

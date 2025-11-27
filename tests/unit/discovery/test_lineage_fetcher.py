@@ -1,0 +1,493 @@
+from unittest.mock import patch
+
+import pytest
+
+from dbt_mcp.discovery.client import LineageFetcher, LineageDirection
+from dbt_mcp.errors import GraphQLError
+
+
+@pytest.fixture
+def lineage_fetcher(mock_api_client):
+    return LineageFetcher(api_client=mock_api_client)
+
+
+async def test_get_environment_id(lineage_fetcher):
+    environment_id = await lineage_fetcher.get_environment_id()
+    assert environment_id == 123
+
+
+class TestSearchModelsByName:
+    async def test_single_match(self, lineage_fetcher, mock_api_client):
+        mock_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "models": {
+                            "pageInfo": {"endCursor": None},
+                            "edges": [
+                                {
+                                    "node": {
+                                        "name": "customers",
+                                        "uniqueId": "model.jaffle_shop.customers",
+                                        "description": "Customer model",
+                                    }
+                                }
+                            ],
+                        }
+                    }
+                }
+            }
+        }
+
+        mock_api_client.execute_query.return_value = mock_response
+
+        result = await lineage_fetcher.search_models_by_name("customers")
+
+        assert len(result) == 1
+        assert result[0]["uniqueId"] == "model.jaffle_shop.customers"
+        assert result[0]["name"] == "customers"
+        assert result[0]["resourceType"] == "Model"
+
+    async def test_no_match(self, lineage_fetcher, mock_api_client):
+        mock_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "models": {
+                            "pageInfo": {"endCursor": None},
+                            "edges": [],
+                        }
+                    }
+                }
+            }
+        }
+
+        mock_api_client.execute_query.return_value = mock_response
+
+        result = await lineage_fetcher.search_models_by_name("nonexistent")
+
+        assert result == []
+
+    async def test_multiple_matches(self, lineage_fetcher, mock_api_client):
+        mock_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "models": {
+                            "pageInfo": {"endCursor": None},
+                            "edges": [
+                                {
+                                    "node": {
+                                        "name": "customers",
+                                        "uniqueId": "model.project_a.customers",
+                                        "description": "Project A customers",
+                                    }
+                                },
+                                {
+                                    "node": {
+                                        "name": "customers",
+                                        "uniqueId": "model.project_b.customers",
+                                        "description": "Project B customers",
+                                    }
+                                },
+                            ],
+                        }
+                    }
+                }
+            }
+        }
+
+        mock_api_client.execute_query.return_value = mock_response
+
+        result = await lineage_fetcher.search_models_by_name("customers")
+
+        assert len(result) == 2
+        assert result[0]["uniqueId"] == "model.project_a.customers"
+        assert result[1]["uniqueId"] == "model.project_b.customers"
+
+
+class TestSearchSourcesByName:
+    async def test_single_match(self, lineage_fetcher, mock_api_client):
+        mock_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "sources": {
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                            "edges": [
+                                {
+                                    "node": {
+                                        "name": "customers",
+                                        "uniqueId": "source.jaffle_shop.stripe.customers",
+                                        "description": "Raw customer data",
+                                    }
+                                }
+                            ],
+                        }
+                    }
+                }
+            }
+        }
+
+        mock_api_client.execute_query.return_value = mock_response
+
+        result = await lineage_fetcher.search_sources_by_name("customers")
+
+        assert len(result) == 1
+        assert result[0]["uniqueId"] == "source.jaffle_shop.stripe.customers"
+        assert result[0]["name"] == "customers"
+        assert result[0]["resourceType"] == "Source"
+
+    async def test_no_match(self, lineage_fetcher, mock_api_client):
+        mock_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "sources": {
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                            "edges": [],
+                        }
+                    }
+                }
+            }
+        }
+
+        mock_api_client.execute_query.return_value = mock_response
+
+        result = await lineage_fetcher.search_sources_by_name("nonexistent")
+
+        assert result == []
+
+
+class TestSearchAllResources:
+    async def test_model_found_first(self, lineage_fetcher, mock_api_client):
+        """When model is found, sources should still be searched."""
+        model_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "models": {
+                            "pageInfo": {"endCursor": None},
+                            "edges": [
+                                {
+                                    "node": {
+                                        "name": "customers",
+                                        "uniqueId": "model.jaffle_shop.customers",
+                                        "description": "Model",
+                                    }
+                                }
+                            ],
+                        }
+                    }
+                }
+            }
+        }
+        source_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "sources": {
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                            "edges": [],
+                        }
+                    }
+                }
+            }
+        }
+
+        mock_api_client.execute_query.side_effect = [model_response, source_response]
+
+        result = await lineage_fetcher.search_all_resources("customers")
+
+        assert len(result) == 1
+        assert result[0]["uniqueId"] == "model.jaffle_shop.customers"
+        assert result[0]["resourceType"] == "Model"
+
+    async def test_both_model_and_source_found(self, lineage_fetcher, mock_api_client):
+        """When both model and source exist with same name."""
+        model_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "models": {
+                            "pageInfo": {"endCursor": None},
+                            "edges": [
+                                {
+                                    "node": {
+                                        "name": "customers",
+                                        "uniqueId": "model.jaffle_shop.customers",
+                                        "description": "Model",
+                                    }
+                                }
+                            ],
+                        }
+                    }
+                }
+            }
+        }
+        source_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "sources": {
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                            "edges": [
+                                {
+                                    "node": {
+                                        "name": "customers",
+                                        "uniqueId": "source.jaffle_shop.raw.customers",
+                                        "description": "Source",
+                                    }
+                                }
+                            ],
+                        }
+                    }
+                }
+            }
+        }
+
+        mock_api_client.execute_query.side_effect = [model_response, source_response]
+
+        result = await lineage_fetcher.search_all_resources("customers")
+
+        assert len(result) == 2
+        assert result[0]["resourceType"] == "Model"
+        assert result[1]["resourceType"] == "Source"
+
+    async def test_no_matches(self, lineage_fetcher, mock_api_client):
+        """When neither model nor source is found."""
+        empty_model_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "models": {
+                            "pageInfo": {"endCursor": None},
+                            "edges": [],
+                        }
+                    }
+                }
+            }
+        }
+        empty_source_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "sources": {
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                            "edges": [],
+                        }
+                    }
+                }
+            }
+        }
+
+        mock_api_client.execute_query.side_effect = [
+            empty_model_response,
+            empty_source_response,
+        ]
+
+        result = await lineage_fetcher.search_all_resources("nonexistent")
+
+        assert result == []
+
+
+class TestBuildSelector:
+    def test_ancestors(self, lineage_fetcher):
+        result = lineage_fetcher._build_selector(
+            "model.jaffle_shop.customers", LineageDirection.ANCESTORS
+        )
+        assert result == "+model.jaffle_shop.customers"
+
+    def test_descendants(self, lineage_fetcher):
+        result = lineage_fetcher._build_selector(
+            "model.jaffle_shop.customers", LineageDirection.DESCENDANTS
+        )
+        assert result == "model.jaffle_shop.customers+"
+
+    def test_both(self, lineage_fetcher):
+        result = lineage_fetcher._build_selector(
+            "model.jaffle_shop.customers", LineageDirection.BOTH
+        )
+        assert result == "+model.jaffle_shop.customers+"
+
+
+class TestFetchLineage:
+    async def test_fetch_ancestors(self, lineage_fetcher, mock_api_client):
+        mock_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "lineage": [
+                            {
+                                "uniqueId": "model.jaffle_shop.customers",
+                                "name": "customers",
+                                "resourceType": "Model",
+                                "matchesMethod": True,
+                                "filePath": "models/customers.sql",
+                            },
+                            {
+                                "uniqueId": "source.jaffle_shop.raw.customers",
+                                "name": "customers",
+                                "resourceType": "Source",
+                                "matchesMethod": False,
+                                "filePath": "models/sources.yml",
+                            },
+                        ]
+                    }
+                }
+            }
+        }
+
+        mock_api_client.execute_query.return_value = mock_response
+
+        result = await lineage_fetcher.fetch_lineage(
+            unique_id="model.jaffle_shop.customers",
+            direction=LineageDirection.ANCESTORS,
+        )
+
+        assert result["target"]["uniqueId"] == "model.jaffle_shop.customers"
+        assert result["target"]["matchesMethod"] is True
+        assert "ancestors" in result
+        assert len(result["ancestors"]) == 1
+        assert result["ancestors"][0]["uniqueId"] == "source.jaffle_shop.raw.customers"
+        assert "descendants" not in result
+
+    async def test_fetch_descendants(self, lineage_fetcher, mock_api_client):
+        mock_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "lineage": [
+                            {
+                                "uniqueId": "model.jaffle_shop.customers",
+                                "name": "customers",
+                                "resourceType": "Model",
+                                "matchesMethod": True,
+                                "filePath": "models/customers.sql",
+                            },
+                            {
+                                "uniqueId": "model.jaffle_shop.customer_orders",
+                                "name": "customer_orders",
+                                "resourceType": "Model",
+                                "matchesMethod": False,
+                                "filePath": "models/customer_orders.sql",
+                            },
+                        ]
+                    }
+                }
+            }
+        }
+
+        mock_api_client.execute_query.return_value = mock_response
+
+        result = await lineage_fetcher.fetch_lineage(
+            unique_id="model.jaffle_shop.customers",
+            direction=LineageDirection.DESCENDANTS,
+        )
+
+        assert result["target"]["uniqueId"] == "model.jaffle_shop.customers"
+        assert "descendants" in result
+        assert len(result["descendants"]) == 1
+        assert (
+            result["descendants"][0]["uniqueId"] == "model.jaffle_shop.customer_orders"
+        )
+        assert "ancestors" not in result
+
+    async def test_fetch_both_directions(self, lineage_fetcher, mock_api_client):
+        mock_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "lineage": [
+                            {
+                                "uniqueId": "model.jaffle_shop.customers",
+                                "name": "customers",
+                                "resourceType": "Model",
+                                "matchesMethod": True,
+                                "filePath": "models/customers.sql",
+                            },
+                            {
+                                "uniqueId": "source.jaffle_shop.raw.customers",
+                                "name": "customers",
+                                "resourceType": "Source",
+                                "matchesMethod": False,
+                                "filePath": "models/sources.yml",
+                            },
+                        ]
+                    }
+                }
+            }
+        }
+
+        mock_api_client.execute_query.return_value = mock_response
+
+        result = await lineage_fetcher.fetch_lineage(
+            unique_id="model.jaffle_shop.customers",
+            direction=LineageDirection.BOTH,
+        )
+
+        assert result["target"] is not None
+        assert "ancestors" in result
+        assert "descendants" in result
+
+    async def test_fetch_with_types_filter(self, lineage_fetcher, mock_api_client):
+        mock_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "lineage": [
+                            {
+                                "uniqueId": "model.jaffle_shop.customers",
+                                "name": "customers",
+                                "resourceType": "Model",
+                                "matchesMethod": True,
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        mock_api_client.execute_query.return_value = mock_response
+
+        await lineage_fetcher.fetch_lineage(
+            unique_id="model.jaffle_shop.customers",
+            direction=LineageDirection.ANCESTORS,
+            types=["Model", "Source"],
+        )
+
+        # Verify the filter was passed correctly
+        call_args = mock_api_client.execute_query.call_args
+        variables = call_args[0][1]
+        assert variables["filter"]["types"] == ["Model", "Source"]
+
+    async def test_empty_lineage(self, lineage_fetcher, mock_api_client):
+        mock_response = {
+            "data": {"environment": {"applied": {"lineage": []}}}
+        }
+
+        mock_api_client.execute_query.return_value = mock_response
+
+        result = await lineage_fetcher.fetch_lineage(
+            unique_id="model.jaffle_shop.orphan",
+            direction=LineageDirection.BOTH,
+        )
+
+        assert result["target"] is None
+        assert result["ancestors"] == []
+        assert result["descendants"] == []
+
+    @patch("dbt_mcp.discovery.client.raise_gql_error")
+    async def test_graphql_error_handling(
+        self, mock_raise_gql_error, lineage_fetcher, mock_api_client
+    ):
+        mock_response = {"data": {"environment": {"applied": {"lineage": []}}}}
+
+        mock_raise_gql_error.side_effect = GraphQLError("Test GraphQL error")
+        mock_api_client.execute_query.return_value = mock_response
+
+        with pytest.raises(GraphQLError, match="Test GraphQL error"):
+            await lineage_fetcher.fetch_lineage(
+                unique_id="model.jaffle_shop.customers",
+                direction=LineageDirection.ANCESTORS,
+            )
