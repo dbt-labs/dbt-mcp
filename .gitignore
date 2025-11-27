@@ -19,3 +19,4 @@ dbt-mcp.log
 
 # Environment variables
 .env
+.env*/
