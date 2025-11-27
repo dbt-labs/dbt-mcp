@@ -575,6 +575,17 @@ class ModelsFetcher:
         return config.environment_id
 
     def _parse_response_to_json(self, result: dict) -> list[dict]:
+        """Parse GraphQL response and extract model nodes.
+
+        Args:
+            result: Raw GraphQL query response
+
+        Returns:
+            List of model node dictionaries
+
+        Raises:
+            GraphQLError: If the query contains errors
+        """
         raise_gql_error(result)
         edges = result["data"]["environment"]["applied"]["models"]["edges"]
         parsed_edges: list[dict] = []
@@ -594,9 +605,21 @@ class ModelsFetcher:
     def _get_model_filters(
         self, model_name: str | None = None, unique_id: str | None = None
     ) -> dict[str, list[str] | str]:
-        if unique_id:
+        """Build GraphQL filter for model queries.
+
+        Args:
+            model_name: Model identifier/name to filter by
+            unique_id: Model unique ID to filter by
+
+        Returns:
+            GraphQL filter dictionary
+
+        Raises:
+            InvalidParameterError: If neither parameter is provided
+        """
+        if unique_id is not None:
             return {"uniqueIds": [unique_id]}
-        elif model_name:
+        elif model_name is not None:
             return {"identifier": model_name}
         else:
             raise InvalidParameterError(
@@ -712,6 +735,17 @@ class ExposuresFetcher:
         return config.environment_id
 
     def _parse_response_to_json(self, result: dict) -> list[dict]:
+        """Parse GraphQL response and extract exposure nodes.
+
+        Args:
+            result: Raw GraphQL query response
+
+        Returns:
+            List of exposure node dictionaries
+
+        Raises:
+            GraphQLError: If the query contains errors
+        """
         raise_gql_error(result)
         edges = result["data"]["environment"]["definition"]["exposures"]["edges"]
         parsed_edges: list[dict] = []
@@ -758,6 +792,18 @@ class ExposuresFetcher:
     def _get_exposure_filters(
         self, exposure_name: str | None = None, unique_ids: list[str] | None = None
     ) -> dict[str, list[str]]:
+        """Build GraphQL filter for exposure queries.
+
+        Args:
+            exposure_name: Not supported - raises error if provided
+            unique_ids: List of exposure unique IDs to filter by
+
+        Returns:
+            GraphQL filter dictionary
+
+        Raises:
+            InvalidParameterError: If exposure_name is used or unique_ids is not provided
+        """
         if unique_ids:
             return {"uniqueIds": unique_ids}
         elif exposure_name:
@@ -810,6 +856,17 @@ class SourcesFetcher:
         return config.environment_id
 
     def _parse_response_to_json(self, result: dict) -> list[dict]:
+        """Parse GraphQL response and extract source nodes.
+
+        Args:
+            result: Raw GraphQL query response
+
+        Returns:
+            List of source node dictionaries
+
+        Raises:
+            GraphQLError: If the query contains errors
+        """
         raise_gql_error(result)
         edges = result["data"]["environment"]["applied"]["sources"]["edges"]
         parsed_edges: list[dict] = []
@@ -863,9 +920,21 @@ class SourcesFetcher:
     def _get_source_filters(
         self, source_name: str | None = None, unique_id: str | None = None
     ) -> dict[str, list[str] | str]:
-        if unique_id:
+        """Build GraphQL filter for source queries.
+
+        Args:
+            source_name: Source identifier/name to filter by
+            unique_id: Source unique ID to filter by
+
+        Returns:
+            GraphQL filter dictionary
+
+        Raises:
+            InvalidParameterError: If neither parameter is provided
+        """
+        if unique_id is not None:
             return {"uniqueIds": [unique_id]}
-        elif source_name:
+        elif source_name is not None:
             return {"identifier": source_name}
         else:
             raise InvalidParameterError(
@@ -1039,7 +1108,9 @@ class LineageFetcher:
             )
             # Merge results - use target from either (they should be the same)
             target = (
-                ancestors_result.get("target") or descendants_result.get("target")
+                ancestors_result.get("target")
+                if ancestors_result.get("target") is not None
+                else descendants_result.get("target")
             )
 
             # Merge pagination from both directions
@@ -1082,7 +1153,7 @@ class LineageFetcher:
         selector = self._build_selector(unique_id, direction)
 
         lineage_filter: dict = {"uniqueIds": [selector]}
-        if types:
+        if types is not None:
             lineage_filter["types"] = types
 
         variables = {
