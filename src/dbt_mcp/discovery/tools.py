@@ -2,7 +2,8 @@ import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
+from pydantic import BaseModel, Field
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.client import (
@@ -36,6 +37,11 @@ class DiscoveryToolContext:
         self.exposures_fetcher = ExposuresFetcher(api_client=api_client)
         self.sources_fetcher = SourcesFetcher(api_client=api_client)
         self.lineage_fetcher = LineageFetcher(api_client=api_client)
+
+
+class ResourceSelection(BaseModel):
+    """Schema for eliciting resource selection from user."""
+    unique_id: str = Field(description="The unique ID of the selected resource")
 
 
 @dbt_mcp_tool(
@@ -190,6 +196,7 @@ async def get_source_details(
 )
 async def get_lineage(
     context: DiscoveryToolContext,
+    ctx: Context,
     name: str | None = None,
     unique_id: str | None = None,
     direction: str = "both",
@@ -225,17 +232,61 @@ async def get_lineage(
     if name is not None:
         matches = await context.lineage_fetcher.search_all_resources(name)
         if not matches:
-            raise InvalidParameterError(f"No resource found with name '{name}'")
+            raise InvalidParameterError(
+                f"No resource found with name '{name}' in searchable resource types "
+                f"(models, sources, seeds, snapshots).\n\n"
+                f"If this is an exposure, test, or metric, you must use the full unique_id instead:\n"
+                f"  • For exposures: get_lineage(unique_id='exposure.project.{name}')\n"
+                f"  • For tests: get_lineage(unique_id='test.project.{name}')\n"
+                f"  • For metrics: get_lineage(unique_id='metric.project.{name}')\n\n"
+                f"Note: The Discovery API does not support searching exposures, tests, or metrics by name. "
+                f"You can find unique IDs in your dbt Cloud project or manifest.json."
+            )
         if len(matches) == 1:
             resolved_unique_id = matches[0]["uniqueId"]
         else:
-            # Multiple matches - return disambiguation response
-            return {
-                "status": "disambiguation_required",
-                "message": f"Multiple resources found with name '{name}'",
-                "matches": matches,
-                "instruction": "Please call get_lineage again with the unique_id parameter set to one of the matches above.",
-            }
+            # Multiple matches - try elicitation first, fallback to disambiguation
+            try:
+                # Format matches for display
+                match_descriptions = [
+                    f"{m['resourceType']}: {m['uniqueId']}" for m in matches
+                ]
+                message = (
+                    f"Multiple resources found with name '{name}':\n"
+                    + "\n".join(f"  {i+1}. {desc}" for i, desc in enumerate(match_descriptions))
+                    + "\n\nSelect the unique_id of the resource you want:"
+                )
+
+                result = await ctx.elicit(
+                    message=message,
+                    schema=ResourceSelection
+                )
+
+                if result.action == "accept":
+                    # Validate the selected unique_id is in matches
+                    selected_id = result.data.unique_id
+                    if selected_id in [m["uniqueId"] for m in matches]:
+                        resolved_unique_id = selected_id
+                    else:
+                        raise InvalidParameterError(
+                            f"Selected unique_id '{selected_id}' not in available matches"
+                        )
+                else:
+                    # User declined or cancelled
+                    return {
+                        "status": "disambiguation_declined",
+                        "message": f"User {result.action}ed resource selection",
+                        "matches": matches,
+                    }
+            except Exception as e:
+                # Elicitation failed, timed out, or not supported - return disambiguation response
+                logger.debug(f"Elicitation not completed: {type(e).__name__}: {e}")
+                return {
+                    "status": "disambiguation_required",
+                    "message": f"Multiple resources found with name '{name}'",
+                    "matches": matches,
+                    "instruction": "Please call get_lineage again with the unique_id parameter set to one of the matches above.",
+                }
 
     return await context.lineage_fetcher.fetch_lineage(
         unique_id=resolved_unique_id,  # type: ignore[arg-type]

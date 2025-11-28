@@ -308,6 +308,60 @@ class GraphQLQueries:
         }
     """)
 
+    GET_SEEDS = textwrap.dedent("""
+        query GetSeeds(
+            $environmentId: BigInt!,
+            $seedsFilter: GenericMaterializedFilter,
+            $after: String,
+            $first: Int
+        ) {
+            environment(id: $environmentId) {
+                applied {
+                    seeds(filter: $seedsFilter, after: $after, first: $first) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
+                        edges {
+                            node {
+                                name
+                                uniqueId
+                                resourceType
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    """)
+
+    GET_SNAPSHOTS = textwrap.dedent("""
+        query GetSnapshots(
+            $environmentId: BigInt!,
+            $snapshotsFilter: GenericMaterializedFilter,
+            $after: String,
+            $first: Int
+        ) {
+            environment(id: $environmentId) {
+                applied {
+                    snapshots(filter: $snapshotsFilter, after: $after, first: $first) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
+                        edges {
+                            node {
+                                name
+                                uniqueId
+                                resourceType
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    """)
+
     GET_SOURCE_DETAILS = textwrap.dedent("""
         query GetSourceDetails(
             $environmentId: BigInt!,
@@ -966,11 +1020,63 @@ class LineageFetcher:
             for edge in edges
         ]
 
+    async def search_seeds_by_name(self, name: str) -> list[dict]:
+        """Search for seeds by name/identifier.
+
+        Returns list of matches with uniqueId, name, and resourceType.
+        """
+        variables = {
+            "environmentId": await self.get_environment_id(),
+            "seedsFilter": {"identifier": name},
+            "first": PAGE_SIZE,
+        }
+        result = await self.api_client.execute_query(
+            GraphQLQueries.GET_SEEDS, variables
+        )
+        raise_gql_error(result)
+        edges = result["data"]["environment"]["applied"]["seeds"]["edges"]
+        if not edges:
+            return []
+        return [
+            {
+                "uniqueId": edge["node"]["uniqueId"],
+                "name": edge["node"]["name"],
+                "resourceType": "Seed",
+            }
+            for edge in edges
+        ]
+
+    async def search_snapshots_by_name(self, name: str) -> list[dict]:
+        """Search for snapshots by name/identifier.
+
+        Returns list of matches with uniqueId, name, and resourceType.
+        """
+        variables = {
+            "environmentId": await self.get_environment_id(),
+            "snapshotsFilter": {"identifier": name},
+            "first": PAGE_SIZE,
+        }
+        result = await self.api_client.execute_query(
+            GraphQLQueries.GET_SNAPSHOTS, variables
+        )
+        raise_gql_error(result)
+        edges = result["data"]["environment"]["applied"]["snapshots"]["edges"]
+        if not edges:
+            return []
+        return [
+            {
+                "uniqueId": edge["node"]["uniqueId"],
+                "name": edge["node"]["name"],
+                "resourceType": "Snapshot",
+            }
+            for edge in edges
+        ]
+
     async def search_all_resources(self, name: str) -> list[dict]:
         """Search for resources by name across all supported types.
 
-        Uses pragmatic resolution: models first (most common), then sources.
-        Returns all matches found.
+        Searches models, sources, seeds, and snapshots by identifier.
+        Returns all matches found across all resource types.
         """
         matches: list[dict] = []
 
@@ -982,8 +1088,13 @@ class LineageFetcher:
         source_matches = await self.search_sources_by_name(name)
         matches.extend(source_matches)
 
-        # Note: Additional resource types (seeds, snapshots, etc.) could be added here
-        # For now, models and sources cover the most common use cases
+        # Search seeds
+        seed_matches = await self.search_seeds_by_name(name)
+        matches.extend(seed_matches)
+
+        # Search snapshots
+        snapshot_matches = await self.search_snapshots_by_name(name)
+        matches.extend(snapshot_matches)
 
         return matches
 

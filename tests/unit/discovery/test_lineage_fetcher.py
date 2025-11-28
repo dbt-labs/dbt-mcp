@@ -39,8 +39,64 @@ class TestSearchResources:
         assert result[0]["uniqueId"] == "model.jaffle_shop.customers"
         assert result[0]["resourceType"] == "Model"
 
-    async def test_search_all_resources_both_found(self, lineage_fetcher, mock_api_client):
-        """When both model and source exist with same name."""
+    async def test_search_seeds_by_name(self, lineage_fetcher, mock_api_client):
+        mock_api_client.execute_query.return_value = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "seeds": {
+                            "pageInfo": {"endCursor": None},
+                            "edges": [
+                                {
+                                    "node": {
+                                        "name": "raw_customers",
+                                        "uniqueId": "seed.jaffle_shop.raw_customers",
+                                        "resourceType": "Seed",
+                                    }
+                                }
+                            ],
+                        }
+                    }
+                }
+            }
+        }
+
+        result = await lineage_fetcher.search_seeds_by_name("raw_customers")
+
+        assert len(result) == 1
+        assert result[0]["uniqueId"] == "seed.jaffle_shop.raw_customers"
+        assert result[0]["resourceType"] == "Seed"
+
+    async def test_search_snapshots_by_name(self, lineage_fetcher, mock_api_client):
+        mock_api_client.execute_query.return_value = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "snapshots": {
+                            "pageInfo": {"endCursor": None},
+                            "edges": [
+                                {
+                                    "node": {
+                                        "name": "orders_snapshot",
+                                        "uniqueId": "snapshot.jaffle_shop.orders_snapshot",
+                                        "resourceType": "Snapshot",
+                                    }
+                                }
+                            ],
+                        }
+                    }
+                }
+            }
+        }
+
+        result = await lineage_fetcher.search_snapshots_by_name("orders_snapshot")
+
+        assert len(result) == 1
+        assert result[0]["uniqueId"] == "snapshot.jaffle_shop.orders_snapshot"
+        assert result[0]["resourceType"] == "Snapshot"
+
+    async def test_search_all_resources_all_types_found(self, lineage_fetcher, mock_api_client):
+        """When model, source, seed, and snapshot all exist with same name."""
         model_response = {
             "data": {
                 "environment": {
@@ -81,14 +137,61 @@ class TestSearchResources:
                 }
             }
         }
+        seed_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "seeds": {
+                            "pageInfo": {"endCursor": None},
+                            "edges": [
+                                {
+                                    "node": {
+                                        "name": "customers",
+                                        "uniqueId": "seed.jaffle_shop.customers",
+                                        "resourceType": "Seed",
+                                    }
+                                }
+                            ],
+                        }
+                    }
+                }
+            }
+        }
+        snapshot_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "snapshots": {
+                            "pageInfo": {"endCursor": None},
+                            "edges": [
+                                {
+                                    "node": {
+                                        "name": "customers",
+                                        "uniqueId": "snapshot.jaffle_shop.customers",
+                                        "resourceType": "Snapshot",
+                                    }
+                                }
+                            ],
+                        }
+                    }
+                }
+            }
+        }
 
-        mock_api_client.execute_query.side_effect = [model_response, source_response]
+        mock_api_client.execute_query.side_effect = [
+            model_response,
+            source_response,
+            seed_response,
+            snapshot_response,
+        ]
 
         result = await lineage_fetcher.search_all_resources("customers")
 
-        assert len(result) == 2
+        assert len(result) == 4
         assert result[0]["resourceType"] == "Model"
         assert result[1]["resourceType"] == "Source"
+        assert result[2]["resourceType"] == "Seed"
+        assert result[3]["resourceType"] == "Snapshot"
 
 
 class TestBuildSelector:

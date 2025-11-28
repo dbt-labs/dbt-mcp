@@ -46,3 +46,11 @@ def mock_discovery_context():
     context.lineage_fetcher.search_all_resources = AsyncMock()
     context.lineage_fetcher.fetch_lineage = AsyncMock()
     return context
+
+
+@pytest.fixture
+def mock_mcp_context():
+    """Shared mock MCP Context for elicitation testing."""
+    ctx = Mock()
+    ctx.elicit = AsyncMock()
+    return ctx
