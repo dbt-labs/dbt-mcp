@@ -9,6 +9,7 @@ from dbt_mcp.gql.errors import raise_gql_error
 
 PAGE_SIZE = 100
 MAX_NODE_QUERY_LIMIT = 1000
+LINEAGE_LIMIT = 50  # Max nodes per direction for Lineage Tool(ancestors/descendants)
 
 
 class GraphQLQueries:
@@ -307,6 +308,60 @@ class GraphQLQueries:
         }
     """)
 
+    GET_SEEDS = textwrap.dedent("""
+        query GetSeeds(
+            $environmentId: BigInt!,
+            $seedsFilter: GenericMaterializedFilter,
+            $after: String,
+            $first: Int
+        ) {
+            environment(id: $environmentId) {
+                applied {
+                    seeds(filter: $seedsFilter, after: $after, first: $first) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
+                        edges {
+                            node {
+                                name
+                                uniqueId
+                                resourceType
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    """)
+
+    GET_SNAPSHOTS = textwrap.dedent("""
+        query GetSnapshots(
+            $environmentId: BigInt!,
+            $snapshotsFilter: GenericMaterializedFilter,
+            $after: String,
+            $first: Int
+        ) {
+            environment(id: $environmentId) {
+                applied {
+                    snapshots(filter: $snapshotsFilter, after: $after, first: $first) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
+                        edges {
+                            node {
+                                name
+                                uniqueId
+                                resourceType
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    """)
+
     GET_SOURCE_DETAILS = textwrap.dedent("""
         query GetSourceDetails(
             $environmentId: BigInt!,
@@ -391,6 +446,135 @@ class GraphQLQueries:
                                     uniqueId
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        }
+    """)
+
+    GET_LINEAGE = textwrap.dedent("""
+        query GetLineage($environmentId: BigInt!, $filter: LineageFilter) {
+            environment(id: $environmentId) {
+                applied {
+                    lineage(filter: $filter) {
+                        ... on ModelLineageNode {
+                            uniqueId
+                            name
+                            resourceType
+                            filePath
+                            matchesMethod
+                            tags
+                            projectId
+                            fqn
+                            database
+                            schema
+                            alias
+                            materializationType
+                            lastRunStatus
+                        }
+                        ... on SourceLineageNode {
+                            uniqueId
+                            name
+                            resourceType
+                            filePath
+                            matchesMethod
+                            tags
+                            projectId
+                            fqn
+                            database
+                            schema
+                            sourceName
+                            lastRunStatus
+                        }
+                        ... on SeedLineageNode {
+                            uniqueId
+                            name
+                            resourceType
+                            filePath
+                            matchesMethod
+                            tags
+                            projectId
+                            fqn
+                            database
+                            schema
+                            alias
+                            lastRunStatus
+                        }
+                        ... on SnapshotLineageNode {
+                            uniqueId
+                            name
+                            resourceType
+                            filePath
+                            matchesMethod
+                            tags
+                            projectId
+                            fqn
+                            database
+                            schema
+                            alias
+                            lastRunStatus
+                        }
+                        ... on ExposureLineageNode {
+                            uniqueId
+                            name
+                            resourceType
+                            filePath
+                            matchesMethod
+                            tags
+                            projectId
+                            fqn
+                        }
+                        ... on MetricLineageNode {
+                            uniqueId
+                            name
+                            resourceType
+                            filePath
+                            matchesMethod
+                            tags
+                            projectId
+                            fqn
+                        }
+                        ... on SemanticModelLineageNode {
+                            uniqueId
+                            name
+                            resourceType
+                            filePath
+                            matchesMethod
+                            tags
+                            projectId
+                            fqn
+                            publicParentIds
+                        }
+                        ... on SavedQueryLineageNode {
+                            uniqueId
+                            name
+                            resourceType
+                            filePath
+                            matchesMethod
+                            tags
+                            projectId
+                            fqn
+                        }
+                        ... on MacroLineageNode {
+                            uniqueId
+                            name
+                            resourceType
+                            filePath
+                            matchesMethod
+                            tags
+                            projectId
+                        }
+                        ... on TestLineageNode {
+                            uniqueId
+                            name
+                            resourceType
+                            filePath
+                            matchesMethod
+                            tags
+                            projectId
+                            fqn
+                            lastRunStatus
                         }
                     }
                 }
@@ -750,3 +934,295 @@ class SourcesFetcher:
         if not edges:
             return {}
         return edges[0]["node"]
+
+
+class LineageDirection:
+    ANCESTORS = "ancestors"
+    DESCENDANTS = "descendants"
+    BOTH = "both"
+
+
+VALID_DIRECTIONS = (LineageDirection.ANCESTORS, LineageDirection.DESCENDANTS, LineageDirection.BOTH)
+
+VALID_RESOURCE_TYPES = {
+    "Model",
+    "Source",
+    "Seed",
+    "Snapshot",
+    "Exposure",
+    "Metric",
+    "SemanticModel",
+    "SavedQuery",
+    "Macro",
+    "Test",
+}
+
+
+# Resource search configuration mapping - module-level constant
+_RESOURCE_SEARCH_CONFIG = {
+    "Model": {
+        "filter_key": "modelsFilter",
+        "query": GraphQLQueries.GET_MODELS,
+        "response_path": "models",
+    },
+    "Source": {
+        "filter_key": "sourcesFilter",
+        "query": GraphQLQueries.GET_SOURCES,
+        "response_path": "sources",
+    },
+    "Seed": {
+        "filter_key": "seedsFilter",
+        "query": GraphQLQueries.GET_SEEDS,
+        "response_path": "seeds",
+    },
+    "Snapshot": {
+        "filter_key": "snapshotsFilter",
+        "query": GraphQLQueries.GET_SNAPSHOTS,
+        "response_path": "snapshots",
+    },
+}
+
+
+class LineageFetcher:
+    """Fetcher for lineage data using the Discovery API's lineage query."""
+
+    def __init__(self, api_client: MetadataAPIClient):
+        self.api_client = api_client
+
+    async def get_environment_id(self) -> int:
+        config = await self.api_client.config_provider.get_config()
+        return config.environment_id
+
+    async def search_resource_by_name(self, name: str, resource_type: str) -> list[dict]:
+        """Search for a resource by name/identifier.
+
+        Generic method that handles searching for any supported resource type.
+
+        Args:
+            name: The resource name/identifier to search for
+            resource_type: Type of resource ("Model", "Source", "Seed", "Snapshot")
+
+        Returns:
+            List of matches with uniqueId, name, and resourceType keys
+
+        Raises:
+            ValueError: If resource_type is not supported
+        """
+        if resource_type not in _RESOURCE_SEARCH_CONFIG:
+            raise ValueError(
+                f"Unsupported resource_type: {resource_type}. "
+                f"Must be one of: {', '.join(_RESOURCE_SEARCH_CONFIG.keys())}"
+            )
+
+        config = _RESOURCE_SEARCH_CONFIG[resource_type]
+
+        # Build GraphQL variables
+        variables = {
+            "environmentId": await self.get_environment_id(),
+            config["filter_key"]: {"identifier": name},
+            "first": PAGE_SIZE,
+        }
+
+        # Execute query - already a direct reference to the query string
+        query = config["query"]
+        result = await self.api_client.execute_query(query, variables)
+        raise_gql_error(result)
+
+        # Extract edges from response using configured path
+        edges = result["data"]["environment"]["applied"][config["response_path"]]["edges"]
+        if not edges:
+            return []
+
+        # Transform to standard format
+        return [
+            {
+                "uniqueId": edge["node"]["uniqueId"],
+                "name": edge["node"]["name"],
+                "resourceType": resource_type,
+            }
+            for edge in edges
+        ]
+
+    async def search_all_resources(self, name: str) -> list[dict]:
+        """Search for resources by name across all supported types.
+
+        Searches models, sources, seeds, and snapshots by identifier.
+        Returns all matches found across all resource types.
+        """
+        matches: list[dict] = []
+
+        # Loop through all configured resource types
+        for resource_type in _RESOURCE_SEARCH_CONFIG.keys():
+            results = await self.search_resource_by_name(name, resource_type)
+            matches.extend(results)
+
+        return matches
+
+    def _build_selector(self, unique_id: str, direction: str) -> str:
+        """Build dbt selector syntax based on direction.
+
+        - ancestors: +uniqueId (upstream)
+        - descendants: uniqueId+ (downstream)
+        - both: +uniqueId+ (both directions)
+        """
+        if direction not in VALID_DIRECTIONS:
+            raise ValueError(
+                f"Invalid direction: {direction}. "
+                f"Must be one of: {', '.join(repr(d) for d in VALID_DIRECTIONS)}"
+            )
+
+        if direction == LineageDirection.ANCESTORS:
+            return f"+{unique_id}"
+        elif direction == LineageDirection.DESCENDANTS:
+            return f"{unique_id}+"
+        else:  # both
+            return f"+{unique_id}+"
+
+    async def fetch_lineage(
+        self,
+        unique_id: str,
+        direction: str = LineageDirection.BOTH,
+        types: list[str] | None = None,
+    ) -> dict:
+        """Fetch lineage for a resource.
+
+        Args:
+            unique_id: The dbt unique ID of the resource
+            direction: One of 'ancestors', 'descendants', or 'both'
+            types: Optional list of resource types to filter results
+
+        Returns:
+            Dict with 'target', 'ancestors', and/or 'descendants' keys
+        """
+        # Validate direction parameter
+        if direction not in VALID_DIRECTIONS:
+            raise ValueError(
+                f"Invalid direction: {direction}. "
+                f"Must be one of: {', '.join(repr(d) for d in VALID_DIRECTIONS)}"
+            )
+
+        # Validate types parameter
+        if types is not None:
+            invalid_types = set(types) - VALID_RESOURCE_TYPES
+            if invalid_types:
+                raise ValueError(
+                    f"Invalid resource type(s): {invalid_types}. "
+                    f"Valid types are: {', '.join(sorted(VALID_RESOURCE_TYPES))}"
+                )
+
+        # For "both" direction, make two separate API calls to correctly
+        # categorize ancestors and descendants (BUG-001 fix)
+        if direction == LineageDirection.BOTH:
+            ancestors_result = await self._fetch_lineage_single_direction(
+                unique_id, LineageDirection.ANCESTORS, types
+            )
+            descendants_result = await self._fetch_lineage_single_direction(
+                unique_id, LineageDirection.DESCENDANTS, types
+            )
+            # Merge results - use target from either (they should be the same)
+            target = (
+                ancestors_result.get("target") or descendants_result.get("target")
+            )
+
+            # Merge pagination from both directions
+            ancestors_pagination = ancestors_result.get("pagination", {})
+            descendants_pagination = descendants_result.get("pagination", {})
+
+            return {
+                "target": target,
+                "ancestors": ancestors_result.get("ancestors", []),
+                "descendants": descendants_result.get("descendants", []),
+                "pagination": {
+                    "limit": LINEAGE_LIMIT,
+                    "ancestors_total": ancestors_pagination.get("ancestors_total", 0),
+                    "ancestors_truncated": ancestors_pagination.get(
+                        "ancestors_truncated", False
+                    ),
+                    "descendants_total": descendants_pagination.get(
+                        "descendants_total", 0
+                    ),
+                    "descendants_truncated": descendants_pagination.get(
+                        "descendants_truncated", False
+                    ),
+                },
+            }
+        else:
+            return await self._fetch_lineage_single_direction(
+                unique_id, direction, types
+            )
+
+    async def _fetch_lineage_single_direction(
+        self,
+        unique_id: str,
+        direction: str,
+        types: list[str] | None = None,
+    ) -> dict:
+        """Fetch lineage for a single direction (ancestors or descendants).
+
+        Internal method used by fetch_lineage.
+        """
+        selector = self._build_selector(unique_id, direction)
+
+        lineage_filter: dict = {"uniqueIds": [selector]}
+        if types:
+            lineage_filter["types"] = types
+
+        variables = {
+            "environmentId": await self.get_environment_id(),
+            "filter": lineage_filter,
+        }
+
+        result = await self.api_client.execute_query(
+            GraphQLQueries.GET_LINEAGE, variables
+        )
+        raise_gql_error(result)
+
+        lineage_nodes = result["data"]["environment"]["applied"]["lineage"]
+        if not lineage_nodes:
+            return {"target": None, "ancestors": [], "descendants": []}
+
+        return self._transform_lineage_response(lineage_nodes, direction)
+
+    def _transform_lineage_response(
+        self, nodes: list[dict], direction: str
+    ) -> dict:
+        """Transform raw lineage response into structured output.
+
+        Separates target node (matchesMethod=true) from lineage nodes.
+        Applies LINEAGE_LIMIT and includes pagination metadata.
+        This method handles single-direction queries only (ancestors OR descendants).
+        The "both" direction is handled by fetch_lineage via two separate calls.
+        """
+        target: dict | None = None
+        lineage_nodes: list[dict] = []
+
+        for node in nodes:
+            if node.get("matchesMethod"):
+                target = node
+            else:
+                lineage_nodes.append(node)
+
+        # Apply limit and track truncation
+        total = len(lineage_nodes)
+        truncated = total > LINEAGE_LIMIT
+        lineage_nodes = lineage_nodes[:LINEAGE_LIMIT]
+
+        # Build response based on direction
+        response: dict = {"target": target}
+
+        if direction == LineageDirection.ANCESTORS:
+            response["ancestors"] = lineage_nodes
+            response["pagination"] = {
+                "limit": LINEAGE_LIMIT,
+                "ancestors_total": total,
+                "ancestors_truncated": truncated,
+            }
+        elif direction == LineageDirection.DESCENDANTS:
+            response["descendants"] = lineage_nodes
+            response["pagination"] = {
+                "limit": LINEAGE_LIMIT,
+                "descendants_total": total,
+                "descendants_truncated": truncated,
+            }
+
+        return response
