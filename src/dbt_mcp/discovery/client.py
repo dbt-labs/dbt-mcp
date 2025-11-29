@@ -958,6 +958,32 @@ VALID_RESOURCE_TYPES = {
 }
 
 
+# Resource search configuration mapping - module-level constant
+# Using direct query references instead of strings for compile-time validation
+_RESOURCE_SEARCH_CONFIG = {
+    "Model": {
+        "filter_key": "modelsFilter",
+        "query": GraphQLQueries.GET_MODELS,
+        "response_path": "models",
+    },
+    "Source": {
+        "filter_key": "sourcesFilter",
+        "query": GraphQLQueries.GET_SOURCES,
+        "response_path": "sources",
+    },
+    "Seed": {
+        "filter_key": "seedsFilter",
+        "query": GraphQLQueries.GET_SEEDS,
+        "response_path": "seeds",
+    },
+    "Snapshot": {
+        "filter_key": "snapshotsFilter",
+        "query": GraphQLQueries.GET_SNAPSHOTS,
+        "response_path": "snapshots",
+    },
+}
+
+
 class LineageFetcher:
     """Fetcher for lineage data using the Discovery API's lineage query."""
 
@@ -967,30 +993,6 @@ class LineageFetcher:
     async def get_environment_id(self) -> int:
         config = await self.api_client.config_provider.get_config()
         return config.environment_id
-
-    # Resource search configuration mapping
-    _RESOURCE_SEARCH_CONFIG = {
-        "Model": {
-            "filter_key": "modelsFilter",
-            "query": "GET_MODELS",
-            "response_path": "models",
-        },
-        "Source": {
-            "filter_key": "sourcesFilter",
-            "query": "GET_SOURCES",
-            "response_path": "sources",
-        },
-        "Seed": {
-            "filter_key": "seedsFilter",
-            "query": "GET_SEEDS",
-            "response_path": "seeds",
-        },
-        "Snapshot": {
-            "filter_key": "snapshotsFilter",
-            "query": "GET_SNAPSHOTS",
-            "response_path": "snapshots",
-        },
-    }
 
     async def search_resource_by_name(self, name: str, resource_type: str) -> list[dict]:
         """Search for a resource by name/identifier.
@@ -1007,13 +1009,13 @@ class LineageFetcher:
         Raises:
             ValueError: If resource_type is not supported
         """
-        if resource_type not in self._RESOURCE_SEARCH_CONFIG:
+        if resource_type not in _RESOURCE_SEARCH_CONFIG:
             raise ValueError(
                 f"Unsupported resource_type: {resource_type}. "
-                f"Must be one of: {', '.join(self._RESOURCE_SEARCH_CONFIG.keys())}"
+                f"Must be one of: {', '.join(_RESOURCE_SEARCH_CONFIG.keys())}"
             )
 
-        config = self._RESOURCE_SEARCH_CONFIG[resource_type]
+        config = _RESOURCE_SEARCH_CONFIG[resource_type]
 
         # Build GraphQL variables
         variables = {
@@ -1022,8 +1024,8 @@ class LineageFetcher:
             "first": PAGE_SIZE,
         }
 
-        # Execute query using the configured GraphQL query
-        query = getattr(GraphQLQueries, config["query"])
+        # Execute query - already a direct reference to the query string
+        query = config["query"]
         result = await self.api_client.execute_query(query, variables)
         raise_gql_error(result)
 
@@ -1051,7 +1053,7 @@ class LineageFetcher:
         matches: list[dict] = []
 
         # Loop through all configured resource types
-        for resource_type in self._RESOURCE_SEARCH_CONFIG.keys():
+        for resource_type in _RESOURCE_SEARCH_CONFIG.keys():
             results = await self.search_resource_by_name(name, resource_type)
             matches.extend(results)
 
