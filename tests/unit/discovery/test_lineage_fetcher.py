@@ -10,7 +10,8 @@ async def test_get_environment_id(lineage_fetcher):
 class TestSearchResources:
     """Test resource search functionality."""
 
-    async def test_search_models_by_name(self, lineage_fetcher, mock_api_client):
+    async def test_search_resource_by_name_models(self, lineage_fetcher, mock_api_client):
+        """Test searching for models using the generic search method."""
         mock_api_client.execute_query.return_value = {
             "data": {
                 "environment": {
@@ -32,13 +33,14 @@ class TestSearchResources:
             }
         }
 
-        result = await lineage_fetcher.search_models_by_name("customers")
+        result = await lineage_fetcher.search_resource_by_name("customers", "Model")
 
         assert len(result) == 1
         assert result[0]["uniqueId"] == "model.jaffle_shop.customers"
         assert result[0]["resourceType"] == "Model"
 
-    async def test_search_seeds_by_name(self, lineage_fetcher, mock_api_client):
+    async def test_search_resource_by_name_seeds(self, lineage_fetcher, mock_api_client):
+        """Test searching for seeds using the generic search method."""
         mock_api_client.execute_query.return_value = {
             "data": {
                 "environment": {
@@ -60,13 +62,14 @@ class TestSearchResources:
             }
         }
 
-        result = await lineage_fetcher.search_seeds_by_name("raw_customers")
+        result = await lineage_fetcher.search_resource_by_name("raw_customers", "Seed")
 
         assert len(result) == 1
         assert result[0]["uniqueId"] == "seed.jaffle_shop.raw_customers"
         assert result[0]["resourceType"] == "Seed"
 
-    async def test_search_snapshots_by_name(self, lineage_fetcher, mock_api_client):
+    async def test_search_resource_by_name_snapshots(self, lineage_fetcher, mock_api_client):
+        """Test searching for snapshots using the generic search method."""
         mock_api_client.execute_query.return_value = {
             "data": {
                 "environment": {
@@ -88,7 +91,7 @@ class TestSearchResources:
             }
         }
 
-        result = await lineage_fetcher.search_snapshots_by_name("orders_snapshot")
+        result = await lineage_fetcher.search_resource_by_name("orders_snapshot", "Snapshot")
 
         assert len(result) == 1
         assert result[0]["uniqueId"] == "snapshot.jaffle_shop.orders_snapshot"

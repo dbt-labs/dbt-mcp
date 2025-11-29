@@ -1042,35 +1042,6 @@ class LineageFetcher:
             for edge in edges
         ]
 
-    # Backward compatibility wrappers - keep existing method names for external callers
-    async def search_models_by_name(self, name: str) -> list[dict]:
-        """Search for models by name/identifier.
-
-        Returns list of matches with uniqueId, name, and resourceType.
-        """
-        return await self.search_resource_by_name(name, "Model")
-
-    async def search_sources_by_name(self, name: str) -> list[dict]:
-        """Search for sources by name/identifier.
-
-        Returns list of matches with uniqueId, name, and resourceType.
-        """
-        return await self.search_resource_by_name(name, "Source")
-
-    async def search_seeds_by_name(self, name: str) -> list[dict]:
-        """Search for seeds by name/identifier.
-
-        Returns list of matches with uniqueId, name, and resourceType.
-        """
-        return await self.search_resource_by_name(name, "Seed")
-
-    async def search_snapshots_by_name(self, name: str) -> list[dict]:
-        """Search for snapshots by name/identifier.
-
-        Returns list of matches with uniqueId, name, and resourceType.
-        """
-        return await self.search_resource_by_name(name, "Snapshot")
-
     async def search_all_resources(self, name: str) -> list[dict]:
         """Search for resources by name across all supported types.
 
