@@ -1,4 +1,3 @@
-import pytest
 
 from dbt_mcp.discovery.client import LineageDirection
 
