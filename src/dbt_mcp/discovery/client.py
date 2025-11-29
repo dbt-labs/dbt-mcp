@@ -968,109 +968,108 @@ class LineageFetcher:
         config = await self.api_client.config_provider.get_config()
         return config.environment_id
 
+    # Resource search configuration mapping
+    _RESOURCE_SEARCH_CONFIG = {
+        "Model": {
+            "filter_key": "modelsFilter",
+            "query": "GET_MODELS",
+            "response_path": "models",
+        },
+        "Source": {
+            "filter_key": "sourcesFilter",
+            "query": "GET_SOURCES",
+            "response_path": "sources",
+        },
+        "Seed": {
+            "filter_key": "seedsFilter",
+            "query": "GET_SEEDS",
+            "response_path": "seeds",
+        },
+        "Snapshot": {
+            "filter_key": "snapshotsFilter",
+            "query": "GET_SNAPSHOTS",
+            "response_path": "snapshots",
+        },
+    }
+
+    async def search_resource_by_name(self, name: str, resource_type: str) -> list[dict]:
+        """Search for a resource by name/identifier.
+
+        Generic method that handles searching for any supported resource type.
+
+        Args:
+            name: The resource name/identifier to search for
+            resource_type: Type of resource ("Model", "Source", "Seed", "Snapshot")
+
+        Returns:
+            List of matches with uniqueId, name, and resourceType keys
+
+        Raises:
+            ValueError: If resource_type is not supported
+        """
+        if resource_type not in self._RESOURCE_SEARCH_CONFIG:
+            raise ValueError(
+                f"Unsupported resource_type: {resource_type}. "
+                f"Must be one of: {', '.join(self._RESOURCE_SEARCH_CONFIG.keys())}"
+            )
+
+        config = self._RESOURCE_SEARCH_CONFIG[resource_type]
+
+        # Build GraphQL variables
+        variables = {
+            "environmentId": await self.get_environment_id(),
+            config["filter_key"]: {"identifier": name},
+            "first": PAGE_SIZE,
+        }
+
+        # Execute query using the configured GraphQL query
+        query = getattr(GraphQLQueries, config["query"])
+        result = await self.api_client.execute_query(query, variables)
+        raise_gql_error(result)
+
+        # Extract edges from response using configured path
+        edges = result["data"]["environment"]["applied"][config["response_path"]]["edges"]
+        if not edges:
+            return []
+
+        # Transform to standard format
+        return [
+            {
+                "uniqueId": edge["node"]["uniqueId"],
+                "name": edge["node"]["name"],
+                "resourceType": resource_type,
+            }
+            for edge in edges
+        ]
+
+    # Backward compatibility wrappers - keep existing method names for external callers
     async def search_models_by_name(self, name: str) -> list[dict]:
         """Search for models by name/identifier.
 
         Returns list of matches with uniqueId, name, and resourceType.
         """
-        variables = {
-            "environmentId": await self.get_environment_id(),
-            "modelsFilter": {"identifier": name},
-            "first": PAGE_SIZE,
-        }
-        result = await self.api_client.execute_query(
-            GraphQLQueries.GET_MODELS, variables
-        )
-        raise_gql_error(result)
-        edges = result["data"]["environment"]["applied"]["models"]["edges"]
-        if not edges:
-            return []
-        return [
-            {
-                "uniqueId": edge["node"]["uniqueId"],
-                "name": edge["node"]["name"],
-                "resourceType": "Model",
-            }
-            for edge in edges
-        ]
+        return await self.search_resource_by_name(name, "Model")
 
     async def search_sources_by_name(self, name: str) -> list[dict]:
         """Search for sources by name/identifier.
 
         Returns list of matches with uniqueId, name, and resourceType.
         """
-        variables = {
-            "environmentId": await self.get_environment_id(),
-            "sourcesFilter": {"identifier": name},
-            "first": PAGE_SIZE,
-        }
-        result = await self.api_client.execute_query(
-            GraphQLQueries.GET_SOURCES, variables
-        )
-        raise_gql_error(result)
-        edges = result["data"]["environment"]["applied"]["sources"]["edges"]
-        if not edges:
-            return []
-        return [
-            {
-                "uniqueId": edge["node"]["uniqueId"],
-                "name": edge["node"]["name"],
-                "resourceType": "Source",
-            }
-            for edge in edges
-        ]
+        return await self.search_resource_by_name(name, "Source")
 
     async def search_seeds_by_name(self, name: str) -> list[dict]:
         """Search for seeds by name/identifier.
 
         Returns list of matches with uniqueId, name, and resourceType.
         """
-        variables = {
-            "environmentId": await self.get_environment_id(),
-            "seedsFilter": {"identifier": name},
-            "first": PAGE_SIZE,
-        }
-        result = await self.api_client.execute_query(
-            GraphQLQueries.GET_SEEDS, variables
-        )
-        raise_gql_error(result)
-        edges = result["data"]["environment"]["applied"]["seeds"]["edges"]
-        if not edges:
-            return []
-        return [
-            {
-                "uniqueId": edge["node"]["uniqueId"],
-                "name": edge["node"]["name"],
-                "resourceType": "Seed",
-            }
-            for edge in edges
-        ]
+        return await self.search_resource_by_name(name, "Seed")
 
     async def search_snapshots_by_name(self, name: str) -> list[dict]:
         """Search for snapshots by name/identifier.
 
         Returns list of matches with uniqueId, name, and resourceType.
         """
-        variables = {
-            "environmentId": await self.get_environment_id(),
-            "snapshotsFilter": {"identifier": name},
-            "first": PAGE_SIZE,
-        }
-        result = await self.api_client.execute_query(
-            GraphQLQueries.GET_SNAPSHOTS, variables
-        )
-        raise_gql_error(result)
-        edges = result["data"]["environment"]["applied"]["snapshots"]["edges"]
-        if not edges:
-            return []
-        return [
-            {
-                "uniqueId": edge["node"]["uniqueId"],
-                "name": edge["node"]["name"],
-                "resourceType": "Snapshot",
-            }
-            for edge in edges
-        ]
+        return await self.search_resource_by_name(name, "Snapshot")
 
     async def search_all_resources(self, name: str) -> list[dict]:
         """Search for resources by name across all supported types.
