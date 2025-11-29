@@ -1079,21 +1079,10 @@ class LineageFetcher:
         """
         matches: list[dict] = []
 
-        # Search models first (fast path for ~90% of cases)
-        model_matches = await self.search_models_by_name(name)
-        matches.extend(model_matches)
-
-        # Search sources
-        source_matches = await self.search_sources_by_name(name)
-        matches.extend(source_matches)
-
-        # Search seeds
-        seed_matches = await self.search_seeds_by_name(name)
-        matches.extend(seed_matches)
-
-        # Search snapshots
-        snapshot_matches = await self.search_snapshots_by_name(name)
-        matches.extend(snapshot_matches)
+        # Loop through all configured resource types
+        for resource_type in self._RESOURCE_SEARCH_CONFIG.keys():
+            results = await self.search_resource_by_name(name, resource_type)
+            matches.extend(results)
 
         return matches
 
