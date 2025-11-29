@@ -95,10 +95,7 @@ class DefaultDiscoveryConfigProvider(ConfigProvider[DiscoveryConfig]):
             and settings.actual_prod_environment_id
             and settings.dbt_token
         )
-        # Use custom Discovery API URL if provided, otherwise construct from host
-        if settings.discovery_api_url:
-            url = settings.discovery_api_url
-        elif settings.actual_host_prefix:
+        if settings.actual_host_prefix:
             url = f"https://{settings.actual_host_prefix}.metadata.{settings.actual_host}/graphql"
         else:
             url = f"https://metadata.{settings.actual_host}/graphql"
