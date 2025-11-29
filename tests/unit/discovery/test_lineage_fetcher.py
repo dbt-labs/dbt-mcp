@@ -1,3 +1,4 @@
+import pytest
 
 from dbt_mcp.discovery.client import LineageDirection
 
@@ -217,6 +218,13 @@ class TestBuildSelector:
         )
         assert result == "+model.jaffle_shop.customers+"
 
+    def test_invalid_direction_raises_error(self, lineage_fetcher):
+        """Should raise ValueError for invalid direction."""
+        with pytest.raises(ValueError, match="Invalid direction"):
+            lineage_fetcher._build_selector(
+                "model.jaffle_shop.customers", "invalid_direction"
+            )
+
 
 class TestFetchLineage:
     """Test lineage fetching functionality."""
@@ -300,6 +308,22 @@ class TestFetchLineage:
         # Verify descendants contains downstream model
         assert len(result["descendants"]) == 1
         assert result["descendants"][0]["uniqueId"] == "model.jaffle_shop.orders"
+
+    async def test_invalid_direction_raises_error(self, lineage_fetcher):
+        """Should raise ValueError for invalid direction in fetch_lineage."""
+        with pytest.raises(ValueError, match="Invalid direction"):
+            await lineage_fetcher.fetch_lineage(
+                unique_id="model.jaffle_shop.customers",
+                direction="invalid_direction"
+            )
+
+    async def test_invalid_types_raises_error(self, lineage_fetcher):
+        """Should raise ValueError for invalid resource types."""
+        with pytest.raises(ValueError, match="Invalid resource type"):
+            await lineage_fetcher.fetch_lineage(
+                unique_id="model.jaffle_shop.customers",
+                types=["Model", "InvalidType", "AnotherBadType"]
+            )
 
 
 class TestPagination:

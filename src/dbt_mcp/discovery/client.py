@@ -9,7 +9,7 @@ from dbt_mcp.gql.errors import raise_gql_error
 
 PAGE_SIZE = 100
 MAX_NODE_QUERY_LIMIT = 1000
-LINEAGE_LIMIT = 50  # Max nodes per direction (ancestors/descendants)
+LINEAGE_LIMIT = 50  # Max nodes per direction for Lineage Tool(ancestors/descendants)
 
 
 class GraphQLQueries:
@@ -959,7 +959,6 @@ VALID_RESOURCE_TYPES = {
 
 
 # Resource search configuration mapping - module-level constant
-# Using direct query references instead of strings for compile-time validation
 _RESOURCE_SEARCH_CONFIG = {
     "Model": {
         "filter_key": "modelsFilter",
@@ -1066,6 +1065,12 @@ class LineageFetcher:
         - descendants: uniqueId+ (downstream)
         - both: +uniqueId+ (both directions)
         """
+        if direction not in VALID_DIRECTIONS:
+            raise ValueError(
+                f"Invalid direction: {direction}. "
+                f"Must be one of: {', '.join(repr(d) for d in VALID_DIRECTIONS)}"
+            )
+
         if direction == LineageDirection.ANCESTORS:
             return f"+{unique_id}"
         elif direction == LineageDirection.DESCENDANTS:
@@ -1089,6 +1094,22 @@ class LineageFetcher:
         Returns:
             Dict with 'target', 'ancestors', and/or 'descendants' keys
         """
+        # Validate direction parameter
+        if direction not in VALID_DIRECTIONS:
+            raise ValueError(
+                f"Invalid direction: {direction}. "
+                f"Must be one of: {', '.join(repr(d) for d in VALID_DIRECTIONS)}"
+            )
+
+        # Validate types parameter
+        if types is not None:
+            invalid_types = set(types) - VALID_RESOURCE_TYPES
+            if invalid_types:
+                raise ValueError(
+                    f"Invalid resource type(s): {invalid_types}. "
+                    f"Valid types are: {', '.join(sorted(VALID_RESOURCE_TYPES))}"
+                )
+
         # For "both" direction, make two separate API calls to correctly
         # categorize ancestors and descendants (BUG-001 fix)
         if direction == LineageDirection.BOTH:
