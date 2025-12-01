@@ -57,7 +57,7 @@ def test_resolve_proxied_tools_configuration_respects_exclude_tools():
 
     result = resolve_proxied_tools_configuration(
         config,
-        exclude_tools=[ToolName.TEXT_TO_SQL, ToolName.SEARCH],
+        exclude_tools=[ToolName.TEXT_TO_SQL],
     )
 
     assert result == {
@@ -74,7 +74,6 @@ def test_resolve_proxied_tools_configuration_filters_disabled_sql_tools():
     assert ToolName.TEXT_TO_SQL not in result
     assert ToolName.EXECUTE_SQL not in result
     assert ToolName.GET_RELATED_MODELS in result
-    assert ToolName.SEARCH in result
 
 
 def test_resolve_proxied_tools_configuration_filters_disabled_discovery_tools():
@@ -83,6 +82,5 @@ def test_resolve_proxied_tools_configuration_filters_disabled_discovery_tools():
     result = resolve_proxied_tools_configuration(config, [])
 
     assert ToolName.GET_RELATED_MODELS not in result
-    assert ToolName.SEARCH not in result
     assert ToolName.TEXT_TO_SQL in result
     assert ToolName.EXECUTE_SQL in result
