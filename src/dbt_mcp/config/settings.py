@@ -86,6 +86,7 @@ class DbtMcpSettings(BaseSettings):
 
     # Developer settings
     file_logging: bool = Field(False, alias="DBT_MCP_SERVER_FILE_LOGGING")
+    log_level: str | int | None = Field(None, alias="DBT_MCP_LOG_LEVEL")
 
     def __repr__(self):
         """Custom repr to bring most important settings to front. Redact sensitive info."""

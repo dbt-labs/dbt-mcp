@@ -56,7 +56,7 @@ class Config:
 
 def load_config(enable_proxied_tools: bool = True) -> Config:
     settings = DbtMcpSettings()  # type: ignore
-    configure_logging(settings.file_logging)
+    configure_logging(file_logging=settings.file_logging, log_level=settings.log_level)
     credentials_provider = CredentialsProvider(settings)
 
     # Set default warn error options if not provided
