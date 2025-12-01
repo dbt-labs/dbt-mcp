@@ -107,7 +107,7 @@ class SemanticLayerFetcher:
         self.dimensions_cache: dict[str, list[DimensionToolResponse]] = {}
 
     async def list_metrics(self, search: str | None = None) -> list[MetricToolResponse]:
-        metrics_result = submit_request(
+        metrics_result = await submit_request(
             await self.config_provider.get_config(),
             {"query": GRAPHQL_QUERIES["metrics"], "variables": {"search": search}},
         )
@@ -126,7 +126,7 @@ class SemanticLayerFetcher:
         self, search: str | None = None
     ) -> list[SavedQueryToolResponse]:
         """Fetch all saved queries from the Semantic Layer API."""
-        saved_queries_result = submit_request(
+        saved_queries_result = await submit_request(
             await self.config_provider.get_config(),
             {
                 "query": GRAPHQL_QUERIES["saved_queries"],
@@ -160,7 +160,7 @@ class SemanticLayerFetcher:
     ) -> list[DimensionToolResponse]:
         metrics_key = ",".join(sorted(metrics))
         if metrics_key not in self.dimensions_cache:
-            dimensions_result = submit_request(
+            dimensions_result = await submit_request(
                 await self.config_provider.get_config(),
                 {
                     "query": GRAPHQL_QUERIES["dimensions"],
@@ -190,7 +190,7 @@ class SemanticLayerFetcher:
     ) -> list[EntityToolResponse]:
         metrics_key = ",".join(sorted(metrics))
         if metrics_key not in self.entities_cache:
-            entities_result = submit_request(
+            entities_result = await submit_request(
                 await self.config_provider.get_config(),
                 {
                     "query": GRAPHQL_QUERIES["entities"],
