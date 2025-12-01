@@ -1,5 +1,4 @@
 import logging
-from collections.abc import Sequence
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -9,7 +8,7 @@ from dbt_mcp.config.config_providers import (
     ConfigProvider,
 )
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
-from dbt_mcp.dbt_admin.constants import JobRunStatus, STATUS_MAP
+from dbt_mcp.dbt_admin.constants import STATUS_MAP, JobRunStatus
 from dbt_mcp.dbt_admin.run_artifacts import ErrorFetcher, WarningFetcher
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.annotations import create_tool_annotations
@@ -270,18 +269,20 @@ def create_admin_api_tool_definitions(
 def register_admin_api_tools(
     dbt_mcp: FastMCP,
     admin_config_provider: ConfigProvider[AdminApiConfig],
-    exclude_tools: Sequence[ToolName] = [],
     *,
-    enabled_tools: set[ToolName] | None = None,
-    enabled_toolsets: set[Toolset] | None = None,
-    disabled_toolsets: set[Toolset] | None = None,
+    disabled_tools: set[ToolName],
+    enabled_tools: set[ToolName],
+    enabled_toolsets: set[Toolset],
+    disabled_toolsets: set[Toolset],
 ) -> None:
     """Register dbt Admin API tools."""
     admin_client = DbtAdminAPIClient(admin_config_provider)
     register_tools(
         dbt_mcp,
-        create_admin_api_tool_definitions(admin_client, admin_config_provider),
-        exclude_tools,
+        tool_definitions=create_admin_api_tool_definitions(
+            admin_client, admin_config_provider
+        ),
+        disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,
         disabled_toolsets=disabled_toolsets,

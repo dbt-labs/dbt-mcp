@@ -1,5 +1,4 @@
 import logging
-from collections.abc import Sequence
 from dataclasses import dataclass
 
 from dbtsl.api.shared.query_params import GroupByParam
@@ -169,11 +168,11 @@ def register_sl_tools(
     dbt_mcp: FastMCP,
     config_provider: ConfigProvider[SemanticLayerConfig],
     client_provider: SemanticLayerClientProvider,
-    exclude_tools: Sequence[ToolName] = [],
     *,
-    enabled_tools: set[ToolName] | None = None,
-    enabled_toolsets: set[Toolset] | None = None,
-    disabled_toolsets: set[Toolset] | None = None,
+    disabled_tools: set[ToolName],
+    enabled_tools: set[ToolName],
+    enabled_toolsets: set[Toolset],
+    disabled_toolsets: set[Toolset],
 ) -> None:
     def bind_context() -> SemanticLayerToolContext:
         return SemanticLayerToolContext(
@@ -183,7 +182,7 @@ def register_sl_tools(
     register_tools(
         dbt_mcp,
         [tool.adapt_context(bind_context) for tool in SEMANTIC_LAYER_TOOLS],
-        exclude_tools,
+        disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,
         disabled_toolsets=disabled_toolsets,

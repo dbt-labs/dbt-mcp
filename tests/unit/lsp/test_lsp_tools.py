@@ -2,12 +2,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from dbt_mcp.lsp.lsp_client import LSPClient
 from dbt_mcp.lsp.providers.lsp_client_provider import LSPClientProvider
 from dbt_mcp.lsp.tools import (
     get_column_lineage,
     register_lsp_tools,
 )
-from dbt_mcp.lsp.lsp_client import LSPClient
 from dbt_mcp.mcp.server import FastMCP
 from dbt_mcp.tools.tool_names import ToolName
 
@@ -50,7 +50,14 @@ async def test_register_lsp_tools_success(
 ) -> None:
     """Test successful registration of LSP tools."""
 
-    await register_lsp_tools(test_mcp_server, lsp_client_provider)
+    await register_lsp_tools(
+        test_mcp_server,
+        lsp_client_provider,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
 
     # Verify correct tools were registered
     tool_names = [tool.name for tool in await test_mcp_server.list_tools()]
@@ -143,7 +150,10 @@ async def test_register_lsp_tools_with_exclude_tools(
     await register_lsp_tools(
         test_mcp_server,
         lsp_client_provider,
-        exclude_tools=[ToolName.GET_COLUMN_LINEAGE],
+        disabled_tools=set([ToolName.GET_COLUMN_LINEAGE]),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
     )
 
     # Verify GET_COLUMN_LINEAGE was not registered

@@ -89,66 +89,6 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         os.environ["DBT_WARN_ERROR_OPTIONS"] = warn_error_options
 
     # Build configurations
-    proxied_tool_config_provider = None
-    if enable_proxied_tools and (
-        not settings.actual_disable_sql or not settings.disable_discovery
-    ):
-        proxied_tool_config_provider = DefaultProxiedToolConfigProvider(
-            credentials_provider=credentials_provider,
-            are_sql_tools_disabled=settings.actual_disable_sql,
-            are_discovery_tools_disabled=settings.disable_discovery,
-        )
-
-    admin_api_config_provider = None
-    if not settings.disable_admin_api:
-        admin_api_config_provider = DefaultAdminApiConfigProvider(
-            credentials_provider=credentials_provider,
-        )
-
-    dbt_cli_config = None
-    if not settings.disable_dbt_cli and settings.dbt_project_dir and settings.dbt_path:
-        binary_type = detect_binary_type(settings.dbt_path)
-        dbt_cli_config = DbtCliConfig(
-            project_dir=settings.dbt_project_dir,
-            dbt_path=settings.dbt_path,
-            dbt_cli_timeout=settings.dbt_cli_timeout,
-            binary_type=binary_type,
-        )
-
-    dbt_codegen_config = None
-    if (
-        not settings.disable_dbt_codegen
-        and settings.dbt_project_dir
-        and settings.dbt_path
-    ):
-        binary_type = detect_binary_type(settings.dbt_path)
-        dbt_codegen_config = DbtCodegenConfig(
-            project_dir=settings.dbt_project_dir,
-            dbt_path=settings.dbt_path,
-            dbt_cli_timeout=settings.dbt_cli_timeout,
-            binary_type=binary_type,
-        )
-
-    discovery_config_provider = None
-    if not settings.disable_discovery:
-        discovery_config_provider = DefaultDiscoveryConfigProvider(
-            credentials_provider=credentials_provider,
-        )
-
-    semantic_layer_config_provider = None
-    if not settings.disable_semantic_layer:
-        semantic_layer_config_provider = DefaultSemanticLayerConfigProvider(
-            credentials_provider=credentials_provider,
-        )
-
-    lsp_config = None
-    if not settings.disable_lsp and settings.dbt_project_dir:
-        lsp_binary_info = dbt_lsp_binary_info(settings.dbt_lsp_path)
-        lsp_config = LspConfig(
-            project_dir=settings.dbt_project_dir,
-            lsp_binary_info=lsp_binary_info,
-        )
-
     enabled_toolsets: set[Toolset] = {
         toolset
         for toolset, attr_name in TOOLSET_TO_ENABLE_ATTR.items()
@@ -160,6 +100,58 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         for toolset, attr_name in TOOLSET_TO_DISABLE_ATTR.items()
         if getattr(settings, attr_name, False)
     }
+
+    proxied_tool_config_provider = None
+    if enable_proxied_tools and settings.actual_host:
+        proxied_tool_config_provider = DefaultProxiedToolConfigProvider(
+            credentials_provider=credentials_provider
+        )
+
+    admin_api_config_provider = None
+    if settings.actual_host:
+        admin_api_config_provider = DefaultAdminApiConfigProvider(
+            credentials_provider=credentials_provider,
+        )
+
+    dbt_cli_config = None
+    if settings.dbt_project_dir and settings.dbt_path:
+        binary_type = detect_binary_type(settings.dbt_path)
+        dbt_cli_config = DbtCliConfig(
+            project_dir=settings.dbt_project_dir,
+            dbt_path=settings.dbt_path,
+            dbt_cli_timeout=settings.dbt_cli_timeout,
+            binary_type=binary_type,
+        )
+
+    dbt_codegen_config = None
+    if settings.dbt_project_dir and settings.dbt_path:
+        binary_type = detect_binary_type(settings.dbt_path)
+        dbt_codegen_config = DbtCodegenConfig(
+            project_dir=settings.dbt_project_dir,
+            dbt_path=settings.dbt_path,
+            dbt_cli_timeout=settings.dbt_cli_timeout,
+            binary_type=binary_type,
+        )
+
+    discovery_config_provider = None
+    if settings.actual_host:
+        discovery_config_provider = DefaultDiscoveryConfigProvider(
+            credentials_provider=credentials_provider,
+        )
+
+    semantic_layer_config_provider = None
+    if settings.actual_host:
+        semantic_layer_config_provider = DefaultSemanticLayerConfigProvider(
+            credentials_provider=credentials_provider,
+        )
+
+    lsp_config = None
+    if settings.dbt_project_dir:
+        lsp_binary_info = dbt_lsp_binary_info(settings.dbt_lsp_path)
+        lsp_config = LspConfig(
+            project_dir=settings.dbt_project_dir,
+            lsp_binary_info=lsp_binary_info,
+        )
 
     return Config(
         disable_tools=settings.disable_tools or [],

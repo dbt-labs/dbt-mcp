@@ -1,11 +1,12 @@
 import functools
 import inspect
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
+
 from dbt_mcp.lsp.providers.lsp_client_provider import LSPClientProvider
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.annotations import create_tool_annotations
@@ -20,16 +21,16 @@ logger = logging.getLogger(__name__)
 async def register_lsp_tools(
     server: FastMCP,
     lspClientProvider: LSPClientProvider,
-    exclude_tools: Sequence[ToolName] | None = None,
     *,
-    enabled_tools: set[ToolName] | None = None,
-    enabled_toolsets: set[Toolset] | None = None,
-    disabled_toolsets: set[Toolset] | None = None,
+    disabled_tools: set[ToolName],
+    enabled_tools: set[ToolName],
+    enabled_toolsets: set[Toolset],
+    disabled_toolsets: set[Toolset],
 ) -> None:
     register_tools(
-        server,
-        await list_lsp_tools(lspClientProvider),
-        exclude_tools or [],
+        dbt_mcp=server,
+        tool_definitions=await list_lsp_tools(lspClientProvider),
+        disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,
         disabled_toolsets=disabled_toolsets,
@@ -123,8 +124,6 @@ async def get_column_lineage(
         logger.error(error_msg)
         return {"error": error_msg}
     except Exception as e:
-        error_msg = (
-            f"Failed to get column lineage for {model_id}.{column_name}: {str(e)}"
-        )
+        error_msg = f"Failed to get column lineage for {model_id}.{column_name}: {e!s}"
         logger.error(error_msg)
         return {"error": error_msg}

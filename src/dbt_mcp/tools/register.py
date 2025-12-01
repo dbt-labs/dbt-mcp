@@ -1,5 +1,4 @@
 import logging
-from collections.abc import Sequence
 
 from mcp.server.fastmcp import FastMCP
 
@@ -10,23 +9,8 @@ from dbt_mcp.tools.toolsets import TOOL_TO_TOOLSET, Toolset
 logger = logging.getLogger(__name__)
 
 
-def _parse_tool_name(tool_name_str: str) -> ToolName | None:
-    """Helper to find ToolName enum from string.
-
-    Args:
-        tool_name_str: The tool name as a string
-
-    Returns:
-        Matching ToolName enum or None if not found
-    """
-    return next(
-        (tn for tn in ToolName if tn.value.lower() == tool_name_str.lower()),
-        None,
-    )
-
-
 def should_register_tool(
-    tool_name_str: str,
+    tool_name: ToolName,
     enabled_tools: set[ToolName],
     disabled_tools: set[ToolName],
     enabled_toolsets: set[Toolset],
@@ -42,7 +26,7 @@ def should_register_tool(
     5. Default - if any explicit enables are set, return False; otherwise return True
 
     Args:
-        tool_name_str: The tool name as a string
+        tool_name: The tool name as a ToolName enum
         enabled_tools: Set of explicitly enabled tools (highest precedence)
         disabled_tools: Set of explicitly disabled tools
         enabled_toolsets: Set of enabled toolsets
@@ -51,16 +35,6 @@ def should_register_tool(
     Returns:
         True if tool should be registered, False otherwise
     """
-    # Find the matching ToolName enum
-    tool_name = _parse_tool_name(tool_name_str)
-
-    if tool_name is None:
-        # Unknown tool, default to registering it for backward compatibility
-        logger.debug(
-            f"Unknown tool '{tool_name_str}' - registering with default behavior"
-        )
-        return True
-
     # Precedence 1: Individual tool enable (highest)
     if tool_name in enabled_tools:
         return True
@@ -90,11 +64,11 @@ def should_register_tool(
 def register_tools(
     dbt_mcp: FastMCP,
     tool_definitions: list[ToolDefinition],
-    exclude_tools: Sequence[ToolName] = [],
     *,
-    enabled_tools: set[ToolName] | None = None,
-    enabled_toolsets: set[Toolset] | None = None,
-    disabled_toolsets: set[Toolset] | None = None,
+    disabled_tools: set[ToolName],
+    enabled_tools: set[ToolName],
+    enabled_toolsets: set[Toolset],
+    disabled_toolsets: set[Toolset],
 ) -> None:
     """Register tools with the MCP server using precedence-based enablement logic.
 
@@ -106,28 +80,19 @@ def register_tools(
         enabled_toolsets: Set of enabled toolsets (precedence 3)
         disabled_toolsets: Set of disabled toolsets (precedence 4)
     """
-    # Convert all None to empty sets at entry
-    disabled_tools = set(exclude_tools) if exclude_tools else set()
-    enabled_tools = enabled_tools or set()
-    enabled_toolsets = enabled_toolsets or set()
-    disabled_toolsets = disabled_toolsets or set()
-
     for tool_definition in tool_definitions:
-        tool_name_str = tool_definition.get_name()
-
-        # Use the new precedence logic
+        tool_name = tool_definition.get_name()
         if not should_register_tool(
-            tool_name_str=tool_name_str,
+            tool_name=tool_name,
             enabled_tools=enabled_tools,
             disabled_tools=disabled_tools,
             enabled_toolsets=enabled_toolsets,
             disabled_toolsets=disabled_toolsets,
         ):
             continue
-
         dbt_mcp.add_tool(
             fn=tool_definition.fn,
-            name=tool_definition.get_name(),
+            name=tool_name.value,
             title=tool_definition.title,
             description=tool_definition.description,
             annotations=tool_definition.annotations,

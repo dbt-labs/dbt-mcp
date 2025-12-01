@@ -35,8 +35,6 @@ mock_proxied_tool_config = ProxiedToolConfig(
     headers_provider=ProxiedToolHeadersProvider(
         token_provider=StaticTokenProvider(token="token")
     ),
-    are_sql_tools_disabled=False,
-    are_discovery_tools_disabled=False,
 )
 
 mock_dbt_cli_config = DbtCliConfig(

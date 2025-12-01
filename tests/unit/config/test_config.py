@@ -251,7 +251,7 @@ class TestLoadConfig:
             "DISABLE_ADMIN_API": "false",
             "DISABLE_DBT_CODEGEN": "false",
         }
-        with env_setup(env_vars=env_vars) as (project_dir, helpers):
+        with env_setup(env_vars=env_vars) as (_project_dir, _helpers):
             config = load_config()
 
             assert config.proxied_tool_config_provider is not None, (
@@ -346,16 +346,18 @@ class TestLoadConfig:
         }
 
         # For this test, we need to call load_config directly to see environment side effects
-        with patch.dict(os.environ, env_vars, clear=True):
-            with patch("dbt_mcp.config.config.DbtMcpSettings") as mock_settings_class:
-                settings_instance = DbtMcpSettings(_env_file=None)
-                mock_settings_class.return_value = settings_instance
-                load_config()
+        with (
+            patch.dict(os.environ, env_vars, clear=True),
+            patch("dbt_mcp.config.config.DbtMcpSettings") as mock_settings_class,
+        ):
+            settings_instance = DbtMcpSettings(_env_file=None)
+            mock_settings_class.return_value = settings_instance
+            load_config()
 
-                assert (
-                    os.environ["DBT_WARN_ERROR_OPTIONS"]
-                    == '{"error": ["NoNodesForSelectionCriteria"]}'
-                )
+            assert (
+                os.environ["DBT_WARN_ERROR_OPTIONS"]
+                == '{"error": ["NoNodesForSelectionCriteria"]}'
+            )
 
     def test_warn_error_options_not_overridden_if_set(self):
         env_vars = {
@@ -369,13 +371,15 @@ class TestLoadConfig:
         }
 
         # For this test, we need to call load_config directly to see environment side effects
-        with patch.dict(os.environ, env_vars, clear=True):
-            with patch("dbt_mcp.config.config.DbtMcpSettings") as mock_settings_class:
-                settings_instance = DbtMcpSettings(_env_file=None)
-                mock_settings_class.return_value = settings_instance
-                load_config()
+        with (
+            patch.dict(os.environ, env_vars, clear=True),
+            patch("dbt_mcp.config.config.DbtMcpSettings") as mock_settings_class,
+        ):
+            settings_instance = DbtMcpSettings(_env_file=None)
+            mock_settings_class.return_value = settings_instance
+            load_config()
 
-                assert os.environ["DBT_WARN_ERROR_OPTIONS"] == "custom_options"
+            assert os.environ["DBT_WARN_ERROR_OPTIONS"] == "custom_options"
 
     def test_local_user_id_loading_from_dbt_profile(self):
         user_data = {"id": "local_user_123"}
@@ -416,83 +420,6 @@ class TestLoadConfig:
             config = self._load_config_with_env(env_vars)
             # local_user_id is now loaded by UsageTracker, not Config
             assert config.credentials_provider is not None
-
-    def test_proxied_tool_requirements(self):
-        # Test that proxied_tool_config_provider is only created when proxied tools are enabled
-        # and all required fields are present
-        env_vars = {
-            "DBT_HOST": "test.dbt.com",
-            "DBT_PROD_ENV_ID": "123",
-            "DBT_TOKEN": "test_token",
-            "DISABLE_REMOTE": "true",
-            "DISABLE_DBT_CLI": "true",
-            "DISABLE_SEMANTIC_LAYER": "true",
-            "DISABLE_DISCOVERY": "true",
-            "DISABLE_ADMIN_API": "true",
-        }
-
-        config = self._load_config_with_env(env_vars)
-        # Proxied config should not be created when proxied tools are disabled
-        assert config.proxied_tool_config_provider is None
-
-        # Test proxied tool requirements (needs user_id and dev_env_id too)
-        env_vars.update(
-            {
-                "DBT_USER_ID": "789",
-                "DBT_DEV_ENV_ID": "456",
-                "DISABLE_REMOTE": "false",
-            }
-        )
-
-        config = self._load_config_with_env(env_vars)
-        assert config.proxied_tool_config_provider is not None
-
-    def test_disable_flags_combinations(self, env_setup):
-        base_env = {
-            "DBT_HOST": "test.dbt.com",
-            "DBT_PROD_ENV_ID": "123",
-            "DBT_TOKEN": "test_token",
-        }
-
-        test_cases = [
-            # Only CLI enabled
-            {
-                "DISABLE_DBT_CLI": "false",
-                "DISABLE_SEMANTIC_LAYER": "true",
-                "DISABLE_DISCOVERY": "true",
-                "DISABLE_REMOTE": "true",
-            },
-            # Only semantic layer enabled
-            {
-                "DISABLE_DBT_CLI": "true",
-                "DISABLE_SEMANTIC_LAYER": "false",
-                "DISABLE_DISCOVERY": "true",
-                "DISABLE_REMOTE": "true",
-            },
-            # Multiple services enabled
-            {
-                "DISABLE_DBT_CLI": "false",
-                "DISABLE_SEMANTIC_LAYER": "false",
-                "DISABLE_DISCOVERY": "false",
-                "DISABLE_REMOTE": "true",
-            },
-        ]
-
-        for disable_flags in test_cases:
-            env_vars = {**base_env, **disable_flags}
-            with env_setup(env_vars=env_vars) as (project_dir, helpers):
-                config = load_config()
-
-                # Verify configs are created only when services are enabled
-                assert (config.dbt_cli_config is not None) == (
-                    disable_flags["DISABLE_DBT_CLI"] == "false"
-                )
-                assert (config.semantic_layer_config_provider is not None) == (
-                    disable_flags["DISABLE_SEMANTIC_LAYER"] == "false"
-                )
-                assert (config.discovery_config_provider is not None) == (
-                    disable_flags["DISABLE_DISCOVERY"] == "false"
-                )
 
     def test_legacy_env_id_support(self):
         # Test that DBT_ENV_ID still works for backward compatibility
