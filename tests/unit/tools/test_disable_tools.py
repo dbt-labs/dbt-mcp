@@ -17,6 +17,10 @@ async def test_disable_tools(env_setup):
         patch(
             "dbt_mcp.config.config.detect_binary_type", return_value=BinaryType.DBT_CORE
         ),
+        patch(
+            "dbt_mcp.mcp.server.register_proxied_tools",
+            return_value=None,
+        ),
     ):
         config = load_config()
         dbt_mcp = await create_dbt_mcp(config)
