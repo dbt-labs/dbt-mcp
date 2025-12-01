@@ -1,0 +1,61 @@
+query SeedDetails(
+  $environmentId: BigInt!
+  $filter: AppliedResourcesFilter!
+  $after: String
+  $first: Int
+) {
+  environment(id: $environmentId) {
+    applied {
+      resources(filter: $filter, after: $after, first: $first) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        edges {
+          node {
+            ... on SeedAppliedStateNode {
+              alias
+              description
+              uniqueId
+              name
+              meta
+              fqn
+              schema
+              tags
+              resourceType
+              filePath
+              catalog {
+                columns {
+                  description
+                  type
+                  tags
+                  name
+                  meta
+                  index
+                  comment
+                }
+                comment
+                owner
+                rowCountStat
+                runGeneratedAt
+                type
+                uniqueId
+                runId
+              }
+              executionInfo {
+                lastRunError
+                lastRunStatus
+                lastRunGeneratedAt
+              }
+              children {
+                uniqueId
+                description
+                resourceType
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

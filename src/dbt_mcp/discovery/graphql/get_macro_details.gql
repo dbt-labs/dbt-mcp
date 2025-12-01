@@ -1,0 +1,38 @@
+query MacroDetails(
+  $environmentId: BigInt!
+  $filter: AppliedResourcesFilter!
+  $after: String
+  $first: Int
+) {
+  environment(id: $environmentId) {
+    applied {
+      resources(filter: $filter, after: $after, first: $first) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        edges {
+          node {
+            ... on MacroDefinitionNode {
+              arguments {
+                description
+                name
+                type
+              }
+              description
+              filePath
+              macroSql
+              meta
+              name
+              packageName
+              resourceType
+              tags
+              uniqueId
+              runGeneratedAt
+            }
+          }
+        }
+      }
+    }
+  }
+}

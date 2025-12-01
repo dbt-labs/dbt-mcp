@@ -1,0 +1,13 @@
+---
+globs: tests/integration/*
+alwaysApply: false
+---
+# Integration Tests Use Real HTTP
+
+## Purpose
+Ensure integration tests reflect production by issuing real HTTP requests against configured services.
+
+## Standards/Patterns
+- Build clients through the standard config providers so they pull credentials and endpoints from the environment.
+- Avoid monkeypatching or stubbing `requests`/network calls inside `tests/integration`; rely on unit tests for mocking.
+- If request observations are needed, subclass the client to record metadata while still calling the real implementation.
