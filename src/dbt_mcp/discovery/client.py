@@ -2,9 +2,10 @@ import textwrap
 from typing import Any, Literal, TypedDict
 
 import requests
+from pydantic import BaseModel, ConfigDict, Field
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
-from dbt_mcp.errors import GraphQLError, InvalidParameterError
+from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.gql.errors import raise_gql_error
 
 DEFAULT_PAGE_SIZE = 100
@@ -415,6 +416,13 @@ class MetadataAPIClient:
         return response.json()
 
 
+class PageInfo(BaseModel):
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    end_cursor: str | None = Field(default=None, alias="endCursor")
+    has_next_page: bool | None = Field(default=None, alias="hasNextPage")
+
+
 class PaginatedResourceFetcher:
     def __init__(
         self,
@@ -444,8 +452,6 @@ class PaginatedResourceFetcher:
     def _parse_edges(self, result: dict) -> list[dict]:
         raise_gql_error(result)
         edges = self._extract_path(result, self._edges_path)
-        if result.get("errors"):
-            raise GraphQLError(f"GraphQL query failed: {result['errors']}")
         parsed_edges: list[dict] = []
         if not edges:
             return parsed_edges
@@ -460,11 +466,11 @@ class PaginatedResourceFetcher:
 
     def _should_continue(
         self,
-        page_info: dict,
+        page_info: PageInfo,
         previous_cursor: str | None,
-        next_cursor: str | None,
     ) -> bool:
-        has_next = page_info.get("hasNextPage")
+        next_cursor = page_info.end_cursor
+        has_next = page_info.has_next_page
         next_cursor_valid = bool(next_cursor) and next_cursor != previous_cursor
         if isinstance(has_next, bool):
             return has_next and next_cursor_valid
@@ -477,13 +483,12 @@ class PaginatedResourceFetcher:
     ) -> list[dict]:
         environment_id = await self.get_environment_id()
         collected: list[dict] = []
-        base_variables = variables.copy()
         current_cursor: str | None = None
         while True:
             if len(collected) >= self._max_node_query_limit:
                 break
             remaining_capacity = self._max_node_query_limit - len(collected)
-            request_variables = base_variables.copy()
+            request_variables = variables.copy()
             request_variables["environmentId"] = environment_id
             request_variables["first"] = min(self._page_size, remaining_capacity)
             if current_cursor is not None:
@@ -491,10 +496,11 @@ class PaginatedResourceFetcher:
             result = await self.api_client.execute_query(query, request_variables)
             page_edges = self._parse_edges(result)
             collected.extend(page_edges)
-            page_info = self._extract_path(result, self._page_info_path)
+            page_info_data = self._extract_path(result, self._page_info_path)
+            page_info = PageInfo(**page_info_data)
             previous_cursor = current_cursor
-            current_cursor = page_info.get("endCursor")
-            if not self._should_continue(page_info, previous_cursor, current_cursor):
+            current_cursor = page_info.end_cursor
+            if not self._should_continue(page_info, previous_cursor):
                 break
         return collected
 
