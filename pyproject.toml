@@ -37,7 +37,6 @@ dependencies = [
   "fastapi==0.116.1",
   "uvicorn==0.30.6",
   "mcp[cli]==1.10.1",
-  "pandas==2.2.3",
   "pydantic-settings==2.10.1",
   "pyjwt==2.10.1",
   "pyyaml==6.0.2",

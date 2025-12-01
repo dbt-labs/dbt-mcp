@@ -1,6 +1,8 @@
+import io
 import pytest
 from dbtsl.api.shared.query_params import GroupByParam, GroupByType
 import pyarrow as pa
+import pyarrow.csv
 
 from dbt_mcp.config.config import load_config
 from dbt_mcp.semantic_layer.client import (
@@ -140,7 +142,10 @@ async def test_semantic_layer_query_metrics_with_csv_formatter(
     semantic_layer_fetcher: SemanticLayerFetcher,
 ):
     def csv_formatter(table: pa.Table) -> str:
-        return table.to_pandas().to_csv(index=False)
+        # Use PyArrow's native CSV writer instead of pandas
+        buffer = io.BytesIO()
+        pa.csv.write_csv(table, buffer)
+        return buffer.getvalue().decode("utf-8")
 
     result = await semantic_layer_fetcher.query_metrics(
         metrics=["revenue"],

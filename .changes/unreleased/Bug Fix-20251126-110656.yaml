@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Fix lsp binary detection on Windows
+time: 2025-11-26T11:06:56.228231Z
