@@ -1,8 +1,13 @@
 import copy
+from typing import Any
 
 import pytest
 
-from dbt_mcp.config.config_providers import DefaultDiscoveryConfigProvider
+from dbt_mcp.config.config_providers import (
+    ConfigProvider,
+    DefaultDiscoveryConfigProvider,
+    DiscoveryConfig,
+)
 from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
 from dbt_mcp.discovery.client import (
     MetadataAPIClient,
@@ -12,12 +17,14 @@ from dbt_mcp.discovery.client import (
 
 
 class CountingMetadataAPIClient(MetadataAPIClient):
-    def __init__(self, config_provider):
+    def __init__(self, config_provider: ConfigProvider[DiscoveryConfig]) -> None:
         super().__init__(config_provider)
         self.request_calls = 0
         self.request_payloads: list[dict] = []
 
-    async def execute_query(self, query: str, variables: dict) -> dict:
+    async def execute_query(
+        self, query: str, variables: dict[str, Any]
+    ) -> dict[str, Any]:
         self.request_calls += 1
         self.request_payloads.append(
             copy.deepcopy({"query": query, "variables": variables})

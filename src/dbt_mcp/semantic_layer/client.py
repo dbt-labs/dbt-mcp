@@ -1,5 +1,7 @@
+import json
 from collections.abc import Callable
 from contextlib import AbstractContextManager
+from datetime import date, datetime
 from typing import Any, Protocol
 
 import pyarrow as pa
@@ -33,13 +35,23 @@ from dbt_mcp.semantic_layer.types import (
 
 
 def DEFAULT_RESULT_FORMATTER(table: pa.Table) -> str:
-    dataframe = table.to_pandas()
-    return dataframe.to_json(
-        orient="records",
-        indent=2,
-        date_format="iso",
-        date_unit="s",
-    )
+    """Convert PyArrow Table to JSON string with ISO date formatting.
+
+    This replaces the pandas-based implementation with native PyArrow and Python json.
+    Output format: array of objects (records), 2-space indentation, ISO date strings.
+    """
+    # Convert PyArrow table to list of dictionaries
+    records = table.to_pylist()
+
+    # Custom JSON encoder to handle date/datetime objects
+    class DateTimeEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, datetime | date):
+                return obj.isoformat()
+            return super().default(obj)
+
+    # Return JSON with records format and proper indentation
+    return json.dumps(records, indent=2, cls=DateTimeEncoder)
 
 
 class SemanticLayerClientProtocol(Protocol):
