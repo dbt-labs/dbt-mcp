@@ -22,6 +22,10 @@ from dbt_mcp.lsp.providers.local_lsp_connection_provider import (
 )
 from dbt_mcp.lsp.tools import register_lsp_tools
 from dbt_mcp.proxy.tools import ProxiedToolsManager, register_proxied_tools
+from dbt_mcp.resources.resources import (
+    list_resource_definitions,
+    register_resources,
+)
 from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
 from dbt_mcp.semantic_layer.tools import register_sl_tools
 from dbt_mcp.tracking.tracking import DefaultUsageTracker, ToolCalledEvent, UsageTracker
@@ -179,5 +183,9 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
         )
         dbt_mcp.lsp_connection_provider = local_lsp_connection_provider
         await register_lsp_tools(dbt_mcp, lsp_client_provider, config.disable_tools)
+
+    # Register resources
+    logger.info("Registering MCP resources")
+    register_resources(dbt_mcp, list_resource_definitions())
 
     return dbt_mcp
