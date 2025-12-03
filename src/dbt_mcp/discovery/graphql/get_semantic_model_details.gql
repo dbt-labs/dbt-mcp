@@ -1,0 +1,49 @@
+query SemanticModelDetails(
+  $environmentId: BigInt!
+  $filter: AppliedResourcesFilter!
+  $after: String
+  $first: Int
+) {
+  environment(id: $environmentId) {
+    applied {
+      resources(filter: $filter, after: $after, first: $first) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        edges {
+          node {
+            ... on SemanticModelDefinitionNode {
+              description
+              dimensions {
+                description
+                name
+                type
+                typeParams
+              }
+              entities {
+                description
+                name
+                type
+              }
+              filePath
+              meta
+              name
+              measures {
+                name
+                description
+                agg
+                createMetric
+                expr
+              }
+              resourceType
+              tags
+              uniqueId
+              fqn
+            }
+          }
+        }
+      }
+    }
+  }
+}

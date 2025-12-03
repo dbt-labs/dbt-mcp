@@ -106,6 +106,24 @@ tool_policies = {
     ToolName.GET_EXPOSURE_DETAILS.value: ToolPolicy(
         name=ToolName.GET_EXPOSURE_DETAILS.value, behavior=ToolBehavior.METADATA
     ),
+    ToolName.GET_RELATED_MODELS.value: ToolPolicy(
+        name=ToolName.GET_RELATED_MODELS.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.GET_MACRO_DETAILS.value: ToolPolicy(
+        name=ToolName.GET_MACRO_DETAILS.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.GET_SNAPSHOT_DETAILS.value: ToolPolicy(
+        name=ToolName.GET_SNAPSHOT_DETAILS.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.GET_TEST_DETAILS.value: ToolPolicy(
+        name=ToolName.GET_TEST_DETAILS.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.GET_SEED_DETAILS.value: ToolPolicy(
+        name=ToolName.GET_SEED_DETAILS.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.GET_SEMANTIC_MODEL_DETAILS.value: ToolPolicy(
+        name=ToolName.GET_SEMANTIC_MODEL_DETAILS.value, behavior=ToolBehavior.METADATA
+    ),
     # SQL tools
     ToolName.TEXT_TO_SQL.value: ToolPolicy(
         name=ToolName.TEXT_TO_SQL.value, behavior=ToolBehavior.METADATA

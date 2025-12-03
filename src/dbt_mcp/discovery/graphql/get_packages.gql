@@ -1,0 +1,7 @@
+query GetPackages($resource: PackageResourceType!, $environmentId: BigInt!) {
+  environment(id: $environmentId) {
+    applied {
+      packages(resource: $resource)
+    }
+  }
+}

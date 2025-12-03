@@ -1,0 +1,41 @@
+query ExposureDetails(
+  $environmentId: BigInt!
+  $filter: AppliedResourcesFilter!
+  $after: String
+  $first: Int
+) {
+  environment(id: $environmentId) {
+    applied {
+      resources(filter: $filter, after: $after, first: $first) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        edges {
+          node {
+            ... on ExposureAppliedStateNode {
+              description
+              maturity
+              label
+              url
+              uniqueId
+              tags
+              resourceType
+              ownerName
+              ownerEmail
+              name
+              meta
+              manifestGeneratedAt
+              filePath
+              exposureType
+              fqn
+              parents {
+                uniqueId
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

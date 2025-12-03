@@ -1,3 +1,0 @@
-kind: Enhancement or New Feature
-body: Add get_source_details tool to retrieve column-level information for dbt sources, providing feature parity with get_model_details
-time: 2025-11-10T13:18:21.728012911-05:00

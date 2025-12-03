@@ -1,4 +1,4 @@
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -8,23 +8,6 @@ from dbt_mcp.dbt_admin.tools import (
     register_admin_api_tools,
 )
 from tests.mocks.config import mock_config
-
-
-@pytest.fixture
-def mock_fastmcp():
-    class MockFastMCP:
-        def __init__(self):
-            self.tools = {}
-
-        def tool(self, **kwargs):
-            def decorator(func):
-                self.tools[func.__name__] = func
-                return func
-
-            return decorator
-
-    fastmcp = MockFastMCP()
-    return fastmcp, fastmcp.tools
 
 
 @pytest.fixture
@@ -401,7 +384,7 @@ async def test_get_job_run_error_tool(
                     "step_name": "Invoke dbt with `dbt build`",
                     "target": "prod",
                     "finished_at": "2024-01-01T10:00:00Z",
-                    "errors": [
+                    "results": [
                         {
                             "unique_id": "model.analytics.user_sessions",
                             "message": "Database Error in model user_sessions...",
@@ -430,8 +413,8 @@ async def test_get_job_run_error_tool(
     step = result["failed_steps"][0]
     assert step["step_name"] == "Invoke dbt with `dbt build`"
     assert step["target"] == "prod"
-    assert len(step["errors"]) == 1
-    assert step["errors"][0]["message"] == "Database Error in model user_sessions..."
+    assert len(step["results"]) == 1
+    assert step["results"][0]["message"] == "Database Error in model user_sessions..."
 
     mock_error_fetcher_class.assert_called_once()
     mock_error_fetcher_instance.analyze_run_errors.assert_called_once()

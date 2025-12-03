@@ -122,7 +122,7 @@ class TestDbtMcpSettings:
             "DISABLE_TOOLS": "build,compile,docs",
         }
 
-        with env_setup(env_vars=env_vars) as (project_dir, helpers):
+        with env_setup(env_vars=env_vars) as (project_dir, _):
             settings = DbtMcpSettings(_env_file=None)
             assert settings.dbt_host == "test.dbt.com"
             assert settings.dbt_prod_env_id == 123
@@ -254,8 +254,8 @@ class TestLoadConfig:
         with env_setup(env_vars=env_vars) as (project_dir, helpers):
             config = load_config()
 
-            assert config.sql_config_provider is not None, (
-                "sql_config_provider should be set"
+            assert config.proxied_tool_config_provider is not None, (
+                "proxied_tool_config_provider should be set"
             )
             assert config.dbt_cli_config is not None, "dbt_cli_config should be set"
             assert config.discovery_config_provider is not None, (
@@ -286,7 +286,7 @@ class TestLoadConfig:
 
         config = self._load_config_with_env(env_vars)
 
-        assert config.sql_config_provider is None
+        assert config.proxied_tool_config_provider is None
         assert config.dbt_cli_config is None
         assert config.discovery_config_provider is None
         assert config.semantic_layer_config_provider is None
@@ -417,8 +417,8 @@ class TestLoadConfig:
             # local_user_id is now loaded by UsageTracker, not Config
             assert config.credentials_provider is not None
 
-    def test_remote_requirements(self):
-        # Test that remote_config is only created when remote tools are enabled
+    def test_proxied_tool_requirements(self):
+        # Test that proxied_tool_config_provider is only created when proxied tools are enabled
         # and all required fields are present
         env_vars = {
             "DBT_HOST": "test.dbt.com",
@@ -432,10 +432,10 @@ class TestLoadConfig:
         }
 
         config = self._load_config_with_env(env_vars)
-        # Remote config should not be created when remote tools are disabled
-        assert config.sql_config_provider is None
+        # Proxied config should not be created when proxied tools are disabled
+        assert config.proxied_tool_config_provider is None
 
-        # Test remote requirements (needs user_id and dev_env_id too)
+        # Test proxied tool requirements (needs user_id and dev_env_id too)
         env_vars.update(
             {
                 "DBT_USER_ID": "789",
@@ -445,7 +445,7 @@ class TestLoadConfig:
         )
 
         config = self._load_config_with_env(env_vars)
-        assert config.sql_config_provider is not None
+        assert config.proxied_tool_config_provider is not None
 
     def test_disable_flags_combinations(self, env_setup):
         base_env = {

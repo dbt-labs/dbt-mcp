@@ -1,8 +1,11 @@
-from pathlib import Path
-import shutil
-import pytest
-from contextlib import contextmanager
 import os
+import shutil
+from collections.abc import Callable
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any
+
+import pytest
 
 # During tests, avoid executing the real `dbt` executable (which in CI/tests
 # may be a placeholder file). Force the detection routine to a deterministic
@@ -106,3 +109,24 @@ def env_setup(tmp_path: Path, monkeypatch):
             dbt_path.unlink(missing_ok=True)
 
     yield _make
+
+
+class MockFastMCP:
+    def __init__(self):
+        self.tools = {}
+
+    def add_tool(self, fn: Callable[..., Any], **kwargs):
+        self.tools[fn.__name__] = fn
+
+    def tool(self, **kwargs):
+        def decorator(func):
+            self.add_tool(func, **kwargs)
+            return func
+
+        return decorator
+
+
+@pytest.fixture
+def mock_fastmcp():
+    fastmcp = MockFastMCP()
+    return fastmcp, fastmcp.tools

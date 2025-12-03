@@ -8,17 +8,17 @@ from dbt_mcp.config.config_providers import (
     AdminApiConfig,
     DefaultAdminApiConfigProvider,
     DefaultDiscoveryConfigProvider,
+    DefaultProxiedToolConfigProvider,
     DefaultSemanticLayerConfigProvider,
-    DefaultSqlConfigProvider,
     DiscoveryConfig,
+    ProxiedToolConfig,
     SemanticLayerConfig,
-    SqlConfig,
 )
 from dbt_mcp.config.headers import (
     AdminApiHeadersProvider,
     DiscoveryHeadersProvider,
+    ProxiedToolHeadersProvider,
     SemanticLayerHeadersProvider,
-    SqlHeadersProvider,
 )
 from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
 from dbt_mcp.dbt_cli.binary_type import BinaryType
@@ -27,14 +27,16 @@ from dbt_mcp.oauth.token_provider import StaticTokenProvider
 
 mock_settings = DbtMcpSettings.model_construct()
 
-mock_sql_config = SqlConfig(
+mock_proxied_tool_config = ProxiedToolConfig(
     url="http://localhost:8000",
     prod_environment_id=1,
     dev_environment_id=1,
     user_id=1,
-    headers_provider=SqlHeadersProvider(
+    headers_provider=ProxiedToolHeadersProvider(
         token_provider=StaticTokenProvider(token="token")
     ),
+    are_sql_tools_disabled=False,
+    are_discovery_tools_disabled=False,
 )
 
 mock_dbt_cli_config = DbtCliConfig(
@@ -87,12 +89,12 @@ mock_admin_api_config = AdminApiConfig(
 
 
 # Create mock config providers
-class MockSqlConfigProvider(DefaultSqlConfigProvider):
+class MockProxiedToolConfigProvider(DefaultProxiedToolConfigProvider):
     def __init__(self):
         pass  # Skip the base class __init__
 
     async def get_config(self):
-        return mock_sql_config
+        return mock_proxied_tool_config
 
 
 class MockDiscoveryConfigProvider(DefaultDiscoveryConfigProvider):
@@ -129,7 +131,7 @@ class MockCredentialsProvider(CredentialsProvider):
 
 
 mock_config = Config(
-    sql_config_provider=MockSqlConfigProvider(),
+    proxied_tool_config_provider=MockProxiedToolConfigProvider(),
     dbt_cli_config=mock_dbt_cli_config,
     dbt_codegen_config=mock_dbt_codegen_config,
     discovery_config_provider=MockDiscoveryConfigProvider(),

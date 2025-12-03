@@ -16,6 +16,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+system = platform.system()
+home = Path.home()
+
 
 @dataclass
 class LspBinaryInfo:
@@ -28,52 +31,6 @@ class LspBinaryInfo:
 
     path: str
     version: str
-
-
-def get_platform_specific_binary_names(tag: str) -> str:
-    """Generate platform-specific binary filename for the dbt LSP.
-
-    Creates a standardized binary filename based on the current platform's
-    operating system and architecture. This follows the naming convention
-    used by dbt LSP releases.
-
-    Args:
-        tag: Version tag or identifier for the LSP binary.
-
-    Returns:
-        Platform-specific binary filename including extension.
-        Format: fs-lsp-{tag}-{arch}-{platform}{extension}
-
-    Raises:
-        ValueError: If the current platform or architecture is not supported.
-
-    Examples:
-        >>> get_platform_specific_binary_names("v1.0.0")
-        'fs-lsp-v1.0.0-x86_64-apple-darwin.tar.gz'  # on macOS Intel
-    """
-    system = platform.system().lower()
-    machine = platform.machine().lower()
-
-    if system == "windows":
-        platform_name = "pc-windows-msvc"
-        extension = ".zip"
-    elif system == "darwin":
-        platform_name = "apple-darwin"
-        extension = ".tar.gz"
-    elif system == "linux":
-        platform_name = "unknown-linux-gnu"
-        extension = ".tar.gz"
-    else:
-        raise ValueError(f"Unsupported platform: {system}")
-
-    if machine in ("x86_64", "amd64"):
-        arch_name = "x86_64"
-    elif machine in ("arm64", "aarch64"):
-        arch_name = "aarch64"
-    else:
-        raise ValueError(f"Unsupported architecture: {machine}")
-
-    return f"fs-lsp-{tag}-{arch_name}-{platform_name}{extension}"
 
 
 class CodeEditor(StrEnum):
@@ -112,12 +69,12 @@ def get_storage_path(editor: CodeEditor) -> Path:
         This function returns the expected path regardless of whether the binary
         actually exists at that location. Use Path.exists() to verify.
     """
-    system = platform.system()
-    home = Path.home()
+    binary_name = "dbt-lsp"
 
     if system == "Windows":
         appdata = os.environ.get("APPDATA", home / "AppData" / "Roaming")
         base = Path(appdata) / editor.value
+        binary_name = "dbt-lsp.exe"
 
     elif system == "Darwin":  # macOS
         base = home / "Library" / "Application Support" / editor.value
@@ -129,7 +86,7 @@ def get_storage_path(editor: CodeEditor) -> Path:
     else:
         raise ValueError(f"Unsupported OS: {system}")
 
-    return Path(base, "User", "globalStorage", "dbtlabsinc.dbt", "bin", "dbt-lsp")
+    return Path(base, "User", "globalStorage", "dbtlabsinc.dbt", "bin", binary_name)
 
 
 def dbt_lsp_binary_info(lsp_path: str | None = None) -> LspBinaryInfo | None:
@@ -192,8 +149,8 @@ def get_lsp_binary_version(path: str) -> str:
     """Extract the version string from a dbt LSP binary.
 
     Retrieves the version of the dbt LSP binary using one of two methods:
-    1. For standard 'dbt-lsp' binaries, reads from the adjacent .version file
-    2. For other binaries, executes the binary with --version flag
+    1. If a .version file exists in the same directory as the binary, read from it
+    2. Otherwise, execute the binary with --version flag
 
     Args:
         path: Full filesystem path to the dbt LSP binary.
@@ -202,15 +159,17 @@ def get_lsp_binary_version(path: str) -> str:
         Version string of the binary (whitespace stripped).
 
     Raises:
-        FileNotFoundError: If the .version file doesn't exist (for dbt-lsp binaries).
-        subprocess.SubprocessError: If the binary execution fails (for non-dbt-lsp binaries).
+        subprocess.SubprocessError: If the binary execution fails when .version file
+            doesn't exist.
 
     Note:
-        The .version file is expected to be in the same directory as the dbt-lsp
-        binary and should be named '.version'.
+        The .version file is expected to be in the same directory as the binary
+        and should be named '.version'. This fallback behavior allows the function
+        to work with both standard dbt-lsp installations and custom LSP binaries.
     """
-    if path.endswith("dbt-lsp"):
-        return Path(path[:-7], ".version").read_text().strip()
+    version_file = Path(path).parent / ".version"
+    if version_file.exists():
+        return version_file.read_text().strip()
     else:
         return subprocess.run(
             [path, "--version"], capture_output=True, text=True

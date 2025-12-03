@@ -1,3 +1,0 @@
-kind: Enhancement or New Feature
-body: Return SL query results in ISO timestamp format rather than Unix timestamp
-time: 2025-11-11T07:11:46.67352-06:00
