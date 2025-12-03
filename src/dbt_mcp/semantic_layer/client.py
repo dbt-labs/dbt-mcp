@@ -1,3 +1,4 @@
+import asyncio
 import json
 from collections.abc import Callable
 from contextlib import AbstractContextManager
@@ -352,7 +353,8 @@ class SemanticLayerFetcher:
                 parsed_order_by: list[OrderBySpec] = self._get_order_bys(
                     order_by=order_by, metrics=metrics, group_by=group_by
                 )
-                compiled_sql = sl_client.compile_sql(
+                compiled_sql = await asyncio.to_thread(
+                    sl_client.compile_sql,
                     metrics=metrics,
                     group_by=group_by,  # type: ignore
                     order_by=parsed_order_by,  # type: ignore
@@ -392,7 +394,8 @@ class SemanticLayerFetcher:
                     parsed_order_by: list[OrderBySpec] = self._get_order_bys(
                         order_by=order_by, metrics=metrics, group_by=group_by
                     )
-                    query_result = sl_client.query(
+                    query_result = await asyncio.to_thread(
+                        sl_client.query,
                         metrics=metrics,
                         group_by=group_by,  # type: ignore
                         order_by=parsed_order_by,  # type: ignore
