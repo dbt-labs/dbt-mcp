@@ -5,6 +5,7 @@ from typing import Any
 from mcp.types import ToolAnnotations
 
 from dbt_mcp.tools.injection import adapt_with_mapper
+from dbt_mcp.tools.tool_names import ToolName
 
 
 @dataclass
@@ -18,8 +19,8 @@ class ToolDefinition:
     # So we're setting this to False by default for now.
     structured_output: bool | None = False
 
-    def get_name(self) -> str:
-        return self.name or self.fn.__name__
+    def get_name(self) -> ToolName:
+        return ToolName((self.name or self.fn.__name__).lower())
 
     def adapt_context(self, context_mapper: Callable[..., Any]) -> "ToolDefinition":
         """

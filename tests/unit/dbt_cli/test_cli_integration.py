@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from tests.conftest import MockFastMCP
 from tests.mocks.config import mock_config
 
@@ -12,9 +13,6 @@ class TestDbtCliIntegration(unittest.TestCase):
         Tests the full execution path for dbt commands, ensuring they are properly
         executed with the right arguments.
         """
-        # Import here to prevent circular import issues during patching
-        from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
-
         # Mock setup
         mock_process = MagicMock()
         mock_process.communicate.return_value = ("command output", None)
@@ -23,7 +21,14 @@ class TestDbtCliIntegration(unittest.TestCase):
         mock_fastmcp = MockFastMCP()
 
         # Register the tools
-        register_dbt_cli_tools(mock_fastmcp, mock_config.dbt_cli_config)
+        register_dbt_cli_tools(
+            mock_fastmcp,
+            mock_config.dbt_cli_config,
+            disabled_tools=set(),
+            enabled_tools=set(),
+            enabled_toolsets=set(),
+            disabled_toolsets=set(),
+        )
 
         # Test cases for different command types
         test_cases = [

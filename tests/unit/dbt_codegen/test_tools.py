@@ -36,7 +36,14 @@ def test_generate_source_basic_schema(
 
     # Now register tools with the mock in place
     fastmcp, _ = mock_fastmcp
-    register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
+    register_dbt_codegen_tools(
+        fastmcp,
+        mock_dbt_codegen_config,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
     generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call with just schema_name (provide all required args explicitly)
@@ -79,7 +86,14 @@ def test_generate_source_with_all_parameters(
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
     fastmcp, _ = mock_fastmcp
-    register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
+    register_dbt_codegen_tools(
+        fastmcp,
+        mock_dbt_codegen_config,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
     generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call with all parameters
@@ -115,7 +129,14 @@ def test_generate_model_yaml(monkeypatch: MonkeyPatch, mock_process, mock_fastmc
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
     fastmcp, _ = mock_fastmcp
-    register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
+    register_dbt_codegen_tools(
+        fastmcp,
+        mock_dbt_codegen_config,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
     generate_model_yaml_tool = fastmcp.tools["generate_model_yaml"]
 
     # Call the tool
@@ -148,7 +169,14 @@ def test_generate_staging_model(monkeypatch: MonkeyPatch, mock_process, mock_fas
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
     fastmcp, _ = mock_fastmcp
-    register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
+    register_dbt_codegen_tools(
+        fastmcp,
+        mock_dbt_codegen_config,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
     generate_staging_model_tool = fastmcp.tools["generate_staging_model"]
 
     # Call the tool
@@ -193,7 +221,14 @@ def test_codegen_error_handling_missing_package(monkeypatch: MonkeyPatch, mock_f
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
     fastmcp, _ = mock_fastmcp
-    register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
+    register_dbt_codegen_tools(
+        fastmcp,
+        mock_dbt_codegen_config,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
     generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call should return error message about missing package
@@ -227,7 +262,14 @@ def test_codegen_error_handling_general_error(monkeypatch: MonkeyPatch, mock_fas
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
     fastmcp, _ = mock_fastmcp
-    register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
+    register_dbt_codegen_tools(
+        fastmcp,
+        mock_dbt_codegen_config,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
     generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call should return the error
@@ -256,7 +298,14 @@ def test_codegen_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
     fastmcp, _ = mock_fastmcp
-    register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
+    register_dbt_codegen_tools(
+        fastmcp,
+        mock_dbt_codegen_config,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
     generate_source_tool = fastmcp.tools["generate_source"]
 
     # Test timeout case
@@ -282,7 +331,14 @@ def test_quiet_flag_placement(monkeypatch: MonkeyPatch, mock_process, mock_fastm
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
     fastmcp, _ = mock_fastmcp
-    register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
+    register_dbt_codegen_tools(
+        fastmcp,
+        mock_dbt_codegen_config,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
     generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call the tool
@@ -318,7 +374,14 @@ def test_absolute_path_handling(monkeypatch: MonkeyPatch, mock_process, mock_fas
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
     fastmcp, _ = mock_fastmcp
-    register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
+    register_dbt_codegen_tools(
+        fastmcp,
+        mock_dbt_codegen_config,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
     generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call the tool (mock config has /test/project which is absolute)
@@ -338,7 +401,14 @@ def test_absolute_path_handling(monkeypatch: MonkeyPatch, mock_process, mock_fas
 def test_all_tools_registered(mock_fastmcp):
     """Test that all expected tools are registered."""
     fastmcp, _ = mock_fastmcp
-    register_dbt_codegen_tools(fastmcp, mock_dbt_codegen_config)
+    register_dbt_codegen_tools(
+        fastmcp,
+        mock_dbt_codegen_config,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
     tools = fastmcp.tools
 
     expected_tools = [

@@ -104,6 +104,11 @@ tasks:
       - (cd ui && pnpm install && pnpm build)
       - uv run src/client/main.py
 
+  docs:generate:
+    desc: "Generate documentation from tool definitions"
+    cmds:
+      - uv run python scripts/generate_docs.py {{.CHECK_FLAG}}
+
   d2:
     desc: "Update d2 diagram from the config"
     preconditions:

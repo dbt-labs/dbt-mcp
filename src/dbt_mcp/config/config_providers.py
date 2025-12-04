@@ -42,8 +42,6 @@ class ProxiedToolConfig:
     prod_environment_id: int | None
     url: str
     headers_provider: ProxiedToolHeadersProvider
-    are_sql_tools_disabled: bool
-    are_discovery_tools_disabled: bool
 
 
 class ConfigProvider[ConfigType](ABC):
@@ -128,15 +126,8 @@ class DefaultAdminApiConfigProvider(ConfigProvider[AdminApiConfig]):
 
 
 class DefaultProxiedToolConfigProvider(ConfigProvider[ProxiedToolConfig]):
-    def __init__(
-        self,
-        credentials_provider: CredentialsProvider,
-        are_sql_tools_disabled: bool,
-        are_discovery_tools_disabled: bool,
-    ):
+    def __init__(self, credentials_provider: CredentialsProvider):
         self.credentials_provider = credentials_provider
-        self.are_sql_tools_disabled = are_sql_tools_disabled
-        self.are_discovery_tools_disabled = are_discovery_tools_disabled
 
     async def get_config(self) -> ProxiedToolConfig:
         settings, token_provider = await self.credentials_provider.get_credentials()
@@ -155,6 +146,4 @@ class DefaultProxiedToolConfigProvider(ConfigProvider[ProxiedToolConfig]):
             prod_environment_id=settings.actual_prod_environment_id,
             url=url,
             headers_provider=ProxiedToolHeadersProvider(token_provider=token_provider),
-            are_sql_tools_disabled=self.are_sql_tools_disabled,
-            are_discovery_tools_disabled=self.are_discovery_tools_disabled,
         )
