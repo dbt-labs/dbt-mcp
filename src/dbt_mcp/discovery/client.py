@@ -3,7 +3,7 @@ import textwrap
 from enum import StrEnum
 from typing import Any, ClassVar, Literal, TypedDict
 
-import requests
+import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
@@ -311,12 +311,15 @@ class MetadataAPIClient:
         config = await self.config_provider.get_config()
         url = config.url
         headers = config.headers_provider.get_headers()
-        response = requests.post(
-            url=url,
-            json={"query": query, "variables": variables},
-            headers=headers,
-        )
-        return response.json()
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                url=url,
+                json={"query": query, "variables": variables},
+                headers=headers,
+            )
+            response.raise_for_status()
+            return response.json()
 
 
 class PageInfo(BaseModel):

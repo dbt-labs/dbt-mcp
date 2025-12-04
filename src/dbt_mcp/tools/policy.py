@@ -106,9 +106,6 @@ tool_policies = {
     ToolName.GET_RELATED_MODELS.value: ToolPolicy(
         name=ToolName.GET_RELATED_MODELS.value, behavior=ToolBehavior.METADATA
     ),
-    ToolName.SEARCH.value: ToolPolicy(
-        name=ToolName.SEARCH.value, behavior=ToolBehavior.METADATA
-    ),
     ToolName.GET_MACRO_DETAILS.value: ToolPolicy(
         name=ToolName.GET_MACRO_DETAILS.value, behavior=ToolBehavior.METADATA
     ),

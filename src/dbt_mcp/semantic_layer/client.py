@@ -1,3 +1,4 @@
+import asyncio
 import json
 from collections.abc import Callable
 from contextlib import AbstractContextManager
@@ -107,7 +108,7 @@ class SemanticLayerFetcher:
         self.dimensions_cache: dict[str, list[DimensionToolResponse]] = {}
 
     async def list_metrics(self, search: str | None = None) -> list[MetricToolResponse]:
-        metrics_result = submit_request(
+        metrics_result = await submit_request(
             await self.config_provider.get_config(),
             {"query": GRAPHQL_QUERIES["metrics"], "variables": {"search": search}},
         )
@@ -126,7 +127,7 @@ class SemanticLayerFetcher:
         self, search: str | None = None
     ) -> list[SavedQueryToolResponse]:
         """Fetch all saved queries from the Semantic Layer API."""
-        saved_queries_result = submit_request(
+        saved_queries_result = await submit_request(
             await self.config_provider.get_config(),
             {
                 "query": GRAPHQL_QUERIES["saved_queries"],
@@ -160,7 +161,7 @@ class SemanticLayerFetcher:
     ) -> list[DimensionToolResponse]:
         metrics_key = ",".join(sorted(metrics))
         if metrics_key not in self.dimensions_cache:
-            dimensions_result = submit_request(
+            dimensions_result = await submit_request(
                 await self.config_provider.get_config(),
                 {
                     "query": GRAPHQL_QUERIES["dimensions"],
@@ -190,7 +191,7 @@ class SemanticLayerFetcher:
     ) -> list[EntityToolResponse]:
         metrics_key = ",".join(sorted(metrics))
         if metrics_key not in self.entities_cache:
-            entities_result = submit_request(
+            entities_result = await submit_request(
                 await self.config_provider.get_config(),
                 {
                     "query": GRAPHQL_QUERIES["entities"],
@@ -352,7 +353,8 @@ class SemanticLayerFetcher:
                 parsed_order_by: list[OrderBySpec] = self._get_order_bys(
                     order_by=order_by, metrics=metrics, group_by=group_by
                 )
-                compiled_sql = sl_client.compile_sql(
+                compiled_sql = await asyncio.to_thread(
+                    sl_client.compile_sql,
                     metrics=metrics,
                     group_by=group_by,  # type: ignore
                     order_by=parsed_order_by,  # type: ignore
@@ -392,7 +394,8 @@ class SemanticLayerFetcher:
                     parsed_order_by: list[OrderBySpec] = self._get_order_bys(
                         order_by=order_by, metrics=metrics, group_by=group_by
                     )
-                    query_result = sl_client.query(
+                    query_result = await asyncio.to_thread(
+                        sl_client.query,
                         metrics=metrics,
                         group_by=group_by,  # type: ignore
                         order_by=parsed_order_by,  # type: ignore

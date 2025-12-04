@@ -26,14 +26,12 @@ proxied_tools: set[
         ToolName.TEXT_TO_SQL,
         ToolName.EXECUTE_SQL,
         ToolName.GET_RELATED_MODELS,
-        ToolName.SEARCH,
     ]
 ] = set(
     [
         ToolName.TEXT_TO_SQL,
         ToolName.EXECUTE_SQL,
         ToolName.GET_RELATED_MODELS,
-        ToolName.SEARCH,
     ]
 )
 
@@ -62,7 +60,6 @@ toolsets = {
         ToolName.GET_EXPOSURES,
         ToolName.GET_EXPOSURE_DETAILS,
         ToolName.GET_RELATED_MODELS,
-        ToolName.SEARCH,
         ToolName.GET_MACRO_DETAILS,
         ToolName.GET_SEED_DETAILS,
         ToolName.GET_SEMANTIC_MODEL_DETAILS,

@@ -34,7 +34,6 @@ class ToolName(Enum):
     GET_EXPOSURES = "get_exposures"
     GET_EXPOSURE_DETAILS = "get_exposure_details"
     GET_RELATED_MODELS = "get_related_models"
-    SEARCH = "search"
     GET_MACRO_DETAILS = "get_macro_details"
     GET_SEED_DETAILS = "get_seed_details"
     GET_SEMANTIC_MODEL_DETAILS = "get_semantic_model_details"
