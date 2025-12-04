@@ -20,6 +20,7 @@ from dbt_mcp.lsp.providers.local_lsp_client_provider import LocalLSPClientProvid
 from dbt_mcp.lsp.providers.local_lsp_connection_provider import (
     LocalLSPConnectionProvider,
 )
+from dbt_mcp.lsp.providers.lsp_connection_provider import LSPConnectionProviderProtocol
 from dbt_mcp.lsp.tools import register_lsp_tools
 from dbt_mcp.proxy.tools import ProxiedToolsManager, register_proxied_tools
 from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
@@ -34,7 +35,12 @@ class DbtMCP(FastMCP):
         self,
         config: Config,
         usage_tracker: UsageTracker,
-        lifespan: Callable[["DbtMCP"], AbstractAsyncContextManager[LifespanResultT]],
+        lifespan: (
+            Callable[
+                [FastMCP[LifespanResultT]], AbstractAsyncContextManager[LifespanResultT]
+            ]
+            | None
+        ),
         lsp_connection_provider: LocalLSPConnectionProvider | None = None,
         *args: Any,
         **kwargs: Any,
@@ -43,6 +49,9 @@ class DbtMCP(FastMCP):
         self.usage_tracker = usage_tracker
         self.config = config
         self.lsp_connection_provider = lsp_connection_provider
+        self._lsp_connection_task: (
+            asyncio.Task[LSPConnectionProviderProtocol] | None
+        ) = None
 
     async def call_tool(
         self, name: str, arguments: dict[str, Any]
@@ -91,13 +100,15 @@ class DbtMCP(FastMCP):
 
 
 @asynccontextmanager
-async def app_lifespan(server: DbtMCP) -> AsyncIterator[None]:
+async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
+    if not isinstance(server, DbtMCP):
+        raise TypeError("app_lifespan can only be used with DbtMCP servers")
     logger.info("Starting MCP server")
     try:
         # eager start and initialize the LSP connection
         if server.lsp_connection_provider:
             asyncio.create_task(server.lsp_connection_provider.get_connection())
-        yield
+        yield None
     except Exception as e:
         logger.error(f"Error in MCP server: {e}")
         raise e
