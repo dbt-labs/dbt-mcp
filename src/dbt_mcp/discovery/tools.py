@@ -482,7 +482,6 @@ def register_discovery_tools(
     def bind_context() -> DiscoveryToolContext:
         return DiscoveryToolContext(config_provider=discovery_config_provider)
 
-    # Register all discovery tools (including lineage)
     register_tools(
         dbt_mcp,
         [tool.adapt_context(bind_context) for tool in DISCOVERY_TOOLS],
