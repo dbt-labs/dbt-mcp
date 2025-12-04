@@ -1,10 +1,36 @@
 from unittest.mock import patch
 
-from dbt_mcp.config.config import load_config
+from dbt_mcp.config.config import (
+    TOOLSET_TO_DISABLE_ATTR,
+    TOOLSET_TO_ENABLE_ATTR,
+    load_config,
+)
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo
 from dbt_mcp.mcp.server import create_dbt_mcp
-from dbt_mcp.tools.toolsets import proxied_tools, toolsets
+from dbt_mcp.tools.toolsets import Toolset, proxied_tools, toolsets
+
+
+def test_toolset_enable_disable_attr_cover_every_toolset() -> None:
+    """Ensure each toolset has enable/disable flags."""
+    expected_toolsets = set(Toolset)
+
+    disable_keys = set(TOOLSET_TO_DISABLE_ATTR.keys())
+    enable_keys = set(TOOLSET_TO_ENABLE_ATTR.keys())
+
+    missing_disable = sorted(
+        toolset.value for toolset in expected_toolsets - disable_keys
+    )
+    missing_enable = sorted(
+        toolset.value for toolset in expected_toolsets - enable_keys
+    )
+
+    assert disable_keys == expected_toolsets, (
+        f"Missing disable attrs for: {missing_disable}" if missing_disable else ""
+    )
+    assert enable_keys == expected_toolsets, (
+        f"Missing enable attrs for: {missing_enable}" if missing_enable else ""
+    )
 
 
 async def test_toolsets_match_server_tools(env_setup):
