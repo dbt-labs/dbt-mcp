@@ -1,10 +1,7 @@
 from __future__ import annotations
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
-from typing import Any
-
-
 class Descendant(BaseModel):
     model_id: str
     children: list[Descendant] = Field(default_factory=list)
@@ -125,7 +122,7 @@ def get_uid_from_name(manifest: dict[str, Any], model_id: str) -> str:
     # using the parent and child map so it include sources/exposures
     if model_id in manifest["child_map"] or model_id in manifest["parent_map"]:
         return model_id
-    # fallback: look through eveything for the identifier
+    # fallback: look through everything for the identifier
     for uid, node in manifest.get("nodes", {}).items():
         if node.get("name") == model_id:
             return uid
