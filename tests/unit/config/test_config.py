@@ -32,6 +32,7 @@ class TestDbtMcpSettings:
             "DISABLE_DISCOVERY",
             "DISABLE_REMOTE",
             "DISABLE_ADMIN_API",
+            "DISABLE_SQL",
             "MULTICELL_ACCOUNT_PREFIX",
             "DBT_WARN_ERROR_OPTIONS",
             "DISABLE_TOOLS",
