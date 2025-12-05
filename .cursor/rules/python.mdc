@@ -1,0 +1,13 @@
+---
+globs: *.py
+alwaysApply: false
+---
+- Don't import modules in the middle of code unless there is a good reason to, which is rare. Have a very strong preference toward importing modules at the top of Python files.
+- Clearly document the reason when importing modules in the middle of the code
+- Never add unused parameters to a function, even if the parameter has a default value.
+- Only use default arguments when there is a reason to do so.
+- Avoid `while True`. While-loops should have a termination condition in the `while` statement, not just in the loop body.
+- Always use `*`, in function parameter lists when there are adjacent parameters with the same type.
+- Avoid putting code in `__init__.py` files.
+- Always include type annotations for function inputs and outputs.
+- Always prefer Pydantic models or dataclasses to dictionaries.

@@ -1,5 +1,6 @@
 import datetime as dt
 import json
+from decimal import Decimal
 
 import pyarrow as pa
 
@@ -140,3 +141,31 @@ def test_default_result_formatter_various_numeric_types() -> None:
     assert parsed[0]["int_col"] == 1
     assert abs(parsed[0]["float_col"] - 1.1) < 0.0001
     assert abs(parsed[0]["decimal_col"] - 100.50) < 0.0001
+
+
+def test_default_result_formatter_with_python_decimal() -> None:
+    """Test handling of Python Decimal objects from PyArrow decimal128 columns.
+
+    This tests the fix for Decimal JSON serialization where PyArrow decimal128
+    columns return Python Decimal objects that need special handling in JSON encoding.
+    """
+    # Create a PyArrow table with decimal128 type (which returns Python Decimal objects)
+    decimal_array = pa.array(
+        [Decimal("123.45"), Decimal("678.90"), Decimal("0.01")],
+        type=pa.decimal128(10, 2),
+    )
+    table = pa.table(
+        {
+            "amount": decimal_array,
+            "name": pa.array(["a", "b", "c"]),
+        }
+    )
+
+    # This should not raise "Object of type Decimal is not JSON serializable"
+    output = DEFAULT_RESULT_FORMATTER(table)
+    parsed = json.loads(output)
+
+    # Verify Decimal values are correctly converted to floats
+    assert abs(parsed[0]["amount"] - 123.45) < 0.0001
+    assert abs(parsed[1]["amount"] - 678.90) < 0.0001
+    assert abs(parsed[2]["amount"] - 0.01) < 0.0001
