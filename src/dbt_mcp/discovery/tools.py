@@ -391,8 +391,8 @@ async def get_lineage(
     context: DiscoveryToolContext,
     name: str | None = None,
     unique_id: str | None = None,
-    direction: str = "both",
-    types: list[str] | None = None,
+    direction: LineageDirection = LineageDirection.BOTH,
+    types: list[LineageResourceType] | None = None,
 ) -> dict:
     normalized_name = name.strip().lower() if name else None
     normalized_unique_id = unique_id.strip().lower() if unique_id else None
@@ -403,28 +403,6 @@ async def get_lineage(
         raise InvalidParameterError(
             "Only one of name or unique_id should be provided, not both"
         )
-
-    # Convert direction string to enum
-    try:
-        direction_enum = LineageDirection(direction)
-    except ValueError:
-        raise InvalidParameterError(
-            f"Invalid direction: '{direction}'. "
-            f"Must be one of: {', '.join(d.value for d in LineageDirection)}"
-        )
-
-    # Convert types strings to enums
-    types_enum: list[LineageResourceType] | None = None
-    if types is not None:
-        types_enum = []
-        for t in types:
-            try:
-                types_enum.append(LineageResourceType(t))
-            except ValueError:
-                raise InvalidParameterError(
-                    f"Invalid resource type: '{t}'. "
-                    f"Valid types are: {', '.join(rt.value for rt in LineageResourceType)}"
-                )
 
     resolved_unique_id = normalized_unique_id
     if not normalized_unique_id:
@@ -443,14 +421,14 @@ async def get_lineage(
         if len(matches) == 1:
             resolved_unique_id = matches[0]["uniqueId"]
         else:
-            return await _fetch_all_lineage_trees(context, matches, direction_enum, types_enum)
+            return await _fetch_all_lineage_trees(context, matches, direction, types)
 
     assert resolved_unique_id is not None
 
     return await context.lineage_fetcher.fetch_lineage(
         unique_id=resolved_unique_id,
-        direction=direction_enum,
-        types=types_enum,
+        direction=direction,
+        types=types,
     )
 
 
