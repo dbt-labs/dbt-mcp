@@ -1,11 +1,9 @@
 from __future__ import annotations
-from typing import Literal, TypeVar, Union, cast
+from typing import Literal, cast
 
 from pydantic import BaseModel, Field
 
 from dbt_mcp.dbt_cli.models.manifest import Manifest
-
-NodeT = TypeVar("NodeT", bound=Union["Ancestor", "Descendant"])
 
 
 class Descendant(BaseModel):
@@ -56,35 +54,25 @@ class ModelLineage(BaseModel):
         def _build_node(
             node_id: str,
             map_data: dict[str, list[str]],
-            node_cls: type[NodeT],
             key: str,
             path: set[str],
-        ) -> NodeT | None:
+        ) -> Ancestor | Descendant | None:
             if node_id in path:
                 return None
 
-            next_nodes: list[NodeT] = []
+            next_nodes: list[Ancestor | Descendant] = []
             for next_id in map_data.get(node_id, []):
                 if next_id.startswith(exclude_prefixes):
                     continue
-                child_node = _build_node(
-                    next_id, map_data, node_cls, key, path | {node_id}
-                )
+                child_node = _build_node(next_id, map_data, key, path | {node_id})
                 if child_node:
                     next_nodes.append(child_node)
-
             if key == "parents":
-                return cast(
-                    NodeT,
-                    Ancestor(
-                        model_id=node_id, parents=cast(list[Ancestor], next_nodes)
-                    ),
+                return Ancestor(
+                    model_id=node_id, parents=cast(list[Ancestor], next_nodes)
                 )
-            return cast(
-                NodeT,
-                Descendant(
-                    model_id=node_id, children=cast(list[Descendant], next_nodes)
-                ),
+            return Descendant(
+                model_id=node_id, children=cast(list[Descendant], next_nodes)
             )
 
         if direction in ("both", "parents"):
@@ -93,11 +81,9 @@ class ModelLineage(BaseModel):
                     continue
 
                 if recursive:
-                    p_node = _build_node(
-                        item_id, parent_map, Ancestor, "parents", {model_id}
-                    )
+                    p_node = _build_node(item_id, parent_map, "parents", {model_id})
                     if p_node:
-                        parents.append(p_node)
+                        parents.append(cast(Ancestor, p_node))
                 else:
                     parents.append(Ancestor(model_id=item_id))
 
@@ -107,11 +93,9 @@ class ModelLineage(BaseModel):
                     continue
 
                 if recursive:
-                    c_node = _build_node(
-                        item_id, child_map, Descendant, "children", {model_id}
-                    )
+                    c_node = _build_node(item_id, child_map, "children", {model_id})
                     if c_node:
-                        children.append(c_node)
+                        children.append(cast(Descendant, c_node))
                 else:
                     children.append(Descendant(model_id=item_id))
         return cls(
