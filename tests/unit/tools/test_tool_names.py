@@ -25,7 +25,6 @@ async def test_tool_names_match_server_tools(env_setup):
         ),
     ):
         config = load_config(enable_proxied_tools=False)
-
         dbt_mcp = await create_dbt_mcp(config)
 
         # Get all tools from the server

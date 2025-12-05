@@ -36,5 +36,20 @@ repos:
       - id: mypy
         language: system
         pass_filenames: false
-        args: ["--show-error-codes", "--namespace-packages", "--exclude", "examples/", "."]
+        args:
+          [
+            "--show-error-codes",
+            "--namespace-packages",
+            "--exclude",
+            "examples/",
+            ".",
+          ]
         exclude: examples/
+  - repo: local
+    hooks:
+      - id: generate-docs
+        name: Generate documentation from registered tools
+        entry: bash -c "task docs:generate"
+        language: system
+        files: ^(src/dbt_mcp/tools/(tool_names|toolsets)\.py|README\.md|docs/diagram\.d2)$
+        pass_filenames: false

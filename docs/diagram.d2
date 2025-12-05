@@ -28,78 +28,34 @@ classes: {
 mcp: dbt MCP server
 
 tools: Tools {
-  cli: dbt CLI\nlocal executable {
-    label.near: outside-right-center
-    class: container
-    build
-    compile
-    docs
-    ls
-    parse
-    run
-    test
-    show
+  sql: SQL {
+    style.border-radius: 8
   }
 
-  discovery: Discovery\nMetadata API {
-    label.near: outside-right-center
-    class: big-container
-    get_mart_models
-    get_all_models
-    get_model_details
-    get_model_parents
-    get_model_children
-    get_model_health
-    get_exposures
-    get_exposure_details
-    get_all_sources
-    get_source_details
-    get_macro_details
-    get_seed_details
-    get_semantic_model_details
-    get_snapshot_details
-    get_test_details
+  semantic_layer: Semantic Layer {
+    style.border-radius: 8
   }
 
-  sl: dbt Semantic Layer {
-    label.near: outside-right-center
-    class: container
-    list_metrics
-    get_dimensions
-    get_entities
-    query_metrics
-    get_metrics_compiled_sql
+  discovery: Discovery {
+    style.border-radius: 8
   }
 
-  sql: SQL tools {
-    label.near: outside-right-center
-    class: container
-    text_to_sql
-    execute_sql
+  dbt_cli: dbt CLI {
+    style.border-radius: 8
   }
 
-  admin: Admin API tools {
-    label.near: outside-right-center
-    class: big-container
-    list_jobs
-    get_job_details
-    trigger_job_run
-    list_jobs_runs
-    get_job_run_details
-    cancel_job_run
-    retry_job_run
-    list_job_run_artifacts
-    get_job_run_artifact
-    get_job_run_error
+  admin_api: Admin API {
+    style.border-radius: 8
   }
 
-  codegen: dbt-codegen tools {
-    label.near: outside-right-center
-    class: container
-    generate_source
-    generate_model_yaml
-    generate_staging_model
+  dbt_codegen: dbt Codegen {
+    style.border-radius: 8
   }
+
+  dbt_lsp: dbt LSP {
+    style.border-radius: 8
+  }
+
 }
 
 mcp -- tools.*

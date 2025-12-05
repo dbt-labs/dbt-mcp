@@ -4,7 +4,6 @@ from contextlib import AsyncExitStack
 from typing import (
     Annotated,
     Any,
-    cast,
 )
 
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
@@ -28,8 +27,9 @@ from pydantic_core import PydanticUndefined
 
 from dbt_mcp.config.config_providers import ConfigProvider, ProxiedToolConfig
 from dbt_mcp.errors import RemoteToolError
+from dbt_mcp.tools.register import should_register_tool
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.toolsets import Toolset, proxied_tools, toolsets
+from dbt_mcp.tools.toolsets import Toolset, proxied_tools
 
 logger = logging.getLogger(__name__)
 
@@ -98,24 +98,13 @@ class ProxiedToolsManager:
         await cls._stack.aclose()
 
 
-def resolve_proxied_tools_configuration(
-    config: ProxiedToolConfig,
-    exclude_tools: Sequence[ToolName],
-) -> set[ToolName]:
-    configured_proxied_tools = cast(set[ToolName], proxied_tools) - set(exclude_tools)
-    if config.are_sql_tools_disabled:
-        configured_proxied_tools = configured_proxied_tools - toolsets[Toolset.SQL]
-    if config.are_discovery_tools_disabled:
-        configured_proxied_tools = (
-            configured_proxied_tools - toolsets[Toolset.DISCOVERY]
-        )
-    return configured_proxied_tools
-
-
 async def register_proxied_tools(
     dbt_mcp: FastMCP,
     config_provider: ConfigProvider[ProxiedToolConfig],
-    exclude_tools: Sequence[ToolName] = [],
+    disabled_tools: set[ToolName],
+    enabled_tools: set[ToolName],
+    enabled_toolsets: set[Toolset],
+    disabled_toolsets: set[Toolset],
 ) -> None:
     """
     Register proxied MCP tools.
@@ -123,9 +112,17 @@ async def register_proxied_tools(
     Proxied tools are hosted remotely, so their definitions aren't found in this repo.
     """
     config = await config_provider.get_config()
-    configured_proxied_tools = resolve_proxied_tools_configuration(
-        config, exclude_tools
-    )
+    configured_proxied_tools: set[ToolName] = {
+        t
+        for t in proxied_tools
+        if should_register_tool(
+            tool_name=t,
+            enabled_tools=enabled_tools,
+            disabled_tools=disabled_tools,
+            enabled_toolsets=enabled_toolsets,
+            disabled_toolsets=disabled_toolsets,
+        )
+    }
     if not configured_proxied_tools:
         return
     headers = config.headers_provider.get_headers()

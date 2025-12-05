@@ -6,7 +6,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any, Protocol, assert_never
+from typing import Any, Protocol
 
 import yaml
 from dbtlabs.proto.public.v1.common.vortex_telemetry_contexts_pb2 import (
@@ -15,7 +15,7 @@ from dbtlabs.proto.public.v1.common.vortex_telemetry_contexts_pb2 import (
 from dbtlabs.proto.public.v1.events.mcp_pb2 import ToolCalled
 from dbtlabs_vortex.producer import log_proto
 
-from dbt_mcp.config.config import PACKAGE_NAME
+from dbt_mcp.config.config import PACKAGE_NAME, TOOLSET_TO_DISABLE_ATTR
 from dbt_mcp.config.dbt_yaml import try_read_yaml
 from dbt_mcp.config.settings import (
     CredentialsProvider,
@@ -55,35 +55,11 @@ class DefaultUsageTracker:
         self._local_user_id: str | None = None
 
     def _get_disabled_toolsets(self, settings: DbtMcpSettings) -> list[Toolset]:
-        disabled_toolsets: list[Toolset] = []
-        # Looping over the Toolset enum to ensure that type validation
-        # accounts for additions to the Toolset enum with `assert_never`
-        for toolset in Toolset:
-            match toolset:
-                case Toolset.SQL:
-                    if settings.disable_sql:
-                        disabled_toolsets.append(toolset)
-                case Toolset.SEMANTIC_LAYER:
-                    if settings.disable_semantic_layer:
-                        disabled_toolsets.append(toolset)
-                case Toolset.DISCOVERY:
-                    if settings.disable_discovery:
-                        disabled_toolsets.append(toolset)
-                case Toolset.DBT_CLI:
-                    if settings.disable_dbt_cli:
-                        disabled_toolsets.append(toolset)
-                case Toolset.ADMIN_API:
-                    if settings.disable_admin_api:
-                        disabled_toolsets.append(toolset)
-                case Toolset.DBT_CODEGEN:
-                    if settings.disable_dbt_codegen:
-                        disabled_toolsets.append(toolset)
-                case Toolset.DBT_LSP:
-                    if settings.disable_lsp:
-                        disabled_toolsets.append(toolset)
-                case _:
-                    assert_never(toolset)
-        return disabled_toolsets
+        return [
+            toolset
+            for toolset, attr_name in TOOLSET_TO_DISABLE_ATTR.items()
+            if getattr(settings, attr_name, False)
+        ]
 
     def _get_local_user_id(self, settings: DbtMcpSettings) -> str:
         if self._local_user_id is None:

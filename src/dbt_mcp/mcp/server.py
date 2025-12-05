@@ -128,6 +128,10 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
         name="dbt",
         lifespan=app_lifespan,
     )
+    disabled_tools = set(config.disable_tools)
+    enabled_tools = set(config.enable_tools)
+    enabled_toolsets = config.enabled_toolsets
+    disabled_toolsets = config.disabled_toolsets
 
     if config.semantic_layer_config_provider:
         logger.info("Registering semantic layer tools")
@@ -137,35 +141,65 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
             client_provider=DefaultSemanticLayerClientProvider(
                 config_provider=config.semantic_layer_config_provider,
             ),
-            exclude_tools=config.disable_tools,
+            disabled_tools=disabled_tools,
+            enabled_tools=enabled_tools,
+            enabled_toolsets=enabled_toolsets,
+            disabled_toolsets=disabled_toolsets,
         )
 
     if config.discovery_config_provider:
         logger.info("Registering discovery tools")
         register_discovery_tools(
-            dbt_mcp, config.discovery_config_provider, config.disable_tools
+            dbt_mcp,
+            config.discovery_config_provider,
+            disabled_tools=disabled_tools,
+            enabled_tools=enabled_tools,
+            enabled_toolsets=enabled_toolsets,
+            disabled_toolsets=disabled_toolsets,
         )
 
     if config.dbt_cli_config:
         logger.info("Registering dbt cli tools")
-        register_dbt_cli_tools(dbt_mcp, config.dbt_cli_config, config.disable_tools)
+        register_dbt_cli_tools(
+            dbt_mcp,
+            config=config.dbt_cli_config,
+            disabled_tools=disabled_tools,
+            enabled_tools=enabled_tools,
+            enabled_toolsets=enabled_toolsets,
+            disabled_toolsets=disabled_toolsets,
+        )
 
     if config.dbt_codegen_config:
         logger.info("Registering dbt codegen tools")
         register_dbt_codegen_tools(
-            dbt_mcp, config.dbt_codegen_config, config.disable_tools
+            dbt_mcp,
+            config=config.dbt_codegen_config,
+            disabled_tools=disabled_tools,
+            enabled_tools=enabled_tools,
+            enabled_toolsets=enabled_toolsets,
+            disabled_toolsets=disabled_toolsets,
         )
 
     if config.admin_api_config_provider:
         logger.info("Registering dbt admin API tools")
         register_admin_api_tools(
-            dbt_mcp, config.admin_api_config_provider, config.disable_tools
+            dbt_mcp,
+            config.admin_api_config_provider,
+            disabled_tools=disabled_tools,
+            enabled_tools=enabled_tools,
+            enabled_toolsets=enabled_toolsets,
+            disabled_toolsets=disabled_toolsets,
         )
 
     if config.proxied_tool_config_provider:
         logger.info("Registering proxied tools")
         await register_proxied_tools(
-            dbt_mcp, config.proxied_tool_config_provider, config.disable_tools
+            dbt_mcp=dbt_mcp,
+            config_provider=config.proxied_tool_config_provider,
+            disabled_tools=disabled_tools,
+            enabled_tools=enabled_tools,
+            enabled_toolsets=enabled_toolsets,
+            disabled_toolsets=disabled_toolsets,
         )
 
     if config.lsp_config and config.lsp_config.lsp_binary_info:
@@ -178,6 +212,13 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
             lsp_connection_provider=local_lsp_connection_provider,
         )
         dbt_mcp.lsp_connection_provider = local_lsp_connection_provider
-        await register_lsp_tools(dbt_mcp, lsp_client_provider, config.disable_tools)
+        await register_lsp_tools(
+            dbt_mcp,
+            lsp_client_provider,
+            disabled_tools=disabled_tools,
+            enabled_tools=enabled_tools,
+            enabled_toolsets=enabled_toolsets,
+            disabled_toolsets=disabled_toolsets,
+        )
 
     return dbt_mcp
