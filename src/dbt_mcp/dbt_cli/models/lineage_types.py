@@ -1,7 +1,13 @@
 from __future__ import annotations
-from typing import Any, Literal
+from typing import Literal, TypeVar, Union, cast
 
 from pydantic import BaseModel, Field
+
+from dbt_mcp.dbt_cli.models.manifest import Manifest
+
+NodeT = TypeVar("NodeT", bound=Union["Ancestor", "Descendant"])
+
+
 class Descendant(BaseModel):
     model_id: str
     children: list[Descendant] = Field(default_factory=list)
@@ -20,7 +26,7 @@ class ModelLineage(BaseModel):
     @classmethod
     def from_manifest(
         cls,
-        manifest: dict[str, Any],
+        manifest: Manifest,
         model_id: str,
         direction: Literal["parents", "children", "both"] = "both",
         exclude_prefixes: tuple[str, ...] = ("test.", "unit_test."),
@@ -30,7 +36,7 @@ class ModelLineage(BaseModel):
         """
         Build a ModelLineage instance from a dbt manifest mapping.
 
-        - manifest: dict containing at least 'parent_map' and/or 'child_map'
+        - manifest: Manifest object containing at least 'parent_map' and/or 'child_map'
         - model_id: the model id to start from
         - recursive: whether to traverse recursively
         - direction: one of 'parents', 'children', or 'both'
@@ -38,75 +44,76 @@ class ModelLineage(BaseModel):
             Descendants only. Give () to include all.
 
         The returned ModelLineage contains lists of Ancestor and/or Descendant
-        objects. For compatibility with the previous implementation, recursive
-        traversal returns a flat list of Ancestor/Descendant nodes (no nested
-        parents/children relationships are constructed).
+        objects.
         """
-        parent_map = manifest.get("parent_map", {})
-        child_map = manifest.get("child_map", {})
+        parent_map = manifest.parent_map
+        child_map = manifest.child_map
 
         parents: list[Ancestor] = []
         children: list[Descendant] = []
         model_id = get_uid_from_name(manifest, model_id)
 
-        if direction in ("both", "parents"):
-            if not recursive:
-                # direct parents only
-                for pid in parent_map.get(model_id, []):
-                    parents.append(Ancestor.model_validate({"model_id": pid}))
-            else:
-                # Build nested ancestor trees. We prevent cycles using path tracking.
-                def _build_ancestor(node_id: str, path: set[str]) -> Ancestor:
-                    if node_id in path:
-                        # cycle detected, return node without parents
-                        return Ancestor.model_validate({"model_id": node_id})
-                    new_path = set(path)
-                    new_path.add(node_id)
-                    parents = [
-                        _build_ancestor(pid, new_path)
-                        for pid in parent_map.get(node_id, [])
-                    ]
-                    return Ancestor.model_validate(
-                        {"model_id": node_id, "parents": parents}
-                    )
+        def _build_node(
+            node_id: str,
+            map_data: dict[str, list[str]],
+            node_cls: type[NodeT],
+            key: str,
+            path: set[str],
+        ) -> NodeT | None:
+            if node_id in path:
+                return None
 
-                for pid in parent_map.get(model_id, []):
-                    parents.append(_build_ancestor(pid, {model_id}))
+            next_nodes: list[NodeT] = []
+            for next_id in map_data.get(node_id, []):
+                if next_id.startswith(exclude_prefixes):
+                    continue
+                child_node = _build_node(
+                    next_id, map_data, node_cls, key, path | {node_id}
+                )
+                if child_node:
+                    next_nodes.append(child_node)
+
+            if key == "parents":
+                return cast(
+                    NodeT,
+                    Ancestor(
+                        model_id=node_id, parents=cast(list[Ancestor], next_nodes)
+                    ),
+                )
+            return cast(
+                NodeT,
+                Descendant(
+                    model_id=node_id, children=cast(list[Descendant], next_nodes)
+                ),
+            )
+
+        if direction in ("both", "parents"):
+            for item_id in parent_map.get(model_id, []):
+                if recursive and item_id.startswith(exclude_prefixes):
+                    continue
+
+                if recursive:
+                    p_node = _build_node(
+                        item_id, parent_map, Ancestor, "parents", {model_id}
+                    )
+                    if p_node:
+                        parents.append(p_node)
+                else:
+                    parents.append(Ancestor(model_id=item_id))
 
         if direction in ("both", "children"):
-            if not recursive:
-                children = [
-                    Descendant.model_validate({"model_id": cid})
-                    for cid in child_map.get(model_id, [])
-                ]
-            else:
-                # Build nested descendant trees. Prevent cycles using path tracking.
-                def _build_descendant(node_id: str, path: set[str]) -> Descendant:
-                    if node_id in path:
-                        return Descendant.model_validate({"model_id": node_id})
-                    new_path = set(path)
-                    new_path.add(node_id)
-                    # exclude children with specified prefixes
-                    new_children = [
-                        cid
-                        for cid in child_map.get(node_id, [])
-                        if not cid.startswith(exclude_prefixes)
-                    ]
+            for item_id in child_map.get(model_id, []):
+                if recursive and item_id.startswith(exclude_prefixes):
+                    continue
 
-                    children = [
-                        _build_descendant(cid, new_path) for cid in new_children
-                    ]
-                    return Descendant.model_validate(
-                        {"model_id": node_id, "children": children},
-                        context={"exclude_prefixes": exclude_prefixes},
+                if recursive:
+                    c_node = _build_node(
+                        item_id, child_map, Descendant, "children", {model_id}
                     )
-
-                for cid in [
-                    cid
-                    for cid in child_map.get(model_id, [])
-                    if not cid.startswith(exclude_prefixes)
-                ]:
-                    children.append(_build_descendant(cid, {model_id}))
+                    if c_node:
+                        children.append(c_node)
+                else:
+                    children.append(Descendant(model_id=item_id))
         return cls(
             model_id=model_id,
             parents=parents,
@@ -114,22 +121,22 @@ class ModelLineage(BaseModel):
         )
 
 
-def get_uid_from_name(manifest: dict[str, Any], model_id: str) -> str:
+def get_uid_from_name(manifest: Manifest, model_id: str) -> str:
     """
     Given a dbt manifest mapping and a model name, return the unique_id
     corresponding to that model name, or None if not found.
     """
     # using the parent and child map so it include sources/exposures
-    if model_id in manifest["child_map"] or model_id in manifest["parent_map"]:
+    if model_id in manifest.child_map or model_id in manifest.parent_map:
         return model_id
-    # fallback: look through everything for the identifier
-    for uid, node in manifest.get("nodes", {}).items():
-        if node.get("name") == model_id:
+    # fallback: look through eveything for the identifier
+    for uid, node in manifest.nodes.items():
+        if node.name == model_id:
             return uid
-    for uid, source in manifest.get("sources", {}).items():
-        if source.get("identifier") == model_id:
+    for uid, source in manifest.sources.items():
+        if source.identifier == model_id:
             return uid
-    for uid, exposure in manifest.get("exposures", {}).items():
-        if exposure.get("name") == model_id:
+    for uid, exposure in manifest.exposures.items():
+        if exposure.name == model_id:
             return uid
     raise ValueError(f"Model name '{model_id}' not found in manifest.")

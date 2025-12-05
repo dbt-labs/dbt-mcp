@@ -1,11 +1,12 @@
 import pytest
 
 from dbt_mcp.dbt_cli.models.lineage_types import ModelLineage
+from dbt_mcp.dbt_cli.models.manifest import Manifest
 
 
 @pytest.fixture
 def sample_manifest():
-    yield {
+    data = {
         "child_map": {
             "model.a": ["model.b", "model.c"],
             "model.b": ["model.d", "test.not_included"],
@@ -33,6 +34,7 @@ def sample_manifest():
             "exposure.1": {"name": "1"},
         },
     }
+    yield Manifest(**data)
 
 
 @pytest.mark.parametrize(

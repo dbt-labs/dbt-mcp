@@ -1,5 +1,6 @@
 import os
 import subprocess
+import json
 from collections.abc import Iterable
 from typing import Any, Literal
 
@@ -9,6 +10,7 @@ from pydantic import Field
 from dbt_mcp.config.config import DbtCliConfig
 from dbt_mcp.dbt_cli.binary_type import get_color_disable_flag
 from dbt_mcp.dbt_cli.models.lineage_types import ModelLineage
+from dbt_mcp.dbt_cli.models.manifest import Manifest
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.annotations import create_tool_annotations
 from dbt_mcp.tools.definitions import ToolDefinition
@@ -179,16 +181,14 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         args.extend(["--output", "json"])
         return _run_dbt_command(args)
 
-    def _get_manifest() -> dict[str, Any]:
+    def _get_manifest() -> Manifest:
         """Helper function to load the dbt manifest.json file."""
-        import json
-
         _run_dbt_command(["parse"])  # Ensure manifest is generated
         cwd_path = config.project_dir if os.path.isabs(config.project_dir) else None
         manifest_path = os.path.join(cwd_path or ".", "target", "manifest.json")
         with open(manifest_path) as f:
-            manifest = json.load(f)
-        return manifest
+            manifest_data = json.load(f)
+        return Manifest(**manifest_data)
 
     def get_model_lineage_dev(
         model_id: str,
