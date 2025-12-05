@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Fix JSON serialization error when querying metrics that return Decimal values from the dbt Semantic Layer
-time: 2025-12-05T11:41:46.988675841Z

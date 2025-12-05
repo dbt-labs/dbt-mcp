@@ -1,3 +1,0 @@
-kind: Enhancement or New Feature
-body: Added explicit allowlist system for tool configuration, enabling fine-grained control over which tools are available. 
-time: 2025-11-21T12:44:29.2344481-05:00
