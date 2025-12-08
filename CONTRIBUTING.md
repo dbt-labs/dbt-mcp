@@ -24,6 +24,10 @@ cd dbt-mcp
 
 6. Run `task client` to chat with dbt MCP in your terminal.
 
+## Style
+
+Refer to `./cursor/rules` for standards and stylistic guidelines.
+
 ## Testing
 
 This repo has automated tests which can be run with `task test:unit`. Additionally, there is a simple CLI tool which can be used to test by running `task client`. If you would like to test in a client like Cursor or Claude, use a configuration file like this:
