@@ -681,6 +681,7 @@ class ResourceDetailsFetcher:
 
 class LineageDirection(StrEnum):
     """Direction for lineage traversal."""
+
     ANCESTORS = "ancestors"
     DESCENDANTS = "descendants"
     BOTH = "both"
@@ -688,6 +689,7 @@ class LineageDirection(StrEnum):
 
 class LineageResourceType(StrEnum):
     """Resource types supported by the lineage API."""
+
     MODEL = "Model"
     SOURCE = "Source"
     SEED = "Seed"
@@ -734,7 +736,9 @@ class LineageFetcher:
         config = await self.api_client.config_provider.get_config()
         return config.environment_id
 
-    async def search_resource_by_name(self, name: str, resource_type: str) -> list[dict]:
+    async def search_resource_by_name(
+        self, name: str, resource_type: str
+    ) -> list[dict]:
         """Search for a resource by name/identifier.
 
         Generic method that handles searching for any supported resource type.
@@ -768,11 +772,9 @@ class LineageFetcher:
         if not packages:
             return []
 
-
         resource_type_lower = resource_type.lower()
         unique_ids = [
-            f"{resource_type_lower}.{package_name}.{name}"
-            for package_name in packages
+            f"{resource_type_lower}.{package_name}.{name}" for package_name in packages
         ]
 
         variables = {
@@ -868,7 +870,6 @@ class LineageFetcher:
                     f"Valid types are: {', '.join(rt.value for rt in LineageResourceType)}"
                 )
 
-
         if direction == LineageDirection.BOTH:
             ancestors_result, descendants_result = await asyncio.gather(
                 self._fetch_lineage_single_direction(
@@ -902,7 +903,9 @@ class LineageFetcher:
                 },
             }
         else:
-            return await self._fetch_lineage_single_direction(unique_id, direction, types)
+            return await self._fetch_lineage_single_direction(
+                unique_id, direction, types
+            )
 
     async def _fetch_lineage_single_direction(
         self,

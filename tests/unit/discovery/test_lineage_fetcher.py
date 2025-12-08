@@ -11,17 +11,13 @@ async def test_get_environment_id(lineage_fetcher):
 class TestSearchResources:
     """Test resource search functionality."""
 
-    async def test_search_resource_by_name_models(self, lineage_fetcher, mock_api_client):
+    async def test_search_resource_by_name_models(
+        self, lineage_fetcher, mock_api_client
+    ):
         """Test searching for models using the generic search method."""
         # Mock packages query response
         packages_response = {
-            "data": {
-                "environment": {
-                    "applied": {
-                        "packages": ["jaffle_shop"]
-                    }
-                }
-            }
+            "data": {"environment": {"applied": {"packages": ["jaffle_shop"]}}}
         }
 
         # Mock resource details query response
@@ -55,17 +51,13 @@ class TestSearchResources:
         assert result[0]["uniqueId"] == "model.jaffle_shop.customers"
         assert result[0]["resourceType"] == "Model"
 
-    async def test_search_resource_by_name_seeds(self, lineage_fetcher, mock_api_client):
+    async def test_search_resource_by_name_seeds(
+        self, lineage_fetcher, mock_api_client
+    ):
         """Test searching for seeds using the generic search method."""
         # Mock packages query response
         packages_response = {
-            "data": {
-                "environment": {
-                    "applied": {
-                        "packages": ["jaffle_shop"]
-                    }
-                }
-            }
+            "data": {"environment": {"applied": {"packages": ["jaffle_shop"]}}}
         }
 
         # Mock resource details query response
@@ -99,17 +91,13 @@ class TestSearchResources:
         assert result[0]["uniqueId"] == "seed.jaffle_shop.raw_customers"
         assert result[0]["resourceType"] == "Seed"
 
-    async def test_search_resource_by_name_snapshots(self, lineage_fetcher, mock_api_client):
+    async def test_search_resource_by_name_snapshots(
+        self, lineage_fetcher, mock_api_client
+    ):
         """Test searching for snapshots using the generic search method."""
         # Mock packages query response
         packages_response = {
-            "data": {
-                "environment": {
-                    "applied": {
-                        "packages": ["jaffle_shop"]
-                    }
-                }
-            }
+            "data": {"environment": {"applied": {"packages": ["jaffle_shop"]}}}
         }
 
         # Mock resource details query response
@@ -135,25 +123,26 @@ class TestSearchResources:
         }
 
         # First call is packages, second is resource query
-        mock_api_client.execute_query.side_effect = [packages_response, snapshots_response]
+        mock_api_client.execute_query.side_effect = [
+            packages_response,
+            snapshots_response,
+        ]
 
-        result = await lineage_fetcher.search_resource_by_name("orders_snapshot", "Snapshot")
+        result = await lineage_fetcher.search_resource_by_name(
+            "orders_snapshot", "Snapshot"
+        )
 
         assert len(result) == 1
         assert result[0]["uniqueId"] == "snapshot.jaffle_shop.orders_snapshot"
         assert result[0]["resourceType"] == "Snapshot"
 
-    async def test_search_all_resources_all_types_found(self, lineage_fetcher, mock_api_client):
+    async def test_search_all_resources_all_types_found(
+        self, lineage_fetcher, mock_api_client
+    ):
         """When model, source, seed, and snapshot all exist with same name."""
         # Mock packages query response (same for all 4 resource types)
         packages_response = {
-            "data": {
-                "environment": {
-                    "applied": {
-                        "packages": ["jaffle_shop"]
-                    }
-                }
-            }
+            "data": {"environment": {"applied": {"packages": ["jaffle_shop"]}}}
         }
 
         model_response = {
@@ -241,13 +230,13 @@ class TestSearchResources:
         # Each call needs: packages query + resource query = 8 total queries
         mock_api_client.execute_query.side_effect = [
             packages_response,  # Model packages
-            model_response,      # Model resources
+            model_response,  # Model resources
             packages_response,  # Source packages
-            source_response,     # Source resources
+            source_response,  # Source resources
             packages_response,  # Seed packages
-            seed_response,       # Seed resources
+            seed_response,  # Seed resources
             packages_response,  # Snapshot packages
-            snapshot_response,   # Snapshot resources
+            snapshot_response,  # Snapshot resources
         ]
 
         result = await lineage_fetcher.search_all_resources("customers")
@@ -290,16 +279,12 @@ class TestBuildSelector:
     def test_invalid_direction_none(self, lineage_fetcher):
         """Should raise error when direction is None."""
         with pytest.raises((ValueError, TypeError)):
-            lineage_fetcher._build_selector(
-                "model.jaffle_shop.customers", None
-            )
+            lineage_fetcher._build_selector("model.jaffle_shop.customers", None)
 
     def test_invalid_direction_integer(self, lineage_fetcher):
         """Should raise error for integer direction."""
         with pytest.raises((ValueError, TypeError)):
-            lineage_fetcher._build_selector(
-                "model.jaffle_shop.customers", 123
-            )
+            lineage_fetcher._build_selector("model.jaffle_shop.customers", 123)
 
     def test_invalid_direction_list(self, lineage_fetcher):
         """Should raise error for list/collection types."""
@@ -311,9 +296,7 @@ class TestBuildSelector:
     def test_invalid_direction_empty_string(self, lineage_fetcher):
         """Should raise ValueError for empty string."""
         with pytest.raises(ValueError, match="Invalid direction"):
-            lineage_fetcher._build_selector(
-                "model.jaffle_shop.customers", ""
-            )
+            lineage_fetcher._build_selector("model.jaffle_shop.customers", "")
 
     def test_invalid_direction_dict(self, lineage_fetcher):
         """Should raise error for dictionary type."""
@@ -410,40 +393,35 @@ class TestFetchLineage:
         """Should raise ValueError for invalid direction in fetch_lineage."""
         with pytest.raises(ValueError, match="Invalid direction"):
             await lineage_fetcher.fetch_lineage(
-                unique_id="model.jaffle_shop.customers",
-                direction="invalid_direction"
+                unique_id="model.jaffle_shop.customers", direction="invalid_direction"
             )
 
     async def test_invalid_direction_none(self, lineage_fetcher):
         """Should raise error when direction is None in fetch_lineage."""
         with pytest.raises((ValueError, TypeError)):
             await lineage_fetcher.fetch_lineage(
-                unique_id="model.jaffle_shop.customers",
-                direction=None
+                unique_id="model.jaffle_shop.customers", direction=None
             )
 
     async def test_invalid_direction_integer(self, lineage_fetcher):
         """Should raise error for integer direction in fetch_lineage."""
         with pytest.raises((ValueError, TypeError)):
             await lineage_fetcher.fetch_lineage(
-                unique_id="model.jaffle_shop.customers",
-                direction=123
+                unique_id="model.jaffle_shop.customers", direction=123
             )
 
     async def test_invalid_direction_list(self, lineage_fetcher):
         """Should raise error for list direction in fetch_lineage."""
         with pytest.raises((ValueError, TypeError)):
             await lineage_fetcher.fetch_lineage(
-                unique_id="model.jaffle_shop.customers",
-                direction=["ancestors"]
+                unique_id="model.jaffle_shop.customers", direction=["ancestors"]
             )
 
     async def test_invalid_direction_empty_string(self, lineage_fetcher):
         """Should raise ValueError for empty string direction in fetch_lineage."""
         with pytest.raises(ValueError, match="Invalid direction"):
             await lineage_fetcher.fetch_lineage(
-                unique_id="model.jaffle_shop.customers",
-                direction=""
+                unique_id="model.jaffle_shop.customers", direction=""
             )
 
     async def test_invalid_types_raises_error(self, lineage_fetcher):
@@ -451,7 +429,7 @@ class TestFetchLineage:
         with pytest.raises(ValueError, match="Invalid resource type"):
             await lineage_fetcher.fetch_lineage(
                 unique_id="model.jaffle_shop.customers",
-                types=["Model", "InvalidType", "AnotherBadType"]
+                types=["Model", "InvalidType", "AnotherBadType"],
             )
 
 
