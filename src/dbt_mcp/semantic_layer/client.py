@@ -1,8 +1,10 @@
 import asyncio
+import base64
 import json
 from collections.abc import Callable
 from contextlib import AbstractContextManager
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
+from decimal import Decimal
 from typing import Any, Protocol
 
 import pyarrow as pa
@@ -44,15 +46,23 @@ def DEFAULT_RESULT_FORMATTER(table: pa.Table) -> str:
     # Convert PyArrow table to list of dictionaries
     records = table.to_pylist()
 
-    # Custom JSON encoder to handle date/datetime objects
-    class DateTimeEncoder(json.JSONEncoder):
+    # Custom JSON encoder to handle date/datetime, time, Decimal, timedelta, and bytes objects
+    class ExtendedJSONEncoder(json.JSONEncoder):
         def default(self, obj):
             if isinstance(obj, datetime | date):
                 return obj.isoformat()
+            if isinstance(obj, time):
+                return obj.isoformat()
+            if isinstance(obj, Decimal):
+                return float(obj)
+            if isinstance(obj, timedelta):
+                return obj.total_seconds()
+            if isinstance(obj, bytes):
+                return base64.b64encode(obj).decode("utf-8")
             return super().default(obj)
 
     # Return JSON with records format and proper indentation
-    return json.dumps(records, indent=2, cls=DateTimeEncoder)
+    return json.dumps(records, indent=2, cls=ExtendedJSONEncoder)
 
 
 class SemanticLayerClientProtocol(Protocol):
