@@ -24,6 +24,7 @@ from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
+from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,7 @@ class DiscoveryToolContext:
     description=get_prompt("discovery/get_mart_models"),
     title="Get Mart Models",
     read_only_hint=True,
-    destructive_hint=False,
+    destructive_hint=False,    
     idempotent_hint=True,
 )
 async def get_mart_models(context: DiscoveryToolContext) -> list[dict]:
@@ -455,13 +456,20 @@ DISCOVERY_TOOLS = [
 def register_discovery_tools(
     dbt_mcp: FastMCP,
     discovery_config_provider: ConfigProvider[DiscoveryConfig],
-    exclude_tools: Sequence[ToolName] = [],
+    *,
+    disabled_tools: set[ToolName],
+    enabled_tools: set[ToolName],
+    enabled_toolsets: set[Toolset],
+    disabled_toolsets: set[Toolset],
 ) -> None:
     def bind_context() -> DiscoveryToolContext:
         return DiscoveryToolContext(config_provider=discovery_config_provider)
 
     register_tools(
         dbt_mcp,
-        [tool.adapt_context(bind_context) for tool in DISCOVERY_TOOLS],
-        exclude_tools,
+        tool_definitions=[tool.adapt_context(bind_context) for tool in DISCOVERY_TOOLS],
+        disabled_tools=disabled_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
     )
