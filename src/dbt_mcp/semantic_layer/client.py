@@ -58,7 +58,7 @@ def DEFAULT_RESULT_FORMATTER(table: pa.Table) -> str:
             if isinstance(obj, timedelta):
                 return obj.total_seconds()
             if isinstance(obj, bytes):
-                return base64.b64encode(obj).decode('utf-8')
+                return base64.b64encode(obj).decode("utf-8")
             return super().default(obj)
 
     # Return JSON with records format and proper indentation

@@ -255,7 +255,8 @@ def test_default_result_formatter_with_mixed_types() -> None:
     table = pa.table(
         {
             "timestamp_col": pa.array(
-                [dt.datetime(2025, 1, 1, 12, 30, tzinfo=dt.UTC)], type=pa.timestamp("us", tz="UTC")
+                [dt.datetime(2025, 1, 1, 12, 30, tzinfo=dt.UTC)],
+                type=pa.timestamp("us", tz="UTC"),
             ),
             "date_col": pa.array([dt.date(2025, 1, 1)], type=pa.date32()),
             "time_col": pa.array([43200000000], type=pa.time64("us")),  # 12:00:00
