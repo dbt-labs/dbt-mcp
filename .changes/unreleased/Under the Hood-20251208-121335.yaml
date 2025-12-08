@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: Extend JSON encoder to handle PyArrow time, timedelta, and binary types in semantic layer query result
+time: 2025-12-08T12:13:35.960185+01:00
