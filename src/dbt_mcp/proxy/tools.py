@@ -29,7 +29,7 @@ from dbt_mcp.config.config_providers import ConfigProvider, ProxiedToolConfig
 from dbt_mcp.errors import RemoteToolError
 from dbt_mcp.tools.register import should_register_tool
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.toolsets import Toolset, proxied_tools
+from dbt_mcp.tools.toolsets import TOOL_TO_TOOLSET, Toolset, proxied_tools
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +121,7 @@ async def register_proxied_tools(
             disabled_tools=disabled_tools,
             enabled_toolsets=enabled_toolsets,
             disabled_toolsets=disabled_toolsets,
+            tool_to_toolset=TOOL_TO_TOOLSET,
         )
     }
     if not configured_proxied_tools:
