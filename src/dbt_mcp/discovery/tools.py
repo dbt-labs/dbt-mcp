@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from collections.abc import Sequence
 from dataclasses import dataclass
 
 from mcp.server.fastmcp import FastMCP
