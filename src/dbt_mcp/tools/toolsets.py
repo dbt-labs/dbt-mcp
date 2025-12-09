@@ -1,3 +1,10 @@
+"""Toolset definitions and tool-to-toolset mappings.
+
+This module defines the toolsets available in dbt-mcp and provides
+a mapping from individual tools to their respective toolsets. This
+enables toolset-level enablement/disablement configuration.
+"""
+
 from enum import Enum
 from typing import Literal
 
@@ -90,3 +97,28 @@ toolsets = {
         ToolName.GET_COLUMN_LINEAGE,
     },
 }
+
+
+# Mapping from individual tools to their toolsets (for precedence logic)
+TOOL_TO_TOOLSET: dict[ToolName, Toolset] = {}
+for toolset, tools in toolsets.items():
+    for tool in tools:
+        TOOL_TO_TOOLSET[tool] = toolset
+
+
+def validate_tool_mapping() -> None:
+    """Ensure all ToolName members are mapped to a toolset.
+
+    Raises:
+        ValueError: If any tools are not mapped to a toolset
+    """
+    unmapped = set(ToolName) - set(TOOL_TO_TOOLSET.keys())
+    if unmapped:
+        unmapped_names = [tool.value for tool in unmapped]
+        raise ValueError(
+            f"The following tools are not mapped to toolsets: {', '.join(unmapped_names)}"
+        )
+
+
+# Validate at import time to catch errors early
+validate_tool_mapping()

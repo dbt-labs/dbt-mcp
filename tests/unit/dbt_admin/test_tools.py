@@ -12,8 +12,6 @@ from tests.mocks.config import mock_config
 
 @pytest.fixture
 def mock_admin_client():
-    from unittest.mock import AsyncMock
-
     client = Mock()
 
     # Create AsyncMock methods with proper return values
@@ -94,12 +92,19 @@ async def test_register_admin_api_tools_all_tools(
     mock_get_prompt.return_value = "Test prompt"
     fastmcp, tools = mock_fastmcp
 
-    register_admin_api_tools(fastmcp, mock_config.admin_api_config_provider, [])
+    register_admin_api_tools(
+        fastmcp,
+        mock_config.admin_api_config_provider,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
 
     # Should call register_tools with 10 tool definitions
     mock_register_tools.assert_called_once()
     args, kwargs = mock_register_tools.call_args
-    tool_definitions = args[1]  # Second argument is the tool definitions list
+    tool_definitions = kwargs["tool_definitions"]
     assert len(tool_definitions) == 10
 
 
@@ -113,17 +118,22 @@ async def test_register_admin_api_tools_with_disabled_tools(
 
     disable_tools = ["list_jobs", "get_job", "trigger_job_run"]
     register_admin_api_tools(
-        fastmcp, mock_config.admin_api_config_provider, disable_tools
+        fastmcp,
+        mock_config.admin_api_config_provider,
+        disabled_tools=set(disable_tools),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
     )
 
     # Should still call register_tools with all 10 tool definitions
     # The exclude_tools parameter is passed to register_tools to handle filtering
     mock_register_tools.assert_called_once()
     args, kwargs = mock_register_tools.call_args
-    tool_definitions = args[1]  # Second argument is the tool definitions list
-    exclude_tools_arg = args[2]  # Third argument is exclude_tools
+    tool_definitions = kwargs["tool_definitions"]
+    disabled_tools = kwargs["disabled_tools"]
     assert len(tool_definitions) == 10
-    assert exclude_tools_arg == disable_tools
+    assert disabled_tools == set(disable_tools)
 
 
 @patch("dbt_mcp.dbt_admin.tools.get_prompt")

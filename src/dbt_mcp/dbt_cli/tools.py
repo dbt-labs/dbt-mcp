@@ -1,6 +1,6 @@
 import os
 import subprocess
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -8,10 +8,11 @@ from pydantic import Field
 from dbt_mcp.config.config import DbtCliConfig
 from dbt_mcp.dbt_cli.binary_type import get_color_disable_flag
 from dbt_mcp.prompts.prompts import get_prompt
+from dbt_mcp.tools.annotations import create_tool_annotations
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.annotations import create_tool_annotations
+from dbt_mcp.tools.toolsets import Toolset
 
 
 def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition]:
@@ -264,10 +265,17 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
 def register_dbt_cli_tools(
     dbt_mcp: FastMCP,
     config: DbtCliConfig,
-    exclude_tools: Sequence[ToolName] = [],
+    *,
+    disabled_tools: set[ToolName],
+    enabled_tools: set[ToolName],
+    enabled_toolsets: set[Toolset],
+    disabled_toolsets: set[Toolset],
 ) -> None:
     register_tools(
         dbt_mcp,
-        create_dbt_cli_tool_definitions(config),
-        exclude_tools,
+        tool_definitions=create_dbt_cli_tool_definitions(config),
+        disabled_tools=disabled_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
     )

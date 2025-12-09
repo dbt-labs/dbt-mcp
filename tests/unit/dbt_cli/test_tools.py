@@ -102,7 +102,14 @@ def test_show_command_limit_logic(
 
     # Register tools and get show tool
     fastmcp, tools = mock_fastmcp
-    register_dbt_cli_tools(fastmcp, mock_dbt_cli_config)
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
     show_tool = tools["show"]
 
     # Call show tool with test parameters
@@ -128,7 +135,14 @@ def test_run_command_adds_quiet_flag_to_verbose_commands(
 
     # Setup
     mock_fastmcp_obj, tools = mock_fastmcp
-    register_dbt_cli_tools(mock_fastmcp_obj, mock_dbt_cli_config)
+    register_dbt_cli_tools(
+        mock_fastmcp_obj,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
     run_tool = tools["run"]
 
     # Execute
@@ -155,7 +169,14 @@ def test_run_command_correctly_formatted(
     fastmcp, tools = mock_fastmcp
 
     # Register the tools
-    register_dbt_cli_tools(fastmcp, mock_dbt_cli_config)
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
     run_tool = tools["run"]
 
     # Run the command with a selector
@@ -188,7 +209,14 @@ def test_show_command_correctly_formatted(
 
     # Setup
     mock_fastmcp_obj, tools = mock_fastmcp
-    register_dbt_cli_tools(mock_fastmcp_obj, mock_dbt_cli_config)
+    register_dbt_cli_tools(
+        mock_fastmcp_obj,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
     show_tool = tools["show"]
 
     # Execute
@@ -218,7 +246,14 @@ def test_list_command_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
 
     # Setup
     mock_fastmcp_obj, tools = mock_fastmcp
-    register_dbt_cli_tools(mock_fastmcp_obj, mock_dbt_cli_config)
+    register_dbt_cli_tools(
+        mock_fastmcp_obj,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
     list_tool = tools["ls"]
 
     # Test timeout case
@@ -245,7 +280,14 @@ def test_full_refresh_flag_added_to_command(
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
     fastmcp, tools = mock_fastmcp
-    register_dbt_cli_tools(fastmcp, mock_dbt_cli_config)
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
     tool = tools[command_name]
 
     tool(is_full_refresh=True)
@@ -268,7 +310,14 @@ def test_vars_flag_added_to_command(
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
     fastmcp, tools = mock_fastmcp
-    register_dbt_cli_tools(fastmcp, mock_dbt_cli_config)
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
     tool = tools[command_name]
 
     tool(vars="environment: production")
@@ -289,7 +338,14 @@ def test_vars_not_added_when_none(monkeypatch: MonkeyPatch, mock_process, mock_f
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
     fastmcp, tools = mock_fastmcp
-    register_dbt_cli_tools(fastmcp, mock_dbt_cli_config)
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
     build_tool = tools["build"]
 
     build_tool()  # Non-explicit

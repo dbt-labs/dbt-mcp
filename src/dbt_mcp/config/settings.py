@@ -78,6 +78,18 @@ class DbtMcpSettings(BaseSettings):
     )
     disable_lsp: bool | None = Field(None, alias="DISABLE_LSP")
 
+    # Enable tool settings (allowlist)
+    enable_tools: Annotated[list[ToolName] | None, NoDecode] = Field(
+        None, alias="DBT_MCP_ENABLE_TOOLS"
+    )
+    enable_semantic_layer: bool = Field(False, alias="DBT_MCP_ENABLE_SEMANTIC_LAYER")
+    enable_admin_api: bool = Field(False, alias="DBT_MCP_ENABLE_ADMIN_API")
+    enable_dbt_cli: bool = Field(False, alias="DBT_MCP_ENABLE_DBT_CLI")
+    enable_dbt_codegen: bool = Field(False, alias="DBT_MCP_ENABLE_DBT_CODEGEN")
+    enable_discovery: bool = Field(False, alias="DBT_MCP_ENABLE_DISCOVERY")
+    enable_lsp: bool = Field(False, alias="DBT_MCP_ENABLE_LSP")
+    enable_sql: bool = Field(False, alias="DBT_MCP_ENABLE_SQL")
+
     # Tracking settings
     do_not_track: str | None = Field(None, alias="DO_NOT_TRACK")
     send_anonymous_usage_data: str | None = Field(
@@ -104,6 +116,15 @@ class DbtMcpSettings(BaseSettings):
             f"disable_sql={self.disable_sql}, "
             f"disable_tools={self.disable_tools}, "
             f"disable_lsp={self.disable_lsp}, "
+            # enable settings
+            f"enable_tools={self.enable_tools}, "
+            f"enable_semantic_layer={self.enable_semantic_layer}, "
+            f"enable_admin_api={self.enable_admin_api}, "
+            f"enable_dbt_cli={self.enable_dbt_cli}, "
+            f"enable_dbt_codegen={self.enable_dbt_codegen}, "
+            f"enable_discovery={self.enable_discovery}, "
+            f"enable_lsp={self.enable_lsp}, "
+            f"enable_sql={self.enable_sql}, "
             # everything else
             f"dbt_prod_env_id={self.dbt_prod_env_id}, "
             f"dbt_dev_env_id={self.dbt_dev_env_id}, "
@@ -228,24 +249,12 @@ class DbtMcpSettings(BaseSettings):
     @field_validator("disable_tools", mode="before")
     @classmethod
     def parse_disable_tools(cls, env_var: str | None) -> list[ToolName]:
-        if not env_var:
-            return []
-        errors: list[str] = []
-        tool_names: list[ToolName] = []
-        for tool_name in env_var.split(","):
-            tool_name_stripped = tool_name.strip()
-            if tool_name_stripped == "":
-                continue
-            try:
-                tool_names.append(ToolName(tool_name_stripped))
-            except ValueError:
-                errors.append(
-                    f"Invalid tool name in DISABLE_TOOLS: {tool_name_stripped}."
-                    + " Must be a valid tool name."
-                )
-        if errors:
-            raise ValueError("\n".join(errors))
-        return tool_names
+        return _parse_tool_list(env_var, "DISABLE_TOOLS")
+
+    @field_validator("enable_tools", mode="before")
+    @classmethod
+    def parse_enable_tools(cls, env_var: str | None) -> list[ToolName]:
+        return _parse_tool_list(env_var, "DBT_MCP_ENABLE_TOOLS")
 
     @model_validator(mode="after")
     def auto_disable(self) -> "DbtMcpSettings":
@@ -273,6 +282,39 @@ class DbtMcpSettings(BaseSettings):
                 f"CLI features have been automatically disabled due to misconfigurations:\n    {'\n    '.join(cli_errors)}."
             )
         return self
+
+
+def _parse_tool_list(env_var: str | None, field_name: str) -> list[ToolName]:
+    """Parse comma-separated tool names from environment variable.
+
+    Args:
+        env_var: Comma-separated tool names
+        field_name: Name of the field for error messages
+
+    Returns:
+        List of validated ToolName enums
+
+    Raises:
+        ValueError: If any tool names are invalid
+    """
+    if not env_var:
+        return []
+    errors: list[str] = []
+    tool_names: list[ToolName] = []
+    for tool_name in env_var.split(","):
+        tool_name_stripped = tool_name.strip()
+        if not tool_name_stripped:
+            continue
+        try:
+            tool_names.append(ToolName(tool_name_stripped.lower()))
+        except ValueError:
+            errors.append(
+                f"Invalid tool name in {field_name}: {tool_name_stripped}. "
+                "Must be a valid tool name."
+            )
+    if errors:
+        raise ValueError("\n".join(errors))
+    return tool_names
 
 
 def _find_available_port(*, start_port: int, max_attempts: int = 20) -> int:
