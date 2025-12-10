@@ -6,9 +6,9 @@ Retrieves lineage for a dbt resource in a single API call. Supports name-based s
 - `types`: Optional filter for specific resource types (Model, Source, Seed, Snapshot, Exposure, Metric, Test, etc.)
 
 **Response:**
-- `target`: The resource queried (matchesMethod=true)
-- `ancestors/descendants`: Dependency nodes (based on direction)
-- `pagination`: Metadata (max 50 nodes per direction, truncation info)
+- `target`: The resource queried (matchesMethod=true).
+- `ancestors/descendants`: Dependency nodes (based on direction).
+- `pagination`: Metadata (max 50 nodes per direction, truncation info).
 
 **Resource Types:**
 Models, Sources, Seeds, Snapshots, Exposures, Metrics, SemanticModels, SavedQueries, Tests, Macros
