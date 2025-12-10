@@ -1,12 +1,16 @@
 import os
 import subprocess
+import json
 from collections.abc import Iterable
+from typing import Any, Literal
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from dbt_mcp.config.config import DbtCliConfig
 from dbt_mcp.dbt_cli.binary_type import get_color_disable_flag
+from dbt_mcp.dbt_cli.models.lineage_types import ModelLineage
+from dbt_mcp.dbt_cli.models.manifest import Manifest
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.annotations import create_tool_annotations
 from dbt_mcp.tools.definitions import ToolDefinition
@@ -177,6 +181,32 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         args.extend(["--output", "json"])
         return _run_dbt_command(args)
 
+    def _get_manifest() -> Manifest:
+        """Helper function to load the dbt manifest.json file."""
+        _run_dbt_command(["parse"])  # Ensure manifest is generated
+        cwd_path = config.project_dir if os.path.isabs(config.project_dir) else None
+        manifest_path = os.path.join(cwd_path or ".", "target", "manifest.json")
+        with open(manifest_path) as f:
+            manifest_data = json.load(f)
+        return Manifest(**manifest_data)
+
+    def get_model_lineage_dev(
+        model_id: str,
+        direction: Literal["parents", "children", "both"] = "both",
+        exclude_prefixes: tuple[str, ...] = ("test.", "unit_test."),
+        *,
+        recursive: bool,
+    ) -> dict[str, Any]:
+        manifest = _get_manifest()
+        model_lineage = ModelLineage.from_manifest(
+            manifest,
+            model_id,
+            direction=direction,
+            exclude_prefixes=exclude_prefixes,
+            recursive=recursive,
+        )
+        return model_lineage.model_dump()
+
     return [
         ToolDefinition(
             fn=build,
@@ -254,6 +284,17 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             description=get_prompt("dbt_cli/show"),
             annotations=create_tool_annotations(
                 title="dbt show",
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+            ),
+        ),
+        ToolDefinition(
+            name="get_model_lineage_dev",
+            fn=get_model_lineage_dev,
+            description=get_prompt("dbt_cli/get_model_lineage_dev"),
+            annotations=create_tool_annotations(
+                title="Get Model Lineage (Dev)",
                 read_only_hint=True,
                 destructive_hint=False,
                 idempotent_hint=True,

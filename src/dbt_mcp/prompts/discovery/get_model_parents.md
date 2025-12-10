@@ -4,6 +4,8 @@ Retrieves the parent models of a specific dbt model. These are the models that t
 You can provide either a name or a uniqueId, if known, to identify the model. Using uniqueId is more precise and guarantees a unique match, which is especially useful when models might have the same name in different projects.
 
 Returned parents include `resourceType`, `name`, and `description`. For upstream sources, also provide `sourceName` and `uniqueId` so lineage can be linked back via `get_all_sources`.
+
+This is specifically for retrieving model parents from the production manifest. If you want development lineage, use `get_model_lineage_dev` instead.
 </instructions>
 
 <parameters>

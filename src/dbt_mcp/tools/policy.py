@@ -53,6 +53,9 @@ tool_policies = {
     ToolName.PARSE.value: ToolPolicy(
         name=ToolName.PARSE.value, behavior=ToolBehavior.METADATA
     ),
+    ToolName.GET_MODEL_LINEAGE_DEV.value: ToolPolicy(
+        name=ToolName.GET_MODEL_LINEAGE_DEV.value, behavior=ToolBehavior.METADATA
+    ),
     # Semantic Layer tools
     ToolName.LIST_METRICS.value: ToolPolicy(
         name=ToolName.LIST_METRICS.value, behavior=ToolBehavior.METADATA
@@ -120,6 +123,9 @@ tool_policies = {
     ),
     ToolName.GET_SEMANTIC_MODEL_DETAILS.value: ToolPolicy(
         name=ToolName.GET_SEMANTIC_MODEL_DETAILS.value, behavior=ToolBehavior.METADATA
+    ),
+    ToolName.SEARCH.value: ToolPolicy(
+        name=ToolName.SEARCH.value, behavior=ToolBehavior.METADATA
     ),
     # SQL tools
     ToolName.TEXT_TO_SQL.value: ToolPolicy(

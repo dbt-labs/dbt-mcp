@@ -13,6 +13,7 @@ class ToolName(Enum):
     RUN = "run"
     TEST = "test"
     SHOW = "show"
+    GET_MODEL_LINEAGE_DEV = "get_model_lineage_dev"
 
     # Semantic Layer tools
     LIST_METRICS = "list_metrics"
@@ -40,6 +41,7 @@ class ToolName(Enum):
     GET_SEMANTIC_MODEL_DETAILS = "get_semantic_model_details"
     GET_SNAPSHOT_DETAILS = "get_snapshot_details"
     GET_TEST_DETAILS = "get_test_details"
+    SEARCH = "search"  # The search tool is not generally available yet
 
     # SQL tools
     TEXT_TO_SQL = "text_to_sql"
