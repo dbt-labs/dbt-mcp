@@ -1,20 +1,23 @@
 import logging
+from collections.abc import Sequence
+from enum import Enum
 
 from mcp.server.fastmcp import FastMCP
 
-from dbt_mcp.tools.definitions import ToolDefinition
+from dbt_mcp.tools.definitions import GenericToolDefinition
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import TOOL_TO_TOOLSET, Toolset
 
 logger = logging.getLogger(__name__)
 
 
-def should_register_tool(
-    tool_name: ToolName,
-    enabled_tools: set[ToolName],
-    disabled_tools: set[ToolName],
+def should_register_tool[NameEnum: Enum](
+    tool_name: NameEnum,
+    enabled_tools: set[NameEnum],
+    disabled_tools: set[NameEnum],
     enabled_toolsets: set[Toolset],
     disabled_toolsets: set[Toolset],
+    tool_to_toolset: dict[NameEnum, Toolset],
 ) -> bool:
     """Determine if a tool should be registered based on precedence rules.
 
@@ -44,7 +47,7 @@ def should_register_tool(
         return False
 
     # Get the tool's toolset
-    tool_toolset = TOOL_TO_TOOLSET.get(tool_name)
+    tool_toolset = tool_to_toolset.get(tool_name)
 
     # Precedence 3 & 4: Toolset checks
     if tool_toolset:
@@ -63,12 +66,33 @@ def should_register_tool(
 
 def register_tools(
     dbt_mcp: FastMCP,
-    tool_definitions: list[ToolDefinition],
+    tool_definitions: Sequence[GenericToolDefinition[ToolName]],
     *,
     disabled_tools: set[ToolName],
     enabled_tools: set[ToolName],
     enabled_toolsets: set[Toolset],
     disabled_toolsets: set[Toolset],
+) -> None:
+    return generic_register_tools(
+        dbt_mcp,
+        tool_definitions,
+        disabled_tools=disabled_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
+        tool_to_toolset=TOOL_TO_TOOLSET,
+    )
+
+
+def generic_register_tools[NameEnum: Enum](
+    dbt_mcp: FastMCP,
+    tool_definitions: Sequence[GenericToolDefinition[NameEnum]],
+    *,
+    disabled_tools: set[NameEnum],
+    enabled_tools: set[NameEnum],
+    enabled_toolsets: set[Toolset],
+    disabled_toolsets: set[Toolset],
+    tool_to_toolset: dict[NameEnum, Toolset],
 ) -> None:
     """Register tools with the MCP server using precedence-based enablement logic.
 
@@ -88,6 +112,7 @@ def register_tools(
             disabled_tools=disabled_tools,
             enabled_toolsets=enabled_toolsets,
             disabled_toolsets=disabled_toolsets,
+            tool_to_toolset=tool_to_toolset,
         ):
             continue
         dbt_mcp.add_tool(

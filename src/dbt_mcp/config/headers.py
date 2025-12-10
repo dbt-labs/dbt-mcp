@@ -29,6 +29,7 @@ class DiscoveryHeadersProvider(TokenHeadersProvider):
         return {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
+            "X-Dbt-Partner-Source": "dbt-mcp",
         }
 
 

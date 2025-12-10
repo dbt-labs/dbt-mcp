@@ -2,7 +2,7 @@
 
 from dbt_mcp.tools.register import should_register_tool
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.toolsets import Toolset
+from dbt_mcp.tools.toolsets import TOOL_TO_TOOLSET, Toolset
 
 
 class TestShouldRegisterTool:
@@ -17,6 +17,7 @@ class TestShouldRegisterTool:
             disabled_tools=set(),
             enabled_toolsets=set(),
             disabled_toolsets={Toolset.SEMANTIC_LAYER},
+            tool_to_toolset=TOOL_TO_TOOLSET,
         )
         assert result is True, "Individual enable should override toolset disable"
 
@@ -29,6 +30,7 @@ class TestShouldRegisterTool:
             disabled_tools={ToolName.QUERY_METRICS},
             enabled_toolsets={Toolset.SEMANTIC_LAYER},
             disabled_toolsets=set(),
+            tool_to_toolset=TOOL_TO_TOOLSET,
         )
         assert result is False, "Individual disable should override toolset enable"
 
@@ -40,6 +42,7 @@ class TestShouldRegisterTool:
             disabled_tools=set(),
             enabled_toolsets={Toolset.SEMANTIC_LAYER},
             disabled_toolsets=set(),
+            tool_to_toolset=TOOL_TO_TOOLSET,
         )
         assert result is True, "Toolset enable should enable tool"
 
@@ -51,6 +54,7 @@ class TestShouldRegisterTool:
             disabled_tools=set(),
             enabled_toolsets=set(),
             disabled_toolsets={Toolset.SEMANTIC_LAYER},
+            tool_to_toolset=TOOL_TO_TOOLSET,
         )
         assert result is False, "Toolset disable should disable tool"
 
@@ -62,6 +66,7 @@ class TestShouldRegisterTool:
             disabled_tools=set(),
             enabled_toolsets=set(),
             disabled_toolsets=set(),
+            tool_to_toolset=TOOL_TO_TOOLSET,
         )
         assert result is True, "Default should be enabled when no enables set"
 
@@ -74,6 +79,7 @@ class TestShouldRegisterTool:
             disabled_tools=set(),
             enabled_toolsets=set(),
             disabled_toolsets=set(),
+            tool_to_toolset=TOOL_TO_TOOLSET,
         )
         assert result is False, "Default should be disabled when other tools enabled"
 
@@ -86,6 +92,7 @@ class TestShouldRegisterTool:
             disabled_tools=set(),
             enabled_toolsets={Toolset.ADMIN_API},  # Different toolset
             disabled_toolsets=set(),
+            tool_to_toolset=TOOL_TO_TOOLSET,
         )
         assert result is False, "Default should be disabled when any toolset enabled"
 
@@ -98,6 +105,7 @@ class TestShouldRegisterTool:
             disabled_tools={ToolName.GET_DIMENSIONS},
             enabled_toolsets={Toolset.SEMANTIC_LAYER},
             disabled_toolsets=set(),
+            tool_to_toolset=TOOL_TO_TOOLSET,
         )
         assert result_enabled is True, "query_metrics should be enabled"
 
@@ -107,6 +115,7 @@ class TestShouldRegisterTool:
             disabled_tools={ToolName.GET_DIMENSIONS},
             enabled_toolsets={Toolset.SEMANTIC_LAYER},
             disabled_toolsets=set(),
+            tool_to_toolset=TOOL_TO_TOOLSET,
         )
         assert result_disabled is False, "get_dimensions should be disabled"
 
@@ -123,6 +132,7 @@ class TestShouldRegisterTool:
                 disabled_tools=set(),
                 enabled_toolsets={Toolset.SEMANTIC_LAYER, Toolset.ADMIN_API},
                 disabled_toolsets=set(),
+                tool_to_toolset=TOOL_TO_TOOLSET,
             )
             assert result is True, f"{tool_name} should be enabled"
 
@@ -133,6 +143,7 @@ class TestShouldRegisterTool:
             disabled_tools=set(),
             enabled_toolsets={Toolset.SEMANTIC_LAYER, Toolset.ADMIN_API},
             disabled_toolsets=set(),
+            tool_to_toolset=TOOL_TO_TOOLSET,
         )
         assert result is False, "Discovery tool should be disabled"
 
@@ -145,5 +156,6 @@ class TestShouldRegisterTool:
             disabled_tools={ToolName.QUERY_METRICS},  # Precedence 2 (ignored)
             enabled_toolsets=set(),
             disabled_toolsets={Toolset.SEMANTIC_LAYER},  # Precedence 4 (ignored)
+            tool_to_toolset=TOOL_TO_TOOLSET,
         )
         assert result is True, "Individual enable should override everything"
