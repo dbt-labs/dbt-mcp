@@ -47,6 +47,7 @@ The dbt MCP server architecture allows for your agent to connect to a variety of
 - `get_snapshot_details`
 - `get_source_details`
 - `get_test_details`
+- `search`
 
 ### dbt CLI
 - `build`
