@@ -26,12 +26,14 @@ proxied_tools: set[
         ToolName.TEXT_TO_SQL,
         ToolName.EXECUTE_SQL,
         ToolName.GET_RELATED_MODELS,
+        ToolName.SEARCH,
     ]
 ] = set(
     [
         ToolName.TEXT_TO_SQL,
         ToolName.EXECUTE_SQL,
         ToolName.GET_RELATED_MODELS,
+        ToolName.SEARCH,
     ]
 )
 
@@ -65,6 +67,7 @@ toolsets = {
         ToolName.GET_SEMANTIC_MODEL_DETAILS,
         ToolName.GET_SNAPSHOT_DETAILS,
         ToolName.GET_TEST_DETAILS,
+        ToolName.SEARCH,
     },
     Toolset.DBT_CLI: {
         ToolName.BUILD,
