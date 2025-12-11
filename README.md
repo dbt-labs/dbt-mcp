@@ -78,11 +78,9 @@ The dbt MCP server architecture allows for your agent to connect to a variety of
 - `generate_staging_model`
 
 ### dbt LSP
+- `fusion.compile_sql`
+- `fusion.get_column_lineage`
 - `get_column_lineage`
-
-### Fusion
-- `fusion:compile_sql`
-- `fusion:get_column_lineage`
 
 
 ## Examples

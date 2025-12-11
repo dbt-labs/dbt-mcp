@@ -19,7 +19,6 @@ class Toolset(Enum):
     ADMIN_API = "admin_api"
     DBT_CODEGEN = "dbt_codegen"
     DBT_LSP = "dbt_lsp"
-    FUSION = "fusion"
 
 
 proxied_tools: set[
@@ -104,8 +103,6 @@ toolsets = {
     },
     Toolset.DBT_LSP: {
         ToolName.GET_COLUMN_LINEAGE,
-    },
-    Toolset.FUSION: {
         ToolName.FUSION_COMPILE_SQL,
         ToolName.FUSION_GET_COLUMN_LINEAGE,
     },

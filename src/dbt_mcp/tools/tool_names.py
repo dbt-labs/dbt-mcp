@@ -65,10 +65,8 @@ class ToolName(Enum):
 
     # dbt LSP tools
     GET_COLUMN_LINEAGE = "get_column_lineage"
-
-    # Fusion tools
-    FUSION_COMPILE_SQL = "fusion:compile_sql"
-    FUSION_GET_COLUMN_LINEAGE = "fusion:get_column_lineage"
+    FUSION_COMPILE_SQL = "fusion.compile_sql"
+    FUSION_GET_COLUMN_LINEAGE = "fusion.get_column_lineage"
 
     @classmethod
     def get_all_tool_names(cls) -> set[str]:
