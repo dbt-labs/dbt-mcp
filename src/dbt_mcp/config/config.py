@@ -27,6 +27,7 @@ TOOLSET_TO_DISABLE_ATTR = {
     Toolset.DISCOVERY: "disable_discovery",
     Toolset.DBT_LSP: "disable_lsp",
     Toolset.SQL: "actual_disable_sql",
+    Toolset.FUSION: "disable_fusion",
 }
 
 TOOLSET_TO_ENABLE_ATTR = {
@@ -37,6 +38,7 @@ TOOLSET_TO_ENABLE_ATTR = {
     Toolset.DISCOVERY: "enable_discovery",
     Toolset.DBT_LSP: "enable_lsp",
     Toolset.SQL: "enable_sql",
+    Toolset.FUSION: "enable_fusion",
 }
 
 

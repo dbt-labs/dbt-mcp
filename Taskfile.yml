@@ -52,6 +52,13 @@ tasks:
     cmds:
       - uv run pre-commit run ruff --all-files
 
+  clear:
+    desc: >
+      Remove local mypy and pytest cache directories to ensure clean state between runs.
+    cmds:
+      - find . -type d -name ".mypy_cache" -exec rm -rf {} +
+      - find . -type d -name ".pytest_cache" -exec rm -rf {} +
+
   run:
     desc: "Run the dbt-mcp server"
     cmds:
