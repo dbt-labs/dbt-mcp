@@ -344,7 +344,7 @@ async def _fetch_all_lineage_trees(
     context: DiscoveryToolContext,
     matches: list[dict],
     direction: LineageDirection,
-    types: list[LineageResourceType] | None,
+    types: list[LineageResourceType],
 ) -> dict:
     """Fetch lineage for all matched resources in parallel.
 
@@ -389,9 +389,9 @@ async def _fetch_all_lineage_trees(
 )
 async def get_lineage(
     context: DiscoveryToolContext,
+    types: list[LineageResourceType],
     name: str | None = None,
     unique_id: str | None = None,
-    types: list[LineageResourceType] | None = None,
     direction: LineageDirection = LineageDirection.BOTH,
 ) -> dict:
     normalized_name = name.strip() if name else None

@@ -846,7 +846,7 @@ class LineageFetcher:
     async def fetch_lineage(
         self,
         unique_id: str,
-        types: list[LineageResourceType] | None,
+        types: list[LineageResourceType],
         direction: LineageDirection = LineageDirection.BOTH,
     ) -> dict:
         """Fetch lineage for a resource.
