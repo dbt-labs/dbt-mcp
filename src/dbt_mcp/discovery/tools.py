@@ -344,7 +344,7 @@ async def _fetch_all_lineage_trees(
     context: DiscoveryToolContext,
     matches: list[dict],
     direction: LineageDirection,
-    types: list[LineageResourceType],
+    types: list[LineageResourceType] | None,
 ) -> dict:
     """Fetch lineage for all matched resources in parallel.
 
@@ -389,13 +389,13 @@ async def _fetch_all_lineage_trees(
 )
 async def get_lineage(
     context: DiscoveryToolContext,
-    types: list[LineageResourceType],
     name: str | None = None,
     unique_id: str | None = None,
+    types: list[LineageResourceType] | None = None,
     direction: LineageDirection = LineageDirection.BOTH,
 ) -> dict:
-    normalized_name = name.strip().lower() if name else None
-    normalized_unique_id = unique_id.strip().lower() if unique_id else None
+    normalized_name = name.strip() if name else None
+    normalized_unique_id = unique_id.strip() if unique_id else None
 
     if not normalized_name and not normalized_unique_id:
         raise InvalidParameterError("Either name or unique_id must be provided")

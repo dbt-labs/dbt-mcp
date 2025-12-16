@@ -372,6 +372,7 @@ class TestFetchLineage:
 
         result = await lineage_fetcher.fetch_lineage(
             unique_id="model.jaffle_shop.stg_orders",
+            types=None,
             direction=LineageDirection.BOTH,
         )
 
@@ -393,7 +394,9 @@ class TestFetchLineage:
         """Should raise ValueError for invalid direction in fetch_lineage."""
         with pytest.raises(ValueError, match="Invalid direction"):
             await lineage_fetcher.fetch_lineage(
-                unique_id="model.jaffle_shop.customers", direction="invalid_direction"
+                unique_id="model.jaffle_shop.customers",
+                types=None,
+                direction="invalid_direction",
             )
 
     async def test_invalid_direction_none(self, lineage_fetcher):
@@ -421,7 +424,7 @@ class TestFetchLineage:
         """Should raise ValueError for empty string direction in fetch_lineage."""
         with pytest.raises(ValueError, match="Invalid direction"):
             await lineage_fetcher.fetch_lineage(
-                unique_id="model.jaffle_shop.customers", direction=""
+                unique_id="model.jaffle_shop.customers", types=None, direction=""
             )
 
     async def test_invalid_types_raises_error(self, lineage_fetcher):
@@ -463,6 +466,7 @@ class TestPagination:
 
         result = await lineage_fetcher.fetch_lineage(
             unique_id="model.jaffle_shop.target",
+            types=None,
             direction=LineageDirection.ANCESTORS,
         )
 
@@ -525,6 +529,7 @@ class TestPagination:
 
         result = await lineage_fetcher.fetch_lineage(
             unique_id="model.jaffle_shop.target",
+            types=None,
             direction=LineageDirection.BOTH,
         )
 
