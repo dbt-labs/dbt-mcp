@@ -1,126 +1,126 @@
-query GetLineage($environmentId: BigInt!, $filter: LineageFilter) {
-    environment(id: $environmentId) {
-        applied {
-            lineage(filter: $filter) {
-                ... on ModelLineageNode {
-                    uniqueId
-                    name
-                    resourceType
-                    filePath
-                    matchesMethod
-                    tags
-                    projectId
-                    fqn
-                    database
-                    schema
-                    alias
-                    materializationType
-                    lastRunStatus
-                }
-                ... on SourceLineageNode {
-                    uniqueId
-                    name
-                    resourceType
-                    filePath
-                    matchesMethod
-                    tags
-                    projectId
-                    fqn
-                    database
-                    schema
-                    sourceName
-                    lastRunStatus
-                }
-                ... on SeedLineageNode {
-                    uniqueId
-                    name
-                    resourceType
-                    filePath
-                    matchesMethod
-                    tags
-                    projectId
-                    fqn
-                    database
-                    schema
-                    alias
-                    lastRunStatus
-                }
-                ... on SnapshotLineageNode {
-                    uniqueId
-                    name
-                    resourceType
-                    filePath
-                    matchesMethod
-                    tags
-                    projectId
-                    fqn
-                    database
-                    schema
-                    alias
-                    lastRunStatus
-                }
-                ... on ExposureLineageNode {
-                    uniqueId
-                    name
-                    resourceType
-                    filePath
-                    matchesMethod
-                    tags
-                    projectId
-                    fqn
-                }
-                ... on MetricLineageNode {
-                    uniqueId
-                    name
-                    resourceType
-                    filePath
-                    matchesMethod
-                    tags
-                    projectId
-                    fqn
-                }
-                ... on SemanticModelLineageNode {
-                    uniqueId
-                    name
-                    resourceType
-                    filePath
-                    matchesMethod
-                    tags
-                    projectId
-                    fqn
-                    publicParentIds
-                }
-                ... on SavedQueryLineageNode {
-                    uniqueId
-                    name
-                    resourceType
-                    filePath
-                    matchesMethod
-                    tags
-                    projectId
-                    fqn
-                }
-                ... on MacroLineageNode {
-                    uniqueId
-                    name
-                    resourceType
-                    filePath
-                    matchesMethod
-                    tags
-                    projectId
-                }
-                ... on TestLineageNode {
-                    uniqueId
-                    name
-                    resourceType
-                    filePath
-                    matchesMethod
-                    tags
-                    projectId
-                    fqn
-                    lastRunStatus
-                }
-            }
+query GetLineage($environmentId: BigInt!, $filter: LineageFilter!) {
+  environment(id: $environmentId) {
+    applied {
+      lineage(filter: $filter) {
+        ... on ModelLineageNode {
+          uniqueId
+          name
+          resourceType
+          filePath
+          matchesMethod
+          tags
+          projectId
+          fqn
+          database
+          schema
+          alias
+          materializationType
+          lastRunStatus
         }
+        ... on SourceLineageNode {
+          uniqueId
+          name
+          resourceType
+          filePath
+          matchesMethod
+          tags
+          projectId
+          fqn
+          database
+          schema
+          sourceName
+          lastRunStatus
+        }
+        ... on SeedLineageNode {
+          uniqueId
+          name
+          resourceType
+          filePath
+          matchesMethod
+          tags
+          projectId
+          fqn
+          database
+          schema
+          alias
+          lastRunStatus
+        }
+        ... on SnapshotLineageNode {
+          uniqueId
+          name
+          resourceType
+          filePath
+          matchesMethod
+          tags
+          projectId
+          fqn
+          database
+          schema
+          alias
+          lastRunStatus
+        }
+        ... on ExposureLineageNode {
+          uniqueId
+          name
+          resourceType
+          filePath
+          matchesMethod
+          tags
+          projectId
+          fqn
+        }
+        ... on MetricLineageNode {
+          uniqueId
+          name
+          resourceType
+          filePath
+          matchesMethod
+          tags
+          projectId
+          fqn
+        }
+        ... on SemanticModelLineageNode {
+          uniqueId
+          name
+          resourceType
+          filePath
+          matchesMethod
+          tags
+          projectId
+          fqn
+          publicParentIds
+        }
+        ... on SavedQueryLineageNode {
+          uniqueId
+          name
+          resourceType
+          filePath
+          matchesMethod
+          tags
+          projectId
+          fqn
+        }
+        ... on MacroLineageNode {
+          uniqueId
+          name
+          resourceType
+          filePath
+          matchesMethod
+          tags
+          projectId
+        }
+        ... on TestLineageNode {
+          uniqueId
+          name
+          resourceType
+          filePath
+          matchesMethod
+          tags
+          projectId
+          fqn
+          lastRunStatus
+        }
+      }
     }
+  }
 }

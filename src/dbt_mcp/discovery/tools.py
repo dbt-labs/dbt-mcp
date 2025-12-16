@@ -1,5 +1,5 @@
-import logging
 import asyncio
+import logging
 from dataclasses import dataclass
 
 from mcp.server.fastmcp import FastMCP
@@ -9,8 +9,8 @@ from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.client import (
     AppliedResourceType,
     ExposuresFetcher,
-    LineageFetcher,
     LineageDirection,
+    LineageFetcher,
     LineageResourceType,
     MetadataAPIClient,
     ModelsFetcher,
@@ -19,8 +19,6 @@ from dbt_mcp.discovery.client import (
     SourcesFetcher,
 )
 from dbt_mcp.errors import InvalidParameterError
-
-
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
@@ -346,7 +344,7 @@ async def _fetch_all_lineage_trees(
     context: DiscoveryToolContext,
     matches: list[dict],
     direction: LineageDirection,
-    types: list[LineageResourceType] | None,
+    types: list[LineageResourceType],
 ) -> dict:
     """Fetch lineage for all matched resources in parallel.
 
@@ -377,7 +375,7 @@ async def _fetch_all_lineage_trees(
                 "resource": match,
                 "lineage": lineage,
             }
-            for match, lineage in zip(matches, lineages)
+            for match, lineage in zip(matches, lineages, strict=False)
         ],
     }
 
@@ -391,10 +389,10 @@ async def _fetch_all_lineage_trees(
 )
 async def get_lineage(
     context: DiscoveryToolContext,
+    types: list[LineageResourceType],
     name: str | None = None,
     unique_id: str | None = None,
     direction: LineageDirection = LineageDirection.BOTH,
-    types: list[LineageResourceType] | None = None,
 ) -> dict:
     normalized_name = name.strip().lower() if name else None
     normalized_unique_id = unique_id.strip().lower() if unique_id else None

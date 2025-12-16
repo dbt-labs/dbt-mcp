@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import textwrap
 from enum import StrEnum
 from typing import Any, ClassVar, Literal, TypedDict
@@ -10,6 +11,8 @@ from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.graphql import load_query
 from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.gql.errors import raise_gql_error
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_PAGE_SIZE = 100
 DEFAULT_MAX_NODE_QUERY_LIMIT = 10000
@@ -810,7 +813,7 @@ class LineageFetcher:
         """
         tasks = [
             self.search_resource_by_name(name, resource_type)
-            for resource_type in _RESOURCE_SEARCH_CONFIG.keys()
+            for resource_type in _RESOURCE_SEARCH_CONFIG
         ]
         results = await asyncio.gather(*tasks)
 
@@ -843,8 +846,8 @@ class LineageFetcher:
     async def fetch_lineage(
         self,
         unique_id: str,
+        types: list[LineageResourceType],
         direction: LineageDirection = LineageDirection.BOTH,
-        types: list[LineageResourceType] | None = None,
     ) -> dict:
         """Fetch lineage for a resource.
 
