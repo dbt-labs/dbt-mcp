@@ -3,6 +3,7 @@ exclude: |
       .mypy_cache/
       | .pytest_cache/
       | .venv/
+      | __pycache__/
   )$
 
 repos:
