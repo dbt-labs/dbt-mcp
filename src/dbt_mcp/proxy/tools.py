@@ -166,6 +166,10 @@ async def register_proxied_tools(
         tools = await get_proxied_tools(session, configured_proxied_tools)
     except BaseException as e:
         logger.error(f"Error getting proxied tools: {e}")
+        try:
+            await proxied_tools_manager.close()
+        except Exception:
+            logger.exception("Error closing proxied tools manager after failure")
         return
     logger.info(f"Loaded proxied tools: {', '.join([tool.name for tool in tools])}")
     for tool in tools:
