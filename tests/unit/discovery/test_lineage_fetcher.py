@@ -248,126 +248,88 @@ class TestSearchResources:
         assert result[3]["resourceType"] == "Snapshot"
 
 
-class TestBuildSelector:
-    """Test dbt selector syntax building."""
-
-    def test_ancestors(self, lineage_fetcher):
-        result = lineage_fetcher._build_selector(
-            "model.jaffle_shop.customers", LineageDirection.ANCESTORS
-        )
-        assert result == "+model.jaffle_shop.customers"
-
-    def test_descendants(self, lineage_fetcher):
-        result = lineage_fetcher._build_selector(
-            "model.jaffle_shop.customers", LineageDirection.DESCENDANTS
-        )
-        assert result == "model.jaffle_shop.customers+"
-
-    def test_both(self, lineage_fetcher):
-        result = lineage_fetcher._build_selector(
-            "model.jaffle_shop.customers", LineageDirection.BOTH
-        )
-        assert result == "+model.jaffle_shop.customers+"
-
-    def test_invalid_direction_raises_error(self, lineage_fetcher):
-        """Should raise ValueError for invalid direction."""
-        with pytest.raises(ValueError, match="Invalid direction"):
-            lineage_fetcher._build_selector(
-                "model.jaffle_shop.customers", "invalid_direction"
-            )
-
-    def test_invalid_direction_none(self, lineage_fetcher):
-        """Should raise error when direction is None."""
-        with pytest.raises((ValueError, TypeError)):
-            lineage_fetcher._build_selector("model.jaffle_shop.customers", None)
-
-    def test_invalid_direction_integer(self, lineage_fetcher):
-        """Should raise error for integer direction."""
-        with pytest.raises((ValueError, TypeError)):
-            lineage_fetcher._build_selector("model.jaffle_shop.customers", 123)
-
-    def test_invalid_direction_list(self, lineage_fetcher):
-        """Should raise error for list/collection types."""
-        with pytest.raises((ValueError, TypeError)):
-            lineage_fetcher._build_selector(
-                "model.jaffle_shop.customers", ["ancestors"]
-            )
-
-    def test_invalid_direction_empty_string(self, lineage_fetcher):
-        """Should raise ValueError for empty string."""
-        with pytest.raises(ValueError, match="Invalid direction"):
-            lineage_fetcher._build_selector("model.jaffle_shop.customers", "")
-
-    def test_invalid_direction_dict(self, lineage_fetcher):
-        """Should raise error for dictionary type."""
-        with pytest.raises((ValueError, TypeError)):
-            lineage_fetcher._build_selector(
-                "model.jaffle_shop.customers", {"direction": "ancestors"}
-            )
-
-
 class TestFetchLineage:
     """Test lineage fetching functionality."""
 
     async def test_fetch_both_directions_separates_correctly(
         self, lineage_fetcher, mock_api_client
     ):
-        """Test that 'both' direction makes two API calls and correctly categorizes results."""
-        # Mock response for ancestors query (+uniqueId)
-        ancestors_response = {
+        """Test that 'both' direction fetches ancestors and descendants recursively."""
+        # Mock target node fetch (stg_orders with its parents and children)
+        target_response = {
             "data": {
                 "environment": {
                     "applied": {
-                        "lineage": [
-                            {
-                                "uniqueId": "model.jaffle_shop.stg_orders",
-                                "name": "stg_orders",
-                                "resourceType": "Model",
-                                "matchesMethod": True,
-                                "filePath": "models/staging/stg_orders.sql",
-                            },
-                            {
-                                "uniqueId": "seed.jaffle_shop.raw_orders",
-                                "name": "raw_orders",
-                                "resourceType": "Seed",
-                                "matchesMethod": False,
-                                "filePath": "seeds/raw_orders.csv",
-                            },
-                        ]
+                        "models": {
+                            "edges": [
+                                {
+                                    "node": {
+                                        "uniqueId": "model.jaffle_shop.stg_orders",
+                                        "name": "stg_orders",
+                                        "resourceType": "Model",
+                                        "filePath": "models/staging/stg_orders.sql",
+                                        "parents": [
+                                            {
+                                                "uniqueId": "seed.jaffle_shop.raw_orders",
+                                                "name": "raw_orders",
+                                                "resourceType": "Seed",
+                                            }
+                                        ],
+                                        "children": [
+                                            {
+                                                "uniqueId": "model.jaffle_shop.orders",
+                                                "name": "orders",
+                                                "resourceType": "Model",
+                                            }
+                                        ],
+                                    }
+                                }
+                            ]
+                        }
                     }
                 }
             }
         }
 
-        # Mock response for descendants query (uniqueId+)
-        descendants_response = {
+        # Mock child node fetch (orders with no more children)
+        orders_response = {
             "data": {
                 "environment": {
                     "applied": {
-                        "lineage": [
-                            {
-                                "uniqueId": "model.jaffle_shop.stg_orders",
-                                "name": "stg_orders",
-                                "resourceType": "Model",
-                                "matchesMethod": True,
-                                "filePath": "models/staging/stg_orders.sql",
-                            },
-                            {
-                                "uniqueId": "model.jaffle_shop.orders",
-                                "name": "orders",
-                                "resourceType": "Model",
-                                "matchesMethod": False,
-                                "filePath": "models/marts/orders.sql",
-                            },
-                        ]
+                        "models": {
+                            "edges": [
+                                {
+                                    "node": {
+                                        "uniqueId": "model.jaffle_shop.orders",
+                                        "name": "orders",
+                                        "resourceType": "Model",
+                                        "parents": [
+                                            {
+                                                "uniqueId": "model.jaffle_shop.stg_orders",
+                                                "name": "stg_orders",
+                                                "resourceType": "Model",
+                                            }
+                                        ],
+                                        "children": [],
+                                    }
+                                }
+                            ]
+                        }
                     }
                 }
             }
         }
 
+        # Mock calls:
+        # 1. Initial target fetch
+        # 2. Ancestor traversal (fetches target again)
+        # 3. Descendant traversal (fetches target again)
+        # 4. Descendant child traversal (fetches orders)
         mock_api_client.execute_query.side_effect = [
-            ancestors_response,
-            descendants_response,
+            target_response,  # Initial fetch
+            target_response,  # For ancestor/descendant traversal
+            target_response,  # For descendant/ancestor traversal
+            orders_response,  # For descendant child (orders)
         ]
 
         result = await lineage_fetcher.fetch_lineage(
@@ -375,9 +337,6 @@ class TestFetchLineage:
             types=[],
             direction=LineageDirection.BOTH,
         )
-
-        # Verify two API calls were made
-        assert mock_api_client.execute_query.call_count == 2
 
         # Verify target is present
         assert result["target"]["uniqueId"] == "model.jaffle_shop.stg_orders"
@@ -441,28 +400,43 @@ class TestPagination:
 
     async def test_truncation_over_limit(self, lineage_fetcher, mock_api_client):
         """Results over 50 nodes should be truncated to 50."""
-        # Create 60 ancestor nodes (over limit of 50)
-        lineage_nodes = [
+        # Create target with 60 seed parents (seeds don't recurse, giving exactly 60 ancestors)
+        target_parents = [
             {
-                "uniqueId": "model.jaffle_shop.target",
-                "name": "target",
-                "resourceType": "Model",
-                "matchesMethod": True,
-            }
-        ] + [
-            {
-                "uniqueId": f"model.jaffle_shop.ancestor_{i}",
+                "uniqueId": f"seed.jaffle_shop.ancestor_{i}",
                 "name": f"ancestor_{i}",
-                "resourceType": "Model",
-                "matchesMethod": False,
+                "resourceType": "Seed",
             }
             for i in range(60)
         ]
 
-        mock_response = {
-            "data": {"environment": {"applied": {"lineage": lineage_nodes}}}
+        target_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "models": {
+                            "edges": [
+                                {
+                                    "node": {
+                                        "uniqueId": "model.jaffle_shop.target",
+                                        "name": "target",
+                                        "resourceType": "Model",
+                                        "parents": target_parents,
+                                        "children": [],
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
         }
-        mock_api_client.execute_query.return_value = mock_response
+
+        # Mock calls: initial fetch + ancestor traversal
+        mock_api_client.execute_query.side_effect = [
+            target_response,  # Initial fetch
+            target_response,  # Ancestor traversal
+        ]
 
         result = await lineage_fetcher.fetch_lineage(
             unique_id="model.jaffle_shop.target",
@@ -478,54 +452,78 @@ class TestPagination:
         self, lineage_fetcher, mock_api_client
     ):
         """Both direction should merge pagination from ancestors and descendants."""
-        # Ancestors response (70 nodes - will be truncated)
-        ancestors_nodes = [
+        # Target with 70 seed parents (ancestors) and 30 model children (descendants)
+        target_parents = [
             {
-                "uniqueId": "model.jaffle_shop.target",
-                "name": "target",
-                "resourceType": "Model",
-                "matchesMethod": True,
-            }
-        ] + [
-            {
-                "uniqueId": f"model.jaffle_shop.ancestor_{i}",
+                "uniqueId": f"seed.jaffle_shop.ancestor_{i}",
                 "name": f"ancestor_{i}",
-                "resourceType": "Model",
-                "matchesMethod": False,
+                "resourceType": "Seed",
             }
             for i in range(70)
         ]
 
-        ancestors_response = {
-            "data": {"environment": {"applied": {"lineage": ancestors_nodes}}}
-        }
-
-        # Descendants response (30 nodes - not truncated)
-        descendants_nodes = [
-            {
-                "uniqueId": "model.jaffle_shop.target",
-                "name": "target",
-                "resourceType": "Model",
-                "matchesMethod": True,
-            }
-        ] + [
+        target_children = [
             {
                 "uniqueId": f"model.jaffle_shop.descendant_{i}",
                 "name": f"descendant_{i}",
                 "resourceType": "Model",
-                "matchesMethod": False,
             }
             for i in range(30)
         ]
 
-        descendants_response = {
-            "data": {"environment": {"applied": {"lineage": descendants_nodes}}}
+        target_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "models": {
+                            "edges": [
+                                {
+                                    "node": {
+                                        "uniqueId": "model.jaffle_shop.target",
+                                        "name": "target",
+                                        "resourceType": "Model",
+                                        "parents": target_parents,
+                                        "children": target_children,
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
         }
 
-        mock_api_client.execute_query.side_effect = [
-            ancestors_response,
-            descendants_response,
-        ]
+        # Response for each descendant child (no more children)
+        child_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "models": {
+                            "edges": [
+                                {
+                                    "node": {
+                                        "uniqueId": "model.jaffle_shop.descendant_0",
+                                        "name": "descendant_0",
+                                        "resourceType": "Model",
+                                        "parents": [],
+                                        "children": [],
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+
+        # Mock calls: initial + ancestor traversal + descendant traversal + 30 child fetches
+        mock_responses = [
+            target_response,  # Initial fetch
+            target_response,  # Ancestor traversal
+            target_response,  # Descendant traversal
+        ] + [child_response] * 30  # Each child has no more children
+
+        mock_api_client.execute_query.side_effect = mock_responses
 
         result = await lineage_fetcher.fetch_lineage(
             unique_id="model.jaffle_shop.target",

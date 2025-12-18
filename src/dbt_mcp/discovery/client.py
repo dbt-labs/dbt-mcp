@@ -313,7 +313,7 @@ class GraphQLQueries:
     GET_SNAPSHOT_DETAILS = load_query("get_snapshot_details.gql")
 
     # Lineage queries
-    GET_LINEAGE = load_query("lineage/get_lineage.gql")
+    GET_NODE_RELATIONS = load_query("lineage/get_node_relations.gql")
 
 
 class MetadataAPIClient:
@@ -823,25 +823,169 @@ class LineageFetcher:
 
         return matches
 
-    def _build_selector(self, unique_id: str, direction: LineageDirection) -> str:
-        """Build dbt selector syntax based on direction.
-
-        - ancestors: +uniqueId (upstream)
-        - descendants: uniqueId+ (downstream)
-        - both: +uniqueId+ (both directions)
+    async def _fetch_node_with_relations(
+        self,
+        unique_id: str,
+    ) -> dict | None:
         """
-        if direction not in LineageDirection:
-            raise ValueError(
-                f"Invalid direction: {direction}. "
-                f"Must be one of: {', '.join(d.value for d in LineageDirection)}"
-            )
+        Fetch a single node with its parent/child relationships.
 
-        if direction == LineageDirection.ANCESTORS:
-            return f"+{unique_id}"
-        elif direction == LineageDirection.DESCENDANTS:
-            return f"{unique_id}+"
-        else:  # both
-            return f"+{unique_id}+"
+        Supports all resource types: models, sources, seeds, snapshots, exposures.
+
+        Args:
+            unique_id: The unique ID of the node (e.g., model.jaffle_shop.customers)
+
+        Returns:
+            Node dict with parents/children arrays, or None if not found
+        """
+        variables = {
+            "environmentId": await self.get_environment_id(),
+            "uniqueId": unique_id,
+        }
+
+        result = await self.api_client.execute_query(
+            GraphQLQueries.GET_NODE_RELATIONS, variables
+        )
+        raise_gql_error(result)
+
+        applied = result.get("data", {}).get("environment", {}).get("applied", {})
+
+        for resource_type in ["models", "sources", "seeds", "snapshots", "exposures"]:
+            edges = applied.get(resource_type, {}).get("edges", [])
+            if edges:
+                node = edges[0]["node"]
+
+                if "children" in node:
+                    node["children"] = [
+                        c for c in node["children"] if c.get("uniqueId")
+                    ]
+
+                return node
+
+        return None
+
+    async def _fetch_ancestors_recursive(
+        self,
+        unique_id: str,
+        types: list[LineageResourceType] | None = None,
+        max_depth: int = 100,
+    ) -> tuple[list[dict], set[str]]:
+        """
+        Recursively fetch all ancestors using parents field.
+
+        Args:
+            unique_id: Starting node unique ID
+            types: Optional filter for resource types
+            max_depth: Maximum recursion depth (safety limit)
+
+        Returns:
+            Tuple of (ancestor_list, visited_ids)
+        """
+        ancestors = []
+        visited = {unique_id}
+        queue = [(unique_id, 0)]  # (node_id, depth) tuples
+
+        while queue:
+            node_id, depth = queue.pop(0)
+
+            if depth >= max_depth:
+                logger.warning(
+                    f"Max recursion depth {max_depth} reached for node {node_id}. "
+                    f"Lineage may be incomplete."
+                )
+                continue
+
+            # Fetch node with parents
+            node = await self._fetch_node_with_relations(node_id)
+            if not node:
+                continue
+
+            parents = node.get("parents", [])
+            for parent in parents:
+                parent_id = parent.get("uniqueId")
+                if not parent_id or parent_id in visited:
+                    continue
+
+                visited.add(parent_id)
+
+                parent_type = parent.get("resourceType")
+                if types and parent_type.lower() not in [
+                    t.value.lower() for t in types
+                ]:
+                    continue
+
+                ancestors.append(
+                    {
+                        "uniqueId": parent_id,
+                        "name": parent.get("name"),
+                        "resourceType": parent_type,
+                    }
+                )
+
+                if parent_type == "model":
+                    queue.append((parent_id, depth + 1))
+
+        return (ancestors, visited)
+
+    async def _fetch_descendants_recursive(
+        self,
+        unique_id: str,
+        types: list[LineageResourceType] | None = None,
+        max_depth: int = 100,
+    ) -> tuple[list[dict], set[str]]:
+        """
+        Recursively fetch all descendants using children field.
+
+        Args:
+            unique_id: Starting node unique ID
+            types: Optional filter for resource types
+            max_depth: Maximum recursion depth (safety limit)
+
+        Returns:
+            Tuple of (descendant_list, visited_ids)
+        """
+        descendants = []
+        visited = {unique_id}
+        queue = [(unique_id, 0)]
+
+        while queue:
+            node_id, depth = queue.pop(0)
+
+            if depth >= max_depth:
+                logger.warning(
+                    f"Max recursion depth {max_depth} reached for node {node_id}. "
+                    f"Lineage may be incomplete."
+                )
+                continue
+
+            node = await self._fetch_node_with_relations(node_id)
+            if not node:
+                continue
+
+            children = node.get("children", [])
+            for child in children:
+                child_id = child.get("uniqueId")
+                if not child_id or child_id in visited:
+                    continue
+
+                visited.add(child_id)
+
+                child_type = child.get("resourceType")
+                if types and child_type.lower() not in [t.value.lower() for t in types]:
+                    continue
+
+                descendants.append(
+                    {
+                        "uniqueId": child_id,
+                        "name": child.get("name"),
+                        "resourceType": child_type,
+                    }
+                )
+
+                if child_type == "model":
+                    queue.append((child_id, depth + 1))
+
+        return (descendants, visited)
 
     async def fetch_lineage(
         self,
@@ -849,16 +993,22 @@ class LineageFetcher:
         types: list[LineageResourceType],
         direction: LineageDirection = LineageDirection.BOTH,
     ) -> dict:
-        """Fetch lineage for a resource.
+        """
+        Fetch lineage for a resource using recursive traversal.
+
+        This method uses the parents/children fields instead of selector-based queries
+        because the selector approach (+uniqueId syntax) returns empty results in some
+        Discovery API environments.
 
         Args:
             unique_id: The dbt unique ID of the resource
+            types: List of resource types to include in results
             direction: One of 'ancestors', 'descendants', or 'both'
-            types: Optional list of resource types to filter results
 
         Returns:
-            Dict with 'target', 'ancestors', and/or 'descendants' keys
+            Dict with 'target', 'ancestors', 'descendants', and 'pagination' keys
         """
+        # Validate inputs
         if direction not in LineageDirection:
             raise ValueError(
                 f"Invalid direction: {direction}. "
@@ -873,111 +1023,60 @@ class LineageFetcher:
                     f"Valid types are: {', '.join(rt.value for rt in LineageResourceType)}"
                 )
 
-        if direction == LineageDirection.BOTH:
-            ancestors_result, descendants_result = await asyncio.gather(
-                self._fetch_lineage_single_direction(
-                    unique_id, LineageDirection.ANCESTORS, types
-                ),
-                self._fetch_lineage_single_direction(
-                    unique_id, LineageDirection.DESCENDANTS, types
-                ),
-            )
-            target = ancestors_result.get("target") or descendants_result.get("target")
-
-            ancestors_pagination = ancestors_result.get("pagination", {})
-            descendants_pagination = descendants_result.get("pagination", {})
-
-            return {
-                "target": target,
-                "ancestors": ancestors_result.get("ancestors", []),
-                "descendants": descendants_result.get("descendants", []),
-                "pagination": {
-                    "limit": LINEAGE_LIMIT,
-                    "ancestors_total": ancestors_pagination.get("ancestors_total", 0),
-                    "ancestors_truncated": ancestors_pagination.get(
-                        "ancestors_truncated", False
-                    ),
-                    "descendants_total": descendants_pagination.get(
-                        "descendants_total", 0
-                    ),
-                    "descendants_truncated": descendants_pagination.get(
-                        "descendants_truncated", False
-                    ),
-                },
-            }
-        else:
-            return await self._fetch_lineage_single_direction(
-                unique_id, direction, types
-            )
-
-    async def _fetch_lineage_single_direction(
-        self,
-        unique_id: str,
-        direction: LineageDirection,
-        types: list[LineageResourceType] | None = None,
-    ) -> dict:
-        """Fetch lineage for a single direction (ancestors or descendants).
-
-        Internal method used by fetch_lineage.
-        """
-        selector = self._build_selector(unique_id, direction)
-
-        lineage_filter: dict = {"uniqueIds": [selector]}
-        if types:
-            lineage_filter["types"] = types
-
-        variables = {
-            "environmentId": await self.get_environment_id(),
-            "filter": lineage_filter,
-        }
-
-        result = await self.api_client.execute_query(
-            GraphQLQueries.GET_LINEAGE, variables
-        )
-        raise_gql_error(result)
-
-        lineage_nodes = result["data"]["environment"]["applied"]["lineage"]
-        if not lineage_nodes:
+        # Fetch target node
+        target = await self._fetch_node_with_relations(unique_id)
+        if not target:
             return {"target": None, "ancestors": [], "descendants": []}
 
-        return self._transform_lineage_response(lineage_nodes, direction)
+        # Parallel fetching for both directions
+        if direction == LineageDirection.BOTH:
+            (ancestors, _), (descendants, _) = await asyncio.gather(
+                self._fetch_ancestors_recursive(unique_id, types),
+                self._fetch_descendants_recursive(unique_id, types),
+            )
+        elif direction == LineageDirection.ANCESTORS:
+            ancestors, _ = await self._fetch_ancestors_recursive(unique_id, types)
+            descendants = []
+        else:  # DESCENDANTS
+            descendants, _ = await self._fetch_descendants_recursive(unique_id, types)
+            ancestors = []
 
-    def _transform_lineage_response(self, nodes: list[dict], direction: str) -> dict:
-        """Transform raw lineage response into structured output.
+        # Apply pagination/truncation (LINEAGE_LIMIT = 50)
+        ancestors_total = len(ancestors)
+        descendants_total = len(descendants)
+        ancestors_truncated = ancestors_total > LINEAGE_LIMIT
+        descendants_truncated = descendants_total > LINEAGE_LIMIT
 
-        Separates target node (matchesMethod=true) from lineage nodes.
-        Applies LINEAGE_LIMIT and includes pagination metadata.
-        This method handles single-direction queries only (ancestors OR descendants).
-        The "both" direction is handled by fetch_lineage via two separate calls.
-        """
-        target: dict | None = None
-        lineage_nodes: list[dict] = []
+        ancestors = ancestors[:LINEAGE_LIMIT]
+        descendants = descendants[:LINEAGE_LIMIT]
 
-        for node in nodes:
-            if node.get("matchesMethod"):
-                target = node
-            else:
-                lineage_nodes.append(node)
+        result: dict[str, Any] = {"target": target}
 
-        total = len(lineage_nodes)
-        truncated = total > LINEAGE_LIMIT
-        lineage_nodes = lineage_nodes[:LINEAGE_LIMIT]
+        if direction in [LineageDirection.ANCESTORS, LineageDirection.BOTH]:
+            result["ancestors"] = ancestors
+        if direction in [LineageDirection.DESCENDANTS, LineageDirection.BOTH]:
+            result["descendants"] = descendants
 
-        response: dict = {"target": target}
-
-        if direction == LineageDirection.ANCESTORS:
-            response["ancestors"] = lineage_nodes
-            response["pagination"] = {
+        # Build pagination metadata
+        if direction == LineageDirection.BOTH:
+            result["pagination"] = {
                 "limit": LINEAGE_LIMIT,
-                "ancestors_total": total,
-                "ancestors_truncated": truncated,
+                "ancestors_total": ancestors_total,
+                "ancestors_truncated": ancestors_truncated,
+                "descendants_total": descendants_total,
+                "descendants_truncated": descendants_truncated,
             }
-        elif direction == LineageDirection.DESCENDANTS:
-            response["descendants"] = lineage_nodes
-            response["pagination"] = {
+        elif direction == LineageDirection.ANCESTORS:
+            result["pagination"] = {
                 "limit": LINEAGE_LIMIT,
-                "descendants_total": total,
-                "descendants_truncated": truncated,
+                "ancestors_total": ancestors_total,
+                "ancestors_truncated": ancestors_truncated,
+            }
+        else:  # DESCENDANTS
+            result["pagination"] = {
+                "limit": LINEAGE_LIMIT,
+                "descendants_total": descendants_total,
+                "descendants_truncated": descendants_truncated,
             }
 
-        return response
+        return result
