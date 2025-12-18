@@ -1,7 +1,6 @@
 query GetNodeRelations($environmentId: BigInt!, $uniqueId: String!) {
   environment(id: $environmentId) {
     applied {
-      # Try models
       models(filter: { uniqueIds: [$uniqueId] }, first: 1) {
         edges {
           node {
