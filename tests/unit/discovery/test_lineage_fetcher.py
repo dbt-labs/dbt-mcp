@@ -291,12 +291,48 @@ class TestFetchLineage:
             }
         }
 
-        # Mock child node fetch (orders with no more children)
-        orders_response = {
+        # Batch response for ancestor/descendant level 0 (target node)
+        batch_target_response = {
             "data": {
                 "environment": {
                     "applied": {
-                        "models": {
+                        "batch_model": {
+                            "edges": [
+                                {
+                                    "node": {
+                                        "uniqueId": "model.jaffle_shop.stg_orders",
+                                        "name": "stg_orders",
+                                        "resourceType": "Model",
+                                        "filePath": "models/staging/stg_orders.sql",
+                                        "parents": [
+                                            {
+                                                "uniqueId": "seed.jaffle_shop.raw_orders",
+                                                "name": "raw_orders",
+                                                "resourceType": "Seed",
+                                            }
+                                        ],
+                                        "children": [
+                                            {
+                                                "uniqueId": "model.jaffle_shop.orders",
+                                                "name": "orders",
+                                                "resourceType": "Model",
+                                            }
+                                        ],
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+
+        # Batch response for descendant child (orders with no more children)
+        batch_orders_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "batch_model": {
                             "edges": [
                                 {
                                     "node": {
@@ -322,14 +358,14 @@ class TestFetchLineage:
 
         # Mock calls:
         # 1. Initial target fetch
-        # 2. Ancestor traversal (fetches target again)
-        # 3. Descendant traversal (fetches target again)
-        # 4. Descendant child traversal (fetches orders)
+        # 2. Ancestor traversal level 0 (batch fetch target)
+        # 3. Descendant traversal level 0 (batch fetch target)
+        # 4. Descendant traversal level 1 (batch fetch orders)
         mock_api_client.execute_query.side_effect = [
             target_response,  # Initial fetch
-            target_response,  # For ancestor/descendant traversal
-            target_response,  # For descendant/ancestor traversal
-            orders_response,  # For descendant child (orders)
+            batch_target_response,  # Ancestor traversal level 0
+            batch_target_response,  # Descendant traversal level 0
+            batch_orders_response,  # Descendant traversal level 1
         ]
 
         result = await lineage_fetcher.fetch_lineage(
@@ -432,10 +468,33 @@ class TestPagination:
             }
         }
 
-        # Mock calls: initial fetch + ancestor traversal
+        # Batch response for ancestor traversal level 0 (target with 60 parents)
+        batch_target_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "batch_model": {
+                            "edges": [
+                                {
+                                    "node": {
+                                        "uniqueId": "model.jaffle_shop.target",
+                                        "name": "target",
+                                        "resourceType": "Model",
+                                        "parents": target_parents,
+                                        "children": [],
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+
+        # Mock calls: initial fetch + ancestor traversal level 0
         mock_api_client.execute_query.side_effect = [
             target_response,  # Initial fetch
-            target_response,  # Ancestor traversal
+            batch_target_response,  # Ancestor traversal level 0
         ]
 
         result = await lineage_fetcher.fetch_lineage(
@@ -493,20 +552,20 @@ class TestPagination:
             }
         }
 
-        # Response for each descendant child (no more children)
-        child_response = {
+        # Batch response for ancestor/descendant traversal level 0 (target)
+        batch_target_response = {
             "data": {
                 "environment": {
                     "applied": {
-                        "models": {
+                        "batch_model": {
                             "edges": [
                                 {
                                     "node": {
-                                        "uniqueId": "model.jaffle_shop.descendant_0",
-                                        "name": "descendant_0",
+                                        "uniqueId": "model.jaffle_shop.target",
+                                        "name": "target",
                                         "resourceType": "Model",
-                                        "parents": [],
-                                        "children": [],
+                                        "parents": target_parents,
+                                        "children": target_children,
                                     }
                                 }
                             ]
@@ -516,12 +575,35 @@ class TestPagination:
             }
         }
 
-        # Mock calls: initial + ancestor traversal + descendant traversal + 30 child fetches
+        # Batch response for all 30 descendant children (no more children)
+        batch_children_edges = [
+            {
+                "node": {
+                    "uniqueId": f"model.jaffle_shop.descendant_{i}",
+                    "name": f"descendant_{i}",
+                    "resourceType": "Model",
+                    "parents": [],
+                    "children": [],
+                }
+            }
+            for i in range(30)
+        ]
+
+        batch_children_response = {
+            "data": {
+                "environment": {
+                    "applied": {"batch_model": {"edges": batch_children_edges}}
+                }
+            }
+        }
+
+        # Mock calls: initial + ancestor traversal level 0 + descendant traversal level 0 + descendant level 1 (batch 30 children)
         mock_responses = [
             target_response,  # Initial fetch
-            target_response,  # Ancestor traversal
-            target_response,  # Descendant traversal
-        ] + [child_response] * 30  # Each child has no more children
+            batch_target_response,  # Ancestor traversal level 0
+            batch_target_response,  # Descendant traversal level 0
+            batch_children_response,  # Descendant traversal level 1 (all 30 children in one batch)
+        ]
 
         mock_api_client.execute_query.side_effect = mock_responses
 
@@ -540,3 +622,253 @@ class TestPagination:
         # Check actual data is truncated
         assert len(result["ancestors"]) == 50
         assert len(result["descendants"]) == 30
+
+
+class TestBatchedLineage:
+    """Test batched lineage fetching optimization."""
+
+    def test_build_batch_node_query_single_type(self, lineage_fetcher):
+        """Test query generation for single resource type."""
+        batch_specs = {"Model": ["model.x.a", "model.x.b"]}
+        query = lineage_fetcher._build_batch_node_query(batch_specs)
+
+        assert "batch_model" in query
+        assert "model.x.a" in query
+        assert "model.x.b" in query
+        assert "BatchNodeRelations" in query
+        assert "$environmentId: BigInt!" in query
+
+    def test_build_batch_node_query_mixed_types(self, lineage_fetcher):
+        """Test query with multiple resource types."""
+        batch_specs = {
+            "Model": ["model.x.a"],
+            "Source": ["source.x.b"],
+            "Seed": ["seed.x.c"],
+        }
+        query = lineage_fetcher._build_batch_node_query(batch_specs)
+
+        assert "batch_model" in query
+        assert "batch_source" in query
+        assert "batch_seed" in query
+        assert "model.x.a" in query
+        assert "source.x.b" in query
+        assert "seed.x.c" in query
+
+    def test_parse_batch_response(self, lineage_fetcher):
+        """Test parsing batched response."""
+        response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "batch_model": {
+                            "edges": [
+                                {
+                                    "node": {
+                                        "uniqueId": "model.x.a",
+                                        "name": "a",
+                                        "children": [],
+                                    }
+                                },
+                                {
+                                    "node": {
+                                        "uniqueId": "model.x.b",
+                                        "name": "b",
+                                        "children": [],
+                                    }
+                                },
+                            ]
+                        },
+                        "batch_source": {
+                            "edges": [
+                                {
+                                    "node": {
+                                        "uniqueId": "source.x.c",
+                                        "name": "c",
+                                        "children": [],
+                                    }
+                                },
+                            ]
+                        },
+                    }
+                }
+            }
+        }
+
+        nodes = lineage_fetcher._parse_batch_response(response)
+
+        assert len(nodes) == 3
+        assert "model.x.a" in nodes
+        assert "model.x.b" in nodes
+        assert "source.x.c" in nodes
+        assert nodes["model.x.a"]["name"] == "a"
+        assert nodes["source.x.c"]["name"] == "c"
+
+    def test_parse_batch_response_filters_empty_children(self, lineage_fetcher):
+        """Test that empty children are filtered out."""
+        response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "batch_model": {
+                            "edges": [
+                                {
+                                    "node": {
+                                        "uniqueId": "model.x.a",
+                                        "name": "a",
+                                        "children": [
+                                            {"uniqueId": "model.x.b", "name": "b"},
+                                            {"uniqueId": "", "name": ""},  # Empty
+                                        ],
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+
+        nodes = lineage_fetcher._parse_batch_response(response)
+
+        assert len(nodes) == 1
+        assert "model.x.a" in nodes
+        # Empty children should be filtered out
+        assert len(nodes["model.x.a"]["children"]) == 1
+        assert nodes["model.x.a"]["children"][0]["uniqueId"] == "model.x.b"
+
+    async def test_batching_reduces_api_calls(self, lineage_fetcher, mock_api_client):
+        """Verify batching reduces API calls."""
+        # Mock: target node with 3 seed parents
+        target_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "models": {
+                            "edges": [
+                                {
+                                    "node": {
+                                        "uniqueId": "model.x.target",
+                                        "name": "target",
+                                        "resourceType": "Model",
+                                        "parents": [
+                                            {
+                                                "uniqueId": "seed.x.p1",
+                                                "name": "p1",
+                                                "resourceType": "Seed",
+                                            },
+                                            {
+                                                "uniqueId": "seed.x.p2",
+                                                "name": "p2",
+                                                "resourceType": "Seed",
+                                            },
+                                            {
+                                                "uniqueId": "seed.x.p3",
+                                                "name": "p3",
+                                                "resourceType": "Seed",
+                                            },
+                                        ],
+                                        "children": [],
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+
+        mock_api_client.execute_query.side_effect = [
+            target_response,  # Initial target fetch (target reused at depth 0)
+        ]
+
+        result = await lineage_fetcher.fetch_lineage(
+            unique_id="model.x.target",
+            types=[],
+            direction=LineageDirection.ANCESTORS,
+        )
+
+        # Optimization: Only 1 call! (initial fetch, target reused at depth 0)
+        # Old: initial + batch target at depth 0 = 2 calls
+        # Optimized: initial only = 1 call (target reused)
+        # Seeds don't recurse, so no additional calls needed
+        assert mock_api_client.execute_query.call_count == 1
+        assert len(result["ancestors"]) == 3
+
+    async def test_batch_descendants_reduces_calls(
+        self, lineage_fetcher, mock_api_client
+    ):
+        """Verify batching reduces API calls for descendants."""
+        # Mock: target node with 4 model children
+        target_children = [
+            {
+                "uniqueId": f"model.x.child_{i}",
+                "name": f"child_{i}",
+                "resourceType": "Model",
+            }
+            for i in range(4)
+        ]
+
+        target_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "models": {
+                            "edges": [
+                                {
+                                    "node": {
+                                        "uniqueId": "model.x.target",
+                                        "name": "target",
+                                        "resourceType": "Model",
+                                        "parents": [],
+                                        "children": target_children,
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+
+        # Batch response for all 4 children (no more children)
+        batch_children_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "batch_model": {
+                            "edges": [
+                                {
+                                    "node": {
+                                        "uniqueId": f"model.x.child_{i}",
+                                        "name": f"child_{i}",
+                                        "resourceType": "Model",
+                                        "parents": [],
+                                        "children": [],
+                                    }
+                                }
+                                for i in range(4)
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+
+        mock_api_client.execute_query.side_effect = [
+            target_response,  # Initial fetch (target reused at depth 0)
+            batch_children_response,  # Descendant level 1 (batch all 4 children)
+        ]
+
+        result = await lineage_fetcher.fetch_lineage(
+            unique_id="model.x.target",
+            types=[],
+            direction=LineageDirection.DESCENDANTS,
+        )
+
+        # Optimized with target reuse:
+        # Call 1: Initial fetch (target with children)
+        # Call 2: Batch fetch level 1 (all 4 children)
+        # Total: 2 calls (vs 6 without batching: initial + target + 4 individual)
+        # vs 3 calls without optimization: initial + batch target + batch children
+        assert mock_api_client.execute_query.call_count == 2
+        assert len(result["descendants"]) == 4

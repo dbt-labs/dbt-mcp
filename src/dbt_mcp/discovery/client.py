@@ -864,66 +864,295 @@ class LineageFetcher:
 
         return None
 
+    def _build_batch_node_query(self, batch_specs: dict[str, list[str]]) -> str:
+        """
+        Build GraphQL query that fetches multiple nodes using aliases.
+
+        Args:
+            batch_specs: Dict mapping resource types to lists of unique_ids
+                        e.g., {"Model": ["model.x.a", "model.x.b"],
+                               "Source": ["source.x.c"]}
+
+        Returns:
+            GraphQL query string with aliases
+        """
+        resource_queries = []
+
+        for resource_type, unique_ids in batch_specs.items():
+            resource_type_lower = resource_type.lower()
+            resource_type_plural = f"{resource_type_lower}s"
+            alias = f"batch_{resource_type_lower}"
+            count = len(unique_ids)
+
+            ids_str = ", ".join(f'"{uid}"' for uid in unique_ids)
+
+            if resource_type_lower == "model":
+                resource_queries.append(f"""
+      {alias}: {resource_type_plural}(filter: {{ uniqueIds: [{ids_str}] }}, first: {count}) {{
+        edges {{
+          node {{
+            uniqueId
+            name
+            database
+            schema
+            alias
+            resourceType
+            filePath
+            tags
+            fqn
+            parents {{
+              ... on ModelAppliedStateNestedNode {{ uniqueId resourceType name }}
+              ... on SourceAppliedStateNestedNode {{ uniqueId resourceType name sourceName }}
+              ... on SeedAppliedStateNestedNode {{ uniqueId resourceType name }}
+              ... on SnapshotAppliedStateNestedNode {{ uniqueId resourceType name }}
+            }}
+            children {{
+              ... on ModelAppliedStateNestedNode {{ uniqueId resourceType name }}
+              ... on ExposureAppliedStateNestedNode {{ uniqueId resourceType name }}
+              ... on TestAppliedStateNestedNode {{ uniqueId resourceType name }}
+            }}
+          }}
+        }}
+      }}""")
+            elif resource_type_lower == "source":
+                resource_queries.append(f"""
+      {alias}: {resource_type_plural}(filter: {{ uniqueIds: [{ids_str}] }}, first: {count}) {{
+        edges {{
+          node {{
+            uniqueId
+            name
+            database
+            schema
+            sourceName
+            resourceType
+            filePath
+            tags
+            fqn
+            children {{
+              ... on ModelAppliedStateNestedNode {{ uniqueId resourceType name }}
+            }}
+          }}
+        }}
+      }}""")
+            elif resource_type_lower == "seed":
+                resource_queries.append(f"""
+      {alias}: {resource_type_plural}(filter: {{ uniqueIds: [{ids_str}] }}, first: {count}) {{
+        edges {{
+          node {{
+            uniqueId
+            name
+            database
+            schema
+            alias
+            resourceType
+            filePath
+            tags
+            fqn
+            children {{
+              ... on ModelAppliedStateNestedNode {{ uniqueId resourceType name }}
+            }}
+          }}
+        }}
+      }}""")
+            elif resource_type_lower == "snapshot":
+                resource_queries.append(f"""
+      {alias}: {resource_type_plural}(filter: {{ uniqueIds: [{ids_str}] }}, first: {count}) {{
+        edges {{
+          node {{
+            uniqueId
+            name
+            database
+            schema
+            alias
+            resourceType
+            filePath
+            tags
+            fqn
+            parents {{
+              ... on ModelAppliedStateNestedNode {{ uniqueId resourceType name }}
+              ... on SourceAppliedStateNestedNode {{ uniqueId resourceType name sourceName }}
+              ... on SeedAppliedStateNestedNode {{ uniqueId resourceType name }}
+            }}
+            children {{
+              ... on ModelAppliedStateNestedNode {{ uniqueId resourceType name }}
+              ... on ExposureAppliedStateNestedNode {{ uniqueId resourceType name }}
+            }}
+          }}
+        }}
+      }}""")
+            elif resource_type_lower == "exposure":
+                resource_queries.append(f"""
+      {alias}: {resource_type_plural}(filter: {{ uniqueIds: [{ids_str}] }}, first: {count}) {{
+        edges {{
+          node {{
+            uniqueId
+            name
+            resourceType
+            filePath
+            tags
+            fqn
+            parents {{
+              ... on ModelAppliedStateNestedNode {{ uniqueId resourceType name }}
+              ... on SourceAppliedStateNestedNode {{ uniqueId resourceType name sourceName }}
+            }}
+          }}
+        }}
+      }}""")
+
+        query_body = "\n".join(resource_queries)
+
+        return f"""
+query BatchNodeRelations($environmentId: BigInt!) {{
+  environment(id: $environmentId) {{
+    applied {{
+{query_body}
+    }}
+  }}
+}}
+"""
+
+    def _parse_batch_response(self, response: dict) -> dict[str, dict]:
+        """
+        Parse batched query response into unique_id -> node mapping.
+
+        Args:
+            response: GraphQL response with aliased sections
+
+        Returns:
+            Dict mapping unique_id to node data
+        """
+        nodes = {}
+        applied = response.get("data", {}).get("environment", {}).get("applied", {})
+
+        for alias_key, resource_data in applied.items():
+            if not alias_key.startswith("batch_"):
+                continue
+
+            edges = resource_data.get("edges", [])
+            for edge in edges:
+                node = edge["node"]
+                unique_id = node.get("uniqueId")
+                if unique_id:
+                    if "children" in node:
+                        node["children"] = [
+                            c for c in node["children"] if c.get("uniqueId")
+                        ]
+                    nodes[unique_id] = node
+
+        return nodes
+
+    async def _fetch_nodes_batch(self, unique_ids: list[str]) -> dict[str, dict]:
+        """
+        Fetch multiple nodes in single batched GraphQL query.
+
+        Args:
+            unique_ids: List of node unique IDs to fetch
+
+        Returns:
+            Dict mapping unique_id to node data with parents/children
+        """
+        if not unique_ids:
+            return {}
+
+        try:
+            batch_specs: dict[str, list[str]] = {}
+            for unique_id in unique_ids:
+                resource_type = unique_id.split(".")[0].capitalize()
+                if resource_type not in batch_specs:
+                    batch_specs[resource_type] = []
+                batch_specs[resource_type].append(unique_id)
+
+            query = self._build_batch_node_query(batch_specs)
+
+            variables = {"environmentId": await self.get_environment_id()}
+            result = await self.api_client.execute_query(query, variables)
+            raise_gql_error(result)
+
+            return self._parse_batch_response(result)
+
+        except Exception as e:
+            logger.warning(
+                f"Batch query failed, falling back to individual queries: {e}"
+            )
+            batch_results = {}
+            for node_id in unique_ids:
+                try:
+                    node = await self._fetch_node_with_relations(node_id)
+                    if node:
+                        batch_results[node_id] = node
+                except Exception:
+                    logger.debug(f"Failed to fetch node {node_id}")
+                    continue
+            return batch_results
+
     async def _fetch_ancestors_recursive(
         self,
         unique_id: str,
         types: list[LineageResourceType] | None = None,
         max_depth: int = 100,
+        target_node: dict | None = None,
     ) -> tuple[list[dict], set[str]]:
         """
-        Recursively fetch all ancestors using parents field.
+        Recursively fetch all ancestors using batched queries.
 
         Args:
             unique_id: Starting node unique ID
             types: Optional filter for resource types
-            max_depth: Maximum recursion depth (safety limit)
+            max_depth: Maximum recursion depth
+            target_node: Optional pre-fetched target node to avoid redundant fetch
 
         Returns:
             Tuple of (ancestor_list, visited_ids)
         """
         ancestors = []
         visited = {unique_id}
-        queue = [(unique_id, 0)]  # (node_id, depth) tuples
+        current_level = [unique_id]
+        depth = 0
 
-        while queue:
-            node_id, depth = queue.pop(0)
+        while current_level and depth < max_depth:
+            if depth == 0 and target_node:
+                batch_results = {unique_id: target_node}
+            else:
+                batch_results = await self._fetch_nodes_batch(current_level)
 
-            if depth >= max_depth:
-                logger.warning(
-                    f"Max recursion depth {max_depth} reached for node {node_id}. "
-                    f"Lineage may be incomplete."
-                )
-                continue
-
-            # Fetch node with parents
-            node = await self._fetch_node_with_relations(node_id)
-            if not node:
-                continue
-
-            parents = node.get("parents", [])
-            for parent in parents:
-                parent_id = parent.get("uniqueId")
-                if not parent_id or parent_id in visited:
+            next_level = []
+            for node_id in current_level:
+                node = batch_results.get(node_id)
+                if not node:
                     continue
 
-                visited.add(parent_id)
+                parents = node.get("parents", [])
+                for parent in parents:
+                    parent_id = parent.get("uniqueId")
+                    if not parent_id or parent_id in visited:
+                        continue
 
-                parent_type = parent.get("resourceType")
-                if types and parent_type.lower() not in [
-                    t.value.lower() for t in types
-                ]:
-                    continue
+                    visited.add(parent_id)
+                    parent_type = parent.get("resourceType")
 
-                ancestors.append(
-                    {
-                        "uniqueId": parent_id,
-                        "name": parent.get("name"),
-                        "resourceType": parent_type,
-                    }
-                )
+                    if types and parent_type.lower() not in [
+                        t.value.lower() for t in types
+                    ]:
+                        continue
 
-                if parent_type == "model":
-                    queue.append((parent_id, depth + 1))
+                    ancestors.append(
+                        {
+                            "uniqueId": parent_id,
+                            "name": parent.get("name"),
+                            "resourceType": parent_type,
+                        }
+                    )
+
+                    if parent_type.lower() == "model":
+                        next_level.append(parent_id)
+
+            current_level = next_level
+            depth += 1
+
+        if depth >= max_depth and current_level:
+            logger.warning(
+                f"Max recursion depth {max_depth} reached. Lineage may be incomplete."
+            )
 
         return (ancestors, visited)
 
@@ -932,58 +1161,69 @@ class LineageFetcher:
         unique_id: str,
         types: list[LineageResourceType] | None = None,
         max_depth: int = 100,
+        target_node: dict | None = None,
     ) -> tuple[list[dict], set[str]]:
         """
-        Recursively fetch all descendants using children field.
+        Recursively fetch all descendants using batched queries.
 
         Args:
             unique_id: Starting node unique ID
             types: Optional filter for resource types
-            max_depth: Maximum recursion depth (safety limit)
+            max_depth: Maximum recursion depth
+            target_node: Optional pre-fetched target node to avoid redundant fetch
 
         Returns:
             Tuple of (descendant_list, visited_ids)
         """
         descendants = []
         visited = {unique_id}
-        queue = [(unique_id, 0)]
+        current_level = [unique_id]
+        depth = 0
 
-        while queue:
-            node_id, depth = queue.pop(0)
+        while current_level and depth < max_depth:
+            if depth == 0 and target_node:
+                batch_results = {unique_id: target_node}
+            else:
+                batch_results = await self._fetch_nodes_batch(current_level)
 
-            if depth >= max_depth:
-                logger.warning(
-                    f"Max recursion depth {max_depth} reached for node {node_id}. "
-                    f"Lineage may be incomplete."
-                )
-                continue
-
-            node = await self._fetch_node_with_relations(node_id)
-            if not node:
-                continue
-
-            children = node.get("children", [])
-            for child in children:
-                child_id = child.get("uniqueId")
-                if not child_id or child_id in visited:
+            next_level = []
+            for node_id in current_level:
+                node = batch_results.get(node_id)
+                if not node:
                     continue
 
-                visited.add(child_id)
+                children = node.get("children", [])
+                for child in children:
+                    child_id = child.get("uniqueId")
+                    if not child_id or child_id in visited:
+                        continue
 
-                child_type = child.get("resourceType")
-                if types and child_type.lower() not in [t.value.lower() for t in types]:
-                    continue
+                    visited.add(child_id)
+                    child_type = child.get("resourceType")
 
-                descendants.append(
-                    {
-                        "uniqueId": child_id,
-                        "name": child.get("name"),
-                        "resourceType": child_type,
-                    }
-                )
+                    if types and child_type.lower() not in [
+                        t.value.lower() for t in types
+                    ]:
+                        continue
 
-                if child_type == "model":
-                    queue.append((child_id, depth + 1))
+                    descendants.append(
+                        {
+                            "uniqueId": child_id,
+                            "name": child.get("name"),
+                            "resourceType": child_type,
+                        }
+                    )
+
+                    if child_type.lower() == "model":
+                        next_level.append(child_id)
+
+            current_level = next_level
+            depth += 1
+
+        if depth >= max_depth and current_level:
+            logger.warning(
+                f"Max recursion depth {max_depth} reached. Lineage may be incomplete."
+            )
 
         return (descendants, visited)
 
@@ -1028,17 +1268,20 @@ class LineageFetcher:
         if not target:
             return {"target": None, "ancestors": [], "descendants": []}
 
-        # Parallel fetching for both directions
         if direction == LineageDirection.BOTH:
             (ancestors, _), (descendants, _) = await asyncio.gather(
-                self._fetch_ancestors_recursive(unique_id, types),
-                self._fetch_descendants_recursive(unique_id, types),
+                self._fetch_ancestors_recursive(unique_id, types, target_node=target),
+                self._fetch_descendants_recursive(unique_id, types, target_node=target),
             )
         elif direction == LineageDirection.ANCESTORS:
-            ancestors, _ = await self._fetch_ancestors_recursive(unique_id, types)
+            ancestors, _ = await self._fetch_ancestors_recursive(
+                unique_id, types, target_node=target
+            )
             descendants = []
         else:  # DESCENDANTS
-            descendants, _ = await self._fetch_descendants_recursive(unique_id, types)
+            descendants, _ = await self._fetch_descendants_recursive(
+                unique_id, types, target_node=target
+            )
             ancestors = []
 
         # Apply pagination/truncation (LINEAGE_LIMIT = 50)
