@@ -864,6 +864,96 @@ class LineageFetcher:
 
         return None
 
+    _RESOURCE_QUERY_TEMPLATES: ClassVar[dict[str, str]] = {
+        "model": """
+            uniqueId
+            name
+            database
+            schema
+            alias
+            resourceType
+            filePath
+            tags
+            fqn
+            parents {
+                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
+                ... on SourceAppliedStateNestedNode { uniqueId resourceType name sourceName }
+                ... on SeedAppliedStateNestedNode { uniqueId resourceType name }
+                ... on SnapshotAppliedStateNestedNode { uniqueId resourceType name }
+            }
+            children {
+                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
+                ... on ExposureAppliedStateNestedNode { uniqueId resourceType name }
+                ... on TestAppliedStateNestedNode { uniqueId resourceType name }
+            }
+        """,
+        "source": """
+            uniqueId
+            name
+            database
+            schema
+            sourceName
+            resourceType
+            filePath
+            tags
+            fqn
+            children {
+                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
+            }
+        """,
+        "seed": """
+            uniqueId
+            name
+            database
+            schema
+            alias
+            resourceType
+            filePath
+            tags
+            fqn
+            children {
+                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
+            }
+        """,
+        "snapshot": """
+            uniqueId
+            name
+            database
+            schema
+            alias
+            resourceType
+            filePath
+            tags
+            fqn
+            parents {
+                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
+                ... on SourceAppliedStateNestedNode { uniqueId resourceType name sourceName }
+                ... on SeedAppliedStateNestedNode { uniqueId resourceType name }
+            }
+            children {
+                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
+                ... on ExposureAppliedStateNestedNode { uniqueId resourceType name }
+            }
+        """,
+        "exposure": """
+            uniqueId
+            name
+            resourceType
+            filePath
+            tags
+            fqn
+            parents {
+                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
+                ... on SourceAppliedStateNestedNode { uniqueId resourceType name sourceName }
+            }
+        """,
+    }
+
+    def _sanitize_id(self, unique_id: str) -> str:
+        """Sanitize unique ID for GraphQL string injection."""
+        # Simple escaping for double quotes to prevent breaking out of the string
+        return unique_id.replace('"', '\\"')
+
     def _build_batch_node_query(self, batch_specs: dict[str, list[str]]) -> str:
         """
         Build GraphQL query that fetches multiple nodes using aliases.
@@ -880,121 +970,25 @@ class LineageFetcher:
 
         for resource_type, unique_ids in batch_specs.items():
             resource_type_lower = resource_type.lower()
+            if resource_type_lower not in self._RESOURCE_QUERY_TEMPLATES:
+                logger.warning(
+                    f"Skipping unsupported resource type in batch query: {resource_type}"
+                )
+                continue
+
             resource_type_plural = f"{resource_type_lower}s"
             alias = f"batch_{resource_type_lower}"
             count = len(unique_ids)
 
-            ids_str = ", ".join(f'"{uid}"' for uid in unique_ids)
+            # Sanitize and quote IDs
+            ids_str = ", ".join(f'"{self._sanitize_id(uid)}"' for uid in unique_ids)
+            fields = self._RESOURCE_QUERY_TEMPLATES[resource_type_lower]
 
-            if resource_type_lower == "model":
-                resource_queries.append(f"""
+            resource_queries.append(f"""
       {alias}: {resource_type_plural}(filter: {{ uniqueIds: [{ids_str}] }}, first: {count}) {{
         edges {{
           node {{
-            uniqueId
-            name
-            database
-            schema
-            alias
-            resourceType
-            filePath
-            tags
-            fqn
-            parents {{
-              ... on ModelAppliedStateNestedNode {{ uniqueId resourceType name }}
-              ... on SourceAppliedStateNestedNode {{ uniqueId resourceType name sourceName }}
-              ... on SeedAppliedStateNestedNode {{ uniqueId resourceType name }}
-              ... on SnapshotAppliedStateNestedNode {{ uniqueId resourceType name }}
-            }}
-            children {{
-              ... on ModelAppliedStateNestedNode {{ uniqueId resourceType name }}
-              ... on ExposureAppliedStateNestedNode {{ uniqueId resourceType name }}
-              ... on TestAppliedStateNestedNode {{ uniqueId resourceType name }}
-            }}
-          }}
-        }}
-      }}""")
-            elif resource_type_lower == "source":
-                resource_queries.append(f"""
-      {alias}: {resource_type_plural}(filter: {{ uniqueIds: [{ids_str}] }}, first: {count}) {{
-        edges {{
-          node {{
-            uniqueId
-            name
-            database
-            schema
-            sourceName
-            resourceType
-            filePath
-            tags
-            fqn
-            children {{
-              ... on ModelAppliedStateNestedNode {{ uniqueId resourceType name }}
-            }}
-          }}
-        }}
-      }}""")
-            elif resource_type_lower == "seed":
-                resource_queries.append(f"""
-      {alias}: {resource_type_plural}(filter: {{ uniqueIds: [{ids_str}] }}, first: {count}) {{
-        edges {{
-          node {{
-            uniqueId
-            name
-            database
-            schema
-            alias
-            resourceType
-            filePath
-            tags
-            fqn
-            children {{
-              ... on ModelAppliedStateNestedNode {{ uniqueId resourceType name }}
-            }}
-          }}
-        }}
-      }}""")
-            elif resource_type_lower == "snapshot":
-                resource_queries.append(f"""
-      {alias}: {resource_type_plural}(filter: {{ uniqueIds: [{ids_str}] }}, first: {count}) {{
-        edges {{
-          node {{
-            uniqueId
-            name
-            database
-            schema
-            alias
-            resourceType
-            filePath
-            tags
-            fqn
-            parents {{
-              ... on ModelAppliedStateNestedNode {{ uniqueId resourceType name }}
-              ... on SourceAppliedStateNestedNode {{ uniqueId resourceType name sourceName }}
-              ... on SeedAppliedStateNestedNode {{ uniqueId resourceType name }}
-            }}
-            children {{
-              ... on ModelAppliedStateNestedNode {{ uniqueId resourceType name }}
-              ... on ExposureAppliedStateNestedNode {{ uniqueId resourceType name }}
-            }}
-          }}
-        }}
-      }}""")
-            elif resource_type_lower == "exposure":
-                resource_queries.append(f"""
-      {alias}: {resource_type_plural}(filter: {{ uniqueIds: [{ids_str}] }}, first: {count}) {{
-        edges {{
-          node {{
-            uniqueId
-            name
-            resourceType
-            filePath
-            tags
-            fqn
-            parents {{
-              ... on ModelAppliedStateNestedNode {{ uniqueId resourceType name }}
-              ... on SourceAppliedStateNestedNode {{ uniqueId resourceType name sourceName }}
-            }}
+            {fields}
           }}
         }}
       }}""")
