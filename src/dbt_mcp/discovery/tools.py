@@ -40,6 +40,16 @@ NAME_FIELD = Field(
     "This is not required if `unique_id` is provided. "
     "Only use name when `unique_id` is unknown.",
 )
+TYPES_FIELD = Field(
+    description="List of resource types to include in lineage results. "
+    "Use empty list [] to include all resource types. "
+    "Valid types: Model, Source, Seed, Snapshot, Exposure, Metric, SemanticModel, SavedQuery, Macro, Test.",
+)
+DIRECTION_FIELD = Field(
+    default=LineageDirection.BOTH,
+    description="Direction of lineage traversal: 'ancestors' (upstream dependencies), "
+    "'descendants' (downstream dependents), or 'both' (default).",
+)
 
 
 @dataclass
@@ -389,10 +399,10 @@ async def _fetch_all_lineage_trees(
 )
 async def get_lineage(
     context: DiscoveryToolContext,
-    types: list[LineageResourceType],
+    types: list[LineageResourceType] = TYPES_FIELD,
     name: str | None = None,
     unique_id: str | None = None,
-    direction: LineageDirection = LineageDirection.BOTH,
+    direction: LineageDirection = DIRECTION_FIELD,
 ) -> dict:
     normalized_name = name.strip() if name else None
     normalized_unique_id = unique_id.strip() if unique_id else None
@@ -406,7 +416,10 @@ async def get_lineage(
 
     resolved_unique_id = normalized_unique_id
     if not normalized_unique_id:
-        assert normalized_name is not None, "Name must be provided"
+        if not normalized_name:
+            raise InvalidParameterError(
+                "Name must be provided when unique_id is not specified"
+            )
         matches = await context.lineage_fetcher.search_all_resources(normalized_name)
         if not matches:
             raise InvalidParameterError(
@@ -423,7 +436,10 @@ async def get_lineage(
         else:
             return await _fetch_all_lineage_trees(context, matches, direction, types)
 
-    assert resolved_unique_id is not None
+    if not resolved_unique_id:
+        raise InvalidParameterError(
+            "Failed to resolve unique_id for the requested resource"
+        )
 
     return await context.lineage_fetcher.fetch_lineage(
         unique_id=resolved_unique_id,
