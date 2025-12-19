@@ -32,7 +32,7 @@ dependencies = [
   # and we want to have a consistent install as much as possible.
   "authlib==1.6.5",
   "dbt-protos==1.0.382",
-  "dbt-sl-sdk[sync]==0.13.0",
+  "dbt-sl-sdk[sync]==0.13.1",
   "dbtlabs-vortex==0.2.0",
   "fastapi==0.116.1",
   "uvicorn>=0.31.1",
