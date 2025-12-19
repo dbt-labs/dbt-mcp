@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from dataclasses import dataclass
 
@@ -9,7 +8,6 @@ from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.client import (
     AppliedResourceType,
     ExposuresFetcher,
-    LineageDirection,
     LineageFetcher,
     LineageResourceType,
     MetadataAPIClient,
@@ -18,7 +16,6 @@ from dbt_mcp.discovery.client import (
     ResourceDetailsFetcher,
     SourcesFetcher,
 )
-from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
@@ -41,14 +38,10 @@ NAME_FIELD = Field(
     "Only use name when `unique_id` is unknown.",
 )
 TYPES_FIELD = Field(
+    default=None,
     description="List of resource types to include in lineage results. "
-    "Use empty list [] to include all resource types. "
+    "If not provided, includes all types. "
     "Valid types: Model, Source, Seed, Snapshot, Exposure, Metric, SemanticModel, SavedQuery, Macro, Test.",
-)
-DIRECTION_FIELD = Field(
-    default=LineageDirection.BOTH,
-    description="Direction of lineage traversal: 'ancestors' (upstream dependencies), "
-    "'descendants' (downstream dependents), or 'both' (default).",
 )
 
 
@@ -189,6 +182,21 @@ async def get_model_health(
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
     return await context.models_fetcher.fetch_model_health(name, unique_id)
+
+
+@dbt_mcp_tool(
+    description=get_prompt("discovery/get_lineage"),
+    title="Get Lineage",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+)
+async def get_lineage(
+    context: DiscoveryToolContext,
+    unique_id: str,
+    types: list[LineageResourceType] | None = TYPES_FIELD,
+) -> list[dict]:
+    return await context.lineage_fetcher.fetch_lineage(unique_id=unique_id, types=types)
 
 
 @dbt_mcp_tool(
@@ -350,104 +358,6 @@ async def get_test_details(
     )
 
 
-async def _fetch_all_lineage_trees(
-    context: DiscoveryToolContext,
-    matches: list[dict],
-    direction: LineageDirection,
-    types: list[LineageResourceType],
-) -> dict:
-    """Fetch lineage for all matched resources in parallel.
-
-    Args:
-        context: Discovery tool context with lineage fetcher
-        matches: List of matching resources with 'uniqueId' keys
-        direction: Direction for lineage traversal
-        types: Optional list of resource types to filter
-
-    Returns:
-        Dict with status, message, and list of lineages for each match
-    """
-    lineage_tasks = [
-        context.lineage_fetcher.fetch_lineage(
-            unique_id=match["uniqueId"],
-            direction=direction,
-            types=types,
-        )
-        for match in matches
-    ]
-    lineages = await asyncio.gather(*lineage_tasks)
-
-    return {
-        "status": "multiple_matches",
-        "message": f"Found {len(matches)} resources. Returning lineage for all matches.",
-        "lineages": [
-            {
-                "resource": match,
-                "lineage": lineage,
-            }
-            for match, lineage in zip(matches, lineages, strict=False)
-        ],
-    }
-
-
-@dbt_mcp_tool(
-    description=get_prompt("discovery/get_lineage"),
-    title="Get Lineage",
-    read_only_hint=True,
-    destructive_hint=False,
-    idempotent_hint=True,
-)
-async def get_lineage(
-    context: DiscoveryToolContext,
-    types: list[LineageResourceType] = TYPES_FIELD,
-    name: str | None = None,
-    unique_id: str | None = None,
-    direction: LineageDirection = DIRECTION_FIELD,
-) -> dict:
-    normalized_name = name.strip() if name else None
-    normalized_unique_id = unique_id.strip() if unique_id else None
-
-    if not normalized_name and not normalized_unique_id:
-        raise InvalidParameterError("Either name or unique_id must be provided")
-    if normalized_name and normalized_unique_id:
-        raise InvalidParameterError(
-            "Only one of name or unique_id should be provided, not both"
-        )
-
-    resolved_unique_id = normalized_unique_id
-    if not normalized_unique_id:
-        if not normalized_name:
-            raise InvalidParameterError(
-                "Name must be provided when unique_id is not specified"
-            )
-        matches = await context.lineage_fetcher.search_all_resources(normalized_name)
-        if not matches:
-            raise InvalidParameterError(
-                f"No resource found with name '{normalized_name}' in searchable resource types "
-                f"(models, sources, seeds, snapshots).\n\n"
-                f"If this is an exposure, test, or metric, you must use the full unique_id instead:\n"
-                f"  • For exposures: get_lineage(unique_id='exposure.project.{normalized_name}')\n"
-                f"  • For tests: get_lineage(unique_id='test.project.{normalized_name}')\n"
-                f"  • For metrics: get_lineage(unique_id='metric.project.{normalized_name}')\n\n"
-                f"Note: The Discovery API does not support searching exposures, tests, or metrics by name. "
-            )
-        if len(matches) == 1:
-            resolved_unique_id = matches[0]["uniqueId"]
-        else:
-            return await _fetch_all_lineage_trees(context, matches, direction, types)
-
-    if not resolved_unique_id:
-        raise InvalidParameterError(
-            "Failed to resolve unique_id for the requested resource"
-        )
-
-    return await context.lineage_fetcher.fetch_lineage(
-        unique_id=resolved_unique_id,
-        direction=direction,
-        types=types,
-    )
-
-
 DISCOVERY_TOOLS = [
     get_mart_models,
     get_all_models,
@@ -455,6 +365,7 @@ DISCOVERY_TOOLS = [
     get_model_parents,
     get_model_children,
     get_model_health,
+    get_lineage,
     get_exposures,
     get_exposure_details,
     get_all_sources,
@@ -464,7 +375,6 @@ DISCOVERY_TOOLS = [
     get_semantic_model_details,
     get_snapshot_details,
     get_test_details,
-    get_lineage,
 ]
 
 

@@ -1,0 +1,14 @@
+query GetFullLineage($environmentId: BigInt!, $types: [ResourceNodeType!]!) {
+  environment(id: $environmentId) {
+    applied {
+      lineage(filter: { types: $types }) {
+        name
+        uniqueId
+        resourceType
+        ... on LineageNodeWithParents {
+          parentIds
+        }
+      }
+    }
+  }
+}

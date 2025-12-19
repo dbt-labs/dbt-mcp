@@ -1,9 +1,8 @@
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 import pytest
 
-from dbt_mcp.discovery.client import LineageFetcher, MetadataAPIClient
-from dbt_mcp.discovery.tools import DiscoveryToolContext
+from dbt_mcp.discovery.client import MetadataAPIClient
 
 
 @pytest.fixture
@@ -30,27 +29,3 @@ def mock_api_client():
     mock_config_provider.get_config = mock_get_config
     mock_client.config_provider = mock_config_provider
     return mock_client
-
-
-@pytest.fixture
-def lineage_fetcher(mock_api_client):
-    """Shared LineageFetcher instance with mocked API client."""
-    return LineageFetcher(api_client=mock_api_client)
-
-
-@pytest.fixture
-def mock_discovery_context():
-    """Shared mock DiscoveryToolContext for tool testing."""
-    context = Mock(spec=DiscoveryToolContext)
-    context.lineage_fetcher = Mock()
-    context.lineage_fetcher.search_all_resources = AsyncMock()
-    context.lineage_fetcher.fetch_lineage = AsyncMock()
-    return context
-
-
-@pytest.fixture
-def mock_mcp_context():
-    """Shared mock MCP Context for elicitation testing."""
-    ctx = Mock()
-    ctx.elicit = AsyncMock()
-    return ctx

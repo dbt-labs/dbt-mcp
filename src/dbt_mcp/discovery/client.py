@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import textwrap
 from enum import StrEnum
 from typing import Any, ClassVar, Literal, TypedDict
@@ -12,11 +11,8 @@ from dbt_mcp.discovery.graphql import load_query
 from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.gql.errors import raise_gql_error
 
-logger = logging.getLogger(__name__)
-
 DEFAULT_PAGE_SIZE = 100
 DEFAULT_MAX_NODE_QUERY_LIMIT = 10000
-LINEAGE_LIMIT = 50  # Max nodes per direction for Lineage Tool(ancestors/descendants)
 
 
 class GraphQLQueries:
@@ -306,14 +302,8 @@ class GraphQLQueries:
         }
     """)
 
-    # Detail queries - reused for lineage search
-    GET_MODEL_DETAILS = load_query("get_model_details.gql")
-    GET_SOURCE_DETAILS = load_query("get_source_details.gql")
-    GET_SEED_DETAILS = load_query("get_seed_details.gql")
-    GET_SNAPSHOT_DETAILS = load_query("get_snapshot_details.gql")
-
-    # Lineage queries
-    GET_NODE_RELATIONS = load_query("lineage/get_node_relations.gql")
+    # Lineage query
+    GET_FULL_LINEAGE = load_query("get_full_lineage.gql")
 
 
 class MetadataAPIClient:
@@ -682,14 +672,6 @@ class ResourceDetailsFetcher:
         return [e["node"] for e in edges]
 
 
-class LineageDirection(StrEnum):
-    """Direction for lineage traversal."""
-
-    ANCESTORS = "ancestors"
-    DESCENDANTS = "descendants"
-    BOTH = "both"
-
-
 class LineageResourceType(StrEnum):
     """Resource types supported by the lineage API."""
 
@@ -705,615 +687,86 @@ class LineageResourceType(StrEnum):
     TEST = "Test"
 
 
-_RESOURCE_SEARCH_CONFIG = {
-    "Model": {
-        "query": GraphQLQueries.GET_MODEL_DETAILS,
-        "response_path": "resources",
-        "gql_type": "Model",
-    },
-    "Source": {
-        "query": GraphQLQueries.GET_SOURCE_DETAILS,
-        "response_path": "resources",
-        "gql_type": "Source",
-    },
-    "Seed": {
-        "query": GraphQLQueries.GET_SEED_DETAILS,
-        "response_path": "resources",
-        "gql_type": "Seed",
-    },
-    "Snapshot": {
-        "query": GraphQLQueries.GET_SNAPSHOT_DETAILS,
-        "response_path": "resources",
-        "gql_type": "Snapshot",
-    },
-}
-
-
 class LineageFetcher:
-    """Fetcher for lineage data using the Discovery API's lineage query."""
+    """Fetcher for lineage data. Returns nodes connected to the target."""
 
     def __init__(self, api_client: MetadataAPIClient):
         self.api_client = api_client
 
-    async def get_environment_id(self) -> int:
-        config = await self.api_client.config_provider.get_config()
-        return config.environment_id
-
-    async def search_resource_by_name(
-        self, name: str, resource_type: str
-    ) -> list[dict]:
-        """Search for a resource by name/identifier.
-
-        Generic method that handles searching for any supported resource type.
-
-        Args:
-            name: The resource name/identifier to search for
-            resource_type: Type of resource ("Model", "Source", "Seed", "Snapshot")
-
-        Returns:
-            List of matches with uniqueId, name, and resourceType keys
-
-        Raises:
-            ValueError: If resource_type is not supported
-        """
-        if resource_type not in _RESOURCE_SEARCH_CONFIG:
-            raise ValueError(
-                f"Unsupported resource_type: {resource_type}. "
-                f"Must be one of: {', '.join(_RESOURCE_SEARCH_CONFIG.keys())}"
-            )
-
-        config = _RESOURCE_SEARCH_CONFIG[resource_type]
-        environment_id = await self.get_environment_id()
-
-        packages_result = await self.api_client.execute_query(
-            ResourceDetailsFetcher.GET_PACKAGES_QUERY,
-            variables={"resource": "model", "environmentId": environment_id},
-        )
-        raise_gql_error(packages_result)
-
-        packages = packages_result["data"]["environment"]["applied"]["packages"]
-        if not packages:
-            return []
-
-        resource_type_lower = resource_type.lower()
-        unique_ids = [
-            f"{resource_type_lower}.{package_name}.{name}" for package_name in packages
-        ]
-
-        variables = {
-            "environmentId": environment_id,
-            "filter": {
-                "uniqueIds": unique_ids,
-                "types": [config["gql_type"]],
-            },
-            "first": len(unique_ids),
-        }
-
-        query = config["query"]
-        result = await self.api_client.execute_query(query, variables)
-        raise_gql_error(result)
-
-        edges = result["data"]["environment"]["applied"]["resources"]["edges"]
-        if not edges:
-            return []
-
-        return [
-            {
-                "uniqueId": edge["node"]["uniqueId"],
-                "name": edge["node"]["name"],
-                "resourceType": resource_type,
-            }
-            for edge in edges
-        ]
-
-    async def search_all_resources(self, name: str) -> list[dict]:
-        """Search for resources by name across all supported types.
-
-        Returns all matches found across all resource types.
-        """
-        tasks = [
-            self.search_resource_by_name(name, resource_type)
-            for resource_type in _RESOURCE_SEARCH_CONFIG
-        ]
-        results = await asyncio.gather(*tasks)
-
-        matches: list[dict] = []
-        for result in results:
-            matches.extend(result)
-
-        return matches
-
-    async def _fetch_node_with_relations(
-        self,
-        unique_id: str,
-    ) -> dict | None:
-        """
-        Fetch a single node with its parent/child relationships.
-
-        Supports all resource types: models, sources, seeds, snapshots, exposures.
-
-        Args:
-            unique_id: The unique ID of the node (e.g., model.jaffle_shop.customers)
-
-        Returns:
-            Node dict with parents/children arrays, or None if not found
-        """
-        variables = {
-            "environmentId": await self.get_environment_id(),
-            "uniqueId": unique_id,
-        }
-
-        result = await self.api_client.execute_query(
-            GraphQLQueries.GET_NODE_RELATIONS, variables
-        )
-        raise_gql_error(result)
-
-        applied = result.get("data", {}).get("environment", {}).get("applied", {})
-
-        for resource_type in ["models", "sources", "seeds", "snapshots", "exposures"]:
-            edges = applied.get(resource_type, {}).get("edges", [])
-            if edges:
-                node = edges[0]["node"]
-
-                if "children" in node:
-                    node["children"] = [
-                        c for c in node["children"] if c.get("uniqueId")
-                    ]
-
-                return node
-
-        return None
-
-    _RESOURCE_QUERY_TEMPLATES: ClassVar[dict[str, str]] = {
-        "model": """
-            uniqueId
-            name
-            database
-            schema
-            alias
-            resourceType
-            filePath
-            tags
-            fqn
-            parents {
-                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
-                ... on SourceAppliedStateNestedNode { uniqueId resourceType name sourceName }
-                ... on SeedAppliedStateNestedNode { uniqueId resourceType name }
-                ... on SnapshotAppliedStateNestedNode { uniqueId resourceType name }
-            }
-            children {
-                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
-                ... on ExposureAppliedStateNestedNode { uniqueId resourceType name }
-                ... on TestAppliedStateNestedNode { uniqueId resourceType name }
-            }
-        """,
-        "source": """
-            uniqueId
-            name
-            database
-            schema
-            sourceName
-            resourceType
-            filePath
-            tags
-            fqn
-            children {
-                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
-            }
-        """,
-        "seed": """
-            uniqueId
-            name
-            database
-            schema
-            alias
-            resourceType
-            filePath
-            tags
-            fqn
-            children {
-                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
-            }
-        """,
-        "snapshot": """
-            uniqueId
-            name
-            database
-            schema
-            alias
-            resourceType
-            filePath
-            tags
-            fqn
-            parents {
-                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
-                ... on SourceAppliedStateNestedNode { uniqueId resourceType name sourceName }
-                ... on SeedAppliedStateNestedNode { uniqueId resourceType name }
-            }
-            children {
-                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
-                ... on ExposureAppliedStateNestedNode { uniqueId resourceType name }
-            }
-        """,
-        "exposure": """
-            uniqueId
-            name
-            resourceType
-            filePath
-            tags
-            fqn
-            parents {
-                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
-                ... on SourceAppliedStateNestedNode { uniqueId resourceType name sourceName }
-            }
-        """,
-    }
-
-    def _sanitize_id(self, unique_id: str) -> str:
-        """Sanitize unique ID for GraphQL string injection."""
-        # Simple escaping for double quotes to prevent breaking out of the string
-        return unique_id.replace('"', '\\"')
-
-    def _build_batch_node_query(self, batch_specs: dict[str, list[str]]) -> str:
-        """
-        Build GraphQL query that fetches multiple nodes using aliases.
-
-        Args:
-            batch_specs: Dict mapping resource types to lists of unique_ids
-                        e.g., {"Model": ["model.x.a", "model.x.b"],
-                               "Source": ["source.x.c"]}
-
-        Returns:
-            GraphQL query string with aliases
-        """
-        resource_queries = []
-
-        for resource_type, unique_ids in batch_specs.items():
-            resource_type_lower = resource_type.lower()
-            if resource_type_lower not in self._RESOURCE_QUERY_TEMPLATES:
-                logger.warning(
-                    f"Skipping unsupported resource type in batch query: {resource_type}"
-                )
-                continue
-
-            resource_type_plural = f"{resource_type_lower}s"
-            alias = f"batch_{resource_type_lower}"
-            count = len(unique_ids)
-
-            # Sanitize and quote IDs
-            ids_str = ", ".join(f'"{self._sanitize_id(uid)}"' for uid in unique_ids)
-            fields = self._RESOURCE_QUERY_TEMPLATES[resource_type_lower]
-
-            resource_queries.append(f"""
-      {alias}: {resource_type_plural}(filter: {{ uniqueIds: [{ids_str}] }}, first: {count}) {{
-        edges {{
-          node {{
-            {fields}
-          }}
-        }}
-      }}""")
-
-        query_body = "\n".join(resource_queries)
-
-        return f"""
-query BatchNodeRelations($environmentId: BigInt!) {{
-  environment(id: $environmentId) {{
-    applied {{
-{query_body}
-    }}
-  }}
-}}
-"""
-
-    def _parse_batch_response(self, response: dict) -> dict[str, dict]:
-        """
-        Parse batched query response into unique_id -> node mapping.
-
-        Args:
-            response: GraphQL response with aliased sections
-
-        Returns:
-            Dict mapping unique_id to node data
-        """
-        nodes = {}
-        applied = response.get("data", {}).get("environment", {}).get("applied", {})
-
-        for alias_key, resource_data in applied.items():
-            if not alias_key.startswith("batch_"):
-                continue
-
-            edges = resource_data.get("edges", [])
-            for edge in edges:
-                node = edge["node"]
-                unique_id = node.get("uniqueId")
-                if unique_id:
-                    if "children" in node:
-                        node["children"] = [
-                            c for c in node["children"] if c.get("uniqueId")
-                        ]
-                    nodes[unique_id] = node
-
-        return nodes
-
-    async def _fetch_nodes_batch(self, unique_ids: list[str]) -> dict[str, dict]:
-        """
-        Fetch multiple nodes in single batched GraphQL query.
-
-        Args:
-            unique_ids: List of node unique IDs to fetch
-
-        Returns:
-            Dict mapping unique_id to node data with parents/children
-        """
-        if not unique_ids:
-            return {}
-
-        try:
-            batch_specs: dict[str, list[str]] = {}
-            for unique_id in unique_ids:
-                resource_type = unique_id.split(".")[0].capitalize()
-                if resource_type not in batch_specs:
-                    batch_specs[resource_type] = []
-                batch_specs[resource_type].append(unique_id)
-
-            query = self._build_batch_node_query(batch_specs)
-
-            variables = {"environmentId": await self.get_environment_id()}
-            result = await self.api_client.execute_query(query, variables)
-            raise_gql_error(result)
-
-            return self._parse_batch_response(result)
-
-        except Exception as e:
-            logger.warning(
-                f"Batch query failed, falling back to individual queries: {e}"
-            )
-            batch_results = {}
-            for node_id in unique_ids:
-                try:
-                    node = await self._fetch_node_with_relations(node_id)
-                    if node:
-                        batch_results[node_id] = node
-                except Exception:
-                    logger.debug(f"Failed to fetch node {node_id}")
-                    continue
-            return batch_results
-
-    async def _fetch_ancestors_recursive(
-        self,
-        unique_id: str,
-        types: list[LineageResourceType] | None = None,
-        max_depth: int = 100,
-        target_node: dict | None = None,
-    ) -> tuple[list[dict], set[str]]:
-        """
-        Recursively fetch all ancestors using batched queries.
-
-        Args:
-            unique_id: Starting node unique ID
-            types: Optional filter for resource types
-            max_depth: Maximum recursion depth
-            target_node: Optional pre-fetched target node to avoid redundant fetch
-
-        Returns:
-            Tuple of (ancestor_list, visited_ids)
-        """
-        ancestors = []
-        visited = {unique_id}
-        current_level = [unique_id]
-        depth = 0
-
-        while current_level and depth < max_depth:
-            if depth == 0 and target_node:
-                batch_results = {unique_id: target_node}
-            else:
-                batch_results = await self._fetch_nodes_batch(current_level)
-
-            next_level = []
-            for node_id in current_level:
-                node = batch_results.get(node_id)
-                if not node:
-                    continue
-
-                parents = node.get("parents", [])
-                for parent in parents:
-                    parent_id = parent.get("uniqueId")
-                    if not parent_id or parent_id in visited:
-                        continue
-
-                    visited.add(parent_id)
-                    parent_type = parent.get("resourceType")
-
-                    if types and parent_type.lower() not in [
-                        t.value.lower() for t in types
-                    ]:
-                        continue
-
-                    ancestors.append(
-                        {
-                            "uniqueId": parent_id,
-                            "name": parent.get("name"),
-                            "resourceType": parent_type,
-                        }
-                    )
-
-                    if parent_type.lower() == "model":
-                        next_level.append(parent_id)
-
-            current_level = next_level
-            depth += 1
-
-        if depth >= max_depth and current_level:
-            logger.warning(
-                f"Max recursion depth {max_depth} reached. Lineage may be incomplete."
-            )
-
-        return (ancestors, visited)
-
-    async def _fetch_descendants_recursive(
-        self,
-        unique_id: str,
-        types: list[LineageResourceType] | None = None,
-        max_depth: int = 100,
-        target_node: dict | None = None,
-    ) -> tuple[list[dict], set[str]]:
-        """
-        Recursively fetch all descendants using batched queries.
-
-        Args:
-            unique_id: Starting node unique ID
-            types: Optional filter for resource types
-            max_depth: Maximum recursion depth
-            target_node: Optional pre-fetched target node to avoid redundant fetch
-
-        Returns:
-            Tuple of (descendant_list, visited_ids)
-        """
-        descendants = []
-        visited = {unique_id}
-        current_level = [unique_id]
-        depth = 0
-
-        while current_level and depth < max_depth:
-            if depth == 0 and target_node:
-                batch_results = {unique_id: target_node}
-            else:
-                batch_results = await self._fetch_nodes_batch(current_level)
-
-            next_level = []
-            for node_id in current_level:
-                node = batch_results.get(node_id)
-                if not node:
-                    continue
-
-                children = node.get("children", [])
-                for child in children:
-                    child_id = child.get("uniqueId")
-                    if not child_id or child_id in visited:
-                        continue
-
-                    visited.add(child_id)
-                    child_type = child.get("resourceType")
-
-                    if types and child_type.lower() not in [
-                        t.value.lower() for t in types
-                    ]:
-                        continue
-
-                    descendants.append(
-                        {
-                            "uniqueId": child_id,
-                            "name": child.get("name"),
-                            "resourceType": child_type,
-                        }
-                    )
-
-                    if child_type.lower() == "model":
-                        next_level.append(child_id)
-
-            current_level = next_level
-            depth += 1
-
-        if depth >= max_depth and current_level:
-            logger.warning(
-                f"Max recursion depth {max_depth} reached. Lineage may be incomplete."
-            )
-
-        return (descendants, visited)
-
     async def fetch_lineage(
         self,
         unique_id: str,
-        types: list[LineageResourceType],
-        direction: LineageDirection = LineageDirection.BOTH,
-    ) -> dict:
-        """
-        Fetch lineage for a resource using recursive traversal.
-
-        This method uses the parents/children fields instead of selector-based queries
-        because the selector approach (+uniqueId syntax) returns empty results in some
-        Discovery API environments.
+        types: list[LineageResourceType] | None = None,
+    ) -> list[dict]:
+        """Fetch lineage graph filtered to nodes connected to unique_id.
 
         Args:
-            unique_id: The dbt unique ID of the resource
-            types: List of resource types to include in results
-            direction: One of 'ancestors', 'descendants', or 'both'
+            unique_id: The dbt unique ID of the resource to get lineage for.
+            types: List of resource types to include. If None, includes all types.
 
         Returns:
-            Dict with 'target', 'ancestors', 'descendants', and 'pagination' keys
+            List of nodes connected to unique_id (upstream + downstream).
         """
-        # Validate inputs
-        if direction not in LineageDirection:
-            raise ValueError(
-                f"Invalid direction: {direction}. "
-                f"Must be one of: {', '.join(d.value for d in LineageDirection)}"
-            )
+        config = await self.api_client.config_provider.get_config()
+        type_filter = [
+            t.value for t in (types if types is not None else LineageResourceType)
+        ]
+        variables = {
+            "environmentId": config.environment_id,
+            "types": type_filter,
+            # uniqueId removed - not used by GraphQL
+        }
 
-        if types is not None:
-            invalid_types = [t for t in types if t not in LineageResourceType]
-            if invalid_types:
-                raise ValueError(
-                    f"Invalid resource type(s): {invalid_types}. "
-                    f"Valid types are: {', '.join(rt.value for rt in LineageResourceType)}"
-                )
+        result = await self.api_client.execute_query(
+            GraphQLQueries.GET_FULL_LINEAGE, variables
+        )
+        raise_gql_error(result)
 
-        # Fetch target node
-        target = await self._fetch_node_with_relations(unique_id)
-        if not target:
-            return {"target": None, "ancestors": [], "descendants": []}
+        all_nodes = (
+            result.get("data", {})
+            .get("environment", {})
+            .get("applied", {})
+            .get("lineage", [])
+        )
 
-        if direction == LineageDirection.BOTH:
-            (ancestors, _), (descendants, _) = await asyncio.gather(
-                self._fetch_ancestors_recursive(unique_id, types, target_node=target),
-                self._fetch_descendants_recursive(unique_id, types, target_node=target),
-            )
-        elif direction == LineageDirection.ANCESTORS:
-            ancestors, _ = await self._fetch_ancestors_recursive(
-                unique_id, types, target_node=target
-            )
-            descendants = []
-        else:  # DESCENDANTS
-            descendants, _ = await self._fetch_descendants_recursive(
-                unique_id, types, target_node=target
-            )
-            ancestors = []
+        # Filter to connected nodes only
+        return self._filter_connected_nodes(all_nodes, unique_id)
 
-        # Apply pagination/truncation (LINEAGE_LIMIT = 50)
-        ancestors_total = len(ancestors)
-        descendants_total = len(descendants)
-        ancestors_truncated = ancestors_total > LINEAGE_LIMIT
-        descendants_truncated = descendants_total > LINEAGE_LIMIT
+    def _filter_connected_nodes(self, nodes: list[dict], target_id: str) -> list[dict]:
+        """Return only nodes connected to target_id (upstream and downstream).
 
-        ancestors = ancestors[:LINEAGE_LIMIT]
-        descendants = descendants[:LINEAGE_LIMIT]
+        Uses BFS to find all nodes reachable from target in both directions.
+        """
+        node_map = {n["uniqueId"]: n for n in nodes}
 
-        result: dict[str, Any] = {"target": target}
+        if target_id not in node_map:
+            return []
 
-        if direction in [LineageDirection.ANCESTORS, LineageDirection.BOTH]:
-            result["ancestors"] = ancestors
-        if direction in [LineageDirection.DESCENDANTS, LineageDirection.BOTH]:
-            result["descendants"] = descendants
+        # BFS to find all connected nodes
+        connected = {target_id}
+        queue = [target_id]
 
-        # Build pagination metadata
-        if direction == LineageDirection.BOTH:
-            result["pagination"] = {
-                "limit": LINEAGE_LIMIT,
-                "ancestors_total": ancestors_total,
-                "ancestors_truncated": ancestors_truncated,
-                "descendants_total": descendants_total,
-                "descendants_truncated": descendants_truncated,
-            }
-        elif direction == LineageDirection.ANCESTORS:
-            result["pagination"] = {
-                "limit": LINEAGE_LIMIT,
-                "ancestors_total": ancestors_total,
-                "ancestors_truncated": ancestors_truncated,
-            }
-        else:  # DESCENDANTS
-            result["pagination"] = {
-                "limit": LINEAGE_LIMIT,
-                "descendants_total": descendants_total,
-                "descendants_truncated": descendants_truncated,
-            }
+        while queue:
+            current_id = queue.pop(0)
+            node = node_map.get(current_id)
+            if not node:
+                continue
 
-        return result
+            # Traverse upstream (parents)
+            for parent_id in node.get("parentIds", []):
+                if parent_id not in connected and parent_id in node_map:
+                    connected.add(parent_id)
+                    queue.append(parent_id)
+
+            # Traverse downstream (children)
+            for candidate in nodes:
+                candidate_id = candidate["uniqueId"]
+                if (
+                    current_id in candidate.get("parentIds", [])
+                    and candidate_id not in connected
+                ):
+                    connected.add(candidate_id)
+                    queue.append(candidate_id)
+
+        # Return in original order
+        return [node_map[uid] for uid in connected]

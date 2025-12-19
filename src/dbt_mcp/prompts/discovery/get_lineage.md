@@ -1,45 +1,95 @@
-<instructions>
-Retrieves lineage for a dbt resource using recursive traversal of parent/child relationships. Supports name-based search for models, sources, seeds, and snapshots. Other resource types require unique_id.
+Retrieves the lineage graph for a dbt resource.
+
+Returns all nodes connected to the specified resource, including both upstream dependencies (ancestors) and downstream dependents (descendants).
 
 **Parameters:**
-- `types`: **Required** list of resource types to include in results. Use empty list [] to include all types.
-- `direction`: "ancestors" (upstream), "descendants" (downstream), or "both" (default)
+- `unique_id`: **Required** - Full unique ID of the resource (e.g., "model.my_project.customers")
+- `types`: *Optional* - List of resource types to include in results. If not provided, includes all types.
+  - Valid types: `Model`, `Source`, `Seed`, `Snapshot`, `Exposure`, `Metric`, `SemanticModel`, `SavedQuery`, `Macro`, `Test`
 
-**Response:**
-- `target`: The resource queried with its direct parents and children.
-- `ancestors/descendants`: Recursively discovered dependency nodes (based on direction and type filter).
-- `pagination`: Metadata (max 50 nodes per direction, truncation info).
+**Returns:**
+A list of all nodes in the connected subgraph, where each node contains:
+- `uniqueId`: The resource's unique identifier
+- `name`: The resource name
+- `resourceType`: The type of resource (Model, Source, etc.)
+- `parentIds`: List of unique IDs that this resource directly depends on
 
-**Resource Types:**
-Models, Sources, Seeds, Snapshots, Exposures, Metrics, SemanticModels, SavedQueries, Tests, Macros
-</instructions>
+**Example Response:**
+```json
+[
+  {
+    "uniqueId": "source.raw.users",
+    "name": "users",
+    "resourceType": "Source",
+    "parentIds": []
+  },
+  {
+    "uniqueId": "model.stg_customers",
+    "name": "stg_customers",
+    "resourceType": "Model",
+    "parentIds": ["source.raw.users"]
+  },
+  {
+    "uniqueId": "model.customers",
+    "name": "customers",
+    "resourceType": "Model",
+    "parentIds": ["model.stg_customers"]
+  }
+]
+```
 
-<parameters>
-name: The name of the dbt resource to retrieve lineage for. Searches models, sources, seeds, and snapshots by name. NOTE: Exposures, tests, and metrics cannot be searched by name - use unique_id instead.
-unique_id: The unique identifier of the resource (e.g., "model.my_project.customer_orders"). If provided, this will be used instead of name for a precise lookup. Required for exposures, tests, and metrics.
-types: **Required** list of resource types to include in results. Use empty list [] to see all types. Valid values: Model, Source, Seed, Snapshot, Exposure, Metric, SemanticModel, SavedQuery, Macro, Test.
-direction: Which lineage to fetch - "ancestors", "descendants", or "both" (default: "both").
-</parameters>
+**Usage Examples:**
+```python
+# Get complete lineage (all connected nodes, all types)
+get_lineage(unique_id="model.analytics.customers")
 
-<important_limitation>
-**Name Search:** Only works for Models, Sources, Seeds, Snapshots.
+# Get lineage filtered to only models and sources
+get_lineage(unique_id="model.analytics.customers", types=["Model", "Source"])
 
-**Require unique_id:** Exposures, Tests, Metrics must use format: `exposure.project.name`, `test.project.name`, `metric.project.name`
-</important_limitation>
+# Get lineage for a source
+get_lineage(unique_id="source.raw.users")
+```
 
-<examples>
-# See all lineage (all types)
-get_lineage(name="customer_orders", types=[])
+**Traversing the Graph:**
 
-# Filter by specific types
-get_lineage(name="fct_orders", types=["Model", "Exposure"])
-get_lineage(name="raw_customers", types=["Model", "Source", "Seed"], direction="ancestors")
+The graph is represented by parent-child relationships. To navigate:
 
-# Only models
-get_lineage(name="orders_snapshot", types=["Model"], direction="descendants")
+**Finding Upstream Dependencies (Parents):**
+```python
+# Direct: What does this node depend on?
+target_node = find_node_by_id(result, "model.customers")
+direct_parents = target_node["parentIds"]  
+# Result: ["model.stg_customers"]
+```
 
-# Use unique_id for exposures, tests, metrics
-get_lineage(unique_id="exposure.my_project.finance_dashboard", types=["Model", "Source"])
-get_lineage(unique_id="test.my_project.unique_customers_id", types=[])
-get_lineage(unique_id="metric.my_project.total_revenue", types=["Model", "Metric"])
-</examples>
+**Finding Downstream Dependents (Children):**
+```python
+# Search: What depends on this node?
+target_id = "model.customers"
+direct_children = [
+    node for node in result 
+    if target_id in node.get("parentIds", [])
+]
+# Result: nodes that list "model.customers" in their parentIds
+```
+
+**Understanding the Results:**
+
+- The target node is always included in the response
+- All returned nodes are connected to the target (no disconnected nodes)
+- To get full lineage, omit the `types` parameter
+- To reduce payload size, specify relevant `types`
+
+**Common Use Cases:**
+
+1. **Impact Analysis**: "What will break if I change this model?"
+   - Look at downstream dependents (nodes that have target in `parentIds`)
+
+2. **Dependency Tracking**: "What does this model depend on?"
+   - Look at upstream dependencies (`parentIds` of the target node)
+
+3. **Data Lineage**: "Show the complete data flow for this entity"
+   - Use all returned nodes to build a complete graph
+
+4. **Finding Tests**: "What tests exist for this model and its dependencies?"
+   - Filter results where `resourceType == "Test"`
