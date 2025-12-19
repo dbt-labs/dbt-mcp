@@ -35,6 +35,7 @@ The dbt MCP server architecture allows for your agent to connect to a variety of
 - `get_all_sources`
 - `get_exposure_details`
 - `get_exposures`
+- `get_lineage`
 - `get_macro_details`
 - `get_mart_models`
 - `get_model_children`
