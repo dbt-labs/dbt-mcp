@@ -5,6 +5,10 @@ This MCP (Model Context Protocol) server provides various tools to interact with
 
 Read our documentation [here](https://docs.getdbt.com/docs/dbt-ai/about-mcp) to learn more. [This](https://docs.getdbt.com/blog/introducing-dbt-mcp-server) blog post provides more details for what is possible with the dbt MCP server.
 
+## Experimental MCP Bundle
+
+We publish an experimental Model Context Protocol Bundle (`dbt-mcp.mcpb`) with each release so that MCPB-aware clients can import this server without additional setup. Download the bundle from the latest release assets and follow Anthropic's [`mcpb` CLI](https://github.com/modelcontextprotocol/mcpb) docs to install or inspect it.
+
 ## Feedback
 
 If you have comments or questions, create a GitHub Issue or join us in [the community Slack](https://www.getdbt.com/community/join-the-community) in the `#tools-dbt-mcp` channel.

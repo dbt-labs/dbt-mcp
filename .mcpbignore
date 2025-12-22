@@ -1,0 +1,11 @@
+.*
+dist/
+docs/
+evals/
+examples/
+scripts/
+tests/
+ui/
+*.yml
+uv.lock
+!.git

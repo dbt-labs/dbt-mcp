@@ -19,3 +19,6 @@ dbt-mcp.log
 
 # Environment variables
 .env
+
+# MCPB zip file
+dbt-mcp.mcpb

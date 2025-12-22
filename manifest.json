@@ -1,0 +1,212 @@
+{
+    "manifest_version": "0.4",
+    "name": "dbt-mcp",
+    "display_name": "dbt MCP Server",
+    "version": "0.1.0",
+    "description": "A MCP (Model Context Protocol) server for interacting with dbt.",
+    "long_description": "This MCP (Model Context Protocol) server provides various tools to interact with dbt. You can use this MCP server to provide AI agents with context of your project in dbt Core, dbt Fusion, and dbt Platform.",
+    "author": {
+        "name": "dbt Labs",
+        "url": "https://www.getdbt.com"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/dbt-labs/dbt-mcp"
+    },
+    "homepage": "https://docs.getdbt.com/docs/dbt-ai/about-mcp",
+    "documentation": "https://docs.getdbt.com/docs/dbt-ai/about-mcp",
+    "support": "https://github.com/dbt-labs/dbt-mcp/issues",
+    "server": {
+        "type": "uv",
+        "entry_point": "src/dbt_mcp/main.py",
+        "mcp_config": {
+            "command": "uv",
+            "args": [
+                "run",
+                "dbt-mcp"
+            ],
+            "env": {
+                "DBT_TOKEN": "${user_config.dbt_token}",
+                "DBT_HOST": "${user_config.dbt_host}",
+                "DBT_ACCOUNT_ID": "${user_config.dbt_account_id}",
+                "DBT_PROJECT_DIR": "${user_config.dbt_project_dir}",
+                "DBT_PROFILES_DIR": "${user_config.dbt_profiles_dir}",
+                "DBT_PATH": "${user_config.dbt_path}",
+                "DBT_PROD_ENV_ID": "${user_config.dbt_prod_env_id}",
+                "DBT_DEV_ENV_ID": "${user_config.dbt_dev_env_id}",
+                "DBT_TARGET": "${user_config.dbt_target}",
+                "DBT_USER_ID": "${user_config.dbt_user_id}",
+                "DBT_CLI_TIMEOUT": "${user_config.dbt_cli_timeout}",
+                "DBT_MCP_LOG_LEVEL": "${user_config.dbt_mcp_log_level}",
+                "MULTICELL_ACCOUNT_PREFIX": "${user_config.multicell_account_prefix}",
+                "DISABLE_SEMANTIC_LAYER": "${user_config.disable_semantic_layer}",
+                "DISABLE_DISCOVERY": "${user_config.disable_discovery}",
+                "DISABLE_SQL": "${user_config.disable_sql}",
+                "DISABLE_DBT_CLI": "${user_config.disable_dbt_cli}",
+                "DISABLE_DBT_CODEGEN": "${user_config.disable_dbt_codegen}",
+                "DISABLE_ADMIN_API": "${user_config.disable_admin_api}",
+                "DISABLE_TOOLS": "${user_config.disable_tools}"
+            }
+        }
+    },
+    "tools_generated": true,
+    "keywords": [
+        "dbt",
+        "data-analytics",
+        "data-engineering",
+        "llm"
+    ],
+    "license": "Apache-2.0",
+    "privacy_policies": [
+        "https://www.getdbt.com/cloud/privacy-policy"
+    ],
+    "compatibility": {
+        "platforms": [
+            "darwin",
+            "win32",
+            "linux"
+        ],
+        "runtimes": {
+            "python": ">=3.12,<3.14"
+        }
+    },
+    "user_config": {
+        "dbt_token": {
+            "description": "Personal or service token for authentication with dbt Cloud, Semantic Layer, and Admin API",
+            "required": true,
+            "sensitive": true,
+            "title": "dbt Service Token",
+            "type": "string"
+        },
+        "dbt_host": {
+            "default": "cloud.getdbt.com",
+            "description": "Your dbt platform instance hostname. Used for Semantic Layer, Discovery, and Admin API.",
+            "required": true,
+            "title": "dbt Cloud/Platform Host",
+            "type": "string"
+        },
+        "dbt_account_id": {
+            "default": "",
+            "description": "Your dbt Cloud account ID (required for Admin API)",
+            "required": false,
+            "title": "dbt Account ID",
+            "type": "string"
+        },
+        "dbt_project_dir": {
+            "description": "Full path to your dbt project folder containing dbt_project.yml",
+            "required": true,
+            "title": "dbt Project Directory",
+            "type": "directory"
+        },
+        "dbt_profiles_dir": {
+            "default": "",
+            "description": "Path to your dbt profiles directory",
+            "required": false,
+            "title": "dbt Profiles Directory",
+            "type": "directory"
+        },
+        "dbt_path": {
+            "description": "Full path to your dbt executable",
+            "required": true,
+            "title": "dbt Executable Path",
+            "type": "string"
+        },
+        "dbt_prod_env_id": {
+            "description": "Production environment identifier for Semantic Layer, Discovery, and Admin API",
+            "required": true,
+            "title": "Production Environment ID",
+            "type": "string"
+        },
+        "dbt_dev_env_id": {
+            "default": "",
+            "description": "Development environment identifier (optional)",
+            "required": false,
+            "title": "Development Environment ID",
+            "type": "string"
+        },
+        "dbt_target": {
+            "default": "",
+            "description": "The dbt target to use (e.g., dev, prod)",
+            "required": false,
+            "title": "dbt Target",
+            "type": "string"
+        },
+        "dbt_user_id": {
+            "default": "",
+            "description": "Your dbt platform user ID (optional)",
+            "required": false,
+            "title": "dbt User ID",
+            "type": "string"
+        },
+        "dbt_cli_timeout": {
+            "default": 60,
+            "description": "Command timeout duration in seconds",
+            "required": false,
+            "title": "dbt CLI Timeout",
+            "type": "number"
+        },
+        "dbt_mcp_log_level": {
+            "default": "INFO",
+            "description": "Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+            "required": false,
+            "title": "Log Level",
+            "type": "string"
+        },
+        "multicell_account_prefix": {
+            "default": "",
+            "description": "Account prefix for multi-cell instances (only required for multi-cell deployments)",
+            "required": false,
+            "title": "Multi-cell Account Prefix",
+            "type": "string"
+        },
+        "disable_semantic_layer": {
+            "default": false,
+            "description": "Disables Semantic Layer tools",
+            "required": false,
+            "title": "Disable Semantic Layer Tools",
+            "type": "boolean"
+        },
+        "disable_discovery": {
+            "default": false,
+            "description": "Disables Discovery API tools",
+            "required": false,
+            "title": "Disable Discovery API Tools",
+            "type": "boolean"
+        },
+        "disable_sql": {
+            "default": false,
+            "description": "Disables SQL tools",
+            "required": false,
+            "title": "Disable SQL Tools",
+            "type": "boolean"
+        },
+        "disable_dbt_cli": {
+            "default": false,
+            "description": "Disables dbt Core/Cloud CLI/Fusion tools",
+            "required": false,
+            "title": "Disable dbt CLI Tools",
+            "type": "boolean"
+        },
+        "disable_dbt_codegen": {
+            "default": false,
+            "description": "Disables code generation tools",
+            "required": false,
+            "title": "Disable Codegen Tools",
+            "type": "boolean"
+        },
+        "disable_admin_api": {
+            "default": false,
+            "description": "Disables Administrative API tools",
+            "required": false,
+            "title": "Disable Admin API Tools",
+            "type": "boolean"
+        },
+        "disable_tools": {
+            "default": "",
+            "description": "Comma-delimited list of specific tools to disable",
+            "required": false,
+            "title": "Disable Specific Tools",
+            "type": "string"
+        }
+    }
+}

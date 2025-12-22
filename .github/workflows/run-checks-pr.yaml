@@ -70,3 +70,20 @@ jobs:
         run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
       - name: Validate documentation is up to date
         run: task docs:generate CHECK_FLAG=--check
+
+  # validates mcpb manifest
+  validate-mcpb:
+    name: Validate mcpb manifest # should this only run when manifest.json is changed?
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write
+    needs:
+      - check
+    steps:
+      - name: checkout code
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # actions/checkout@v4
+      - name: setup mcpb
+        uses: ./.github/actions/setup-mcpb
+      - name: Validate manifest
+        run: mcpb validate ./manifest.json

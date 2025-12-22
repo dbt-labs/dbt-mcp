@@ -1,0 +1,14 @@
+name: Setup mcpb
+description: Setup Node.js and install mcpb CLI
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b0a6 # actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install mcpb
+      shell: bash
+      run: npm install -g @anthropic-ai/mcpb # should this be pinned?
