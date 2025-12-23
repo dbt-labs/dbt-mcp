@@ -1,0 +1,3 @@
+kind: Security
+body: 'fix: Prevent template injection vulnerabilities'
+time: 2025-12-23T21:08:29.622596+09:00
