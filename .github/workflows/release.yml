@@ -26,8 +26,9 @@ jobs:
           version: latest
           args: latest
       - name: Create tag
+        env:
+          TAG: ${{ steps.changie-latest.outputs.output }}
         run: |
-          TAG="${{ steps.changie-latest.outputs.output }}"
           git config user.name "release-bot"
           git config user.email "release-bot@users.noreply.github.com"
           git tag "$TAG"

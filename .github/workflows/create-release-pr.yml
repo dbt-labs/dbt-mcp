@@ -37,11 +37,11 @@ jobs:
       - name: Prepare batch args
         id: prepare-batch
         shell: bash
+        env:
+          PR: ${{ inputs.prerelease }}
+          BUMP: ${{ inputs.bump }}
+          NEXT_DIR: ${{ steps.changie-next.outputs.output }}
         run: |
-          PR="${{ inputs.prerelease }}"
-          BUMP="${{ inputs.bump }}"
-          NEXT_DIR="${{ steps.changie-next.outputs.output }}"
-
           if [[ -n "$PR" ]]; then
             if [[ ! "$PR" =~ ^(alpha|beta|rc)\.[0-9]+$ ]]; then
               echo "Invalid prerelease format: $PR (expected alpha.N, beta.N, rc.N)" >&2
@@ -77,8 +77,9 @@ jobs:
 
       - name: Set latest package version
         id: package-version
+        env:
+          VERSION: ${{ steps.changie-latest.outputs.output }}
         run: |
-          VERSION="${{ steps.changie-latest.outputs.output }}"
           VERSION_NO_V=$(echo "$VERSION" | cut -c 2-)
 
           MESSAGE=$(cat ".changes/$VERSION.md")
