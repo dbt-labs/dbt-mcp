@@ -11,17 +11,23 @@ async def test_get_environment_id(lineage_fetcher):
 class TestSearchResources:
     """Test resource search functionality."""
 
-    async def test_search_resource_by_name_models(
-        self, lineage_fetcher, mock_api_client
+    @pytest.mark.parametrize(
+        "resource_type,name,expected_unique_id",
+        [
+            ("Model", "customers", "model.jaffle_shop.customers"),
+            ("Seed", "raw_customers", "seed.jaffle_shop.raw_customers"),
+            ("Snapshot", "orders_snapshot", "snapshot.jaffle_shop.orders_snapshot"),
+        ],
+    )
+    async def test_search_resource_by_name(
+        self, lineage_fetcher, mock_api_client, resource_type, name, expected_unique_id
     ):
-        """Test searching for models using the generic search method."""
-        # Mock packages query response
+        """Test searching for resources by name across different types."""
         packages_response = {
             "data": {"environment": {"applied": {"packages": ["jaffle_shop"]}}}
         }
 
-        # Mock resource details query response
-        models_response = {
+        resource_response = {
             "data": {
                 "environment": {
                     "applied": {
@@ -30,9 +36,9 @@ class TestSearchResources:
                             "edges": [
                                 {
                                     "node": {
-                                        "name": "customers",
-                                        "uniqueId": "model.jaffle_shop.customers",
-                                        "resourceType": "Model",
+                                        "name": name,
+                                        "uniqueId": expected_unique_id,
+                                        "resourceType": resource_type,
                                     }
                                 }
                             ],
@@ -42,99 +48,16 @@ class TestSearchResources:
             }
         }
 
-        # First call is packages, second is resource query
-        mock_api_client.execute_query.side_effect = [packages_response, models_response]
-
-        result = await lineage_fetcher.search_resource_by_name("customers", "Model")
-
-        assert len(result) == 1
-        assert result[0]["uniqueId"] == "model.jaffle_shop.customers"
-        assert result[0]["resourceType"] == "Model"
-
-    async def test_search_resource_by_name_seeds(
-        self, lineage_fetcher, mock_api_client
-    ):
-        """Test searching for seeds using the generic search method."""
-        # Mock packages query response
-        packages_response = {
-            "data": {"environment": {"applied": {"packages": ["jaffle_shop"]}}}
-        }
-
-        # Mock resource details query response
-        seeds_response = {
-            "data": {
-                "environment": {
-                    "applied": {
-                        "resources": {
-                            "pageInfo": {"hasNextPage": False, "endCursor": None},
-                            "edges": [
-                                {
-                                    "node": {
-                                        "name": "raw_customers",
-                                        "uniqueId": "seed.jaffle_shop.raw_customers",
-                                        "resourceType": "Seed",
-                                    }
-                                }
-                            ],
-                        }
-                    }
-                }
-            }
-        }
-
-        # First call is packages, second is resource query
-        mock_api_client.execute_query.side_effect = [packages_response, seeds_response]
-
-        result = await lineage_fetcher.search_resource_by_name("raw_customers", "Seed")
-
-        assert len(result) == 1
-        assert result[0]["uniqueId"] == "seed.jaffle_shop.raw_customers"
-        assert result[0]["resourceType"] == "Seed"
-
-    async def test_search_resource_by_name_snapshots(
-        self, lineage_fetcher, mock_api_client
-    ):
-        """Test searching for snapshots using the generic search method."""
-        # Mock packages query response
-        packages_response = {
-            "data": {"environment": {"applied": {"packages": ["jaffle_shop"]}}}
-        }
-
-        # Mock resource details query response
-        snapshots_response = {
-            "data": {
-                "environment": {
-                    "applied": {
-                        "resources": {
-                            "pageInfo": {"hasNextPage": False, "endCursor": None},
-                            "edges": [
-                                {
-                                    "node": {
-                                        "name": "orders_snapshot",
-                                        "uniqueId": "snapshot.jaffle_shop.orders_snapshot",
-                                        "resourceType": "Snapshot",
-                                    }
-                                }
-                            ],
-                        }
-                    }
-                }
-            }
-        }
-
-        # First call is packages, second is resource query
         mock_api_client.execute_query.side_effect = [
             packages_response,
-            snapshots_response,
+            resource_response,
         ]
 
-        result = await lineage_fetcher.search_resource_by_name(
-            "orders_snapshot", "Snapshot"
-        )
+        result = await lineage_fetcher.search_resource_by_name(name, resource_type)
 
         assert len(result) == 1
-        assert result[0]["uniqueId"] == "snapshot.jaffle_shop.orders_snapshot"
-        assert result[0]["resourceType"] == "Snapshot"
+        assert result[0]["uniqueId"] == expected_unique_id
+        assert result[0]["resourceType"] == resource_type
 
     async def test_search_all_resources_all_types_found(
         self, lineage_fetcher, mock_api_client
@@ -385,41 +308,25 @@ class TestFetchLineage:
         assert len(result["descendants"]) == 1
         assert result["descendants"][0]["uniqueId"] == "model.jaffle_shop.orders"
 
-    async def test_invalid_direction_raises_error(self, lineage_fetcher):
-        """Should raise ValueError for invalid direction in fetch_lineage."""
-        with pytest.raises(ValueError, match="Invalid direction"):
+    @pytest.mark.parametrize(
+        "invalid_direction,expected_error",
+        [
+            ("invalid_direction", ValueError),
+            (None, (ValueError, TypeError)),
+            (123, (ValueError, TypeError)),
+            (["ancestors"], (ValueError, TypeError)),
+            ("", ValueError),
+        ],
+    )
+    async def test_invalid_direction_raises_error(
+        self, lineage_fetcher, invalid_direction, expected_error
+    ):
+        """Should raise error for invalid direction values."""
+        with pytest.raises(expected_error):
             await lineage_fetcher.fetch_lineage(
                 unique_id="model.jaffle_shop.customers",
                 types=[],
-                direction="invalid_direction",
-            )
-
-    async def test_invalid_direction_none(self, lineage_fetcher):
-        """Should raise error when direction is None in fetch_lineage."""
-        with pytest.raises((ValueError, TypeError)):
-            await lineage_fetcher.fetch_lineage(
-                unique_id="model.jaffle_shop.customers", direction=None
-            )
-
-    async def test_invalid_direction_integer(self, lineage_fetcher):
-        """Should raise error for integer direction in fetch_lineage."""
-        with pytest.raises((ValueError, TypeError)):
-            await lineage_fetcher.fetch_lineage(
-                unique_id="model.jaffle_shop.customers", direction=123
-            )
-
-    async def test_invalid_direction_list(self, lineage_fetcher):
-        """Should raise error for list direction in fetch_lineage."""
-        with pytest.raises((ValueError, TypeError)):
-            await lineage_fetcher.fetch_lineage(
-                unique_id="model.jaffle_shop.customers", direction=["ancestors"]
-            )
-
-    async def test_invalid_direction_empty_string(self, lineage_fetcher):
-        """Should raise ValueError for empty string direction in fetch_lineage."""
-        with pytest.raises(ValueError, match="Invalid direction"):
-            await lineage_fetcher.fetch_lineage(
-                unique_id="model.jaffle_shop.customers", types=[], direction=""
+                direction=invalid_direction,
             )
 
     async def test_invalid_types_raises_error(self, lineage_fetcher):
@@ -627,19 +534,8 @@ class TestPagination:
 class TestBatchedLineage:
     """Test batched lineage fetching optimization."""
 
-    def test_build_batch_node_query_single_type(self, lineage_fetcher):
-        """Test query generation for single resource type."""
-        batch_specs = {"Model": ["model.x.a", "model.x.b"]}
-        query = lineage_fetcher._build_batch_node_query(batch_specs)
-
-        assert "batch_model" in query
-        assert "model.x.a" in query
-        assert "model.x.b" in query
-        assert "BatchNodeRelations" in query
-        assert "$environmentId: BigInt!" in query
-
-    def test_build_batch_node_query_mixed_types(self, lineage_fetcher):
-        """Test query with multiple resource types."""
+    def test_build_batch_node_query(self, lineage_fetcher):
+        """Test query generation with multiple resource types."""
         batch_specs = {
             "Model": ["model.x.a"],
             "Source": ["source.x.b"],
@@ -653,57 +549,10 @@ class TestBatchedLineage:
         assert "model.x.a" in query
         assert "source.x.b" in query
         assert "seed.x.c" in query
+        assert "BatchNodeRelations" in query
+        assert "$environmentId: BigInt!" in query
 
     def test_parse_batch_response(self, lineage_fetcher):
-        """Test parsing batched response."""
-        response = {
-            "data": {
-                "environment": {
-                    "applied": {
-                        "batch_model": {
-                            "edges": [
-                                {
-                                    "node": {
-                                        "uniqueId": "model.x.a",
-                                        "name": "a",
-                                        "children": [],
-                                    }
-                                },
-                                {
-                                    "node": {
-                                        "uniqueId": "model.x.b",
-                                        "name": "b",
-                                        "children": [],
-                                    }
-                                },
-                            ]
-                        },
-                        "batch_source": {
-                            "edges": [
-                                {
-                                    "node": {
-                                        "uniqueId": "source.x.c",
-                                        "name": "c",
-                                        "children": [],
-                                    }
-                                },
-                            ]
-                        },
-                    }
-                }
-            }
-        }
-
-        nodes = lineage_fetcher._parse_batch_response(response)
-
-        assert len(nodes) == 3
-        assert "model.x.a" in nodes
-        assert "model.x.b" in nodes
-        assert "source.x.c" in nodes
-        assert nodes["model.x.a"]["name"] == "a"
-        assert nodes["source.x.c"]["name"] == "c"
-
-    def test_parse_batch_response_filters_empty_children(self, lineage_fetcher):
         """Test that empty children are filtered out."""
         response = {
             "data": {

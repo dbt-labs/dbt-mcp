@@ -313,7 +313,7 @@ class GraphQLQueries:
     GET_SNAPSHOT_DETAILS = load_query("get_snapshot_details.gql")
 
     # Lineage queries
-    GET_NODE_RELATIONS = load_query("lineage/get_node_relations.gql")
+    GET_LINEAGE_DETAILS = load_query("get_lineage_details.gql")
 
 
 class MetadataAPIClient:
@@ -705,164 +705,31 @@ class LineageResourceType(StrEnum):
     TEST = "Test"
 
 
-_RESOURCE_SEARCH_CONFIG = {
-    "Model": {
-        "query": GraphQLQueries.GET_MODEL_DETAILS,
-        "response_path": "resources",
-        "gql_type": "Model",
-    },
-    "Source": {
-        "query": GraphQLQueries.GET_SOURCE_DETAILS,
-        "response_path": "resources",
-        "gql_type": "Source",
-    },
-    "Seed": {
-        "query": GraphQLQueries.GET_SEED_DETAILS,
-        "response_path": "resources",
-        "gql_type": "Seed",
-    },
-    "Snapshot": {
-        "query": GraphQLQueries.GET_SNAPSHOT_DETAILS,
-        "response_path": "resources",
-        "gql_type": "Snapshot",
-    },
-}
-
-
 class LineageFetcher:
     """Fetcher for lineage data using the Discovery API's lineage query."""
 
-    def __init__(self, api_client: MetadataAPIClient):
-        self.api_client = api_client
-
-    async def get_environment_id(self) -> int:
-        config = await self.api_client.config_provider.get_config()
-        return config.environment_id
-
-    async def search_resource_by_name(
-        self, name: str, resource_type: str
-    ) -> list[dict]:
-        """Search for a resource by name/identifier.
-
-        Generic method that handles searching for any supported resource type.
-
-        Args:
-            name: The resource name/identifier to search for
-            resource_type: Type of resource ("Model", "Source", "Seed", "Snapshot")
-
-        Returns:
-            List of matches with uniqueId, name, and resourceType keys
-
-        Raises:
-            ValueError: If resource_type is not supported
-        """
-        if resource_type not in _RESOURCE_SEARCH_CONFIG:
-            raise ValueError(
-                f"Unsupported resource_type: {resource_type}. "
-                f"Must be one of: {', '.join(_RESOURCE_SEARCH_CONFIG.keys())}"
-            )
-
-        config = _RESOURCE_SEARCH_CONFIG[resource_type]
-        environment_id = await self.get_environment_id()
-
-        packages_result = await self.api_client.execute_query(
-            ResourceDetailsFetcher.GET_PACKAGES_QUERY,
-            variables={"resource": "model", "environmentId": environment_id},
-        )
-        raise_gql_error(packages_result)
-
-        packages = packages_result["data"]["environment"]["applied"]["packages"]
-        if not packages:
-            return []
-
-        resource_type_lower = resource_type.lower()
-        unique_ids = [
-            f"{resource_type_lower}.{package_name}.{name}" for package_name in packages
-        ]
-
-        variables = {
-            "environmentId": environment_id,
-            "filter": {
-                "uniqueIds": unique_ids,
-                "types": [config["gql_type"]],
-            },
-            "first": len(unique_ids),
-        }
-
-        query = config["query"]
-        result = await self.api_client.execute_query(query, variables)
-        raise_gql_error(result)
-
-        edges = result["data"]["environment"]["applied"]["resources"]["edges"]
-        if not edges:
-            return []
-
-        return [
-            {
-                "uniqueId": edge["node"]["uniqueId"],
-                "name": edge["node"]["name"],
-                "resourceType": resource_type,
-            }
-            for edge in edges
-        ]
-
-    async def search_all_resources(self, name: str) -> list[dict]:
-        """Search for resources by name across all supported types.
-
-        Returns all matches found across all resource types.
-        """
-        tasks = [
-            self.search_resource_by_name(name, resource_type)
-            for resource_type in _RESOURCE_SEARCH_CONFIG
-        ]
-        results = await asyncio.gather(*tasks)
-
-        matches: list[dict] = []
-        for result in results:
-            matches.extend(result)
-
-        return matches
-
-    async def _fetch_node_with_relations(
-        self,
-        unique_id: str,
-    ) -> dict | None:
-        """
-        Fetch a single node with its parent/child relationships.
-
-        Supports all resource types: models, sources, seeds, snapshots, exposures.
-
-        Args:
-            unique_id: The unique ID of the node (e.g., model.jaffle_shop.customers)
-
-        Returns:
-            Node dict with parents/children arrays, or None if not found
-        """
-        variables = {
-            "environmentId": await self.get_environment_id(),
-            "uniqueId": unique_id,
-        }
-
-        result = await self.api_client.execute_query(
-            GraphQLQueries.GET_NODE_RELATIONS, variables
-        )
-        raise_gql_error(result)
-
-        applied = result.get("data", {}).get("environment", {}).get("applied", {})
-
-        for resource_type in ["models", "sources", "seeds", "snapshots", "exposures"]:
-            edges = applied.get(resource_type, {}).get("edges", [])
-            if edges:
-                node = edges[0]["node"]
-
-                if "children" in node:
-                    node["children"] = [
-                        c for c in node["children"] if c.get("uniqueId")
-                    ]
-
-                return node
-
-        return None
+    _RESOURCE_SEARCH_CONFIG: ClassVar[dict[str, dict[str, str]]] = {
+        "Model": {
+            "query": GraphQLQueries.GET_MODEL_DETAILS,
+            "response_path": "resources",
+            "gql_type": "Model",
+        },
+        "Source": {
+            "query": GraphQLQueries.GET_SOURCE_DETAILS,
+            "response_path": "resources",
+            "gql_type": "Source",
+        },
+        "Seed": {
+            "query": GraphQLQueries.GET_SEED_DETAILS,
+            "response_path": "resources",
+            "gql_type": "Seed",
+        },
+        "Snapshot": {
+            "query": GraphQLQueries.GET_SNAPSHOT_DETAILS,
+            "response_path": "resources",
+            "gql_type": "Snapshot",
+        },
+    }
 
     _RESOURCE_QUERY_TEMPLATES: ClassVar[dict[str, str]] = {
         "model": """
@@ -948,6 +815,138 @@ class LineageFetcher:
             }
         """,
     }
+
+    def __init__(self, api_client: MetadataAPIClient):
+        self.api_client = api_client
+
+    async def get_environment_id(self) -> int:
+        config = await self.api_client.config_provider.get_config()
+        return config.environment_id
+
+    async def search_resource_by_name(
+        self, name: str, resource_type: str
+    ) -> list[dict]:
+        """Search for a resource by name/identifier.
+
+        Generic method that handles searching for any supported resource type.
+
+        Args:
+            name: The resource name/identifier to search for
+            resource_type: Type of resource ("Model", "Source", "Seed", "Snapshot")
+
+        Returns:
+            List of matches with uniqueId, name, and resourceType keys
+
+        Raises:
+            ValueError: If resource_type is not supported
+        """
+        if resource_type not in self._RESOURCE_SEARCH_CONFIG:
+            raise ValueError(
+                f"Unsupported resource_type: {resource_type}. "
+                f"Must be one of: {', '.join(self._RESOURCE_SEARCH_CONFIG.keys())}"
+            )
+
+        config = self._RESOURCE_SEARCH_CONFIG[resource_type]
+        environment_id = await self.get_environment_id()
+
+        packages_result = await self.api_client.execute_query(
+            ResourceDetailsFetcher.GET_PACKAGES_QUERY,
+            variables={"resource": "model", "environmentId": environment_id},
+        )
+        raise_gql_error(packages_result)
+
+        packages = packages_result["data"]["environment"]["applied"]["packages"]
+        if not packages:
+            return []
+
+        resource_type_lower = resource_type.lower()
+        unique_ids = [
+            f"{resource_type_lower}.{package_name}.{name}" for package_name in packages
+        ]
+
+        variables = {
+            "environmentId": environment_id,
+            "filter": {
+                "uniqueIds": unique_ids,
+                "types": [config["gql_type"]],
+            },
+            "first": len(unique_ids),
+        }
+
+        query = config["query"]
+        result = await self.api_client.execute_query(query, variables)
+        raise_gql_error(result)
+
+        edges = result["data"]["environment"]["applied"]["resources"]["edges"]
+        if not edges:
+            return []
+
+        return [
+            {
+                "uniqueId": edge["node"]["uniqueId"],
+                "name": edge["node"]["name"],
+                "resourceType": resource_type,
+            }
+            for edge in edges
+        ]
+
+    async def search_all_resources(self, name: str) -> list[dict]:
+        """Search for resources by name across all supported types.
+
+        Returns all matches found across all resource types.
+        """
+        tasks = [
+            self.search_resource_by_name(name, resource_type)
+            for resource_type in self._RESOURCE_SEARCH_CONFIG
+        ]
+        results = await asyncio.gather(*tasks)
+
+        matches: list[dict] = []
+        for result in results:
+            matches.extend(result)
+
+        return matches
+
+    async def _fetch_node_with_relations(
+        self,
+        unique_id: str,
+    ) -> dict | None:
+        """
+        Fetch a single node with its parent/child relationships.
+
+        Supports all resource types: models, sources, seeds, snapshots, exposures.
+
+        Args:
+            unique_id: The unique ID of the node (e.g., model.jaffle_shop.customers)
+
+        Returns:
+            Node dict with parents/children arrays, or None if not found
+        """
+        variables = {
+            "environmentId": await self.get_environment_id(),
+            "uniqueId": unique_id,
+        }
+
+        result = await self.api_client.execute_query(
+            GraphQLQueries.GET_LINEAGE_DETAILS, variables
+        )
+        raise_gql_error(result)
+
+        applied = result.get("data", {}).get("environment", {}).get("applied", {})
+
+        for resource_type in ["models", "sources", "seeds", "snapshots", "exposures"]:
+            edges = applied.get(resource_type, {}).get("edges", [])
+            if edges:
+                node = edges[0]["node"]
+
+                if "children" in node:
+                    node["children"] = [
+                        c for c in node["children"] if c.get("uniqueId")
+                    ]
+
+                return node
+
+        return None
 
     def _sanitize_id(self, unique_id: str) -> str:
         """Sanitize unique ID for GraphQL string injection."""
