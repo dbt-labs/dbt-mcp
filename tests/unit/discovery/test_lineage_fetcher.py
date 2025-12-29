@@ -63,7 +63,6 @@ class TestSearchResources:
         self, lineage_fetcher, mock_api_client
     ):
         """When model, source, seed, and snapshot all exist with same name."""
-        # Mock packages query response (same for all 4 resource types)
         packages_response = {
             "data": {"environment": {"applied": {"packages": ["jaffle_shop"]}}}
         }
@@ -178,7 +177,6 @@ class TestFetchLineage:
         self, lineage_fetcher, mock_api_client
     ):
         """Test that 'both' direction fetches ancestors and descendants recursively."""
-        # Mock target node fetch (stg_orders with its parents and children)
         target_response = {
             "data": {
                 "environment": {
@@ -214,7 +212,6 @@ class TestFetchLineage:
             }
         }
 
-        # Batch response for ancestor/descendant level 0 (target node)
         batch_target_response = {
             "data": {
                 "environment": {
@@ -250,7 +247,6 @@ class TestFetchLineage:
             }
         }
 
-        # Batch response for descendant child (orders with no more children)
         batch_orders_response = {
             "data": {
                 "environment": {
@@ -279,16 +275,11 @@ class TestFetchLineage:
             }
         }
 
-        # Mock calls:
-        # 1. Initial target fetch
-        # 2. Ancestor traversal level 0 (batch fetch target)
-        # 3. Descendant traversal level 0 (batch fetch target)
-        # 4. Descendant traversal level 1 (batch fetch orders)
         mock_api_client.execute_query.side_effect = [
-            target_response,  # Initial fetch
-            batch_target_response,  # Ancestor traversal level 0
-            batch_target_response,  # Descendant traversal level 0
-            batch_orders_response,  # Descendant traversal level 1
+            target_response,
+            batch_target_response,
+            batch_target_response,
+            batch_orders_response,
         ]
 
         result = await lineage_fetcher.fetch_lineage(
@@ -297,14 +288,11 @@ class TestFetchLineage:
             direction=LineageDirection.BOTH,
         )
 
-        # Verify target is present
         assert result["target"]["uniqueId"] == "model.jaffle_shop.stg_orders"
 
-        # Verify ancestors contains upstream seed
         assert len(result["ancestors"]) == 1
         assert result["ancestors"][0]["uniqueId"] == "seed.jaffle_shop.raw_orders"
 
-        # Verify descendants contains downstream model
         assert len(result["descendants"]) == 1
         assert result["descendants"][0]["uniqueId"] == "model.jaffle_shop.orders"
 
@@ -375,7 +363,6 @@ class TestPagination:
             }
         }
 
-        # Batch response for ancestor traversal level 0 (target with 60 parents)
         batch_target_response = {
             "data": {
                 "environment": {
@@ -398,10 +385,9 @@ class TestPagination:
             }
         }
 
-        # Mock calls: initial fetch + ancestor traversal level 0
         mock_api_client.execute_query.side_effect = [
-            target_response,  # Initial fetch
-            batch_target_response,  # Ancestor traversal level 0
+            target_response,
+            batch_target_response,
         ]
 
         result = await lineage_fetcher.fetch_lineage(
@@ -418,7 +404,6 @@ class TestPagination:
         self, lineage_fetcher, mock_api_client
     ):
         """Both direction should merge pagination from ancestors and descendants."""
-        # Target with 70 seed parents (ancestors) and 30 model children (descendants)
         target_parents = [
             {
                 "uniqueId": f"seed.jaffle_shop.ancestor_{i}",
@@ -459,7 +444,6 @@ class TestPagination:
             }
         }
 
-        # Batch response for ancestor/descendant traversal level 0 (target)
         batch_target_response = {
             "data": {
                 "environment": {
@@ -482,7 +466,6 @@ class TestPagination:
             }
         }
 
-        # Batch response for all 30 descendant children (no more children)
         batch_children_edges = [
             {
                 "node": {
@@ -504,7 +487,6 @@ class TestPagination:
             }
         }
 
-        # Mock calls: initial + ancestor traversal level 0 + descendant traversal level 0 + descendant level 1 (batch 30 children)
         mock_responses = [
             target_response,  # Initial fetch
             batch_target_response,  # Ancestor traversal level 0
@@ -581,13 +563,11 @@ class TestBatchedLineage:
 
         assert len(nodes) == 1
         assert "model.x.a" in nodes
-        # Empty children should be filtered out
         assert len(nodes["model.x.a"]["children"]) == 1
         assert nodes["model.x.a"]["children"][0]["uniqueId"] == "model.x.b"
 
     async def test_batching_reduces_api_calls(self, lineage_fetcher, mock_api_client):
         """Verify batching reduces API calls."""
-        # Mock: target node with 3 seed parents
         target_response = {
             "data": {
                 "environment": {
@@ -627,7 +607,7 @@ class TestBatchedLineage:
         }
 
         mock_api_client.execute_query.side_effect = [
-            target_response,  # Initial target fetch (target reused at depth 0)
+            target_response,
         ]
 
         result = await lineage_fetcher.fetch_lineage(
@@ -636,10 +616,6 @@ class TestBatchedLineage:
             direction=LineageDirection.ANCESTORS,
         )
 
-        # Optimization: Only 1 call! (initial fetch, target reused at depth 0)
-        # Old: initial + batch target at depth 0 = 2 calls
-        # Optimized: initial only = 1 call (target reused)
-        # Seeds don't recurse, so no additional calls needed
         assert mock_api_client.execute_query.call_count == 1
         assert len(result["ancestors"]) == 3
 
@@ -647,7 +623,6 @@ class TestBatchedLineage:
         self, lineage_fetcher, mock_api_client
     ):
         """Verify batching reduces API calls for descendants."""
-        # Mock: target node with 4 model children
         target_children = [
             {
                 "uniqueId": f"model.x.child_{i}",
@@ -704,8 +679,8 @@ class TestBatchedLineage:
         }
 
         mock_api_client.execute_query.side_effect = [
-            target_response,  # Initial fetch (target reused at depth 0)
-            batch_children_response,  # Descendant level 1 (batch all 4 children)
+            target_response,
+            batch_children_response,
         ]
 
         result = await lineage_fetcher.fetch_lineage(
@@ -714,10 +689,5 @@ class TestBatchedLineage:
             direction=LineageDirection.DESCENDANTS,
         )
 
-        # Optimized with target reuse:
-        # Call 1: Initial fetch (target with children)
-        # Call 2: Batch fetch level 1 (all 4 children)
-        # Total: 2 calls (vs 6 without batching: initial + target + 4 individual)
-        # vs 3 calls without optimization: initial + batch target + batch children
         assert mock_api_client.execute_query.call_count == 2
         assert len(result["descendants"]) == 4
