@@ -3,6 +3,7 @@ exclude: |
       .mypy_cache/
       | .pytest_cache/
       | .venv/
+      | __pycache__/
   )$
 
 repos:
@@ -18,33 +19,6 @@ repos:
     rev: v1.7.3
     hooks:
       - id: actionlint
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.9.5
-    hooks:
-      - id: ruff
-        args: [--fix]
-        exclude: examples/
-      - id: ruff-format
-        exclude: examples/
-  - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.8.19
-    hooks:
-      - id: uv-lock
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.13.0
-    hooks:
-      - id: mypy
-        language: system
-        pass_filenames: false
-        args:
-          [
-            "--show-error-codes",
-            "--namespace-packages",
-            "--exclude",
-            "examples/",
-            ".",
-          ]
-        exclude: examples/
   - repo: local
     hooks:
       - id: generate-docs
@@ -53,3 +27,31 @@ repos:
         language: system
         files: ^(src/dbt_mcp/tools/(tool_names|toolsets)\.py|README\.md|docs/diagram\.d2)$
         pass_filenames: false
+      - id: uv lock check
+        name: uv lock check
+        entry: uv lock --check
+        language: system
+        files: ^(uv\.lock|pyproject\.toml|uv\.toml)$
+        pass_filenames: false
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --force-exclude --fix
+        language: system
+        types_or: [python, pyi, jupyter]
+        require_serial: true
+        exclude: examples/
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format --force-exclude
+        language: system
+        types_or: [python, pyi, jupyter]
+        require_serial: true
+        exclude: examples/
+      - id: mypy
+        name: mypy
+        entry: uv run mypy --show-error-codes --namespace-packages . --exclude examples/
+        language: system
+        types_or: [python, pyi]
+        pass_filenames: false
+        require_serial: true
+        exclude: examples/
