@@ -355,6 +355,7 @@ async def _fetch_all_lineage_trees(
     matches: list[dict],
     direction: LineageDirection,
     types: list[LineageResourceType],
+    depth: int = 100,
 ) -> dict:
     """Fetch lineage for all matched resources in parallel.
 
@@ -363,6 +364,7 @@ async def _fetch_all_lineage_trees(
         matches: List of matching resources with 'uniqueId' keys
         direction: Direction for lineage traversal
         types: Optional list of resource types to filter
+        depth: Maximum traversal depth (default 100)
 
     Returns:
         Dict with status, message, and list of lineages for each match
@@ -372,6 +374,7 @@ async def _fetch_all_lineage_trees(
             unique_id=match["uniqueId"],
             direction=direction,
             types=types,
+            depth=depth,
         )
         for match in matches
     ]
@@ -403,6 +406,10 @@ async def get_lineage(
     name: str | None = None,
     unique_id: str | None = None,
     direction: LineageDirection = DIRECTION_FIELD,
+    depth: int = Field(
+        description="Maximum traversal depth. 1 = direct parents/children only, "
+        "2 = two levels, etc. Use a large number (e.g., 100) for full lineage.",
+    ),
 ) -> dict:
     normalized_name = name.strip() if name else None
     normalized_unique_id = unique_id.strip() if unique_id else None
@@ -434,7 +441,9 @@ async def get_lineage(
         if len(matches) == 1:
             resolved_unique_id = matches[0]["uniqueId"]
         else:
-            return await _fetch_all_lineage_trees(context, matches, direction, types)
+            return await _fetch_all_lineage_trees(
+                context, matches, direction, types, depth
+            )
 
     if not resolved_unique_id:
         raise InvalidParameterError(
@@ -445,6 +454,7 @@ async def get_lineage(
         unique_id=resolved_unique_id,
         direction=direction,
         types=types,
+        depth=depth,
     )
 
 

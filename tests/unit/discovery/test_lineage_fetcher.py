@@ -691,3 +691,57 @@ class TestBatchedLineage:
 
         assert mock_api_client.execute_query.call_count == 2
         assert len(result["descendants"]) == 4
+
+    async def test_depth_limits_traversal(self, lineage_fetcher, mock_api_client):
+        """Verify depth=1 stops after direct parents/children (no recursion)."""
+        # Target has 2 model parents that each have their own parents
+        target_response = {
+            "data": {
+                "environment": {
+                    "applied": {
+                        "models": {
+                            "edges": [
+                                {
+                                    "node": {
+                                        "uniqueId": "model.x.target",
+                                        "name": "target",
+                                        "resourceType": "Model",
+                                        "parents": [
+                                            {
+                                                "uniqueId": "model.x.parent1",
+                                                "name": "parent1",
+                                                "resourceType": "Model",
+                                            },
+                                            {
+                                                "uniqueId": "model.x.parent2",
+                                                "name": "parent2",
+                                                "resourceType": "Model",
+                                            },
+                                        ],
+                                        "children": [],
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+
+        mock_api_client.execute_query.return_value = target_response
+
+        # With depth=1, should only return direct parents, no recursive fetch
+        result = await lineage_fetcher.fetch_lineage(
+            unique_id="model.x.target",
+            types=[],
+            direction=LineageDirection.ANCESTORS,
+            depth=1,
+        )
+
+        # Only 1 API call (target fetch), no batch calls for parent's parents
+        assert mock_api_client.execute_query.call_count == 1
+        assert len(result["ancestors"]) == 2
+        assert {a["uniqueId"] for a in result["ancestors"]} == {
+            "model.x.parent1",
+            "model.x.parent2",
+        }

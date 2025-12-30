@@ -6,6 +6,7 @@ query GetNodeRelations($environmentId: BigInt!, $uniqueId: String!) {
           node {
             uniqueId
             name
+            description
             database
             schema
             alias
@@ -18,22 +19,26 @@ query GetNodeRelations($environmentId: BigInt!, $uniqueId: String!) {
                 uniqueId
                 resourceType
                 name
+                description
               }
               ... on SourceAppliedStateNestedNode {
                 uniqueId
                 resourceType
                 name
+                description
                 sourceName
               }
               ... on SeedAppliedStateNestedNode {
                 uniqueId
                 resourceType
                 name
+                description
               }
               ... on SnapshotAppliedStateNestedNode {
                 uniqueId
                 resourceType
                 name
+                description
               }
             }
             children {
@@ -41,11 +46,13 @@ query GetNodeRelations($environmentId: BigInt!, $uniqueId: String!) {
                 uniqueId
                 resourceType
                 name
+                description
               }
               ... on ExposureAppliedStateNestedNode {
                 uniqueId
                 resourceType
                 name
+                description
               }
               ... on TestAppliedStateNestedNode {
                 uniqueId
@@ -62,6 +69,7 @@ query GetNodeRelations($environmentId: BigInt!, $uniqueId: String!) {
           node {
             uniqueId
             name
+            description
             database
             schema
             sourceName
@@ -74,6 +82,7 @@ query GetNodeRelations($environmentId: BigInt!, $uniqueId: String!) {
                 uniqueId
                 resourceType
                 name
+                description
               }
             }
           }
@@ -85,6 +94,7 @@ query GetNodeRelations($environmentId: BigInt!, $uniqueId: String!) {
           node {
             uniqueId
             name
+            description
             database
             schema
             alias
@@ -97,6 +107,7 @@ query GetNodeRelations($environmentId: BigInt!, $uniqueId: String!) {
                 uniqueId
                 resourceType
                 name
+                description
               }
             }
           }
@@ -108,6 +119,7 @@ query GetNodeRelations($environmentId: BigInt!, $uniqueId: String!) {
           node {
             uniqueId
             name
+            description
             database
             schema
             alias
@@ -120,17 +132,20 @@ query GetNodeRelations($environmentId: BigInt!, $uniqueId: String!) {
                 uniqueId
                 resourceType
                 name
+                description
               }
               ... on SourceAppliedStateNestedNode {
                 uniqueId
                 resourceType
                 name
+                description
                 sourceName
               }
               ... on SeedAppliedStateNestedNode {
                 uniqueId
                 resourceType
                 name
+                description
               }
             }
             children {
@@ -138,11 +153,13 @@ query GetNodeRelations($environmentId: BigInt!, $uniqueId: String!) {
                 uniqueId
                 resourceType
                 name
+                description
               }
               ... on ExposureAppliedStateNestedNode {
                 uniqueId
                 resourceType
                 name
+                description
               }
             }
           }
@@ -154,6 +171,7 @@ query GetNodeRelations($environmentId: BigInt!, $uniqueId: String!) {
           node {
             uniqueId
             name
+            description
             resourceType
             filePath
             tags
@@ -163,11 +181,13 @@ query GetNodeRelations($environmentId: BigInt!, $uniqueId: String!) {
                 uniqueId
                 resourceType
                 name
+                description
               }
               ... on SourceAppliedStateNestedNode {
                 uniqueId
                 resourceType
                 name
+                description
                 sourceName
               }
             }

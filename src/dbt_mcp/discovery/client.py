@@ -735,6 +735,7 @@ class LineageFetcher:
         "model": """
             uniqueId
             name
+            description
             database
             schema
             alias
@@ -743,20 +744,21 @@ class LineageFetcher:
             tags
             fqn
             parents {
-                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
-                ... on SourceAppliedStateNestedNode { uniqueId resourceType name sourceName }
-                ... on SeedAppliedStateNestedNode { uniqueId resourceType name }
-                ... on SnapshotAppliedStateNestedNode { uniqueId resourceType name }
+                ... on ModelAppliedStateNestedNode { uniqueId resourceType name description }
+                ... on SourceAppliedStateNestedNode { uniqueId resourceType name description sourceName }
+                ... on SeedAppliedStateNestedNode { uniqueId resourceType name description }
+                ... on SnapshotAppliedStateNestedNode { uniqueId resourceType name description }
             }
             children {
-                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
-                ... on ExposureAppliedStateNestedNode { uniqueId resourceType name }
+                ... on ModelAppliedStateNestedNode { uniqueId resourceType name description }
+                ... on ExposureAppliedStateNestedNode { uniqueId resourceType name description }
                 ... on TestAppliedStateNestedNode { uniqueId resourceType name }
             }
         """,
         "source": """
             uniqueId
             name
+            description
             database
             schema
             sourceName
@@ -765,12 +767,13 @@ class LineageFetcher:
             tags
             fqn
             children {
-                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
+                ... on ModelAppliedStateNestedNode { uniqueId resourceType name description }
             }
         """,
         "seed": """
             uniqueId
             name
+            description
             database
             schema
             alias
@@ -779,12 +782,13 @@ class LineageFetcher:
             tags
             fqn
             children {
-                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
+                ... on ModelAppliedStateNestedNode { uniqueId resourceType name description }
             }
         """,
         "snapshot": """
             uniqueId
             name
+            description
             database
             schema
             alias
@@ -793,25 +797,26 @@ class LineageFetcher:
             tags
             fqn
             parents {
-                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
-                ... on SourceAppliedStateNestedNode { uniqueId resourceType name sourceName }
-                ... on SeedAppliedStateNestedNode { uniqueId resourceType name }
+                ... on ModelAppliedStateNestedNode { uniqueId resourceType name description }
+                ... on SourceAppliedStateNestedNode { uniqueId resourceType name description sourceName }
+                ... on SeedAppliedStateNestedNode { uniqueId resourceType name description }
             }
             children {
-                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
-                ... on ExposureAppliedStateNestedNode { uniqueId resourceType name }
+                ... on ModelAppliedStateNestedNode { uniqueId resourceType name description }
+                ... on ExposureAppliedStateNestedNode { uniqueId resourceType name description }
             }
         """,
         "exposure": """
             uniqueId
             name
+            description
             resourceType
             filePath
             tags
             fqn
             parents {
-                ... on ModelAppliedStateNestedNode { uniqueId resourceType name }
-                ... on SourceAppliedStateNestedNode { uniqueId resourceType name sourceName }
+                ... on ModelAppliedStateNestedNode { uniqueId resourceType name description }
+                ... on SourceAppliedStateNestedNode { uniqueId resourceType name description sourceName }
             }
         """,
     }
@@ -1225,6 +1230,7 @@ query BatchNodeRelations($environmentId: BigInt!) {{
         unique_id: str,
         types: list[LineageResourceType],
         direction: LineageDirection = LineageDirection.BOTH,
+        depth: int = 100,
     ) -> dict:
         """
         Fetch lineage for a resource using recursive traversal.
@@ -1237,6 +1243,7 @@ query BatchNodeRelations($environmentId: BigInt!) {{
             unique_id: The dbt unique ID of the resource
             types: List of resource types to include in results
             direction: One of 'ancestors', 'descendants', or 'both'
+            depth: Maximum traversal depth. 1 = direct parents/children only. Default 100.
 
         Returns:
             Dict with 'target', 'ancestors', 'descendants', and 'pagination' keys
@@ -1261,19 +1268,25 @@ query BatchNodeRelations($environmentId: BigInt!) {{
         if not target:
             return {"target": None, "ancestors": [], "descendants": []}
 
+        max_depth = depth
+
         if direction == LineageDirection.BOTH:
             (ancestors, _), (descendants, _) = await asyncio.gather(
-                self._fetch_ancestors_recursive(unique_id, types, target_node=target),
-                self._fetch_descendants_recursive(unique_id, types, target_node=target),
+                self._fetch_ancestors_recursive(
+                    unique_id, types, max_depth=max_depth, target_node=target
+                ),
+                self._fetch_descendants_recursive(
+                    unique_id, types, max_depth=max_depth, target_node=target
+                ),
             )
         elif direction == LineageDirection.ANCESTORS:
             ancestors, _ = await self._fetch_ancestors_recursive(
-                unique_id, types, target_node=target
+                unique_id, types, max_depth=max_depth, target_node=target
             )
             descendants = []
         else:  # DESCENDANTS
             descendants, _ = await self._fetch_descendants_recursive(
-                unique_id, types, target_node=target
+                unique_id, types, max_depth=max_depth, target_node=target
             )
             ancestors = []
 
