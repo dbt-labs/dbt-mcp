@@ -1,0 +1,199 @@
+query GetNodeRelations($environmentId: BigInt!, $uniqueId: String!) {
+  environment(id: $environmentId) {
+    applied {
+      models(filter: { uniqueIds: [$uniqueId] }, first: 1) {
+        edges {
+          node {
+            uniqueId
+            name
+            description
+            database
+            schema
+            alias
+            resourceType
+            filePath
+            tags
+            fqn
+            parents {
+              ... on ModelAppliedStateNestedNode {
+                uniqueId
+                resourceType
+                name
+                description
+              }
+              ... on SourceAppliedStateNestedNode {
+                uniqueId
+                resourceType
+                name
+                description
+                sourceName
+              }
+              ... on SeedAppliedStateNestedNode {
+                uniqueId
+                resourceType
+                name
+                description
+              }
+              ... on SnapshotAppliedStateNestedNode {
+                uniqueId
+                resourceType
+                name
+                description
+              }
+            }
+            children {
+              ... on ModelAppliedStateNestedNode {
+                uniqueId
+                resourceType
+                name
+                description
+              }
+              ... on ExposureAppliedStateNestedNode {
+                uniqueId
+                resourceType
+                name
+                description
+              }
+              ... on TestAppliedStateNestedNode {
+                uniqueId
+                resourceType
+                name
+              }
+            }
+          }
+        }
+      }
+      # Try sources
+      sources(filter: { uniqueIds: [$uniqueId] }, first: 1) {
+        edges {
+          node {
+            uniqueId
+            name
+            description
+            database
+            schema
+            sourceName
+            resourceType
+            filePath
+            tags
+            fqn
+            children {
+              ... on ModelAppliedStateNestedNode {
+                uniqueId
+                resourceType
+                name
+                description
+              }
+            }
+          }
+        }
+      }
+      # Try seeds
+      seeds(filter: { uniqueIds: [$uniqueId] }, first: 1) {
+        edges {
+          node {
+            uniqueId
+            name
+            description
+            database
+            schema
+            alias
+            resourceType
+            filePath
+            tags
+            fqn
+            children {
+              ... on ModelAppliedStateNestedNode {
+                uniqueId
+                resourceType
+                name
+                description
+              }
+            }
+          }
+        }
+      }
+      # Try snapshots
+      snapshots(filter: { uniqueIds: [$uniqueId] }, first: 1) {
+        edges {
+          node {
+            uniqueId
+            name
+            description
+            database
+            schema
+            alias
+            resourceType
+            filePath
+            tags
+            fqn
+            parents {
+              ... on ModelAppliedStateNestedNode {
+                uniqueId
+                resourceType
+                name
+                description
+              }
+              ... on SourceAppliedStateNestedNode {
+                uniqueId
+                resourceType
+                name
+                description
+                sourceName
+              }
+              ... on SeedAppliedStateNestedNode {
+                uniqueId
+                resourceType
+                name
+                description
+              }
+            }
+            children {
+              ... on ModelAppliedStateNestedNode {
+                uniqueId
+                resourceType
+                name
+                description
+              }
+              ... on ExposureAppliedStateNestedNode {
+                uniqueId
+                resourceType
+                name
+                description
+              }
+            }
+          }
+        }
+      }
+      # Try exposures
+      exposures(filter: { uniqueIds: [$uniqueId] }, first: 1) {
+        edges {
+          node {
+            uniqueId
+            name
+            description
+            resourceType
+            filePath
+            tags
+            fqn
+            parents {
+              ... on ModelAppliedStateNestedNode {
+                uniqueId
+                resourceType
+                name
+                description
+              }
+              ... on SourceAppliedStateNestedNode {
+                uniqueId
+                resourceType
+                name
+                description
+                sourceName
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
