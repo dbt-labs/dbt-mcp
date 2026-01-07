@@ -302,6 +302,9 @@ class GraphQLQueries:
         }
     """)
 
+    # Lineage query
+    GET_FULL_LINEAGE = load_query("get_full_lineage.gql")
+
 
 class MetadataAPIClient:
     def __init__(self, config_provider: ConfigProvider[DiscoveryConfig]):
@@ -667,3 +670,103 @@ class ResourceDetailsFetcher:
         if not edges:
             return []
         return [e["node"] for e in edges]
+
+
+class LineageResourceType(StrEnum):
+    """Resource types supported by the lineage API."""
+
+    MODEL = "Model"
+    SOURCE = "Source"
+    SEED = "Seed"
+    SNAPSHOT = "Snapshot"
+    EXPOSURE = "Exposure"
+    METRIC = "Metric"
+    SEMANTIC_MODEL = "SemanticModel"
+    SAVED_QUERY = "SavedQuery"
+    MACRO = "Macro"
+    TEST = "Test"
+
+
+class LineageFetcher:
+    """Fetcher for lineage data. Returns nodes connected to the target."""
+
+    def __init__(self, api_client: MetadataAPIClient):
+        self.api_client = api_client
+
+    async def fetch_lineage(
+        self,
+        unique_id: str,
+        types: list[LineageResourceType] | None = None,
+    ) -> list[dict]:
+        """Fetch lineage graph filtered to nodes connected to unique_id.
+
+        Args:
+            unique_id: The dbt unique ID of the resource to get lineage for.
+            types: List of resource types to include. If None, includes all types.
+
+        Returns:
+            List of nodes connected to unique_id (upstream + downstream).
+        """
+        config = await self.api_client.config_provider.get_config()
+        type_filter = [
+            t.value for t in (types if types is not None else LineageResourceType)
+        ]
+        variables = {
+            "environmentId": config.environment_id,
+            "types": type_filter,
+            # uniqueId removed - not used by GraphQL
+        }
+
+        result = await self.api_client.execute_query(
+            GraphQLQueries.GET_FULL_LINEAGE, variables
+        )
+        raise_gql_error(result)
+
+        all_nodes = (
+            result.get("data", {})
+            .get("environment", {})
+            .get("applied", {})
+            .get("lineage", [])
+        )
+
+        # Filter to connected nodes only
+        return self._filter_connected_nodes(all_nodes, unique_id)
+
+    def _filter_connected_nodes(self, nodes: list[dict], target_id: str) -> list[dict]:
+        """Return only nodes connected to target_id (upstream and downstream).
+
+        Uses BFS to find all nodes reachable from target in both directions.
+        """
+        node_map = {n["uniqueId"]: n for n in nodes}
+
+        if target_id not in node_map:
+            return []
+
+        # BFS to find all connected nodes
+        connected = {target_id}
+        queue = [target_id]
+
+        while queue:
+            current_id = queue.pop(0)
+            node = node_map.get(current_id)
+            if not node:
+                continue
+
+            # Traverse upstream (parents)
+            for parent_id in node.get("parentIds", []):
+                if parent_id not in connected and parent_id in node_map:
+                    connected.add(parent_id)
+                    queue.append(parent_id)
+
+            # Traverse downstream (children)
+            for candidate in nodes:
+                candidate_id = candidate["uniqueId"]
+                if (
+                    current_id in candidate.get("parentIds", [])
+                    and candidate_id not in connected
+                ):
+                    connected.add(candidate_id)
+                    queue.append(candidate_id)
+
+        # Return in original order
+        return [node_map[uid] for uid in connected]
