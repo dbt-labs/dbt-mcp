@@ -30,7 +30,19 @@ Refer to `./cursor/rules` for standards and stylistic guidelines.
 
 ## Testing
 
-This repo has automated tests which can be run with `task test:unit`. Additionally, there is a simple CLI tool which can be used to test by running `task client`. If you would like to test in a client like Cursor or Claude, use a configuration file like this:
+### Unit Testing
+
+This repo has automated tests which can be run with `task test:unit`.
+
+### Integration Testing
+
+The integration tests exercise system interactions greater than just the unit tests. They require a dbt Platform environment that is setup with semantic layer, developer license, and PAT. These tests can be run with `task test:integration`.
+
+For dbt Labs employees, a staging environment has been set up. Credentials for this environment can be found by searching for `dbt MCP Integration Test Credentials` in 1Password.
+
+### Manual Testing
+
+To test in a client like Cursor or Claude, use a configuration file like this:
 
 ```
 {

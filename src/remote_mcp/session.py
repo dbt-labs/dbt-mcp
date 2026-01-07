@@ -8,12 +8,21 @@ from mcp.client.streamable_http import streamablehttp_client
 
 @contextlib.asynccontextmanager
 async def session_context() -> AsyncGenerator[ClientSession, None]:
+    host = os.environ.get("DBT_HOST")
+    prefix = os.environ.get("MULTICELL_ACCOUNT_PREFIX")
+    url = (
+        f"https://{prefix}.{host}/api/ai/v1/mcp/"
+        if prefix
+        else f"https://{host}/api/ai/v1/mcp/"
+    )
+    token = os.environ.get("DBT_TOKEN")
+    prod_environment_id = os.environ.get("DBT_PROD_ENV_ID", "")
     async with (
         streamablehttp_client(
-            url=f"https://{os.environ.get('DBT_HOST')}/api/ai/v1/mcp/",
+            url=url,
             headers={
-                "Authorization": f"token {os.environ.get('DBT_TOKEN')}",
-                "x-dbt-prod-environment-id": os.environ.get("DBT_PROD_ENV_ID", ""),
+                "Authorization": f"token {token}",
+                "x-dbt-prod-environment-id": prod_environment_id,
             },
         ) as (
             read_stream,

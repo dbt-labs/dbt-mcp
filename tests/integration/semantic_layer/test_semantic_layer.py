@@ -126,16 +126,17 @@ async def test_semantic_layer_query_metrics_with_misspellings(
     semantic_layer_fetcher: SemanticLayerFetcher,
 ):
     result = await semantic_layer_fetcher.query_metrics(["revehue"])
-    assert result.result is not None
-    assert "revenue" in result.result
+    assert result.error is not None
+    assert "revenue" in result.error
 
 
 async def test_semantic_layer_get_entities(
     semantic_layer_fetcher: SemanticLayerFetcher,
 ):
-    entities = await semantic_layer_fetcher.get_entities(
-        metrics=["count_dbt_copilot_requests"]
-    )
+    metrics = await semantic_layer_fetcher.list_metrics()
+    assert len(metrics) > 0
+    metric = metrics[0]
+    entities = await semantic_layer_fetcher.get_entities(metrics=[metric.name])
     assert len(entities) > 0
 
 
@@ -154,7 +155,7 @@ async def test_semantic_layer_query_metrics_with_csv_formatter(
             GroupByParam(
                 name="metric_time",
                 type=GroupByType.TIME_DIMENSION,
-                grain=None,
+                grain="day",
             )
         ],
         result_formatter=csv_formatter,
