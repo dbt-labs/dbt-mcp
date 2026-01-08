@@ -51,6 +51,33 @@ jobs:
       - name: Run tests
         run: task test:unit
 
+  # runs the integration tests
+  integration-test:
+    name: Integration test
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    needs:
+      - check
+    steps:
+      - name: checkout code
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+      - name: setup python
+        uses: ./.github/actions/setup-python
+        id: setup-python
+      - name: Install go-task
+        run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+      - name: Run tests
+        env:
+          DBT_HOST: ${{ vars.DBT_HOST }}
+          MULTICELL_ACCOUNT_PREFIX: ${{ vars.MULTICELL_ACCOUNT_PREFIX }}
+          DBT_TOKEN: ${{ secrets.DBT_TOKEN }}
+          DBT_ACCOUNT_ID: ${{ vars.DBT_ACCOUNT_ID }}
+          DBT_PROD_ENV_ID: ${{ vars.DBT_PROD_ENV_ID }}
+          DBT_DEV_ENV_ID: ${{ vars.DBT_DEV_ENV_ID }}
+          DBT_USER_ID: ${{ vars.DBT_USER_ID }}
+        run: task test:integration
+
   # validates documentation is up to date
   validate-docs:
     name: Validate tool docs
