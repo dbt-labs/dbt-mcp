@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.graphql import load_query
-from dbt_mcp.errors import InvalidParameterError
+from dbt_mcp.errors import InvalidParameterError, ToolCallError
 from dbt_mcp.gql.errors import raise_gql_error
 
 DEFAULT_PAGE_SIZE = 100
@@ -707,6 +707,8 @@ class LineageFetcher:
         Returns:
             List of nodes connected to unique_id (upstream + downstream).
         """
+        if depth <= 0:
+            raise ToolCallError("Depth must be greater than 0")
         config = await self.api_client.config_provider.get_config()
         type_filter = [
             t.value for t in (types if types is not None else LineageResourceType)
