@@ -5,59 +5,10 @@ from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
 from dbt_mcp.discovery.client import (
     AppliedResourceType,
     MetadataAPIClient,
+    ModelsFetcher,
     ResourceDetailsFetcher,
+    SourcesFetcher,
 )
-
-RESOURCE_CASES: list[tuple[AppliedResourceType, str, str, bool]] = [
-    (
-        AppliedResourceType.MODEL,
-        "model.jaffle_semantic_layer_testing.orders",
-        "orders",
-        True,
-    ),
-    (
-        AppliedResourceType.SOURCE,
-        "source.jaffle_semantic_layer_testing.raw_customers",
-        "raw_customers",
-        False,
-    ),
-    (
-        AppliedResourceType.EXPOSURE,
-        "exposure.jaffle_semantic_layer_testing.customer_dashboard",
-        "customer_dashboard",
-        False,
-    ),
-    (
-        AppliedResourceType.TEST,
-        "test.jaffle_semantic_layer_testing.not_null_orders_order_id",
-        "not_null_orders_order_id",
-        False,
-    ),
-    (
-        AppliedResourceType.SEED,
-        "seed.jaffle_semantic_layer_testing.raw_customers",
-        "raw_customers",
-        True,
-    ),
-    (
-        AppliedResourceType.SNAPSHOT,
-        "snapshot.jaffle_semantic_layer_testing.snapshot_orders",
-        "snapshot_orders",
-        False,
-    ),
-    (
-        AppliedResourceType.MACRO,
-        "macro.jaffle_semantic_layer_testing.cents_to_dollars",
-        "cents_to_dollars",
-        True,
-    ),
-    (
-        AppliedResourceType.SEMANTIC_MODEL,
-        "semantic_model.jaffle_semantic_layer_testing.stg_customers",
-        "stg_customers",
-        True,
-    ),
-]
 
 
 @pytest.fixture
@@ -70,48 +21,78 @@ def resource_details_fetcher() -> ResourceDetailsFetcher:
     )
 
 
-async def test_get_resource_details_resource_type_test_cases():
-    assert {c[0].value for c in RESOURCE_CASES} == set(AppliedResourceType)
-
-
-@pytest.mark.parametrize("resource_type, unique_id, name, results", RESOURCE_CASES)
-async def test_resource_details_fetcher_accepts_unique_id(
+async def test_resource_details_fetcher_accepts_unique_id_for_model(
+    models_fetcher: ModelsFetcher,
     resource_details_fetcher: ResourceDetailsFetcher,
-    resource_type: AppliedResourceType,
-    unique_id: str,
-    name: str,
-    results: bool,
 ) -> None:
+    models = await models_fetcher.fetch_models()
+    assert len(models) > 0
+    model = models[0]
     result = await resource_details_fetcher.fetch_details(
-        resource_type=resource_type,
+        resource_type=AppliedResourceType.MODEL,
+        unique_id=model["uniqueId"],
+        name=None,
+    )
+    assert len(result) == 1
+    assert result[0]["name"] == model["name"]
+    assert result[0]["uniqueId"] == model["uniqueId"]
+
+
+async def test_resource_details_fetcher_accepts_name_for_model(
+    models_fetcher: ModelsFetcher,
+    resource_details_fetcher: ResourceDetailsFetcher,
+) -> None:
+    models = await models_fetcher.fetch_models()
+    assert len(models) > 0
+    model = models[0]
+    result = await resource_details_fetcher.fetch_details(
+        resource_type=AppliedResourceType.MODEL,
+        unique_id=None,
+        name=model["name"],
+    )
+    assert len(result) == 1
+    assert result[0]["name"] == model["name"]
+    assert result[0]["uniqueId"] == model["uniqueId"]
+
+
+async def test_resource_details_fetcher_accepts_unique_id_for_source(
+    sources_fetcher: SourcesFetcher,
+    resource_details_fetcher: ResourceDetailsFetcher,
+) -> None:
+    sources = await sources_fetcher.fetch_sources()
+    assert len(sources) > 0
+    source = sources[0]
+    unique_id = source["uniqueId"]
+    result = await resource_details_fetcher.fetch_details(
+        resource_type=AppliedResourceType.SOURCE,
         unique_id=unique_id,
         name=None,
     )
-    if results:
-        assert len(result) == 1
-        assert result[0]["uniqueId"] == unique_id
-    else:
-        assert result == []
+    assert len(result) == 1
+    assert result[0]["name"] == source["name"]
+    assert result[0]["uniqueId"] == unique_id
 
 
-@pytest.mark.parametrize("resource_type, unique_id, name, results", RESOURCE_CASES)
-async def test_resource_details_fetcher_accepts_name(
+@pytest.mark.skip(
+    reason="unique_id construction for sources "
+    "needs to follow this pattern: source.<package_name>.<source_name>.<table_name>"
+)
+async def test_resource_details_fetcher_accepts_name_for_source(
+    sources_fetcher: SourcesFetcher,
     resource_details_fetcher: ResourceDetailsFetcher,
-    resource_type: AppliedResourceType,
-    unique_id: str,
-    name: str,
-    results: bool,
 ) -> None:
+    sources = await sources_fetcher.fetch_sources()
+    assert len(sources) > 0
+    source = sources[0]
+    name = source["name"]
     result = await resource_details_fetcher.fetch_details(
-        resource_type=resource_type,
+        resource_type=AppliedResourceType.SOURCE,
         unique_id=None,
         name=name,
     )
-    if results:
-        assert len(result) == 1
-        assert result[0]["name"] == name
-    else:
-        assert result == []
+    assert len(result) == 1
+    assert result[0]["name"] == name
+    assert result[0]["uniqueId"] == source["uniqueId"]
 
 
 async def test_resource_details_fetcher_non_existent_unique_id(

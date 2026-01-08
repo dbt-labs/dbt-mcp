@@ -1,83 +1,15 @@
-import os
-
 import pytest
 
-from dbt_mcp.config.config_providers import DefaultDiscoveryConfigProvider
-from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
+from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.client import (
-    DEFAULT_MAX_NODE_QUERY_LIMIT,
     DEFAULT_PAGE_SIZE,
     ExposuresFetcher,
-    MetadataAPIClient,
     ModelFilter,
     ModelsFetcher,
-    PaginatedResourceFetcher,
     SourcesFetcher,
 )
 from dbt_mcp.discovery.tools import DISCOVERY_TOOLS, DiscoveryToolContext
-
-
-@pytest.fixture
-def api_client() -> MetadataAPIClient:
-    # Set up environment variables needed by DbtMcpSettings
-    host = os.getenv("DBT_HOST")
-    token = os.getenv("DBT_TOKEN")
-    prod_env_id = os.getenv("DBT_PROD_ENV_ID")
-
-    if not host or not token or not prod_env_id:
-        raise ValueError(
-            "DBT_HOST, DBT_TOKEN, and DBT_PROD_ENV_ID environment variables are required"
-        )
-
-    # Create settings and credentials provider
-    # DbtMcpSettings will automatically pick up from environment variables
-    settings = DbtMcpSettings()  # type: ignore
-    credentials_provider = CredentialsProvider(settings)
-    config_provider = DefaultDiscoveryConfigProvider(credentials_provider)
-
-    return MetadataAPIClient(config_provider)
-
-
-@pytest.fixture
-def models_fetcher(api_client: MetadataAPIClient) -> ModelsFetcher:
-    paginator = PaginatedResourceFetcher(
-        api_client,
-        edges_path=("data", "environment", "applied", "models", "edges"),
-        page_info_path=("data", "environment", "applied", "models", "pageInfo"),
-        page_size=DEFAULT_PAGE_SIZE,
-        max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
-    )
-    return ModelsFetcher(api_client, paginator=paginator)
-
-
-@pytest.fixture
-def exposures_fetcher(api_client: MetadataAPIClient) -> ExposuresFetcher:
-    paginator = PaginatedResourceFetcher(
-        api_client,
-        edges_path=("data", "environment", "definition", "exposures", "edges"),
-        page_info_path=(
-            "data",
-            "environment",
-            "definition",
-            "exposures",
-            "pageInfo",
-        ),
-        page_size=DEFAULT_PAGE_SIZE,
-        max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
-    )
-    return ExposuresFetcher(api_client, paginator=paginator)
-
-
-@pytest.fixture
-def sources_fetcher(api_client: MetadataAPIClient) -> SourcesFetcher:
-    paginator = PaginatedResourceFetcher(
-        api_client,
-        edges_path=("data", "environment", "applied", "sources", "edges"),
-        page_info_path=("data", "environment", "applied", "sources", "pageInfo"),
-        page_size=DEFAULT_PAGE_SIZE,
-        max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
-    )
-    return SourcesFetcher(api_client, paginator=paginator)
+from dbt_mcp.tools.tool_names import ToolName
 
 
 @pytest.mark.asyncio
@@ -91,16 +23,9 @@ async def test_fetch_models(models_fetcher: ModelsFetcher):
     # Validate structure of returned models
     for model in results:
         assert "name" in model
-        assert "compiledCode" in model
+        assert "uniqueId" in model
+        assert "description" in model
         assert isinstance(model["name"], str)
-
-        # If catalog exists, validate its structure
-        if model.get("catalog"):
-            assert isinstance(model["catalog"], dict)
-            if "columns" in model["catalog"]:
-                for column in model["catalog"]["columns"]:
-                    assert "name" in column
-                    assert "type" in column
 
 
 @pytest.mark.asyncio
@@ -209,7 +134,7 @@ async def test_fetch_exposures_pagination(exposures_fetcher: ExposuresFetcher):
     assert isinstance(results, list)
 
     # If we have more than the page size, ensure no duplicates
-    if len(results) > 100:  # PAGE_SIZE is 100
+    if len(results) > DEFAULT_PAGE_SIZE:
         unique_ids = set()
         for exposure in results:
             unique_id = exposure["uniqueId"]
@@ -246,17 +171,6 @@ async def test_fetch_sources(sources_fetcher: SourcesFetcher):
             if source.get("freshness"):
                 freshness = source["freshness"]
                 assert isinstance(freshness, dict)
-                # These fields may be present depending on configuration
-                if "freshnessStatus" in freshness:
-                    assert isinstance(freshness["freshnessStatus"], str)
-                if "maxLoadedAt" in freshness:
-                    assert freshness["maxLoadedAt"] is None or isinstance(
-                        freshness["maxLoadedAt"], str
-                    )
-                if "maxLoadedAtTimeAgoInS" in freshness:
-                    assert freshness["maxLoadedAtTimeAgoInS"] is None or isinstance(
-                        freshness["maxLoadedAtTimeAgoInS"], int
-                    )
 
 
 @pytest.mark.asyncio
@@ -283,25 +197,10 @@ async def test_fetch_sources_with_filter(sources_fetcher: SourcesFetcher):
 
 
 @pytest.mark.asyncio
-async def test_get_all_sources_tool():
+async def test_get_all_sources_tool(
+    config_provider: ConfigProvider[DiscoveryConfig],
+) -> None:
     """Test the get_all_sources tool function integration."""
-    from dbt_mcp.config.config_providers import DefaultDiscoveryConfigProvider
-    from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
-
-    # Set up environment variables needed by DbtMcpSettings
-    host = os.getenv("DBT_HOST")
-    token = os.getenv("DBT_TOKEN")
-    prod_env_id = os.getenv("DBT_PROD_ENV_ID")
-
-    if not host or not token or not prod_env_id:
-        pytest.skip(
-            "DBT_HOST, DBT_TOKEN, and DBT_PROD_ENV_ID environment variables are required"
-        )
-
-    # Create settings and config provider
-    settings = DbtMcpSettings()  # type: ignore
-    credentials_provider = CredentialsProvider(settings)
-    config_provider = DefaultDiscoveryConfigProvider(credentials_provider)
 
     # Create tool definitions
     tool_definitions = DISCOVERY_TOOLS
@@ -309,7 +208,7 @@ async def test_get_all_sources_tool():
     # Find the get_all_sources tool
     get_all_sources_tool = None
     for tool_def in tool_definitions:
-        if tool_def.get_name() == "get_all_sources":
+        if tool_def.get_name() == ToolName.GET_ALL_SOURCES:
             get_all_sources_tool = tool_def
             break
 

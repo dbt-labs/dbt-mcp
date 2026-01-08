@@ -125,6 +125,7 @@ class ProxiedToolsManager:
 async def register_proxied_tools(
     dbt_mcp: FastMCP,
     config_provider: ConfigProvider[ProxiedToolConfig],
+    *,
     disabled_tools: set[ToolName],
     enabled_tools: set[ToolName],
     enabled_toolsets: set[Toolset],

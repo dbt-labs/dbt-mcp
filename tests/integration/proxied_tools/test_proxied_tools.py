@@ -8,7 +8,14 @@ async def test_proxied_tool_execute_sql():
     config = load_config()
     dbt_mcp = FastMCP("Test")
     assert config.proxied_tool_config_provider is not None
-    await register_proxied_tools(dbt_mcp, config.proxied_tool_config_provider)
+    await register_proxied_tools(
+        dbt_mcp,
+        config.proxied_tool_config_provider,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
     result = await dbt_mcp.call_tool("execute_sql", {"sql": "SELECT 1"})
     assert len(result) == 1
     assert "1" in result[0].text
@@ -18,7 +25,14 @@ async def test_proxied_tool_text_to_sql():
     config = load_config()
     dbt_mcp = FastMCP("Test")
     assert config.proxied_tool_config_provider is not None
-    await register_proxied_tools(dbt_mcp, config.proxied_tool_config_provider)
+    await register_proxied_tools(
+        dbt_mcp,
+        config.proxied_tool_config_provider,
+        disabled_tools=set(),
+        enabled_tools=set(),
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
     result = await dbt_mcp.call_tool("text_to_sql", {"text": "SELECT 1"})
     assert len(result) == 1
     assert "SELECT 1" in result[0].text
