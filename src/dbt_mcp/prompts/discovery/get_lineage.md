@@ -5,7 +5,8 @@ Returns all nodes connected to the specified resource, including both upstream d
 **Parameters:**
 - `unique_id`: **Required** - Full unique ID of the resource (e.g., "model.my_project.customers")
 - `types`: *Optional* - List of resource types to include in results. If not provided, includes all types.
-  - Valid types: `Model`, `Source`, `Seed`, `Snapshot`, `Exposure`, `Metric`, `SemanticModel`, `SavedQuery`, `Macro`, `Test`
+  - Valid types: `Model`, `Source`, `Seed`, `Snapshot`, `Exposure`, `Metric`, `SemanticModel`, `SavedQuery`, `Test`
+- `depth`: *Optional* - The depth of the lineage graph to return (default: 5). Controls how many levels upstream and downstream to traverse from the target node.
 
 **Returns:**
 A list of all nodes in the connected subgraph, where each node contains:
@@ -40,14 +41,17 @@ A list of all nodes in the connected subgraph, where each node contains:
 
 **Usage Examples:**
 ```python
-# Get complete lineage (all connected nodes, all types)
+# Get complete lineage (all connected nodes, all types, default depth of 5)
 get_lineage(unique_id="model.analytics.customers")
 
 # Get lineage filtered to only models and sources
 get_lineage(unique_id="model.analytics.customers", types=["Model", "Source"])
 
-# Get lineage for a source
-get_lineage(unique_id="source.raw.users")
+# Get only immediate neighbors (depth=1)
+get_lineage(unique_id="model.analytics.customers", depth=1)
+
+# Get deeper lineage for comprehensive analysis
+get_lineage(unique_id="model.analytics.customers", depth=10)
 ```
 
 **Traversing the Graph:**
@@ -58,7 +62,7 @@ The graph is represented by parent-child relationships. To navigate:
 ```python
 # Direct: What does this node depend on?
 target_node = find_node_by_id(result, "model.customers")
-direct_parents = target_node["parentIds"]  
+direct_parents = target_node["parentIds"]
 # Result: ["model.stg_customers"]
 ```
 
@@ -67,7 +71,7 @@ direct_parents = target_node["parentIds"]
 # Search: What depends on this node?
 target_id = "model.customers"
 direct_children = [
-    node for node in result 
+    node for node in result
     if target_id in node.get("parentIds", [])
 ]
 # Result: nodes that list "model.customers" in their parentIds

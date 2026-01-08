@@ -683,7 +683,6 @@ class LineageResourceType(StrEnum):
     METRIC = "Metric"
     SEMANTIC_MODEL = "SemanticModel"
     SAVED_QUERY = "SavedQuery"
-    MACRO = "Macro"
     TEST = "Test"
 
 
@@ -696,6 +695,7 @@ class LineageFetcher:
     async def fetch_lineage(
         self,
         unique_id: str,
+        depth: int,
         types: list[LineageResourceType] | None = None,
     ) -> list[dict]:
         """Fetch lineage graph filtered to nodes connected to unique_id.
@@ -730,43 +730,59 @@ class LineageFetcher:
         )
 
         # Filter to connected nodes only
-        return self._filter_connected_nodes(all_nodes, unique_id)
+        return self._filter_connected_nodes(all_nodes, unique_id, depth)
 
-    def _filter_connected_nodes(self, nodes: list[dict], target_id: str) -> list[dict]:
+    def _filter_connected_nodes(
+        self, nodes: list[dict], target_id: str, depth: int
+    ) -> list[dict]:
         """Return only nodes connected to target_id (upstream and downstream).
 
         Uses BFS to find all nodes reachable from target in both directions.
         """
-        node_map = {n["uniqueId"]: n for n in nodes}
+        node_map = {
+            n["uniqueId"]: n
+            for n in nodes
+            if (resource_type := n.get("resourceType"))
+            and isinstance(resource_type, str)
+            # Filtering out macros because they have large
+            # dependency graphs that aren't always useful.
+            and resource_type.strip().lower() != "macro"
+        }
 
         if target_id not in node_map:
             return []
 
         # BFS to find all connected nodes
         connected = {target_id}
-        queue = [target_id]
+        queue = [(target_id, 0)]
 
         while queue:
-            current_id = queue.pop(0)
+            current_id, current_depth = queue.pop(0)
             node = node_map.get(current_id)
             if not node:
+                continue
+
+            # Stop traversing beyond the depth limit
+            if current_depth >= depth:
                 continue
 
             # Traverse upstream (parents)
             for parent_id in node.get("parentIds", []):
                 if parent_id not in connected and parent_id in node_map:
                     connected.add(parent_id)
-                    queue.append(parent_id)
+                    queue.append((parent_id, current_depth + 1))
 
             # Traverse downstream (children)
             for candidate in nodes:
-                candidate_id = candidate["uniqueId"]
+                candidate_id = candidate.get("uniqueId")
+                if not candidate_id or candidate_id not in node_map:
+                    continue
                 if (
                     current_id in candidate.get("parentIds", [])
                     and candidate_id not in connected
                 ):
                     connected.add(candidate_id)
-                    queue.append(candidate_id)
+                    queue.append((candidate_id, current_depth + 1))
 
         # Return in original order
         return [node_map[uid] for uid in connected]

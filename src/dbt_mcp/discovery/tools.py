@@ -41,8 +41,9 @@ TYPES_FIELD = Field(
     default=None,
     description="List of resource types to include in lineage results. "
     "If not provided, includes all types. "
-    "Valid types: Model, Source, Seed, Snapshot, Exposure, Metric, SemanticModel, SavedQuery, Macro, Test.",
+    "Valid types: Model, Source, Seed, Snapshot, Exposure, Metric, SemanticModel, SavedQuery, Test.",
 )
+DEPTH_FIELD = Field(default=5, description="The depth of the lineage graph to return.")
 
 
 @dataclass
@@ -195,8 +196,11 @@ async def get_lineage(
     context: DiscoveryToolContext,
     unique_id: str,
     types: list[LineageResourceType] | None = TYPES_FIELD,
+    depth: int = DEPTH_FIELD,
 ) -> list[dict]:
-    return await context.lineage_fetcher.fetch_lineage(unique_id=unique_id, types=types)
+    return await context.lineage_fetcher.fetch_lineage(
+        unique_id=unique_id, types=types, depth=depth
+    )
 
 
 @dbt_mcp_tool(
