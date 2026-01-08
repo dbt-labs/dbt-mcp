@@ -4,6 +4,7 @@ from dbt_mcp.discovery.client import (
     LineageFetcher,
     LineageResourceType,
 )
+from dbt_mcp.errors import ToolCallError
 
 
 @pytest.fixture
@@ -222,40 +223,10 @@ async def test_fetch_lineage_depth_limits_traversal(lineage_fetcher, mock_api_cl
     assert "model.test.model3" in unique_ids
 
 
-async def test_fetch_lineage_depth_zero_returns_only_target(
-    lineage_fetcher, mock_api_client
-):
-    """Test that depth=0 returns only the target node."""
-    mock_api_client.execute_query.return_value = {
-        "data": {
-            "environment": {
-                "applied": {
-                    "lineage": [
-                        {
-                            "uniqueId": "model.test.customers",
-                            "name": "customers",
-                            "resourceType": "Model",
-                            "parentIds": ["source.test.raw_customers"],
-                        },
-                        {
-                            "uniqueId": "source.test.raw_customers",
-                            "name": "raw_customers",
-                            "resourceType": "Source",
-                            "parentIds": [],
-                        },
-                    ]
-                }
-            }
-        }
-    }
-
-    result = await lineage_fetcher.fetch_lineage(
-        unique_id="model.test.customers", depth=0
-    )
-
-    # With depth=0, no traversal should happen
-    assert len(result) == 1
-    assert result[0]["uniqueId"] == "model.test.customers"
+async def test_fetch_lineage_depth_zero_raises_error(lineage_fetcher, mock_api_client):
+    """Test that depth=0 raises a ToolCallError."""
+    with pytest.raises(ToolCallError, match="Depth must be greater than 0"):
+        await lineage_fetcher.fetch_lineage(unique_id="model.test.customers", depth=0)
 
 
 async def test_fetch_lineage_depth_one_returns_immediate_neighbors(
