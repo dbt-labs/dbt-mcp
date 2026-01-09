@@ -2,7 +2,7 @@ import logging
 from functools import cache
 from typing import Any
 
-import requests
+import httpx
 
 from dbt_mcp.config.config_providers import (
     AdminApiConfig,
@@ -38,10 +38,11 @@ class DbtAdminAPIClient:
         headers = await self.get_headers()
 
         try:
-            response = requests.request(method, url, headers=headers, **kwargs)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
+            async with httpx.AsyncClient() as client:
+                response = await client.request(method, url, headers=headers, **kwargs)
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPError as e:
             logger.error(f"API request failed: {e}")
             raise AdminAPIError(f"API request failed: {e}")
 
@@ -239,10 +240,11 @@ class DbtAdminAPIClient:
             "Accept": "*/*",
         } | config.headers_provider.get_headers()
 
-        response = requests.get(
-            f"{config.url}/api/v2/accounts/{account_id}/runs/{run_id}/artifacts/{artifact_path}",
-            headers=get_artifact_header,
-            params=params,
-        )
-        response.raise_for_status()
-        return response.text
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{config.url}/api/v2/accounts/{account_id}/runs/{run_id}/artifacts/{artifact_path}",
+                headers=get_artifact_header,
+                params=params,
+            )
+            response.raise_for_status()
+            return response.text
