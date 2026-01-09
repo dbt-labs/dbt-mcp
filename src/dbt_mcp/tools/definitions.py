@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from mcp.server.fastmcp.tools.base import Tool
 from mcp.types import ToolAnnotations
 
 from dbt_mcp.tools.injection import adapt_with_mapper
@@ -23,6 +24,16 @@ class GenericToolDefinition[NameEnum: Enum]:
 
     def get_name(self) -> NameEnum:
         return self.name_enum((self.name or self.fn.__name__).lower())
+
+    def to_fastmcp_internal_tool(self) -> Tool:
+        return Tool.from_function(
+            fn=self.fn,
+            name=self.name,
+            title=self.title,
+            description=self.description,
+            annotations=self.annotations,
+            structured_output=self.structured_output,
+        )
 
     def adapt_context(
         self, context_mapper: Callable[..., Any]
