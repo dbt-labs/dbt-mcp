@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.graphql import load_query
-from dbt_mcp.errors import InvalidParameterError
+from dbt_mcp.errors import InvalidParameterError, ToolCallError
 from dbt_mcp.gql.errors import raise_gql_error
 
 DEFAULT_PAGE_SIZE = 100
@@ -301,6 +301,9 @@ class GraphQLQueries:
             }
         }
     """)
+
+    # Lineage query
+    GET_FULL_LINEAGE = load_query("get_full_lineage.gql")
 
 
 class MetadataAPIClient:
@@ -667,3 +670,121 @@ class ResourceDetailsFetcher:
         if not edges:
             return []
         return [e["node"] for e in edges]
+
+
+class LineageResourceType(StrEnum):
+    """Resource types supported by the lineage API."""
+
+    MODEL = "Model"
+    SOURCE = "Source"
+    SEED = "Seed"
+    SNAPSHOT = "Snapshot"
+    EXPOSURE = "Exposure"
+    METRIC = "Metric"
+    SEMANTIC_MODEL = "SemanticModel"
+    SAVED_QUERY = "SavedQuery"
+    TEST = "Test"
+
+
+class LineageFetcher:
+    """Fetcher for lineage data. Returns nodes connected to the target."""
+
+    def __init__(self, api_client: MetadataAPIClient):
+        self.api_client = api_client
+
+    async def fetch_lineage(
+        self,
+        unique_id: str,
+        depth: int,
+        types: list[LineageResourceType] | None = None,
+    ) -> list[dict]:
+        """Fetch lineage graph filtered to nodes connected to unique_id.
+
+        Args:
+            unique_id: The dbt unique ID of the resource to get lineage for.
+            types: List of resource types to include. If None, includes all types.
+
+        Returns:
+            List of nodes connected to unique_id (upstream + downstream).
+        """
+        if depth <= 0:
+            raise ToolCallError("Depth must be greater than 0")
+        config = await self.api_client.config_provider.get_config()
+        type_filter = [
+            t.value for t in (types if types is not None else LineageResourceType)
+        ]
+        variables = {
+            "environmentId": config.environment_id,
+            "types": type_filter,
+            # uniqueId removed - not used by GraphQL
+        }
+
+        result = await self.api_client.execute_query(
+            GraphQLQueries.GET_FULL_LINEAGE, variables
+        )
+        raise_gql_error(result)
+
+        all_nodes = (
+            result.get("data", {})
+            .get("environment", {})
+            .get("applied", {})
+            .get("lineage", [])
+        )
+
+        # Filter to connected nodes only
+        return self._filter_connected_nodes(all_nodes, unique_id, depth)
+
+    def _filter_connected_nodes(
+        self, nodes: list[dict], target_id: str, depth: int
+    ) -> list[dict]:
+        """Return only nodes connected to target_id (upstream and downstream).
+
+        Uses BFS to find all nodes reachable from target in both directions.
+        """
+        node_map = {
+            n["uniqueId"]: n
+            for n in nodes
+            if (resource_type := n.get("resourceType"))
+            and isinstance(resource_type, str)
+            # Filtering out macros because they have large
+            # dependency graphs that aren't always useful.
+            and resource_type.strip().lower() != "macro"
+        }
+
+        if target_id not in node_map:
+            return []
+
+        # BFS to find all connected nodes
+        connected = {target_id}
+        queue = [(target_id, 0)]
+
+        while queue:
+            current_id, current_depth = queue.pop(0)
+            node = node_map.get(current_id)
+            if not node:
+                continue
+
+            # Stop traversing beyond the depth limit
+            if current_depth >= depth:
+                continue
+
+            # Traverse upstream (parents)
+            for parent_id in node.get("parentIds", []):
+                if parent_id not in connected and parent_id in node_map:
+                    connected.add(parent_id)
+                    queue.append((parent_id, current_depth + 1))
+
+            # Traverse downstream (children)
+            for candidate in nodes:
+                candidate_id = candidate.get("uniqueId")
+                if not candidate_id or candidate_id not in node_map:
+                    continue
+                if (
+                    current_id in candidate.get("parentIds", [])
+                    and candidate_id not in connected
+                ):
+                    connected.add(candidate_id)
+                    queue.append((candidate_id, current_depth + 1))
+
+        # Return in original order
+        return [node_map[uid] for uid in connected]
