@@ -8,6 +8,8 @@ from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.client import (
     AppliedResourceType,
     ExposuresFetcher,
+    LineageFetcher,
+    LineageResourceType,
     MetadataAPIClient,
     ModelsFetcher,
     PaginatedResourceFetcher,
@@ -35,6 +37,13 @@ NAME_FIELD = Field(
     "This is not required if `unique_id` is provided. "
     "Only use name when `unique_id` is unknown.",
 )
+TYPES_FIELD = Field(
+    default=None,
+    description="List of resource types to include in lineage results. "
+    "If not provided, includes all types. "
+    "Valid types: Model, Source, Seed, Snapshot, Exposure, Metric, SemanticModel, SavedQuery, Test.",
+)
+DEPTH_FIELD = Field(default=5, description="The depth of the lineage graph to return.")
 
 
 @dataclass
@@ -43,6 +52,7 @@ class DiscoveryToolContext:
     exposures_fetcher: ExposuresFetcher
     sources_fetcher: SourcesFetcher
     resource_details_fetcher: ResourceDetailsFetcher
+    lineage_fetcher: LineageFetcher
 
     def __init__(self, config_provider: ConfigProvider[DiscoveryConfig]):
         api_client = MetadataAPIClient(config_provider=config_provider)
@@ -83,6 +93,7 @@ class DiscoveryToolContext:
             ),
         )
         self.resource_details_fetcher = ResourceDetailsFetcher(api_client=api_client)
+        self.lineage_fetcher = LineageFetcher(api_client=api_client)
 
 
 @dbt_mcp_tool(
@@ -172,6 +183,24 @@ async def get_model_health(
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
     return await context.models_fetcher.fetch_model_health(name, unique_id)
+
+
+@dbt_mcp_tool(
+    description=get_prompt("discovery/get_lineage"),
+    title="Get Lineage",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+)
+async def get_lineage(
+    context: DiscoveryToolContext,
+    unique_id: str,
+    types: list[LineageResourceType] | None = TYPES_FIELD,
+    depth: int = DEPTH_FIELD,
+) -> list[dict]:
+    return await context.lineage_fetcher.fetch_lineage(
+        unique_id=unique_id, types=types, depth=depth
+    )
 
 
 @dbt_mcp_tool(
@@ -340,6 +369,7 @@ DISCOVERY_TOOLS = [
     get_model_parents,
     get_model_children,
     get_model_health,
+    get_lineage,
     get_exposures,
     get_exposure_details,
     get_all_sources,

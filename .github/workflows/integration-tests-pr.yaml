@@ -1,0 +1,69 @@
+name: Integration tests
+
+# SECURITY: This workflow handles two scenarios:
+# 1. Internal PRs (same repo): Runs automatically via pull_request trigger
+# 2. Fork PRs: Requires 'ok-to-test' label added by maintainer (pull_request_target)
+#
+# Fork PRs without the label will fail the check with instructions.
+# This protects secrets from being exfiltrated by malicious fork PRs.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  pull_request_target:
+    types: [labeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  integration:
+    runs-on: ubuntu-24.04
+    environment: integration
+    permissions:
+      contents: read
+    steps:
+      # Gate: Block fork PRs that come through pull_request (no secrets, no label check)
+      - name: Check fork PR authorization
+        if: |
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "::error::Fork PRs require the 'ok-to-test' label to run integration tests."
+          echo "A maintainer must review the code and add the label."
+          echo "This is a security measure to protect repository secrets."
+          exit 1
+
+      # Gate: Only allow pull_request_target when triggered by the ok-to-test label
+      - name: Verify label trigger
+        if: |
+          github.event_name == 'pull_request_target' &&
+          github.event.label.name != 'ok-to-test'
+        run: |
+          echo "::error::This workflow only runs when the 'ok-to-test' label is added."
+          exit 1
+
+      - name: Checkout code
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          # For pull_request_target, explicitly checkout PR head (untrusted code, but gated by label)
+          # For pull_request, use default behavior
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
+
+      - name: Setup Python
+        uses: ./.github/actions/setup-python
+        id: setup-python
+
+      - name: Install go-task
+        run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+
+      - name: Run integration tests
+        env:
+          DBT_HOST: ${{ vars.DBT_HOST }}
+          MULTICELL_ACCOUNT_PREFIX: ${{ vars.MULTICELL_ACCOUNT_PREFIX }}
+          DBT_TOKEN: ${{ secrets.DBT_TOKEN }}
+          DBT_ACCOUNT_ID: ${{ vars.DBT_ACCOUNT_ID }}
+          DBT_PROD_ENV_ID: ${{ vars.DBT_PROD_ENV_ID }}
+          DBT_DEV_ENV_ID: ${{ vars.DBT_DEV_ENV_ID }}
+          DBT_USER_ID: ${{ vars.DBT_USER_ID }}
+        run: task test:integration
