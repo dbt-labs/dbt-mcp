@@ -39,6 +39,9 @@ async def test_semantic_layer_list_dimensions(
     metrics = await semantic_layer_fetcher.list_metrics()
     dimensions = await semantic_layer_fetcher.get_dimensions(metrics=[metrics[0].name])
     assert len(dimensions) > 0
+    # Verify metadata field exists (may be None or contain data)
+    for dimension in dimensions:
+        assert hasattr(dimension, "metadata")
 
 
 async def test_semantic_layer_query_metrics(
