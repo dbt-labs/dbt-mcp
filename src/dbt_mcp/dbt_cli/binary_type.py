@@ -29,7 +29,7 @@ def detect_binary_type(file_path: str) -> BinaryType:
             check=False,
             capture_output=True,
             text=True,
-            timeout=10,
+            timeout=60,
         )
         help_output = result.stdout
     except Exception as e:
