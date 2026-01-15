@@ -127,7 +127,7 @@ class DbtAdminAPIClient:
         """Get details for a specific project."""
         result = await self._make_request(
             "GET",
-            f"/api/v2/accounts/{account_id}/projects/{project_id}/",
+            f"/api/v3/accounts/{account_id}/projects/{project_id}/",
         )
         return result.get("data", {})
 

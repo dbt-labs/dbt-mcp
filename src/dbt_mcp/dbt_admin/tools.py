@@ -85,9 +85,12 @@ async def get_project_details(
 ) -> dict[str, Any]:
     """Get details for a specific project."""
     admin_api_config = await context.admin_api_config_provider.get_config()
-    return await context.admin_client.get_project_details(
+    result = await context.admin_client.get_project_details(
         admin_api_config.account_id, project_id
     )
+    for key in ("freshness_job", "docs_job", "group_permissions"):
+        result.pop(key, None)
+    return result
 
 
 @dbt_mcp_tool(
