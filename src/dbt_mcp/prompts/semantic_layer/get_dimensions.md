@@ -5,7 +5,7 @@ Dimensions are the attributes, features, or characteristics
 that describe or categorize data.
 
 Each dimension includes a metadata field containing config.meta from semantic model YAML files.
-The metadata contains fields relevant to your semantic models.
+The metadata contains fields relevant to the semantic models.
 
 </instructions>
 
