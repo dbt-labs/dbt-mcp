@@ -5,15 +5,7 @@ Dimensions are the attributes, features, or characteristics
 that describe or categorize data.
 
 Each dimension includes a metadata field containing config.meta from semantic model YAML files.
-This metadata may include:
-- display_name: Human-friendly display name
-- cardinality: Hint about distinct values (LOW/MEDIUM/HIGH)
-- commonly_filtered: Whether frequently used in WHERE clauses
-- commonly_grouped: Whether frequently used in GROUP BY
-- usage_guidance: Best practices for using this dimension
-- example_values: Sample values
-- related_dimensions: Related dimension references
-- Custom fields defined in semantic models
+The metadata structure is user-defined and can contain any custom fields relevant to your semantic models.
 
 Use metadata to make informed decisions about dimension selection and usage.
 </instructions>
