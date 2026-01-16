@@ -71,6 +71,7 @@ The dbt MCP server architecture allows for your agent to connect to a variety of
 - `get_job_run_artifact`
 - `get_job_run_details`
 - `get_job_run_error`
+- `get_project_details`
 - `list_job_run_artifacts`
 - `list_jobs`
 - `list_jobs_runs`

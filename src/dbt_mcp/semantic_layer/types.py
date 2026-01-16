@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any
 
 from dbtsl.models.dimension import DimensionType
 from dbtsl.models.entity import EntityType
@@ -17,7 +18,7 @@ class MetricToolResponse:
     type: MetricType
     label: str | None = None
     description: str | None = None
-    metadata: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 @dataclass
@@ -27,6 +28,7 @@ class DimensionToolResponse:
     description: str | None = None
     label: str | None = None
     granularities: list[str] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 @dataclass

@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: Fix event loop issues with proxied tools by moving registration to app lifecycle
+time: 2026-01-12T11:49:49.785089-08:00

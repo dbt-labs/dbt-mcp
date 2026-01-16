@@ -117,11 +117,11 @@ async def test_register_admin_api_tools_all_tools(mock_register_tools, mock_fast
         disabled_toolsets=set(),
     )
 
-    # Should call register_tools with 10 tool definitions
+    # Should call register_tools with 11 tool definitions
     mock_register_tools.assert_called_once()
     args, kwargs = mock_register_tools.call_args
     tool_definitions = kwargs["tool_definitions"]
-    assert len(tool_definitions) == 10
+    assert len(tool_definitions) == 11
 
 
 @patch("dbt_mcp.dbt_admin.tools.register_tools")
@@ -140,13 +140,13 @@ async def test_register_admin_api_tools_with_disabled_tools(
         disabled_toolsets=set(),
     )
 
-    # Should still call register_tools with all 10 tool definitions
+    # Should still call register_tools with all 11 tool definitions
     # The exclude_tools parameter is passed to register_tools to handle filtering
     mock_register_tools.assert_called_once()
     args, kwargs = mock_register_tools.call_args
     tool_definitions = kwargs["tool_definitions"]
     disabled_tools = kwargs["disabled_tools"]
-    assert len(tool_definitions) == 10
+    assert len(tool_definitions) == 11
     assert disabled_tools == set(disable_tools)
 
 
@@ -325,6 +325,7 @@ def test_admin_tools_list_contains_all_tools():
     expected_tool_names = {
         "list_jobs",
         "get_job_details",
+        "get_project_details",
         "trigger_job_run",
         "list_jobs_runs",
         "get_job_run_details",
@@ -337,4 +338,4 @@ def test_admin_tools_list_contains_all_tools():
 
     actual_tool_names = {tool.fn.__name__ for tool in ADMIN_TOOLS}
     assert actual_tool_names == expected_tool_names
-    assert len(ADMIN_TOOLS) == 10
+    assert len(ADMIN_TOOLS) == 11

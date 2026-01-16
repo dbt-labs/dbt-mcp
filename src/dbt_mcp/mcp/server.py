@@ -105,6 +105,20 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
         raise TypeError("app_lifespan can only be used with DbtMCP servers")
     logger.info("Starting MCP server")
     try:
+        # register proxied tools inside the app lifespan to ensure the StreamableHTTP client (specific
+        # to dbt Platform connection) lives on the same event loop as the running server
+        # this avoids anyio cancel scope violations (see issue #498)
+        if server.config.proxied_tool_config_provider:
+            logger.info("Registering proxied tools")
+            await register_proxied_tools(
+                dbt_mcp=server,
+                config_provider=server.config.proxied_tool_config_provider,
+                disabled_tools=set(server.config.disable_tools),
+                enabled_tools=set(server.config.enable_tools),
+                enabled_toolsets=server.config.enabled_toolsets,
+                disabled_toolsets=server.config.disabled_toolsets,
+            )
+
         # eager start and initialize the LSP connection
         if server.lsp_connection_provider:
             asyncio.create_task(server.lsp_connection_provider.get_connection())
@@ -196,17 +210,6 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
         register_admin_api_tools(
             dbt_mcp,
             config.admin_api_config_provider,
-            disabled_tools=disabled_tools,
-            enabled_tools=enabled_tools,
-            enabled_toolsets=enabled_toolsets,
-            disabled_toolsets=disabled_toolsets,
-        )
-
-    if config.proxied_tool_config_provider:
-        logger.info("Registering proxied tools")
-        await register_proxied_tools(
-            dbt_mcp=dbt_mcp,
-            config_provider=config.proxied_tool_config_provider,
             disabled_tools=disabled_tools,
             enabled_tools=enabled_tools,
             enabled_toolsets=enabled_toolsets,

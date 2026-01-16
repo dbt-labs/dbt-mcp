@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Extend detect_binary_type timeout to account for long-running dbt executable
+time: 2026-01-13T15:30:07.124284-08:00
