@@ -164,6 +164,7 @@ class DefaultUsageTracker:
                         tool.value for tool in settings.disable_tools or []
                     ],
                     user_agent="",  # Only used for remote MCP
+                    attribution_id="",  # Only used for internal agents
                 )
             )
         except Exception as e:
