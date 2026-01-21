@@ -29,7 +29,7 @@ classifiers = [
 ]
 dependencies = [
   "authlib==1.6.6",
-  "dbt-protos==1.0.420",  # TODO: Update to actual version with attribution_id
+  "dbt-protos==1.0.422",
   "dbt-sl-sdk[sync]==0.13.1",
   "dbtlabs-vortex==0.2.0",
   "fastapi>=0.116.1",
