@@ -28,13 +28,11 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-  # Pinning dependencies because this app is installed with uvx
-  # and we want to have a consistent install as much as possible.
   "authlib==1.6.6",
   "dbt-protos==1.0.382",
   "dbt-sl-sdk[sync]==0.13.1",
   "dbtlabs-vortex==0.2.0",
-  "fastapi==0.116.1",
+  "fastapi>=0.116.1",
   "uvicorn>=0.31.1",
   "mcp[cli]==1.23.1",
   "pydantic-settings==2.10.1",
@@ -43,6 +41,7 @@ dependencies = [
   "requests==2.32.4",
   "httpx==0.28.1",
   "filelock>=3.18.0",
+  "starlette>=0.49.1",
 ]
 [dependency-groups]
 dev = [

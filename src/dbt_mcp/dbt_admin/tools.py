@@ -74,6 +74,26 @@ async def get_job_details(context: AdminToolContext, job_id: int) -> dict[str, A
 
 
 @dbt_mcp_tool(
+    description=get_prompt("admin_api/get_project_details"),
+    title="Get Project Details",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+)
+async def get_project_details(
+    context: AdminToolContext, project_id: int
+) -> dict[str, Any]:
+    """Get details for a specific project."""
+    admin_api_config = await context.admin_api_config_provider.get_config()
+    result = await context.admin_client.get_project_details(
+        admin_api_config.account_id, project_id
+    )
+    for key in ("freshness_job", "docs_job", "group_permissions"):
+        result.pop(key, None)
+    return result
+
+
+@dbt_mcp_tool(
     description=get_prompt("admin_api/trigger_job_run"),
     title="Trigger Job Run",
     read_only_hint=False,
@@ -264,6 +284,7 @@ async def get_job_run_error(
 ADMIN_TOOLS = [
     list_jobs,
     get_job_details,
+    get_project_details,
     trigger_job_run,
     list_jobs_runs,
     get_job_run_details,

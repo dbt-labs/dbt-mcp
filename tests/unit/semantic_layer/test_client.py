@@ -2,10 +2,12 @@ import base64
 import datetime as dt
 import json
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pyarrow as pa
+import pytest
 
-from dbt_mcp.semantic_layer.client import DEFAULT_RESULT_FORMATTER
+from dbt_mcp.semantic_layer.client import DEFAULT_RESULT_FORMATTER, SemanticLayerFetcher
 
 
 def test_default_result_formatter_outputs_iso_dates() -> None:
@@ -277,3 +279,76 @@ def test_default_result_formatter_with_mixed_types() -> None:
     assert abs(parsed[0]["decimal_col"] - 99.99) < 0.0001
     assert parsed[0]["duration_col"] == 7200.0
     assert parsed[0]["binary_col"] == base64.b64encode(b"data").decode("utf-8")
+
+
+@pytest.fixture
+def mock_config_provider():
+    config_provider = AsyncMock()
+    config_provider.get_config.return_value = MagicMock(
+        prod_environment_id=123,
+        token="test-token",
+        host="test-host",
+        url="https://test-host/api/graphql",
+    )
+    return config_provider
+
+
+@pytest.fixture
+def mock_client_provider():
+    return AsyncMock()
+
+
+@pytest.fixture
+def fetcher(mock_config_provider, mock_client_provider):
+    return SemanticLayerFetcher(
+        config_provider=mock_config_provider,
+        client_provider=mock_client_provider,
+    )
+
+
+@pytest.mark.asyncio
+@patch("dbt_mcp.semantic_layer.client.submit_request")
+async def test_get_dimensions_includes_metadata(
+    mock_submit_request, fetcher, mock_config_provider
+):
+    mock_submit_request.return_value = {
+        "data": {
+            "dimensionsPaginated": {
+                "items": [
+                    {
+                        "name": "order_date",
+                        "type": "time",
+                        "description": "Order timestamp",
+                        "label": "Order Date",
+                        "queryableGranularities": ["day"],
+                        "queryableTimeGranularities": ["month"],
+                        "config": {"meta": {"display_name": "Order Date"}},
+                    },
+                    {
+                        "name": "customer_type",
+                        "type": "categorical",
+                        "description": "Customer segment",
+                        "label": None,
+                        "queryableGranularities": [],
+                        "queryableTimeGranularities": [],
+                        "config": None,
+                    },
+                    {
+                        "name": "order_status",
+                        "type": "categorical",
+                        "description": "Order status",
+                        "label": "Status",
+                        "queryableGranularities": [],
+                        "queryableTimeGranularities": [],
+                    },
+                ]
+            }
+        }
+    }
+
+    result = await fetcher.get_dimensions(metrics=["revenue"])
+
+    assert len(result) == 3
+    assert result[0].metadata == {"display_name": "Order Date"}
+    assert result[1].metadata is None
+    assert result[2].metadata is None
