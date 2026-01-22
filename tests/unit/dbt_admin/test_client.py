@@ -6,6 +6,7 @@ import requests
 from dbt_mcp.config.config_providers import AdminApiConfig
 from dbt_mcp.dbt_admin.client import (
     AdminAPIError,
+    ArtifactRetrievalError,
     DbtAdminAPIClient,
 )
 
@@ -471,5 +472,5 @@ async def test_get_job_run_artifact_no_step_param(mock_get, client):
 async def test_get_job_run_artifact_request_exception(mock_get, client):
     mock_get.side_effect = requests.exceptions.HTTPError("404 Not Found")
 
-    with pytest.raises(requests.exceptions.HTTPError):
+    with pytest.raises(ArtifactRetrievalError):
         await client.get_job_run_artifact(12345, 100, "nonexistent.json")

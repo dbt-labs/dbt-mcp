@@ -8,7 +8,7 @@ from dbt_mcp.config.config_providers import (
     AdminApiConfig,
     ConfigProvider,
 )
-from dbt_mcp.errors import AdminAPIError
+from dbt_mcp.errors import AdminAPIError, ArtifactRetrievalError
 
 logger = logging.getLogger(__name__)
 
@@ -249,10 +249,15 @@ class DbtAdminAPIClient:
             "Accept": "*/*",
         } | config.headers_provider.get_headers()
 
-        response = requests.get(
-            f"{config.url}/api/v2/accounts/{account_id}/runs/{run_id}/artifacts/{artifact_path}",
-            headers=get_artifact_header,
-            params=params,
-        )
-        response.raise_for_status()
-        return response.text
+        try:
+            response = requests.get(
+                f"{config.url}/api/v2/accounts/{account_id}/runs/{run_id}/artifacts/{artifact_path}",
+                headers=get_artifact_header,
+                params=params,
+            )
+            response.raise_for_status()
+            return response.text
+        except requests.exceptions.HTTPError as e:
+            raise ArtifactRetrievalError(
+                f"Artifact '{artifact_path}' not available for run {run_id}"
+            ) from e
