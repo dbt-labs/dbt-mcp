@@ -1,4 +1,4 @@
-get_model_lineage_dev
+get_lineage_dev
 
 <instructions>
 Retrieves the lineage of a specific dbt resource from the local development manifest. Returns both upstream (parents) and downstream (children) dependencies.
@@ -14,14 +14,14 @@ depth: int = 5 => The depth of the lineage graph to return. Controls how many le
 
 <examples>
 1. Getting full lineage for a model:
-   get_model_lineage_dev(unique_id="model.my_project.customer_orders")
+   get_lineage_dev(unique_id="model.my_project.customer_orders")
 
 2. Getting lineage with depth control:
-   get_model_lineage_dev(unique_id="model.my_project.customer_orders", depth=3)
+   get_lineage_dev(unique_id="model.my_project.customer_orders", depth=3)
 
 3. Getting lineage filtered to only models and sources:
-   get_model_lineage_dev(unique_id="model.my_project.customer_orders", types=["Model", "Source"])
+   get_lineage_dev(unique_id="model.my_project.customer_orders", types=["Model", "Source"])
 
 4. Getting lineage excluding tests:
-   get_model_lineage_dev(unique_id="model.my_project.customer_orders", types=["Model", "Source", "Seed", "Snapshot", "Exposure"])
+   get_lineage_dev(unique_id="model.my_project.customer_orders", types=["Model", "Source", "Seed", "Snapshot", "Exposure"])
 </examples>

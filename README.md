@@ -59,7 +59,7 @@ The dbt MCP server architecture allows for your agent to connect to a variety of
 - `build`
 - `compile`
 - `docs`
-- `get_model_lineage_dev`
+- `get_lineage_dev`
 - `get_node_details_dev`
 - `list`
 - `parse`

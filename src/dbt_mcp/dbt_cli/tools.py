@@ -196,7 +196,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             manifest_data = json.load(f)
         return Manifest(**manifest_data)
 
-    def get_model_lineage_dev(
+    def get_lineage_dev(
         unique_id: str = UNIQUE_ID_REQUIRED_FIELD,
         types: list[LineageResourceType] | None = TYPES_FIELD,
         depth: int = DEPTH_FIELD,
@@ -374,9 +374,9 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             ),
         ),
         ToolDefinition(
-            name="get_model_lineage_dev",
-            fn=get_model_lineage_dev,
-            description=get_prompt("dbt_cli/get_model_lineage_dev"),
+            name="get_lineage_dev",
+            fn=get_lineage_dev,
+            description=get_prompt("dbt_cli/get_lineage_dev"),
             annotations=create_tool_annotations(
                 title="Get Model Lineage (Dev)",
                 read_only_hint=True,
