@@ -1,6 +1,6 @@
 import pytest
 
-from dbt_mcp.dbt_cli.models.lineage_types import ModelLineage
+from dbt_mcp.dbt_cli.models.lineage_types import ModelLineage, Descendant
 from dbt_mcp.dbt_cli.models.manifest import Manifest
 from dbt_mcp.tools.fields import LineageResourceType
 
@@ -121,3 +121,28 @@ def test_model_lineage__types_filter_models_only(sample_manifest):
     )
     # Children should still have models
     assert len(lineage.children) == 2, "Expected 2 model children for model.a"
+
+
+def test_model_lineage__depth_zero_is_infinite(sample_manifest):
+    """Test that depth=0 returns all nodes in the graph."""
+    manifest = sample_manifest
+    # source.1 -> model.a -> (model.b -> model.d, model.c)
+    lineage = ModelLineage.from_manifest(manifest, "source.1", depth=0)
+
+    # flatten the children to get all unique IDs
+    def collect_children(
+        node: ModelLineage | Descendant, collected: set[str] | None = None
+    ) -> set[str]:
+        if collected is None:
+            collected = set()
+        else:
+            collected.add(node.model_id)
+        for child in getattr(node, "children", []):
+            collect_children(child, collected)
+        return collected
+
+    all_ids = collect_children(lineage)
+
+    expected_ids = {"model.a", "model.b", "model.c", "model.d", "test.some_test_14"}
+
+    assert all_ids == expected_ids, "Expected all nodes in the graph with depth=0"
