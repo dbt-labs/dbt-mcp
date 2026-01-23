@@ -1,7 +1,7 @@
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
-import requests
 
 from dbt_mcp.config.config_providers import AdminApiConfig
 from dbt_mcp.dbt_admin.client import (
@@ -61,6 +61,15 @@ def client_with_prefix(admin_config_with_prefix):
     return DbtAdminAPIClient(config_provider)
 
 
+def create_mock_httpx_client(mock_response):
+    mock_client = AsyncMock()
+    mock_client.request = AsyncMock(return_value=mock_response)
+    mock_client.get = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+    return mock_client
+
+
 async def test_client_initialization(client):
     config = await client.get_config()
     assert config.account_id == 12345
@@ -74,37 +83,38 @@ async def test_client_initialization(client):
     assert headers["Accept"] == "application/json"
 
 
-@patch("requests.request")
-async def test_make_request_success(mock_request, client):
-    mock_response = Mock()
+async def test_make_request_success(client):
+    mock_response = MagicMock()
     mock_response.json.return_value = {"data": "test"}
     mock_response.raise_for_status.return_value = None
-    mock_request.return_value = mock_response
 
-    result = await client._make_request("GET", "/test/endpoint")
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client._make_request("GET", "/test/endpoint")
 
     assert result == {"data": "test"}
     headers = await client.get_headers()
-    mock_request.assert_called_once_with(
+    mock_client.request.assert_called_once_with(
         "GET", "https://cloud.getdbt.com/test/endpoint", headers=headers
     )
 
 
-@patch("requests.request")
-async def test_make_request_failure(mock_request, client):
-    mock_response = Mock()
-    mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError(
-        "404 Not Found"
+async def test_make_request_failure(client):
+    mock_response = MagicMock()
+    mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "404 Not Found", request=MagicMock(), response=MagicMock()
     )
-    mock_request.return_value = mock_response
 
-    with pytest.raises(AdminAPIError):
-        await client._make_request("GET", "/test/endpoint")
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        with pytest.raises(AdminAPIError):
+            await client._make_request("GET", "/test/endpoint")
 
 
-@patch("requests.request")
-async def test_list_jobs(mock_request, client):
-    mock_response = Mock()
+async def test_list_jobs(client):
+    mock_response = MagicMock()
     mock_response.json.return_value = {
         "data": [
             {
@@ -132,9 +142,11 @@ async def test_list_jobs(mock_request, client):
         ]
     }
     mock_response.raise_for_status.return_value = None
-    mock_request.return_value = mock_response
 
-    result = await client.list_jobs(12345, project_id=1, limit=10)
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.list_jobs(12345, project_id=1, limit=10)
 
     assert len(result) == 1
     assert result[0]["id"] == 1
@@ -143,7 +155,7 @@ async def test_list_jobs(mock_request, client):
     assert result[0]["schedule"] == "0 9 * * *"
 
     headers = await client.get_headers()
-    mock_request.assert_called_once_with(
+    mock_client.request.assert_called_once_with(
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/jobs/?include_related=['most_recent_run','most_recent_completed_run']",
         headers=headers,
@@ -151,9 +163,8 @@ async def test_list_jobs(mock_request, client):
     )
 
 
-@patch("requests.request")
-async def test_list_jobs_with_null_values(mock_request, client):
-    mock_response = Mock()
+async def test_list_jobs_with_null_values(client):
+    mock_response = MagicMock()
     mock_response.json.return_value = {
         "data": [
             {
@@ -171,47 +182,51 @@ async def test_list_jobs_with_null_values(mock_request, client):
         ]
     }
     mock_response.raise_for_status.return_value = None
-    mock_request.return_value = mock_response
 
-    result = await client.list_jobs(12345)
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.list_jobs(12345)
 
     assert len(result) == 1
     assert result[0]["most_recent_run_id"] is None
     assert result[0]["schedule"] is None
 
 
-@patch("requests.request")
-async def test_get_job_details(mock_request, client):
-    mock_response = Mock()
+async def test_get_job_details(client):
+    mock_response = MagicMock()
     mock_response.json.return_value = {"data": {"id": 1, "name": "test_job"}}
     mock_response.raise_for_status.return_value = None
-    mock_request.return_value = mock_response
 
-    result = await client.get_job_details(12345, 1)
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.get_job_details(12345, 1)
 
     assert result == {"id": 1, "name": "test_job"}
     headers = await client.get_headers()
-    mock_request.assert_called_once_with(
+    mock_client.request.assert_called_once_with(
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/jobs/1/?include_related=['most_recent_run','most_recent_completed_run']",
         headers=headers,
     )
 
 
-@patch("requests.request")
-async def test_trigger_job_run(mock_request, client):
-    mock_response = Mock()
+async def test_trigger_job_run(client):
+    mock_response = MagicMock()
     mock_response.json.return_value = {"data": {"id": 200, "status": "queued"}}
     mock_response.raise_for_status.return_value = None
-    mock_request.return_value = mock_response
 
-    result = await client.trigger_job_run(
-        12345, 1, "Manual trigger", git_branch="main", schema_override="test_schema"
-    )
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.trigger_job_run(
+            12345, 1, "Manual trigger", git_branch="main", schema_override="test_schema"
+        )
 
     assert result == {"id": 200, "status": "queued"}
     headers = await client.get_headers()
-    mock_request.assert_called_once_with(
+    mock_client.request.assert_called_once_with(
         "POST",
         "https://cloud.getdbt.com/api/v2/accounts/12345/jobs/1/run/",
         headers=headers,
@@ -223,9 +238,8 @@ async def test_trigger_job_run(mock_request, client):
     )
 
 
-@patch("requests.request")
-async def test_list_jobs_runs(mock_request, client):
-    mock_response = Mock()
+async def test_list_jobs_runs(client):
+    mock_response = MagicMock()
     mock_response.json.return_value = {
         "data": [
             {
@@ -264,9 +278,13 @@ async def test_list_jobs_runs(mock_request, client):
         ]
     }
     mock_response.raise_for_status.return_value = None
-    mock_request.return_value = mock_response
 
-    result = await client.list_jobs_runs(12345, job_definition_id=1, status="success")
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.list_jobs_runs(
+            12345, job_definition_id=1, status="success"
+        )
 
     assert len(result) == 1
     run = result[0]
@@ -306,7 +324,7 @@ async def test_list_jobs_runs(mock_request, client):
         assert field not in run
 
     headers = await client.get_headers()
-    mock_request.assert_called_once_with(
+    mock_client.request.assert_called_once_with(
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/?include_related=['job']",
         headers=headers,
@@ -314,9 +332,8 @@ async def test_list_jobs_runs(mock_request, client):
     )
 
 
-@patch("requests.request")
-async def test_get_job_run_details(mock_request, client):
-    mock_response = Mock()
+async def test_get_job_run_details(client):
+    mock_response = MagicMock()
     mock_response.json.return_value = {
         "data": {
             "id": 100,
@@ -331,9 +348,11 @@ async def test_get_job_run_details(mock_request, client):
         }
     }
     mock_response.raise_for_status.return_value = None
-    mock_request.return_value = mock_response
 
-    result = await client.get_job_run_details(12345, 100)
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.get_job_run_details(12345, 100)
 
     assert result["id"] == 100
     # Verify truncated_debug_logs and logs are removed
@@ -341,52 +360,53 @@ async def test_get_job_run_details(mock_request, client):
     assert "logs" not in result["run_steps"][0]
 
     headers = await client.get_headers()
-    mock_request.assert_called_once_with(
+    mock_client.request.assert_called_once_with(
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/?include_related=['run_steps']",
         headers=headers,
     )
 
 
-@patch("requests.request")
-async def test_cancel_job_run(mock_request, client):
-    mock_response = Mock()
+async def test_cancel_job_run(client):
+    mock_response = MagicMock()
     mock_response.json.return_value = {"data": {"id": 100, "status": "cancelled"}}
     mock_response.raise_for_status.return_value = None
-    mock_request.return_value = mock_response
 
-    result = await client.cancel_job_run(12345, 100)
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.cancel_job_run(12345, 100)
 
     assert result == {"id": 100, "status": "cancelled"}
     headers = await client.get_headers()
-    mock_request.assert_called_once_with(
+    mock_client.request.assert_called_once_with(
         "POST",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/cancel/",
         headers=headers,
     )
 
 
-@patch("requests.request")
-async def test_retry_job_run(mock_request, client):
-    mock_response = Mock()
+async def test_retry_job_run(client):
+    mock_response = MagicMock()
     mock_response.json.return_value = {"data": {"id": 101, "status": "queued"}}
     mock_response.raise_for_status.return_value = None
-    mock_request.return_value = mock_response
 
-    result = await client.retry_job_run(12345, 100)
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.retry_job_run(12345, 100)
 
     assert result == {"id": 101, "status": "queued"}
     headers = await client.get_headers()
-    mock_request.assert_called_once_with(
+    mock_client.request.assert_called_once_with(
         "POST",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/retry/",
         headers=headers,
     )
 
 
-@patch("requests.request")
-async def test_list_job_run_artifacts(mock_request, client):
-    mock_response = Mock()
+async def test_list_job_run_artifacts(client):
+    mock_response = MagicMock()
     mock_response.json.return_value = {
         "data": [
             "manifest.json",
@@ -397,80 +417,88 @@ async def test_list_job_run_artifacts(mock_request, client):
         ]
     }
     mock_response.raise_for_status.return_value = None
-    mock_request.return_value = mock_response
 
-    result = await client.list_job_run_artifacts(12345, 100)
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.list_job_run_artifacts(12345, 100)
 
     # Should filter out compiled/ and run/ artifacts
     expected = ["manifest.json", "catalog.json", "sources.json"]
     assert result == expected
 
     headers = await client.get_headers()
-    mock_request.assert_called_once_with(
+    mock_client.request.assert_called_once_with(
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/artifacts/",
         headers=headers,
     )
 
 
-@patch("requests.get")
-async def test_get_job_run_artifact_json(mock_get, client):
-    mock_response = Mock()
-    mock_response.json.return_value = {"nodes": {"model.test": {}}}
+async def test_get_job_run_artifact_json(client):
+    mock_response = MagicMock()
+    mock_response.text = '{"nodes": {"model.test": {}}}'
     mock_response.headers = {"content-type": "application/json"}
     mock_response.raise_for_status.return_value = None
-    mock_get.return_value = mock_response
 
-    result = await client.get_job_run_artifact(12345, 100, "manifest.json", step=1)
+    mock_client = create_mock_httpx_client(mock_response)
 
-    # The client returns response.text, but the mock returns the mock_response.text which is a Mock object
-    # In a real scenario with JSON content type, the API would return JSON as text
-    assert result is not None
-    mock_get.assert_called_once_with(
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.get_job_run_artifact(12345, 100, "manifest.json", step=1)
+
+    assert result == '{"nodes": {"model.test": {}}}'
+    mock_client.get.assert_called_once_with(
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/artifacts/manifest.json",
         headers={"Authorization": "Bearer test_token", "Accept": "*/*"},
         params={"step": 1},
     )
 
 
-@patch("requests.get")
-async def test_get_job_run_artifact_text(mock_get, client):
-    mock_response = Mock()
+async def test_get_job_run_artifact_text(client):
+    mock_response = MagicMock()
     mock_response.text = "LOG DATA"
     mock_response.headers = {"content-type": "text/plain"}
     mock_response.raise_for_status.return_value = None
-    mock_get.return_value = mock_response
 
-    result = await client.get_job_run_artifact(12345, 100, "logs/dbt.log")
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.get_job_run_artifact(12345, 100, "logs/dbt.log")
 
     assert result == "LOG DATA"
-    mock_get.assert_called_once_with(
+    mock_client.get.assert_called_once_with(
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/artifacts/logs/dbt.log",
         headers={"Authorization": "Bearer test_token", "Accept": "*/*"},
         params={},
     )
 
 
-@patch("requests.get")
-async def test_get_job_run_artifact_no_step_param(mock_get, client):
-    mock_response = Mock()
+async def test_get_job_run_artifact_no_step_param(client):
+    mock_response = MagicMock()
     mock_response.text = "artifact content"
     mock_response.headers = {"content-type": "text/plain"}
     mock_response.raise_for_status.return_value = None
-    mock_get.return_value = mock_response
 
-    await client.get_job_run_artifact(12345, 100, "manifest.json")
+    mock_client = create_mock_httpx_client(mock_response)
 
-    mock_get.assert_called_once_with(
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        await client.get_job_run_artifact(12345, 100, "manifest.json")
+
+    mock_client.get.assert_called_once_with(
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/artifacts/manifest.json",
         headers={"Authorization": "Bearer test_token", "Accept": "*/*"},
         params={},
     )
 
 
-@patch("requests.get")
-async def test_get_job_run_artifact_request_exception(mock_get, client):
-    mock_get.side_effect = requests.exceptions.HTTPError("404 Not Found")
+async def test_get_job_run_artifact_request_exception(client):
+    mock_response = MagicMock()
+    mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "404 Not Found", request=MagicMock(), response=MagicMock()
+    )
 
-    with pytest.raises(ArtifactRetrievalError):
-        await client.get_job_run_artifact(12345, 100, "nonexistent.json")
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        with pytest.raises(ArtifactRetrievalError):
+            await client.get_job_run_artifact(12345, 100, "nonexistent.json")
