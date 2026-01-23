@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: Use Python importlib over git in subprocess to get version for manifest.json
+time: 2026-01-22T19:59:10.732827-08:00
