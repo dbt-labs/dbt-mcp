@@ -2,14 +2,12 @@ import logging
 from dataclasses import dataclass
 
 from mcp.server.fastmcp import FastMCP
-from pydantic import Field
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.client import (
     AppliedResourceType,
     ExposuresFetcher,
     LineageFetcher,
-    LineageResourceType,
     MetadataAPIClient,
     ModelPerformanceFetcher,
     ModelsFetcher,
@@ -19,32 +17,19 @@ from dbt_mcp.discovery.client import (
 )
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
+from dbt_mcp.tools.fields import (
+    DEPTH_FIELD,
+    NAME_FIELD,
+    TYPES_FIELD,
+    UNIQUE_ID_FIELD,
+    UNIQUE_ID_REQUIRED_FIELD,
+    LineageResourceType,
+)
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
-
-UNIQUE_ID_FIELD = Field(
-    default=None,
-    description="Fully-qualified unique ID of the resource. "
-    "This will follow the format `<resource_type>.<package_name>.<resource_name>` "
-    "(e.g. `model.analytics.stg_orders`). "
-    "Strongly preferred over the `name` parameter for deterministic lookups.",
-)
-NAME_FIELD = Field(
-    default=None,
-    description="The name of the resource. "
-    "This is not required if `unique_id` is provided. "
-    "Only use name when `unique_id` is unknown.",
-)
-TYPES_FIELD = Field(
-    default=None,
-    description="List of resource types to include in lineage results. "
-    "If not provided, includes all types. "
-    "Valid types: Model, Source, Seed, Snapshot, Exposure, Metric, SemanticModel, SavedQuery, Test.",
-)
-DEPTH_FIELD = Field(default=5, description="The depth of the lineage graph to return.")
 
 
 @dataclass
@@ -236,7 +221,7 @@ async def get_model_performance(
 )
 async def get_lineage(
     context: DiscoveryToolContext,
-    unique_id: str,
+    unique_id: str = UNIQUE_ID_REQUIRED_FIELD,
     types: list[LineageResourceType] | None = TYPES_FIELD,
     depth: int = DEPTH_FIELD,
 ) -> list[dict]:

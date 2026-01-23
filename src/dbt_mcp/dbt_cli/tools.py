@@ -2,7 +2,7 @@ import json
 import os
 import subprocess
 from collections.abc import Iterable
-from typing import Any, Literal
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -14,6 +14,12 @@ from dbt_mcp.dbt_cli.models.manifest import Manifest
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.annotations import create_tool_annotations
 from dbt_mcp.tools.definitions import ToolDefinition
+from dbt_mcp.tools.fields import (
+    DEPTH_FIELD,
+    TYPES_FIELD,
+    UNIQUE_ID_REQUIRED_FIELD,
+    LineageResourceType,
+)
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
@@ -191,19 +197,16 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         return Manifest(**manifest_data)
 
     def get_model_lineage_dev(
-        model_id: str,
-        direction: Literal["parents", "children", "both"] = "both",
-        exclude_prefixes: tuple[str, ...] = ("test.", "unit_test."),
-        *,
-        recursive: bool,
+        unique_id: str = UNIQUE_ID_REQUIRED_FIELD,
+        types: list[LineageResourceType] | None = TYPES_FIELD,
+        depth: int = DEPTH_FIELD,
     ) -> dict[str, Any]:
         manifest = _get_manifest()
         model_lineage = ModelLineage.from_manifest(
             manifest,
-            model_id,
-            direction=direction,
-            exclude_prefixes=exclude_prefixes,
-            recursive=recursive,
+            unique_id=unique_id,
+            types=types,
+            depth=depth,
         )
         return model_lineage.model_dump()
 

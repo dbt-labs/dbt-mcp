@@ -10,6 +10,7 @@ from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.graphql import load_query
 from dbt_mcp.errors import InvalidParameterError, ToolCallError
 from dbt_mcp.gql.errors import raise_gql_error
+from dbt_mcp.tools.fields import LineageResourceType
 
 DEFAULT_PAGE_SIZE = 100
 DEFAULT_MAX_NODE_QUERY_LIMIT = 10000
@@ -670,20 +671,6 @@ class ResourceDetailsFetcher:
         if not edges:
             return []
         return [e["node"] for e in edges]
-
-
-class LineageResourceType(StrEnum):
-    """Resource types supported by the lineage API."""
-
-    MODEL = "Model"
-    SOURCE = "Source"
-    SEED = "Seed"
-    SNAPSHOT = "Snapshot"
-    EXPOSURE = "Exposure"
-    METRIC = "Metric"
-    SEMANTIC_MODEL = "SemanticModel"
-    SAVED_QUERY = "SavedQuery"
-    TEST = "Test"
 
 
 class LineageFetcher:
