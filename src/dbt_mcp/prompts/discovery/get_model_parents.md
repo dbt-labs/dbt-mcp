@@ -5,7 +5,7 @@ You can provide either a name or a uniqueId, if known, to identify the model. Us
 
 Returned parents include `resourceType`, `name`, and `description`. For upstream sources, also provide `sourceName` and `uniqueId` so lineage can be linked back via `get_all_sources`.
 
-This is specifically for retrieving model parents from the production manifest. If you want development lineage, use `get_model_lineage_dev` instead.
+This is specifically for retrieving model parents from the production manifest. If you want development lineage, use `get_lineage_dev` instead.
 </instructions>
 
 <parameters>
