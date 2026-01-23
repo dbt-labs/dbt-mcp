@@ -73,7 +73,7 @@ class ModelLineage(BaseModel):
         - manifest: Manifest object containing at least 'parent_map' and/or 'child_map'
         - unique_id: the fully-qualified unique ID to start from
         - types: list of resource types to include. If None, includes all types.
-        - depth: how many levels to traverse (1 = immediate neighbors only, higher = deeper)
+        - depth: how many levels to traverse (0 = infinite, 1 = immediate neighbors only, higher = deeper)
 
         The returned ModelLineage contains lists of Ancestor and/or Descendant
         objects.
@@ -96,7 +96,7 @@ class ModelLineage(BaseModel):
                 return None
 
             next_nodes: list[Ancestor | Descendant] = []
-            if current_depth < depth:
+            if depth == 0 or current_depth < depth:
                 for next_id in map_data.get(node_id, []):
                     if not _should_include(next_id, include_prefixes):
                         continue
@@ -117,7 +117,7 @@ class ModelLineage(BaseModel):
             if not _should_include(item_id, include_prefixes):
                 continue
 
-            if depth > 1:
+            if depth == 0 or depth > 1:
                 p_node = _build_node(item_id, parent_map, "parents", {unique_id}, 1)
                 if p_node:
                     parents.append(cast(Ancestor, p_node))
@@ -128,7 +128,7 @@ class ModelLineage(BaseModel):
             if not _should_include(item_id, include_prefixes):
                 continue
 
-            if depth > 1:
+            if depth == 0 or depth > 1:
                 c_node = _build_node(item_id, child_map, "children", {unique_id}, 1)
                 if c_node:
                     children.append(cast(Descendant, c_node))
