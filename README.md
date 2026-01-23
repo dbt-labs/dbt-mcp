@@ -88,6 +88,9 @@ The dbt MCP server architecture allows for your agent to connect to a variety of
 - `fusion.get_column_lineage`
 - `get_column_lineage`
 
+### Mcp Server Metadata
+- `get_mcp_server_version`
+
 
 ## Examples
 

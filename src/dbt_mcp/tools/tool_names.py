@@ -70,6 +70,9 @@ class ToolName(Enum):
     FUSION_COMPILE_SQL = "fusion.compile_sql"
     FUSION_GET_COLUMN_LINEAGE = "fusion.get_column_lineage"
 
+    # MCP Server tools
+    GET_MCP_SERVER_VERSION = "get_mcp_server_version"
+
     @classmethod
     def get_all_tool_names(cls) -> set[str]:
         """Returns a set of all tool names as strings."""

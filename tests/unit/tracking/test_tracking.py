@@ -207,6 +207,7 @@ class TestUsageTracker:
             disable_dbt_cli=False,
             disable_admin_api=False,
             disable_dbt_codegen=False,
+            disable_mcp_server_metadata=False,
         )
         tracker = DefaultUsageTracker(
             credentials_provider=MockCredentialsProvider(mock_settings),
@@ -226,6 +227,7 @@ class TestUsageTracker:
             disable_dbt_cli=False,
             disable_admin_api=False,
             disable_dbt_codegen=False,
+            disable_mcp_server_metadata=False,
         )
         tracker = DefaultUsageTracker(
             credentials_provider=MockCredentialsProvider(mock_settings),
@@ -245,6 +247,7 @@ class TestUsageTracker:
             disable_dbt_cli=True,
             disable_admin_api=True,
             disable_dbt_codegen=True,
+            disable_mcp_server_metadata=True,
         )
         tracker = DefaultUsageTracker(
             credentials_provider=MockCredentialsProvider(mock_settings),
@@ -259,6 +262,7 @@ class TestUsageTracker:
             Toolset.DBT_CLI,
             Toolset.ADMIN_API,
             Toolset.DBT_CODEGEN,
+            Toolset.MCP_SERVER_METADATA,
         }
 
     @pytest.mark.asyncio
@@ -310,6 +314,7 @@ class TestUsageTracker:
             disable_dbt_cli=False,
             disable_admin_api=False,
             disable_dbt_codegen=False,
+            disable_mcp_server_metadata=False,
         )
         mock_credentials_provider = MockCredentialsProvider(mock_settings)
 

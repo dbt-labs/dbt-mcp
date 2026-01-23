@@ -19,6 +19,7 @@ class Toolset(Enum):
     ADMIN_API = "admin_api"
     DBT_CODEGEN = "dbt_codegen"
     DBT_LSP = "dbt_lsp"
+    MCP_SERVER_METADATA = "mcp_server_metadata"
 
 
 proxied_tools: set[
@@ -107,6 +108,9 @@ toolsets = {
         ToolName.GET_COLUMN_LINEAGE,
         ToolName.FUSION_COMPILE_SQL,
         ToolName.FUSION_GET_COLUMN_LINEAGE,
+    },
+    Toolset.MCP_SERVER_METADATA: {
+        ToolName.GET_MCP_SERVER_VERSION,
     },
 }
 
