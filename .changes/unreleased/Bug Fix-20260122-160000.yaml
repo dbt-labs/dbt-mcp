@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Fix get_job_run_error returning empty failed_steps when artifacts don't exist
+time: 2026-01-22T16:00:00.000000Z
