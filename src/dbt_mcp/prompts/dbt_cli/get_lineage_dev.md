@@ -9,7 +9,7 @@ This tool ONLY pulls from the local development manifest. For production lineage
 <parameters>
 unique_id: str => Fully-qualified unique ID of the resource (e.g. `model.analytics.stg_orders`).
 types: list[LineageResourceType] | None = None => List of resource types to include. If None, includes all types. Valid types: Model, Source, Seed, Snapshot, Exposure, Metric, Test.
-depth: int = 5 => The depth of the lineage graph to return. Controls how many levels to traverse (1 = immediate neighbors only).
+depth: int = 5 => The depth of the lineage graph to return. Controls how many levels to traverse (0 = infinite, 1 = immediate neighbors only, higher = deeper).
 </parameters>
 
 <examples>

@@ -78,6 +78,8 @@ class ModelLineage(BaseModel):
         The returned ModelLineage contains lists of Ancestor and/or Descendant
         objects.
         """
+        if depth < 0:
+            raise ValueError("Depth must be 0 (infinite) or a positive integer.")
         parent_map = manifest.parent_map
         child_map = manifest.child_map
         include_prefixes = _get_include_prefixes(types)
