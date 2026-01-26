@@ -228,7 +228,7 @@ def create_app(
         request: GetEnvironmentsRequest,
     ) -> list[DbtPlatformEnvironmentResponse]:
         """Get all environments for a project, excluding development environments."""
-        logger.info(f"Getting environments for project {request.project_id}")
+        logger.info("Getting environments for project %s", request.project_id)
         if app.state.decoded_access_token is None:
             raise RuntimeError("Access token missing; OAuth flow not completed")
         access_token = app.state.decoded_access_token.access_token_response.access_token
