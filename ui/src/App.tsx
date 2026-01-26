@@ -10,6 +10,12 @@ type Project = {
   account_name: string;
 };
 
+type Environment = {
+  id: number;
+  name: string;
+  deployment_type: string | null;
+};
+
 type DbtPlatformContext = {
   dev_environment: {
     id: number;
@@ -299,6 +305,14 @@ export default function App() {
     useState<DbtPlatformContext | null>(null);
   const [continuing, setContinuing] = useState(false);
   const [shutdownComplete, setShutdownComplete] = useState(false);
+  const [environments, setEnvironments] = useState<Environment[]>([]);
+  const [loadingEnvironments, setLoadingEnvironments] = useState(false);
+  const [environmentsError, setEnvironmentsError] = useState<string | null>(
+    null
+  );
+  const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<
+    number | null
+  >(null);
 
   // Load available projects after OAuth success
   useEffect(() => {
@@ -406,10 +420,62 @@ export default function App() {
 
   const onSelectProject = async (projectIdStr: string) => {
     setDbtPlatformContext(null);
+    setEnvironments([]);
+    setSelectedEnvironmentId(null);
+    setEnvironmentsError(null);
     const projectId = Number(projectIdStr);
     setSelectedProjectId(Number.isNaN(projectId) ? null : projectId);
     const project = projects.find((p) => p.id === projectId);
     if (!project) return;
+
+    // Fetch environments for the selected project
+    setLoadingEnvironments(true);
+    try {
+      const res = await fetchWithRetry(
+        "/environments",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            account_id: project.account_id,
+            project_id: project.id,
+          }),
+        },
+        { attempts: 3, delayMs: 400 }
+      );
+      if (res.ok) {
+        const data: Environment[] = await res.json();
+        setEnvironments(data);
+        // Pre-select production environment if available
+        const prodEnv = data.find(
+          (env) =>
+            env.deployment_type &&
+            env.deployment_type.toLowerCase() === "production"
+        );
+        if (prodEnv) {
+          setSelectedEnvironmentId(prodEnv.id);
+        } else if (data.length > 0) {
+          setSelectedEnvironmentId(data[0].id);
+        }
+      } else {
+        setEnvironmentsError(await res.text());
+      }
+    } catch (err) {
+      setEnvironmentsError(String(err));
+    } finally {
+      setLoadingEnvironments(false);
+    }
+  };
+
+  const onSelectEnvironment = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const envId = Number(e.target.value);
+    setSelectedEnvironmentId(Number.isNaN(envId) ? null : envId);
+  };
+
+  const onConfirmSelection = async () => {
+    const project = projects.find((p) => p.id === selectedProjectId);
+    if (!project || selectedEnvironmentId === null) return;
+
     try {
       const res = await fetchWithRetry(
         "/selected_project",
@@ -419,6 +485,7 @@ export default function App() {
           body: JSON.stringify({
             account_id: project.account_id,
             project_id: project.id,
+            prod_environment_id: selectedEnvironmentId,
           }),
         },
         { attempts: 3, delayMs: 400 }
@@ -522,6 +589,74 @@ export default function App() {
                   />
                 </div>
               )}
+
+              {loadingEnvironments && (
+                <div className="loading-state">
+                  <div className="spinner"></div>
+                  <span>Loading environments…</span>
+                </div>
+              )}
+
+              {environmentsError && (
+                <div className="error-state">
+                  <strong>Error loading environments</strong>
+                  <p>{environmentsError}</p>
+                </div>
+              )}
+
+              {!loadingEnvironments &&
+                !environmentsError &&
+                selectedProjectId !== null &&
+                environments.length > 0 && (
+                  <div className="form-group">
+                    <label
+                      htmlFor="environment-select"
+                      className="form-label"
+                      id="environment-select-label"
+                    >
+                      Deployment Environment
+                    </label>
+                    <select
+                      id="environment-select"
+                      className="environment-select"
+                      value={selectedEnvironmentId ?? ""}
+                      onChange={onSelectEnvironment}
+                    >
+                      {environments.map((env) => (
+                        <option key={env.id} value={env.id}>
+                          {env.name} ({env.deployment_type ? `${env.deployment_type} - ${env.id}` : env.id})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+              {!loadingEnvironments &&
+                !environmentsError &&
+                selectedProjectId !== null &&
+                environments.length === 0 && (
+                  <div className="error-state">
+                    <strong>No environments available</strong>
+                    <p>
+                      This project has no non-development environments. Please
+                      configure an environment in dbt Cloud first.
+                    </p>
+                  </div>
+                )}
+
+              {selectedProjectId !== null &&
+                environments.length > 0 &&
+                selectedEnvironmentId !== null &&
+                !dbtPlatformContext && (
+                  <div className="button-container" style={{ marginTop: "1rem" }}>
+                    <button
+                      onClick={onConfirmSelection}
+                      className="primary-button"
+                    >
+                      Confirm Selection
+                    </button>
+                  </div>
+                )}
             </div>
           </section>
         )}
@@ -552,7 +687,7 @@ export default function App() {
 
               {dbtPlatformContext.prod_environment && (
                 <div className="context-item">
-                  <strong>Production Environment:</strong>
+                  <strong>Deployment Environment:</strong>
                   <div className="environment-details">
                     <span className="env-name">
                       {dbtPlatformContext.prod_environment.name}
