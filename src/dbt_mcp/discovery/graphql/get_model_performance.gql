@@ -1,0 +1,25 @@
+query ModelHistoricalRuns(
+  $environmentId: BigInt!
+  $uniqueId: String!
+  $lastRunCount: Int!
+) {
+  environment(id: $environmentId) {
+    applied {
+      modelHistoricalRuns(
+        uniqueId: $uniqueId
+        lastRunCount: $lastRunCount
+      ) {
+        uniqueId
+        runId
+        status
+        executeStartedAt
+        executionTime
+        tests {
+          name
+          status
+          executionTime
+        }
+      }
+    }
+  }
+}
