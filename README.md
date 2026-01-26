@@ -46,6 +46,7 @@ The dbt MCP server architecture allows for your agent to connect to a variety of
 - `get_model_details`
 - `get_model_health`
 - `get_model_parents`
+- `get_model_performance`
 - `get_related_models`
 - `get_seed_details`
 - `get_semantic_model_details`
