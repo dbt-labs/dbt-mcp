@@ -38,7 +38,8 @@ class DbtPlatformProject(BaseModel):
 class DbtPlatformEnvironmentResponse(BaseModel):
     id: int
     name: str
-    deployment_type: str | None
+    type: str | None = None
+    deployment_type: str | None = None
 
 
 class DbtPlatformEnvironment(BaseModel):

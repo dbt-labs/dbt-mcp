@@ -224,10 +224,10 @@ def create_app(
         return dbt_platform_context_manager.read_context() or DbtPlatformContext()
 
     @app.post("/environments")
-    def get_environments(
+    def get_deployment_environments(
         request: GetEnvironmentsRequest,
     ) -> list[DbtPlatformEnvironmentResponse]:
-        """Get all environments for a project, excluding development environments."""
+        """Get all deployment environments for a project, excluding development environments."""
         logger.info("Getting environments for project %s", request.project_id)
         if app.state.decoded_access_token is None:
             raise RuntimeError("Access token missing; OAuth flow not completed")
@@ -247,9 +247,7 @@ def create_app(
         return [
             env
             for env in environments
-            if not (
-                env.deployment_type and env.deployment_type.lower() == "development"
-            )
+            if not (env.type and env.type.lower() == "development")
         ]
 
     @app.post("/selected_project")

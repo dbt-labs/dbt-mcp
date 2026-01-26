@@ -614,7 +614,7 @@ export default function App() {
                       className="form-label"
                       id="environment-select-label"
                     >
-                      Production Environment
+                      Deployment Environment
                     </label>
                     <select
                       id="environment-select"
@@ -624,7 +624,7 @@ export default function App() {
                     >
                       {environments.map((env) => (
                         <option key={env.id} value={env.id}>
-                          {env.name} ({env.deployment_type || "unknown"}, {env.id})
+                          {env.name} ({env.deployment_type ? `${env.deployment_type} - ${env.id}` : env.id})
                         </option>
                       ))}
                     </select>
@@ -687,7 +687,7 @@ export default function App() {
 
               {dbtPlatformContext.prod_environment && (
                 <div className="context-item">
-                  <strong>Production Environment:</strong>
+                  <strong>Deployment Environment:</strong>
                   <div className="environment-details">
                     <span className="env-name">
                       {dbtPlatformContext.prod_environment.name}
