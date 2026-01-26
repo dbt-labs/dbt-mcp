@@ -6,6 +6,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Annotated
 
+from authlib.integrations.requests_client import OAuth2Session
 from filelock import FileLock
 from pydantic import Field, field_validator, model_validator
 from pydantic_core.core_schema import ValidationInfo
@@ -16,8 +17,12 @@ from dbt_mcp.config.dbt_yaml import try_read_yaml
 from dbt_mcp.config.headers import (
     TokenProvider,
 )
+from dbt_mcp.oauth.client_id import OAUTH_CLIENT_ID
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
-from dbt_mcp.oauth.dbt_platform import DbtPlatformContext
+from dbt_mcp.oauth.dbt_platform import (
+    DbtPlatformContext,
+    dbt_platform_context_from_token_response,
+)
 from dbt_mcp.oauth.login import login
 from dbt_mcp.oauth.token_provider import (
     OAuthTokenProvider,
@@ -350,6 +355,70 @@ def get_dbt_profiles_path(dbt_profiles_dir: str | None = None) -> Path:
         return Path.home() / ".dbt"
 
 
+def _is_context_complete(dbt_ctx: DbtPlatformContext | None) -> bool:
+    """Check if the context has all required fields (regardless of token expiry).
+
+    Note: dev_environment is optional since not all projects have a development
+    environment configured. prod_environment is required for semantic layer
+    and other core features.
+    """
+    return bool(
+        dbt_ctx
+        and dbt_ctx.account_id
+        and dbt_ctx.host_prefix
+        and dbt_ctx.prod_environment
+        and dbt_ctx.decoded_access_token
+    )
+
+
+def _is_token_valid(dbt_ctx: DbtPlatformContext) -> bool:
+    """Check if the access token is still valid (not expired)."""
+    if not dbt_ctx.decoded_access_token:
+        return False
+    expires_at = dbt_ctx.decoded_access_token.access_token_response.expires_at
+    return expires_at > time.time() + 120  # 2 minutes buffer
+
+
+def _try_refresh_token(
+    dbt_ctx: DbtPlatformContext,
+    dbt_platform_url: str,
+    dbt_platform_context_manager: DbtPlatformContextManager,
+) -> DbtPlatformContext | None:
+    """
+    Attempt to refresh the access token using the refresh token.
+    Returns the updated context if successful, None otherwise.
+    """
+    if not dbt_ctx.decoded_access_token:
+        return None
+
+    refresh_token = dbt_ctx.decoded_access_token.access_token_response.refresh_token
+    if not refresh_token:
+        return None
+
+    try:
+        logger.info("Access token expired, attempting refresh using refresh token")
+        token_url = f"{dbt_platform_url}/oauth/token"
+        oauth_client = OAuth2Session(
+            client_id=OAUTH_CLIENT_ID,
+            token_endpoint=token_url,
+        )
+        token_response = oauth_client.refresh_token(
+            url=token_url,
+            refresh_token=refresh_token,
+        )
+        new_context = dbt_platform_context_from_token_response(
+            token_response, dbt_platform_url
+        )
+        # Merge the new token with the existing context (preserves account/env info)
+        updated_context = dbt_ctx.override(new_context)
+        dbt_platform_context_manager.write_context_to_file(updated_context)
+        logger.info("Successfully refreshed access token at startup")
+        return updated_context
+    except Exception as e:
+        logger.warning(f"Failed to refresh token at startup: {e}")
+        return None
+
+
 async def get_dbt_platform_context(
     *,
     dbt_user_dir: Path,
@@ -360,20 +429,21 @@ async def get_dbt_platform_context(
     # We need to lock so that only one can run the oauth flow.
     with FileLock(dbt_user_dir / "mcp.lock"):
         dbt_ctx = dbt_platform_context_manager.read_context()
-        # Note: dev_environment is optional since not all projects have a development
-        # environment configured. prod_environment is required for semantic layer
-        # and other core features.
-        if (
-            dbt_ctx
-            and dbt_ctx.account_id
-            and dbt_ctx.host_prefix
-            and dbt_ctx.prod_environment
-            and dbt_ctx.decoded_access_token
-            and dbt_ctx.decoded_access_token.access_token_response.expires_at
-            > time.time() + 120  # 2 minutes buffer
-        ):
-            return dbt_ctx
-        # Find an available port for the local OAuth redirect server
+
+        # If context is complete, check token validity
+        if _is_context_complete(dbt_ctx):
+            assert dbt_ctx is not None  # for type checker
+            # If token is still valid, use context directly
+            if _is_token_valid(dbt_ctx):
+                return dbt_ctx
+            # Token expired, try to refresh
+            refreshed_ctx = _try_refresh_token(
+                dbt_ctx, dbt_platform_url, dbt_platform_context_manager
+            )
+            if refreshed_ctx:
+                return refreshed_ctx
+
+        # Fall back to full OAuth login flow
         selected_port = _find_available_port(start_port=OAUTH_REDIRECT_STARTING_PORT)
         return await login(
             dbt_platform_url=dbt_platform_url,
