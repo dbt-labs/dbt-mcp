@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
+from functools import partial
 from typing import Any
 
 from mcp.server.fastmcp.tools.base import Tool
@@ -57,8 +58,9 @@ class ToolDefinition(GenericToolDefinition[ToolName]):
     name_enum: type[ToolName] = ToolName
 
 
-def dbt_mcp_tool(
+def generic_dbt_mcp_tool[NameEnum: Enum](
     description: str,
+    name_enum: type[NameEnum],
     name: str | None = None,
     title: str | None = None,
     read_only_hint: bool = False,
@@ -66,13 +68,14 @@ def dbt_mcp_tool(
     idempotent_hint: bool = False,
     open_world_hint: bool = True,
     structured_output: bool | None = False,
-) -> Callable[[Callable], ToolDefinition]:
+) -> Callable[[Callable], GenericToolDefinition[NameEnum]]:
     """Decorator to define a tool definition for dbt MCP"""
 
-    def decorator(fn: Callable) -> ToolDefinition:
-        return ToolDefinition(
+    def decorator(fn: Callable) -> GenericToolDefinition[NameEnum]:
+        return GenericToolDefinition(
             fn=fn,
             description=description,
+            name_enum=name_enum,
             name=name,
             title=title,
             annotations=ToolAnnotations(
@@ -86,3 +89,7 @@ def dbt_mcp_tool(
         )
 
     return decorator
+
+
+# Wrapper with ToolName pre-supplied for the common case
+dbt_mcp_tool = partial(generic_dbt_mcp_tool, name_enum=ToolName)
