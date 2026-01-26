@@ -47,9 +47,15 @@ class DbtPlatformEnvironment(BaseModel):
     deployment_type: str
 
 
+class GetEnvironmentsRequest(BaseModel):
+    account_id: int
+    project_id: int
+
+
 class SelectedProjectRequest(BaseModel):
     account_id: int
     project_id: int
+    prod_environment_id: int | None = None
 
 
 def dbt_platform_context_from_token_response(
