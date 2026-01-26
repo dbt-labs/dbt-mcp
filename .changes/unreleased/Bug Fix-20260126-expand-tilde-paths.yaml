@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Expand tilde (~) in DBT_PATH, DBT_PROJECT_DIR, and DBT_PROFILES_DIR environment variables to support paths like ~/.local/bin/dbt
+time: 2026-01-26T21:00:00.000000+01:00

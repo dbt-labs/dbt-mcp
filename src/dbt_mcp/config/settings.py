@@ -227,9 +227,9 @@ class DbtMcpSettings(BaseSettings):
         if v in ["dbt", "dbtf"]:
             return v
         if v:
-            p = Path(v)
+            p = Path(v).expanduser()
             if p.exists():
-                return v
+                return str(p)
 
             field_name = (
                 getattr(info, "field_name", "None") if info is not None else "None"
@@ -242,12 +242,13 @@ class DbtMcpSettings(BaseSettings):
     def validate_dir_exists(cls, v: str | None, info: ValidationInfo) -> str | None:
         """Validate a directory path exists in the system."""
         if v:
-            path = Path(v)
+            path = Path(v).expanduser()
             if not path.is_dir():
                 field_name = (
                     getattr(info, "field_name", "None") if info is not None else "None"
                 ).upper()
                 raise ValueError(f"{field_name} directory does not exist: {v}")
+            return str(path)
         return v
 
     @field_validator("disable_tools", mode="before")
