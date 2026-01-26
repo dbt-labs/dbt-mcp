@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Make development environment optional when reusing OAuth context, fixing re-auth loop for projects without a dev environment
+time: 2026-01-26T12:00:00.000000+01:00

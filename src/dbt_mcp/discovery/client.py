@@ -788,3 +788,91 @@ class LineageFetcher:
 
         # Return in original order
         return [node_map[uid] for uid in connected]
+
+
+class ModelPerformanceFetcher:
+    """Fetches model execution performance data from Discovery API."""
+
+    GET_MODEL_PERFORMANCE_QUERY = load_query("get_model_performance.gql")
+
+    def __init__(
+        self,
+        api_client: MetadataAPIClient,
+        resource_details_fetcher: ResourceDetailsFetcher,
+    ):
+        self.api_client = api_client
+        self._resource_details_fetcher = resource_details_fetcher
+
+    async def fetch_performance(
+        self,
+        name: str | None = None,
+        unique_id: str | None = None,
+        num_runs: int = 1,
+        include_tests: bool = False,
+    ) -> list[dict]:
+        """Fetch model performance data.
+
+        Args:
+            name: Model name (resolved to unique_id if provided)
+            unique_id: Fully-qualified unique ID (preferred)
+            num_runs: Number of historical runs to retrieve
+            include_tests: If True, include test execution history for each run
+
+        Returns:
+            List of performance records sorted by executeStartedAt descending
+
+        Raises:
+            InvalidParameterError: If neither name nor unique_id provided
+            ToolCallError: If model not found or API error
+        """
+        if not name and not unique_id:
+            raise InvalidParameterError("Either 'name' or 'unique_id' must be provided")
+
+        # Resolve name to unique_id if needed
+        resolved_unique_id = unique_id
+        if not resolved_unique_id:
+            # Re-use resource_details_fetcher from ResourceDetailsFetcher to resolve name
+            details = await self._resource_details_fetcher.fetch_details(
+                resource_type=AppliedResourceType.MODEL,
+                name=name,
+            )
+            if not details:
+                raise ToolCallError(f"Model not found: {name}")
+            # Model name can map to multiple unique_ids - require disambiguation
+            # For example, if multiple dbt packages define a model with the same name
+            if len(details) > 1:
+                matches = ", ".join(
+                    sorted(d.get("uniqueId", "") for d in details if d.get("uniqueId"))
+                )
+                raise ToolCallError(
+                    f"Multiple models found for name '{name}'. "
+                    "Please provide the unique_id instead. "
+                    f"Matches: {matches}"
+                )
+            resolved_unique_id = details[0]["uniqueId"]
+
+        config = await self.api_client.config_provider.get_config()
+        variables = {
+            "environmentId": config.environment_id,
+            "uniqueId": resolved_unique_id,
+            "lastRunCount": num_runs,
+        }
+
+        result = await self.api_client.execute_query(
+            self.GET_MODEL_PERFORMANCE_QUERY,
+            variables,
+        )
+        raise_gql_error(result)
+
+        runs = (
+            result.get("data", {})
+            .get("environment", {})
+            .get("applied", {})
+            .get("modelHistoricalRuns", [])
+        )
+
+        if not include_tests and runs:
+            for run in runs:
+                run.pop("tests", None)
+
+        return runs or []
