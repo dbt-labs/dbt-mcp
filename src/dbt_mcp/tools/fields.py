@@ -1,23 +1,6 @@
-"""Shared field definitions and types for tool parameters."""
-
-from enum import StrEnum
+"""Shared field definitions."""
 
 from pydantic import Field
-
-
-# TODO: Should this be somewhere else?
-class LineageResourceType(StrEnum):
-    """Resource types supported by lineage APIs."""
-
-    MODEL = "Model"
-    SOURCE = "Source"
-    SEED = "Seed"
-    SNAPSHOT = "Snapshot"
-    EXPOSURE = "Exposure"
-    METRIC = "Metric"
-    SEMANTIC_MODEL = "SemanticModel"
-    SAVED_QUERY = "SavedQuery"
-    TEST = "Test"
 
 
 _UNIQUE_ID_DESCRIPTION = (

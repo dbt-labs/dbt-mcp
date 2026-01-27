@@ -2,7 +2,7 @@ import pytest
 
 from dbt_mcp.dbt_cli.models.lineage_types import ModelLineage, Descendant
 from dbt_mcp.dbt_cli.models.manifest import Manifest
-from dbt_mcp.tools.fields import LineageResourceType
+from dbt_mcp.tools.parameters import LineageResourceType
 
 
 @pytest.fixture

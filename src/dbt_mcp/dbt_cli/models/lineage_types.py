@@ -4,7 +4,7 @@ from typing import cast
 from pydantic import BaseModel, Field
 
 from dbt_mcp.dbt_cli.models.manifest import Manifest
-from dbt_mcp.tools.fields import LineageResourceType
+from dbt_mcp.tools.parameters import LineageResourceType
 
 # These resource types are not supported in the CLI
 UNALLOWED_RESOURCE_TYPES = {

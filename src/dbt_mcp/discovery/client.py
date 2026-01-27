@@ -10,7 +10,7 @@ from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.graphql import load_query
 from dbt_mcp.errors import InvalidParameterError, ToolCallError
 from dbt_mcp.gql.errors import raise_gql_error
-from dbt_mcp.tools.fields import LineageResourceType
+from dbt_mcp.tools.parameters import LineageResourceType
 
 DEFAULT_PAGE_SIZE = 100
 DEFAULT_MAX_NODE_QUERY_LIMIT = 10000
