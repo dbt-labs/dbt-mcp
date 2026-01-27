@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Fix Admin API tools failing due to improper URL encoding of include_related parameter
-time: 2026-01-27T14:30:00.000000Z
