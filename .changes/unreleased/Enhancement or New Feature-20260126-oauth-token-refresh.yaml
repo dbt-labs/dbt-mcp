@@ -1,3 +1,0 @@
-kind: Enhancement or New Feature
-body: Add automatic token refresh at startup using refresh token instead of requiring full re-authentication
-time: 2026-01-26T12:30:00.000000+01:00

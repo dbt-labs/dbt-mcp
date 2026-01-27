@@ -5,7 +5,7 @@ from importlib.metadata import version
 
 from mcp.server.fastmcp import FastMCP
 
-from dbt_mcp.tools.definitions import ToolDefinition, dbt_mcp_tool
+from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
@@ -34,7 +34,7 @@ def get_mcp_server_version() -> str:
     return _get_server_version()
 
 
-MCP_SERVER_TOOLS: list[ToolDefinition] = [
+MCP_SERVER_TOOLS = [
     get_mcp_server_version,
 ]
 
