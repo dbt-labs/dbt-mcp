@@ -157,9 +157,13 @@ async def test_list_jobs(client):
     headers = await client.get_headers()
     mock_client.request.assert_called_once_with(
         "GET",
-        "https://cloud.getdbt.com/api/v2/accounts/12345/jobs/?include_related=['most_recent_run','most_recent_completed_run']",
+        "https://cloud.getdbt.com/api/v2/accounts/12345/jobs/",
         headers=headers,
-        params={"project_id": 1, "limit": 10},
+        params={
+            "project_id": 1,
+            "limit": 10,
+            "include_related": "['most_recent_run','most_recent_completed_run']",
+        },
     )
 
 
@@ -207,8 +211,9 @@ async def test_get_job_details(client):
     headers = await client.get_headers()
     mock_client.request.assert_called_once_with(
         "GET",
-        "https://cloud.getdbt.com/api/v2/accounts/12345/jobs/1/?include_related=['most_recent_run','most_recent_completed_run']",
+        "https://cloud.getdbt.com/api/v2/accounts/12345/jobs/1/",
         headers=headers,
+        params={"include_related": "['most_recent_run','most_recent_completed_run']"},
     )
 
 
@@ -326,10 +331,48 @@ async def test_list_jobs_runs(client):
     headers = await client.get_headers()
     mock_client.request.assert_called_once_with(
         "GET",
-        "https://cloud.getdbt.com/api/v2/accounts/12345/runs/?include_related=['job']",
+        "https://cloud.getdbt.com/api/v2/accounts/12345/runs/",
         headers=headers,
-        params={"job_definition_id": 1, "status": "success"},
+        params={
+            "job_definition_id": 1,
+            "status": "success",
+            "include_related": "['job']",
+        },
     )
+
+
+async def test_list_jobs_runs_with_null_job(client):
+    """Test that list_jobs_runs handles null job values correctly.
+
+    The API can return "job": null when include_related is used but the job
+    data isn't available. This test ensures we handle that case without errors.
+    """
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "data": [
+            {
+                "id": 100,
+                "status": 10,
+                "status_humanized": "Success",
+                "job": None,  # This is the key case - job is null
+                "started_at": "2024-01-01T00:00:00Z",
+                "finished_at": "2024-01-01T00:05:00Z",
+            }
+        ]
+    }
+    mock_response.raise_for_status.return_value = None
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.list_jobs_runs(12345)
+
+    assert len(result) == 1
+    run = result[0]
+    assert run["id"] == 100
+    assert run["job_name"] == ""
+    assert run["job_steps"] == ""
+    assert "job" not in run
 
 
 async def test_get_job_run_details(client):
@@ -362,8 +405,9 @@ async def test_get_job_run_details(client):
     headers = await client.get_headers()
     mock_client.request.assert_called_once_with(
         "GET",
-        "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/?include_related=['run_steps']",
+        "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/",
         headers=headers,
+        params={"include_related": "['run_steps']"},
     )
 
 
