@@ -23,8 +23,8 @@ from dbt_mcp.tools.fields import (
     TYPES_FIELD,
     UNIQUE_ID_FIELD,
     UNIQUE_ID_REQUIRED_FIELD,
-    LineageResourceType,
 )
+from dbt_mcp.tools.parameters import LineageResourceType
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
