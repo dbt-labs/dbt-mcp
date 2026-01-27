@@ -49,9 +49,10 @@ class DbtAdminAPIClient:
     @cache
     async def list_jobs(self, account_id: int, **params) -> list[dict[str, Any]]:
         """List jobs for an account."""
+        params["include_related"] = "['most_recent_run','most_recent_completed_run']"
         result = await self._make_request(
             "GET",
-            f"/api/v2/accounts/{account_id}/jobs/?include_related=['most_recent_run','most_recent_completed_run']",
+            f"/api/v2/accounts/{account_id}/jobs/",
             params=params,
         )
         data = result.get("data", [])
@@ -118,7 +119,10 @@ class DbtAdminAPIClient:
         """Get details for a specific job."""
         result = await self._make_request(
             "GET",
-            f"/api/v2/accounts/{account_id}/jobs/{job_id}/?include_related=['most_recent_run','most_recent_completed_run']",
+            f"/api/v2/accounts/{account_id}/jobs/{job_id}/",
+            params={
+                "include_related": "['most_recent_run','most_recent_completed_run']"
+            },
         )
         return result.get("data", {})
 
@@ -144,17 +148,18 @@ class DbtAdminAPIClient:
 
     async def list_jobs_runs(self, account_id: int, **params) -> list[dict[str, Any]]:
         """List runs for an account."""
-        extra_info = "?include_related=['job']"
+        params["include_related"] = "['job']"
         result = await self._make_request(
-            "GET", f"/api/v2/accounts/{account_id}/runs/{extra_info}", params=params
+            "GET", f"/api/v2/accounts/{account_id}/runs/", params=params
         )
 
         data = result.get("data", [])
 
         # we remove less relevant fields from the data we get to avoid filling the context with too much data
         for run in data:
-            run["job_name"] = run.get("job", {}).get("name", "")
-            run["job_steps"] = run.get("job", {}).get("execute_step", "")
+            job = run.get("job") or {}
+            run["job_name"] = job.get("name", "")
+            run["job_steps"] = job.get("execute_step", "")
             run.pop("job", None)
             run.pop("account_id", None)
             run.pop("environment_id", None)
@@ -187,10 +192,10 @@ class DbtAdminAPIClient:
         self, account_id: int, run_id: int, include_logs: bool = False
     ) -> dict[str, Any]:
         """Get details for a specific job run."""
-
-        incl = "?include_related=['run_steps']"
         result = await self._make_request(
-            "GET", f"/api/v2/accounts/{account_id}/runs/{run_id}/{incl}"
+            "GET",
+            f"/api/v2/accounts/{account_id}/runs/{run_id}/",
+            params={"include_related": "['run_steps']"},
         )
         data = result.get("data", {})
 
