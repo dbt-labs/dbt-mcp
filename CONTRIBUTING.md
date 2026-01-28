@@ -129,13 +129,15 @@ Only people in the `CODEOWNERS` file should trigger a new release with these ste
 
 1. Consider these guidelines when choosing a version number:
   - Major
-    - Removing a tool or toolset
+    - Removing a tool or toolset without replacement, or in a way that would result in agents behaving much differently.
     - Changing the behavior of existing environment variables or configurations
   - Minor
     - Changes to config system related to the function signature of the register functions (e.g. `register_discovery_tools`)
     - Adding optional parameters to a tool function signature
     - Adding a new tool or toolset
     - Removing or adding non-optional parameters from tool function signatures
+    - Renaming a tool
+    - Removing a tool which overlaps or provides similar functionality as other tool(s)
   - Patch
     - Bug and security fixes - only major security and bug fixes will be back-ported to prior minor and major versions
     - Dependency updates which don’t change behavior
