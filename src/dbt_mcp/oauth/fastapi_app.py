@@ -17,6 +17,7 @@ from dbt_mcp.oauth.dbt_platform import (
     DbtPlatformEnvironment,
     DbtPlatformEnvironmentResponse,
     DbtPlatformProject,
+    GetEnvironmentsRequest,
     SelectedProjectRequest,
     dbt_platform_context_from_token_response,
 )
@@ -222,6 +223,33 @@ def create_app(
         logger.info("Selected project received")
         return dbt_platform_context_manager.read_context() or DbtPlatformContext()
 
+    @app.post("/environments")
+    def get_deployment_environments(
+        request: GetEnvironmentsRequest,
+    ) -> list[DbtPlatformEnvironmentResponse]:
+        """Get all deployment environments for a project, excluding development environments."""
+        logger.info("Getting environments for project %s", request.project_id)
+        if app.state.decoded_access_token is None:
+            raise RuntimeError("Access token missing; OAuth flow not completed")
+        access_token = app.state.decoded_access_token.access_token_response.access_token
+        headers = {
+            "Accept": "application/json",
+            "Authorization": f"Bearer {access_token}",
+        }
+        environments = _get_all_environments_for_project(
+            dbt_platform_url=dbt_platform_url,
+            account_id=request.account_id,
+            project_id=request.project_id,
+            headers=headers,
+            page_size=100,
+        )
+        # Filter out development environments since this is for selecting production
+        return [
+            env
+            for env in environments
+            if not (env.type and env.type.lower() == "development")
+        ]
+
     @app.post("/selected_project")
     def set_selected_project(
         selected_project_request: SelectedProjectRequest,
@@ -250,19 +278,37 @@ def create_app(
             headers=headers,
             page_size=100,
         )
+
         prod_environment = None
         dev_environment = None
+
+        # If a specific prod_environment_id was provided, use it
+        if selected_project_request.prod_environment_id:
+            for environment in environments:
+                if environment.id == selected_project_request.prod_environment_id:
+                    prod_environment = DbtPlatformEnvironment(
+                        id=environment.id,
+                        name=environment.name,
+                        deployment_type=environment.deployment_type or "production",
+                    )
+                    break
+        else:
+            # Fall back to auto-detection based on deployment_type
+            for environment in environments:
+                if (
+                    environment.deployment_type
+                    and environment.deployment_type.lower() == "production"
+                ):
+                    prod_environment = DbtPlatformEnvironment(
+                        id=environment.id,
+                        name=environment.name,
+                        deployment_type=environment.deployment_type,
+                    )
+                    break
+
+        # Always try to auto-detect dev environment
         for environment in environments:
             if (
-                environment.deployment_type
-                and environment.deployment_type.lower() == "production"
-            ):
-                prod_environment = DbtPlatformEnvironment(
-                    id=environment.id,
-                    name=environment.name,
-                    deployment_type=environment.deployment_type,
-                )
-            elif (
                 environment.deployment_type
                 and environment.deployment_type.lower() == "development"
             ):
@@ -271,6 +317,8 @@ def create_app(
                     name=environment.name,
                     deployment_type=environment.deployment_type,
                 )
+                break
+
         dbt_platform_context = dbt_platform_context_manager.update_context(
             new_dbt_platform_context=DbtPlatformContext(
                 decoded_access_token=app.state.decoded_access_token,

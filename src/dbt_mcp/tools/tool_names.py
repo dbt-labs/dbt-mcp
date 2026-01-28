@@ -14,6 +14,7 @@ class ToolName(Enum):
     TEST = "test"
     SHOW = "show"
     GET_MODEL_LINEAGE_DEV = "get_model_lineage_dev"
+    GET_NODE_DETAILS_DEV = "get_node_details_dev"
 
     # Semantic Layer tools
     LIST_METRICS = "list_metrics"
@@ -30,6 +31,7 @@ class ToolName(Enum):
     GET_MODEL_PARENTS = "get_model_parents"
     GET_MODEL_CHILDREN = "get_model_children"
     GET_MODEL_HEALTH = "get_model_health"
+    GET_MODEL_PERFORMANCE = "get_model_performance"
     GET_LINEAGE = "get_lineage"
     GET_ALL_SOURCES = "get_all_sources"
     GET_SOURCE_DETAILS = "get_source_details"

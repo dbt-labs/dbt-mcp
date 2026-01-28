@@ -11,6 +11,7 @@ from dbt_mcp.discovery.client import (
     LineageFetcher,
     LineageResourceType,
     MetadataAPIClient,
+    ModelPerformanceFetcher,
     ModelsFetcher,
     PaginatedResourceFetcher,
     ResourceDetailsFetcher,
@@ -53,6 +54,7 @@ class DiscoveryToolContext:
     sources_fetcher: SourcesFetcher
     resource_details_fetcher: ResourceDetailsFetcher
     lineage_fetcher: LineageFetcher
+    model_performance_fetcher: ModelPerformanceFetcher
 
     def __init__(self, config_provider: ConfigProvider[DiscoveryConfig]):
         api_client = MetadataAPIClient(config_provider=config_provider)
@@ -94,6 +96,10 @@ class DiscoveryToolContext:
         )
         self.resource_details_fetcher = ResourceDetailsFetcher(api_client=api_client)
         self.lineage_fetcher = LineageFetcher(api_client=api_client)
+        self.model_performance_fetcher = ModelPerformanceFetcher(
+            api_client=api_client,
+            resource_details_fetcher=self.resource_details_fetcher,
+        )
 
 
 @dbt_mcp_tool(
@@ -183,6 +189,42 @@ async def get_model_health(
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
     return await context.models_fetcher.fetch_model_health(name, unique_id)
+
+
+@dbt_mcp_tool(
+    description=get_prompt("discovery/get_model_performance"),
+    title="Get Model Performance",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+)
+async def get_model_performance(
+    context: DiscoveryToolContext,
+    name: str | None = NAME_FIELD,
+    unique_id: str | None = UNIQUE_ID_FIELD,
+    num_runs: int = Field(
+        default=1,
+        description="Number of historical runs to return. Default is 1 (latest run only). "
+        "Use values > 1 to analyze performance trends over time.",
+        ge=1,
+        le=100,
+    ),
+    include_tests: bool = Field(
+        default=False,
+        description="If True, include test execution history (name, status, executionTime) for each run. "
+        "Useful for analyzing test performance alongside model execution. "
+        "Default is False to reduce response size.",
+    ),
+) -> list[dict]:
+    """Get model execution performance metrics from historical runs."""
+    results = await context.model_performance_fetcher.fetch_performance(
+        name=name,
+        unique_id=unique_id,
+        num_runs=num_runs,
+        include_tests=include_tests,
+    )
+
+    return results
 
 
 @dbt_mcp_tool(
@@ -369,6 +411,7 @@ DISCOVERY_TOOLS = [
     get_model_parents,
     get_model_children,
     get_model_health,
+    get_model_performance,
     get_lineage,
     get_exposures,
     get_exposure_details,

@@ -1,6 +1,6 @@
+import json
 import os
 import subprocess
-import json
 from collections.abc import Iterable
 from typing import Any, Literal
 
@@ -207,6 +207,87 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         )
         return model_lineage.model_dump()
 
+    def get_node_details_dev(
+        node_id: str = Field(
+            description=get_prompt("dbt_cli/args/node_id"),
+        ),
+    ) -> dict[str, Any]:
+        # Comprehensive list of output keys to include all available node metadata
+        output_keys = [
+            # This is the entire list. Keeping it for ref and commmenting fields that are not needed.
+            # Because we get the path, we should not need the raw_code and compiled_code that can be very big and that the LLM can read
+            "unique_id",
+            "name",
+            "resource_type",
+            "package_name",
+            "original_file_path",
+            "path",
+            "alias",
+            "description",
+            "columns",
+            "meta",
+            "tags",
+            "config",
+            "depends_on",
+            "patch_path",
+            "schema",
+            "database",
+            "relation_name",
+            # "raw_code",
+            # "compiled_code",
+            # "checksum",
+            "language",
+            "docs",
+            "group",
+            "access",
+            "version",
+            "latest_version",
+            "deprecation_date",
+            "contract",
+            "constraints",
+            "primary_key",
+            "fqn",
+            "build_path",
+            "refs",
+            "sources",
+            "metrics",
+            "created_at",
+            "unrendered_config",
+        ]
+        output = _run_dbt_command(
+            ["list", "--output", "json", "--output-keys", *output_keys],
+            selector=node_id,
+            is_selectable=True,
+        )
+
+        node_result: dict[str, Any] | None = None
+        test_ids: list[str] = []
+
+        for line in output.strip().split("\n"):
+            if not line.strip():
+                continue
+            try:
+                node = json.loads(line)
+                resource_type = node.get("resource_type")
+                if node_result is None:
+                    # First node is the primary result
+                    node_result = node
+                elif resource_type == "test":
+                    # Collect additional tests (associated with the primary node)
+                    fqn = node.get("fqn", [])
+                    test_ids.append(".".join(fqn) if fqn else node.get("unique_id", ""))
+            except json.JSONDecodeError:
+                continue
+
+        if node_result is None:
+            raise ValueError(f"No node found for selector: {node_id}")
+
+        # Add test unique_ids for models, seeds, sources, and snapshots
+        if node_result.get("resource_type") in ("model", "seed", "source", "snapshot"):
+            node_result["tests"] = test_ids
+
+        return node_result
+
     return [
         ToolDefinition(
             fn=build,
@@ -295,6 +376,17 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             description=get_prompt("dbt_cli/get_model_lineage_dev"),
             annotations=create_tool_annotations(
                 title="Get Model Lineage (Dev)",
+                read_only_hint=True,
+                destructive_hint=False,
+                idempotent_hint=True,
+            ),
+        ),
+        ToolDefinition(
+            name="get_node_details_dev",
+            fn=get_node_details_dev,
+            description=get_prompt("dbt_cli/get_node_details_dev"),
+            annotations=create_tool_annotations(
+                title="Get Node Details (Dev)",
                 read_only_hint=True,
                 destructive_hint=False,
                 idempotent_hint=True,
