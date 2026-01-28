@@ -94,6 +94,7 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e
         with:
+          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           title: "version: ${{ steps.package-version.outputs.version }}"
           branch: release/${{ steps.package-version.outputs.version }}
           commit-message: |
