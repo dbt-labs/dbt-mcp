@@ -1,0 +1,251 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  min-height: 500px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+    Ubuntu, Cantarell, sans-serif;
+  background-color: #0f172a;
+  color: #e2e8f0;
+}
+
+.app-container {
+  width: 100%;
+  height: 100%;
+  min-height: 500px;
+  position: relative;
+}
+
+.loading,
+.error-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 2rem;
+  text-align: center;
+}
+
+.error-container {
+  color: #f87171;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Lineage Node Styles */
+.lineage-node {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid;
+  min-width: 150px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.lineage-node:hover {
+  transform: scale(1.05);
+}
+
+.lineage-node-type {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.9;
+  margin-bottom: 2px;
+  font-weight: 600;
+}
+
+.lineage-node-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+/* Node Details Panel */
+.node-details {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 320px;
+  max-height: calc(100% - 32px);
+  background-color: #1e293b;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  z-index: 100;
+}
+
+.node-details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  color: #fff;
+}
+
+.node-details-type {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.node-details-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+  line-height: 1;
+}
+
+.node-details-close:hover {
+  opacity: 1;
+}
+
+.node-details-content {
+  padding: 16px;
+  overflow-y: auto;
+  max-height: calc(100vh - 150px);
+}
+
+.node-details-content h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #f1f5f9;
+}
+
+.node-details-field {
+  margin-bottom: 16px;
+}
+
+.node-details-field label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #94a3b8;
+  margin-bottom: 4px;
+}
+
+.node-details-field code {
+  display: block;
+  font-size: 12px;
+  background-color: #0f172a;
+  padding: 8px;
+  border-radius: 4px;
+  word-break: break-all;
+  color: #cbd5e1;
+}
+
+.node-details-parents {
+  list-style: none;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.node-details-parents li {
+  margin-bottom: 4px;
+}
+
+.node-details-parents code {
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.load-details-btn {
+  width: 100%;
+  padding: 10px 16px;
+  background-color: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.load-details-btn:hover {
+  background-color: #2563eb;
+}
+
+.loading-small {
+  text-align: center;
+  color: #94a3b8;
+  font-size: 14px;
+  padding: 12px;
+}
+
+.error-small {
+  color: #f87171;
+  font-size: 13px;
+  padding: 8px;
+  background-color: rgba(248, 113, 113, 0.1);
+  border-radius: 4px;
+}
+
+.node-details-extra {
+  margin-top: 16px;
+}
+
+.node-details-extra pre {
+  font-size: 11px;
+  background-color: #0f172a;
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  max-height: 200px;
+  color: #94a3b8;
+}
+
+/* React Flow Overrides */
+.react-flow__node {
+  cursor: pointer;
+}
+
+.react-flow__handle {
+  width: 8px;
+  height: 8px;
+  background-color: #64748b;
+  border: 2px solid #1e293b;
+}
+
+.react-flow__edge-path {
+  stroke-width: 2;
+}
+
+.react-flow__controls {
+  background-color: #1e293b;
+  border: none;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.react-flow__controls-button {
+  background-color: #1e293b;
+  border: none;
+  color: #94a3b8;
+}
+
+.react-flow__controls-button:hover {
+  background-color: #334155;
+}
+
+.react-flow__controls-button svg {
+  fill: #94a3b8;
+}

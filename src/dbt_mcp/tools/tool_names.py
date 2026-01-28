@@ -33,6 +33,7 @@ class ToolName(Enum):
     GET_MODEL_HEALTH = "get_model_health"
     GET_MODEL_PERFORMANCE = "get_model_performance"
     GET_LINEAGE = "get_lineage"
+    VISUALIZE_LINEAGE = "visualize_lineage"
     GET_ALL_SOURCES = "get_all_sources"
     GET_SOURCE_DETAILS = "get_source_details"
     GET_EXPOSURES = "get_exposures"

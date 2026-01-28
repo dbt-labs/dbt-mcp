@@ -22,3 +22,6 @@ dbt-mcp.log
 
 # MCPB zip file
 dbt-mcp.mcpb
+
+# Node.js
+node_modules/

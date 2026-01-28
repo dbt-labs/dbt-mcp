@@ -1,5 +1,7 @@
 import logging
 from dataclasses import dataclass
+from pathlib import Path
+from typing import NotRequired, TypedDict
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -45,6 +47,26 @@ TYPES_FIELD = Field(
     "Valid types: Model, Source, Seed, Snapshot, Exposure, Metric, SemanticModel, SavedQuery, Test.",
 )
 DEPTH_FIELD = Field(default=5, description="The depth of the lineage graph to return.")
+VISUALIZATION_DEPTH_FIELD = Field(
+    default=2,
+    description="The depth of the lineage graph to visualize. Default is 2 to keep the graph manageable.",
+)
+
+
+class LineageNode(TypedDict):
+    """A node in the lineage graph."""
+
+    uniqueId: str
+    name: str
+    resourceType: str
+    parentIds: NotRequired[list[str]]
+
+
+class LineageVisualizationResult(TypedDict):
+    """Result from the visualize_lineage tool."""
+
+    targetId: str
+    nodes: list[LineageNode]
 
 
 @dataclass
@@ -245,6 +267,48 @@ async def get_lineage(
     )
 
 
+# Resource URI for the lineage visualization app
+LINEAGE_UI_RESOURCE_URI = "ui://dbt-lineage/app.html"
+
+
+@dbt_mcp_tool(
+    description=get_prompt("discovery/visualize_lineage"),
+    title="Visualize Lineage",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+    structured_output=True,
+    meta={"ui": {"resourceUri": LINEAGE_UI_RESOURCE_URI}},
+)
+async def visualize_lineage(
+    context: DiscoveryToolContext,
+    unique_id: str,
+    types: list[LineageResourceType] | None = Field(
+        default=None,
+        description="List of resource types to include. "
+        "Defaults to all types EXCEPT Test (to keep visualization manageable). "
+        "Valid types: Model, Source, Seed, Snapshot, Exposure, Metric, SemanticModel, SavedQuery, Test.",
+    ),
+    depth: int = VISUALIZATION_DEPTH_FIELD,
+    include_tests: bool = Field(
+        default=False,
+        description="Whether to include Test nodes. Default is False to keep the graph manageable.",
+    ),
+) -> LineageVisualizationResult:
+    """Visualize the lineage graph for a dbt resource."""
+    # Default to excluding tests unless explicitly requested
+    if types is None and not include_tests:
+        types = [t for t in LineageResourceType if t != LineageResourceType.TEST]
+
+    nodes = await context.lineage_fetcher.fetch_lineage(
+        unique_id=unique_id, types=types, depth=depth
+    )
+    return LineageVisualizationResult(
+        targetId=unique_id,
+        nodes=nodes,  # type: ignore[typeddict-item]
+    )
+
+
 @dbt_mcp_tool(
     description=get_prompt("discovery/get_exposures"),
     title="Get Exposures",
@@ -413,6 +477,7 @@ DISCOVERY_TOOLS = [
     get_model_health,
     get_model_performance,
     get_lineage,
+    visualize_lineage,
     get_exposures,
     get_exposure_details,
     get_all_sources,
@@ -445,3 +510,74 @@ def register_discovery_tools(
         enabled_toolsets=enabled_toolsets,
         disabled_toolsets=disabled_toolsets,
     )
+
+    # Register the lineage visualization UI resource
+    _register_lineage_ui_resource(dbt_mcp)
+
+
+def _register_lineage_ui_resource(dbt_mcp: FastMCP) -> None:
+    """Register the lineage visualization app as an MCP resource."""
+    # Path to the built lineage app HTML file
+    # The app is built to packages/lineage-app/dist/index.html
+    lineage_app_path = (
+        Path(__file__).parent.parent.parent.parent
+        / "packages"
+        / "lineage-app"
+        / "dist"
+        / "index.html"
+    )
+
+    @dbt_mcp.resource(
+        uri=LINEAGE_UI_RESOURCE_URI,
+        name="Lineage Visualization App",
+        description="Interactive React Flow-based lineage visualization for dbt resources",
+        mime_type="text/html;profile=mcp-app",
+    )
+    def get_lineage_ui() -> str:
+        """Return the lineage visualization app HTML."""
+        if not lineage_app_path.exists():
+            logger.warning(
+                f"Lineage app not found at {lineage_app_path}. "
+                "Run 'npm run build' in packages/lineage-app to build it."
+            )
+            return _get_fallback_html()
+        return lineage_app_path.read_text()
+
+
+def _get_fallback_html() -> str:
+    """Return a fallback HTML page when the lineage app is not built."""
+    return """<!DOCTYPE html>
+<html>
+<head>
+    <title>Lineage Visualization</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+        .message {
+            max-width: 400px;
+            padding: 2rem;
+        }
+        code {
+            background: #1e293b;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="message">
+        <h2>Lineage Visualization Not Available</h2>
+        <p>The lineage visualization app needs to be built.</p>
+        <p>Run: <code>cd packages/lineage-app && npm install && npm run build</code></p>
+    </div>
+</body>
+</html>"""

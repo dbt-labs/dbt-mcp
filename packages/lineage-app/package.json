@@ -1,0 +1,28 @@
+{
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.0.0",
+    "@xyflow/react": "^12.4.4",
+    "dagre": "^0.8.5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "description": "Interactive lineage visualization for dbt-mcp",
+  "devDependencies": {
+    "@types/dagre": "^0.7.52",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vite-plugin-singlefile": "^2.0.3"
+  },
+  "name": "@dbt-labs/lineage-app",
+  "private": true,
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "dev": "vite",
+    "preview": "vite preview"
+  },
+  "type": "module",
+  "version": "0.1.0"
+}

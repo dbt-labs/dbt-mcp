@@ -122,4 +122,5 @@ def generic_register_tools[NameEnum: Enum](
             description=tool_definition.description,
             annotations=tool_definition.annotations,
             structured_output=tool_definition.structured_output,
+            meta=tool_definition.meta,
         )
