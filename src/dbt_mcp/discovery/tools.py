@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.client import (
