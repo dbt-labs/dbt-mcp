@@ -10,6 +10,7 @@ from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.graphql import load_query
 from dbt_mcp.errors import InvalidParameterError, ToolCallError
 from dbt_mcp.gql.errors import raise_gql_error
+from dbt_mcp.tools.parameters import LineageResourceType
 
 DEFAULT_PAGE_SIZE = 100
 DEFAULT_MAX_NODE_QUERY_LIMIT = 10000
@@ -672,20 +673,6 @@ class ResourceDetailsFetcher:
         return [e["node"] for e in edges]
 
 
-class LineageResourceType(StrEnum):
-    """Resource types supported by the lineage API."""
-
-    MODEL = "Model"
-    SOURCE = "Source"
-    SEED = "Seed"
-    SNAPSHOT = "Snapshot"
-    EXPOSURE = "Exposure"
-    METRIC = "Metric"
-    SEMANTIC_MODEL = "SemanticModel"
-    SAVED_QUERY = "SavedQuery"
-    TEST = "Test"
-
-
 class LineageFetcher:
     """Fetcher for lineage data. Returns nodes connected to the target."""
 
@@ -702,13 +689,14 @@ class LineageFetcher:
 
         Args:
             unique_id: The dbt unique ID of the resource to get lineage for.
+            depth: how many levels to traverse (0 = infinite, 1 = immediate neighbors only, higher = deeper)
             types: List of resource types to include. If None, includes all types.
 
         Returns:
             List of nodes connected to unique_id (upstream + downstream).
         """
-        if depth <= 0:
-            raise ToolCallError("Depth must be greater than 0")
+        if depth < 0:
+            raise ToolCallError("Depth must be greater than or equal to 0")
         config = await self.api_client.config_provider.get_config()
         type_filter = [
             t.value for t in (types if types is not None else LineageResourceType)
@@ -738,8 +726,11 @@ class LineageFetcher:
         self, nodes: list[dict], target_id: str, depth: int
     ) -> list[dict]:
         """Return only nodes connected to target_id (upstream and downstream).
-
         Uses BFS to find all nodes reachable from target in both directions.
+        Args:
+            nodes: List of all nodes in the lineage graph.
+            target_id: The unique ID of the target node.
+            depth: how many levels to traverse (0 = infinite, 1 = immediate neighbors only, higher = deeper)
         """
         node_map = {
             n["uniqueId"]: n
@@ -764,8 +755,8 @@ class LineageFetcher:
             if not node:
                 continue
 
-            # Stop traversing beyond the depth limit
-            if current_depth >= depth:
+            # Stop traversing beyond the depth limit, depth=0 means infinite
+            if depth > 0 and current_depth >= depth:
                 continue
 
             # Traverse upstream (parents)
