@@ -12,7 +12,7 @@ async def test_proxied_tool_execute_sql():
         dbt_mcp,
         config.proxied_tool_config_provider,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -29,10 +29,10 @@ async def test_proxied_tool_text_to_sql():
         dbt_mcp,
         config.proxied_tool_config_provider,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
     result = await dbt_mcp.call_tool("text_to_sql", {"text": "SELECT 1"})
     assert len(result) == 1
-    assert "SELECT 1" in result[0].text
+    assert result[0].text

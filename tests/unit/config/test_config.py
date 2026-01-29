@@ -1,3 +1,4 @@
+import logging
 import os
 from unittest.mock import patch
 
@@ -57,7 +58,7 @@ class TestDbtMcpSettings:
             assert settings.disable_semantic_layer is False, "disable_semantic_layer"
             assert settings.disable_discovery is False, "disable_discovery"
             assert settings.disable_sql is None, "disable_sql"
-            assert settings.disable_tools == [], "disable_tools"
+            assert settings.disable_tools is None, "disable_tools"
 
     def test_usage_tracking_disabled_by_env_vars(self):
         env_vars = {
@@ -152,6 +153,39 @@ class TestDbtMcpSettings:
             with patch.dict(os.environ, {"DISABLE_TOOLS": input_val}):
                 settings = DbtMcpSettings(_env_file=None)
                 assert settings.disable_tools == expected
+
+    def test_invalid_tool_names_are_skipped_with_warning(self, caplog):
+        """Test that invalid tool names are logged as warnings and skipped."""
+
+        # Test with mix of valid and invalid tool names
+        with patch.dict(
+            os.environ, {"DISABLE_TOOLS": "build,invalid_tool,compile,another_invalid"}
+        ):
+            with caplog.at_level(logging.WARNING):
+                settings = DbtMcpSettings(_env_file=None)
+            # Only valid tools should be in the list
+            assert settings.disable_tools == [ToolName.BUILD, ToolName.COMPILE]
+            # Warnings should be logged for invalid tools
+            assert (
+                "Ignoring invalid tool name in DISABLE_TOOLS: 'invalid_tool'"
+                in caplog.text
+            )
+            assert (
+                "Ignoring invalid tool name in DISABLE_TOOLS: 'another_invalid'"
+                in caplog.text
+            )
+
+    def test_all_invalid_tool_names_returns_empty_list(self, caplog):
+        """Test that all invalid tool names result in empty list (allowlist mode)."""
+        import logging
+
+        with patch.dict(os.environ, {"DBT_MCP_ENABLE_TOOLS": "invalid1,invalid2"}):
+            with caplog.at_level(logging.WARNING):
+                settings = DbtMcpSettings(_env_file=None)
+            # Result should be empty list (not None) - indicating allowlist mode
+            assert settings.enable_tools == []
+            # Warnings should be logged
+            assert "Ignoring invalid tool name" in caplog.text
 
     def test_actual_host_property(self):
         with patch.dict(os.environ, {"DBT_HOST": "host1.com"}):

@@ -106,7 +106,7 @@ def test_show_command_limit_logic(
         fastmcp,
         mock_dbt_cli_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -139,7 +139,7 @@ def test_run_command_adds_quiet_flag_to_verbose_commands(
         mock_fastmcp_obj,
         mock_dbt_cli_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -173,7 +173,7 @@ def test_run_command_correctly_formatted(
         fastmcp,
         mock_dbt_cli_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -213,7 +213,7 @@ def test_show_command_correctly_formatted(
         mock_fastmcp_obj,
         mock_dbt_cli_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -250,7 +250,7 @@ def test_list_command_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
         mock_fastmcp_obj,
         mock_dbt_cli_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -284,7 +284,7 @@ def test_full_refresh_flag_added_to_command(
         fastmcp,
         mock_dbt_cli_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -314,7 +314,7 @@ def test_vars_flag_added_to_command(
         fastmcp,
         mock_dbt_cli_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -342,7 +342,7 @@ def test_vars_not_added_when_none(monkeypatch: MonkeyPatch, mock_process, mock_f
         fastmcp,
         mock_dbt_cli_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )

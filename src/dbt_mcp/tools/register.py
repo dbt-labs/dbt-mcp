@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 def should_register_tool[NameEnum: Enum](
     tool_name: NameEnum,
-    enabled_tools: set[NameEnum],
+    enabled_tools: set[NameEnum] | None,
     disabled_tools: set[NameEnum],
     enabled_toolsets: set[Toolset],
     disabled_toolsets: set[Toolset],
@@ -30,7 +30,7 @@ def should_register_tool[NameEnum: Enum](
 
     Args:
         tool_name: The tool name as a ToolName enum
-        enabled_tools: Set of explicitly enabled tools (highest precedence)
+        enabled_tools: Set of explicitly enabled tools (highest precedence), or None if not set
         disabled_tools: Set of explicitly disabled tools
         enabled_toolsets: Set of enabled toolsets
         disabled_toolsets: Set of disabled toolsets
@@ -39,7 +39,7 @@ def should_register_tool[NameEnum: Enum](
         True if tool should be registered, False otherwise
     """
     # Precedence 1: Individual tool enable (highest)
-    if tool_name in enabled_tools:
+    if enabled_tools is not None and tool_name in enabled_tools:
         return True
 
     # Precedence 2: Individual tool disable
@@ -58,10 +58,11 @@ def should_register_tool[NameEnum: Enum](
 
     # Precedence 5: Fallback behavior (only when rules 1-4 don't apply)
     # This is the key mechanism that switches between denylist and allowlist modes:
-    # - If NO enable configuration exists → return True (original default: enable all tools)
-    # - If ANY enable configuration exists → return False (allowlist mode: disable unless explicitly allowed)
+    # - If NO enable configuration exists (enabled_tools is None) → return True (default: all enabled)
+    # - If enabled_tools was set (even if empty after filtering invalid names) → allowlist mode
     # This preserves backward compatibility while enabling opt-in allowlist functionality
-    return not bool(enabled_tools or enabled_toolsets)
+    has_explicit_enables = enabled_tools is not None or bool(enabled_toolsets)
+    return not has_explicit_enables
 
 
 def register_tools(
@@ -69,7 +70,7 @@ def register_tools(
     tool_definitions: Sequence[GenericToolDefinition[ToolName]],
     *,
     disabled_tools: set[ToolName],
-    enabled_tools: set[ToolName],
+    enabled_tools: set[ToolName] | None,
     enabled_toolsets: set[Toolset],
     disabled_toolsets: set[Toolset],
 ) -> None:
@@ -89,7 +90,7 @@ def generic_register_tools[NameEnum: Enum](
     tool_definitions: Sequence[GenericToolDefinition[NameEnum]],
     *,
     disabled_tools: set[NameEnum],
-    enabled_tools: set[NameEnum],
+    enabled_tools: set[NameEnum] | None,
     enabled_toolsets: set[Toolset],
     disabled_toolsets: set[Toolset],
     tool_to_toolset: dict[NameEnum, Toolset],

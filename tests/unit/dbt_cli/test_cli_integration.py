@@ -25,7 +25,7 @@ class TestDbtCliIntegration(unittest.TestCase):
             mock_fastmcp,
             mock_config.dbt_cli_config,
             disabled_tools=set(),
-            enabled_tools=set(),
+            enabled_tools=None,
             enabled_toolsets=set(),
             disabled_toolsets=set(),
         )

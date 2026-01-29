@@ -62,7 +62,7 @@ class TestShouldRegisterTool:
         """Test that default is enabled when no explicit enables configured."""
         result = should_register_tool(
             tool_name=ToolName.QUERY_METRICS,
-            enabled_tools=set(),
+            enabled_tools=None,  # None means not set, empty set means allowlist mode
             disabled_tools=set(),
             enabled_toolsets=set(),
             disabled_toolsets=set(),
@@ -82,6 +82,23 @@ class TestShouldRegisterTool:
             tool_to_toolset=TOOL_TO_TOOLSET,
         )
         assert result is False, "Default should be disabled when other tools enabled"
+
+    def test_precedence_5_empty_allowlist_disables_all(self):
+        """Test that empty enabled_tools set means nothing is enabled (allowlist mode).
+
+        This handles the case where DBT_MCP_ENABLE_TOOLS was set but all values
+        were invalid, resulting in an empty set. The user's intent was to use
+        allowlist mode, so no tools should be enabled by default.
+        """
+        result = should_register_tool(
+            tool_name=ToolName.QUERY_METRICS,
+            enabled_tools=set(),  # Empty set = allowlist mode with nothing allowed
+            disabled_tools=set(),
+            enabled_toolsets=set(),
+            disabled_toolsets=set(),
+            tool_to_toolset=TOOL_TO_TOOLSET,
+        )
+        assert result is False, "Empty enabled_tools should disable all tools"
 
     def test_precedence_5_default_disabled_when_toolset_enabled(self):
         """Test that default is disabled when any toolset is enabled."""

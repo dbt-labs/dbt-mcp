@@ -54,7 +54,7 @@ async def test_register_lsp_tools_success(
         test_mcp_server,
         lsp_client_provider,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -151,7 +151,7 @@ async def test_register_lsp_tools_with_exclude_tools(
         test_mcp_server,
         lsp_client_provider,
         disabled_tools=set([ToolName.GET_COLUMN_LINEAGE]),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
