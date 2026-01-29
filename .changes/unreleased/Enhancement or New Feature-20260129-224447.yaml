@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Make ToolDefinition.name required to eliminate fallback checks
+time: 2026-01-29T22:44:47.972265Z
