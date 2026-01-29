@@ -115,7 +115,11 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
                 dbt_mcp=server,
                 config_provider=server.config.proxied_tool_config_provider,
                 disabled_tools=set(server.config.disable_tools),
-                enabled_tools=set(server.config.enable_tools),
+                enabled_tools=(
+                    set(server.config.enable_tools)
+                    if server.config.enable_tools is not None
+                    else None
+                ),
                 enabled_toolsets=server.config.enabled_toolsets,
                 disabled_toolsets=server.config.disabled_toolsets,
             )
@@ -156,7 +160,9 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
     )
 
     disabled_tools = set(config.disable_tools)
-    enabled_tools = set(config.enable_tools)
+    enabled_tools = (
+        set(config.enable_tools) if config.enable_tools is not None else None
+    )
     enabled_toolsets = config.enabled_toolsets
     disabled_toolsets = config.disabled_toolsets
 

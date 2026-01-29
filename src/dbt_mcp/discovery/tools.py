@@ -430,7 +430,7 @@ def register_discovery_tools(
     discovery_config_provider: ConfigProvider[DiscoveryConfig],
     *,
     disabled_tools: set[ToolName],
-    enabled_tools: set[ToolName],
+    enabled_tools: set[ToolName] | None,
     enabled_toolsets: set[Toolset],
     disabled_toolsets: set[Toolset],
 ) -> None:

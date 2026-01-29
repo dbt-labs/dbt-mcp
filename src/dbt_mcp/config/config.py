@@ -67,7 +67,7 @@ class LspConfig:
 @dataclass
 class Config:
     disable_tools: list[ToolName]
-    enable_tools: list[ToolName]
+    enable_tools: list[ToolName] | None
     disabled_toolsets: set[Toolset]
     enabled_toolsets: set[Toolset]
     proxied_tool_config_provider: DefaultProxiedToolConfigProvider | None
@@ -157,7 +157,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
 
     return Config(
         disable_tools=settings.disable_tools or [],
-        enable_tools=settings.enable_tools or [],
+        enable_tools=settings.enable_tools,
         disabled_toolsets=disabled_toolsets,
         enabled_toolsets=enabled_toolsets,
         proxied_tool_config_provider=proxied_tool_config_provider,
