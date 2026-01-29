@@ -29,7 +29,9 @@ NAME_FIELD = Field(
 DEPTH_FIELD = Field(
     default=5,
     description="The depth of the lineage graph to return. "
-    "Controls how many levels to traverse from the target node.",
+    "Controls how many levels to traverse from the target node."
+    "A depth of 1 returns only direct parents/children."
+    "A depth of 0 returns the entire lineage graph.",
 )
 
 TYPES_FIELD = Field(
