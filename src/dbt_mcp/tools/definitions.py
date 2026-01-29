@@ -15,8 +15,8 @@ from dbt_mcp.tools.tool_names import ToolName
 class GenericToolDefinition[NameEnum: Enum]:
     fn: Callable[..., Any]
     description: str
+    name: str
     name_enum: type[NameEnum]
-    name: str | None = None
     title: str | None = None
     annotations: ToolAnnotations | None = None
     # We haven't strictly defined our tool contracts yet.
@@ -24,7 +24,7 @@ class GenericToolDefinition[NameEnum: Enum]:
     structured_output: bool | None = False
 
     def get_name(self) -> NameEnum:
-        return self.name_enum((self.name or self.fn.__name__).lower())
+        return self.name_enum(self.name.lower())
 
     def to_fastmcp_internal_tool(self) -> Tool:
         return Tool.from_function(
@@ -45,8 +45,8 @@ class GenericToolDefinition[NameEnum: Enum]:
         return type(self)(
             fn=adapt_with_mapper(self.fn, context_mapper),
             description=self.description,
-            name_enum=self.name_enum,
             name=self.name,
+            name_enum=self.name_enum,
             title=self.title,
             annotations=self.annotations,
             structured_output=self.structured_output,
@@ -75,8 +75,8 @@ def generic_dbt_mcp_tool[NameEnum: Enum](
         return GenericToolDefinition(
             fn=fn,
             description=description,
+            name=name or fn.__name__,
             name_enum=name_enum,
-            name=name,
             title=title,
             annotations=ToolAnnotations(
                 title=title,

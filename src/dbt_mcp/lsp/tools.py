@@ -71,6 +71,7 @@ async def list_lsp_tools(
         ToolDefinition(
             fn=call_with_lsp_client(get_column_lineage),
             description=get_prompt("lsp/get_column_lineage"),
+            name="get_column_lineage",
             annotations=create_tool_annotations(
                 title="get_column_lineage",
                 read_only_hint=False,

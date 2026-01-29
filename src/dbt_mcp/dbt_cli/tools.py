@@ -295,6 +295,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ToolDefinition(
             fn=build,
             description=get_prompt("dbt_cli/build"),
+            name="build",
             annotations=create_tool_annotations(
                 title="dbt build",
                 read_only_hint=False,
@@ -305,6 +306,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ToolDefinition(
             fn=compile,
             description=get_prompt("dbt_cli/compile"),
+            name="compile",
             annotations=create_tool_annotations(
                 title="dbt compile",
                 read_only_hint=True,
@@ -315,6 +317,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ToolDefinition(
             fn=docs,
             description=get_prompt("dbt_cli/docs"),
+            name="docs",
             annotations=create_tool_annotations(
                 title="dbt docs",
                 read_only_hint=True,
@@ -336,6 +339,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ToolDefinition(
             fn=parse,
             description=get_prompt("dbt_cli/parse"),
+            name="parse",
             annotations=create_tool_annotations(
                 title="dbt parse",
                 read_only_hint=True,
@@ -346,6 +350,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ToolDefinition(
             fn=run,
             description=get_prompt("dbt_cli/run"),
+            name="run",
             annotations=create_tool_annotations(
                 title="dbt run",
                 read_only_hint=False,
@@ -356,6 +361,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ToolDefinition(
             fn=test,
             description=get_prompt("dbt_cli/test"),
+            name="test",
             annotations=create_tool_annotations(
                 title="dbt test",
                 read_only_hint=False,
@@ -366,6 +372,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ToolDefinition(
             fn=show,
             description=get_prompt("dbt_cli/show"),
+            name="show",
             annotations=create_tool_annotations(
                 title="dbt show",
                 read_only_hint=True,
