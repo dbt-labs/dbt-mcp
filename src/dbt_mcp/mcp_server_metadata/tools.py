@@ -43,7 +43,7 @@ def register_mcp_server_tools(
     dbt_mcp: FastMCP,
     *,
     disabled_tools: set[ToolName],
-    enabled_tools: set[ToolName],
+    enabled_tools: set[ToolName] | None,
     enabled_toolsets: set[Toolset],
     disabled_toolsets: set[Toolset],
 ) -> None:
