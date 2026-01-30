@@ -2,8 +2,6 @@ import argparse
 import logging
 import re
 import sys
-import subprocess
-import tempfile
 from pathlib import Path
 
 from dbt_mcp.tools.toolsets import toolsets
@@ -13,7 +11,6 @@ logger = logging.getLogger(__name__)
 
 README_PATH = Path(__file__).parents[1] / "README.md"
 DIAGRAM_PATH = Path(__file__).parents[1] / "docs" / "diagram.d2"
-PNG_PATH = Path(__file__).parents[1] / "docs" / "d2.png"
 
 
 def format_toolset_heading(toolset_value: str) -> str:
@@ -115,7 +112,7 @@ def update_readme(check_only: bool = False) -> bool:
         return True
 
 
-def update_d2_diagram(check_only: bool = False) -> tuple[bool, bool]:
+def update_d2_diagram(check_only: bool = False) -> bool:
     """
     Update the tools section in diagram.d2.
 
@@ -123,13 +120,11 @@ def update_d2_diagram(check_only: bool = False) -> tuple[bool, bool]:
         check_only: If True, only check if update is needed without writing.
 
     Returns:
-        Tuple of (success, content_changed):
-        - success: True if diagram is up to date (or was updated), False on error.
-        - content_changed: True if diagram content differs from generated content.
+        True if diagram is up to date (or was updated), False if update is needed.
     """
     if not DIAGRAM_PATH.exists():
         logger.error(f"diagram.d2 not found at {DIAGRAM_PATH}")
-        return False, False
+        return False
 
     diagram_content = DIAGRAM_PATH.read_text()
     new_tools_section = generate_diagram_tools_section()
@@ -138,7 +133,7 @@ def update_d2_diagram(check_only: bool = False) -> tuple[bool, bool]:
     pattern = r"tools: Tools \{.*?\n\}"
     if not re.search(pattern, diagram_content, re.DOTALL):
         logger.error("Could not find 'tools: Tools {' section in diagram.d2")
-        return False, False
+        return False
 
     updated_content = re.sub(
         pattern, new_tools_section, diagram_content, flags=re.DOTALL
@@ -150,64 +145,21 @@ def update_d2_diagram(check_only: bool = False) -> tuple[bool, bool]:
             logger.info("✓ diagram.d2 tools section is up to date")
         else:
             logger.error("✗ diagram.d2 tools section is out of date")
-        return not content_changed, content_changed
+        return not content_changed
     else:
         DIAGRAM_PATH.write_text(updated_content)
         status = "updated successfully" if content_changed else "was already up to date"
         logger.info(f"diagram.d2 tools section {status}")
-        return True, content_changed
-
-
-def run_d2_command(output_path: Path) -> bool:
-    """Run d2 to compile diagram.d2 to PNG."""
-    try:
-        result = subprocess.run(
-            ["d2", str(DIAGRAM_PATH), str(output_path), "--pad", "20"],
-            capture_output=True,
-            text=True,
-        )
-        return result.returncode == 0
-    except FileNotFoundError:
-        logger.error("d2 command not found. Install with: brew install d2")
-        return False
-
-
-def update_d2_png(check_only: bool = False) -> bool:
-    """
-    Update/validate d2.png from diagram.d2.
-
-    Args:
-        check_only: If True, only check if PNG matches current diagram.
-
-    Returns:
-        True if PNG is up to date (or was updated), False if check failed.
-    """
-    if check_only:
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-            tmp_path = Path(tmp.name)
-        try:
-            if not run_d2_command(tmp_path):
-                return False
-            is_up_to_date = (
-                PNG_PATH.exists() and PNG_PATH.read_bytes() == tmp_path.read_bytes()
-            )
-            if is_up_to_date:
-                logger.info("✓ d2.png is up to date")
-            else:
-                logger.error("✗ d2.png is out of date")
-            return is_up_to_date
-        finally:
-            tmp_path.unlink(missing_ok=True)
-    else:
-        success = run_d2_command(PNG_PATH)
-        if success:
-            logger.info("d2.png updated")
-        return success
+        return True
 
 
 def update_all(check_only: bool = False) -> bool:
     """
-    Update README.md, diagram.d2, and d2.png.
+    Update README.md and diagram.d2.
+
+    Note: PNG generation is handled separately by the 'd2' task in Taskfile.yml,
+    which uses Task's built-in file caching (sources/generates) to skip regeneration
+    when diagram.d2 hasn't changed. Refer to `task docs:diagram`.
 
     Args:
         check_only: If True, only check if updates are needed without writing.
@@ -216,14 +168,9 @@ def update_all(check_only: bool = False) -> bool:
         True if all docs are up to date (or were updated), False if updates needed.
     """
     readme_ok = update_readme(check_only)
-    diagram_ok, diagram_changed = update_d2_diagram(check_only)
+    diagram_ok = update_d2_diagram(check_only)
 
-    # Only update/check PNG if diagram.d2 changed (new toolset added)
-    png_ok = True
-    if diagram_changed:
-        png_ok = update_d2_png(check_only)
-
-    all_ok = readme_ok and diagram_ok and png_ok
+    all_ok = readme_ok and diagram_ok
     if check_only and not all_ok:
         logger.error("\nRun: task docs:generate to update the documentation.")
 
