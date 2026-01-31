@@ -69,6 +69,7 @@ toolsets = {
         ToolName.GET_EXPOSURES,
         ToolName.GET_EXPOSURE_DETAILS,
         ToolName.GET_RELATED_MODELS,
+        ToolName.GET_ALL_MACROS,
         ToolName.GET_MACRO_DETAILS,
         ToolName.GET_SEED_DETAILS,
         ToolName.GET_SEMANTIC_MODEL_DETAILS,

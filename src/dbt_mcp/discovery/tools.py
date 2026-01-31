@@ -9,6 +9,8 @@ from dbt_mcp.discovery.client import (
     AppliedResourceType,
     ExposuresFetcher,
     LineageFetcher,
+    LineageResourceType,
+    MacrosFetcher,
     MetadataAPIClient,
     ModelPerformanceFetcher,
     ModelsFetcher,
@@ -38,6 +40,7 @@ class DiscoveryToolContext:
     models_fetcher: ModelsFetcher
     exposures_fetcher: ExposuresFetcher
     sources_fetcher: SourcesFetcher
+    macros_fetcher: MacrosFetcher
     resource_details_fetcher: ResourceDetailsFetcher
     lineage_fetcher: LineageFetcher
     model_performance_fetcher: ModelPerformanceFetcher
@@ -76,6 +79,20 @@ class DiscoveryToolContext:
                     "environment",
                     "applied",
                     "sources",
+                    "pageInfo",
+                ),
+            ),
+        )
+        self.macros_fetcher = MacrosFetcher(
+            api_client=api_client,
+            paginator=PaginatedResourceFetcher(
+                api_client,
+                edges_path=("data", "environment", "applied", "resources", "edges"),
+                page_info_path=(
+                    "data",
+                    "environment",
+                    "applied",
+                    "resources",
                     "pageInfo",
                 ),
             ),
@@ -296,6 +313,33 @@ async def get_source_details(
 
 
 @dbt_mcp_tool(
+    description=get_prompt("discovery/get_all_macros"),
+    title="Get All Macros",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+)
+async def get_all_macros(
+    context: DiscoveryToolContext,
+    package_names: list[str] | None = Field(
+        default=None,
+        description="Optional list of package names to filter macros by "
+        "(e.g., ['my_project', 'my_package']).",
+    ),
+    return_package_names_only: bool = Field(
+        default=False,
+        description="If True, returns only the unique package names instead of "
+        "full macro details. Use this to discover available packages first, "
+        "then filter by specific packages to get macro details.",
+    ),
+) -> list[dict] | list[str]:
+    return await context.macros_fetcher.fetch_macros(
+        package_names=package_names,
+        return_package_names_only=return_package_names_only,
+    )
+
+
+@dbt_mcp_tool(
     description=get_prompt("discovery/get_macro_details"),
     title="Get Macro Details",
     read_only_hint=True,
@@ -403,6 +447,7 @@ DISCOVERY_TOOLS = [
     get_exposure_details,
     get_all_sources,
     get_source_details,
+    get_all_macros,
     get_macro_details,
     get_seed_details,
     get_semantic_model_details,
