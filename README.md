@@ -35,6 +35,7 @@ The dbt MCP server architecture allows for your agent to connect to a variety of
 - `query_metrics`
 
 ### Discovery
+- `get_all_macros`
 - `get_all_models`
 - `get_all_sources`
 - `get_exposure_details`

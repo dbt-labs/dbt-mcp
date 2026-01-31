@@ -12,6 +12,7 @@ from dbt_mcp.discovery.client import (
     DEFAULT_MAX_NODE_QUERY_LIMIT,
     DEFAULT_PAGE_SIZE,
     ExposuresFetcher,
+    MacrosFetcher,
     MetadataAPIClient,
     ModelsFetcher,
     PaginatedResourceFetcher,
@@ -83,3 +84,15 @@ def sources_fetcher(api_client: MetadataAPIClient) -> SourcesFetcher:
         max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
     )
     return SourcesFetcher(api_client, paginator=paginator)
+
+
+@pytest.fixture
+def macros_fetcher(api_client: MetadataAPIClient) -> MacrosFetcher:
+    paginator = PaginatedResourceFetcher(
+        api_client,
+        edges_path=("data", "environment", "applied", "resources", "edges"),
+        page_info_path=("data", "environment", "applied", "resources", "pageInfo"),
+        page_size=DEFAULT_PAGE_SIZE,
+        max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
+    )
+    return MacrosFetcher(api_client, paginator=paginator)
