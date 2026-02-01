@@ -1,7 +1,6 @@
 import json
 import os
 import subprocess
-from collections.abc import Iterable
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -28,11 +27,18 @@ from dbt_mcp.tools.toolsets import Toolset
 def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition]:
     def _run_dbt_command(
         command: list[str],
+        *,
         selector: str | None = None,
+        exclude: str | None = None,
         resource_type: list[str] | None = None,
         is_selectable: bool = False,
         is_full_refresh: bool | None = False,
         vars: str | None = None,
+        defer: bool = False,
+        state: str | None = None,
+        target: str | None = None,
+        fail_fast: bool = False,
+        threads: int | None = None,
     ) -> str:
         try:
             # Commands that should always be quiet to reduce output verbosity
@@ -52,12 +58,43 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             if vars and isinstance(vars, str):
                 command.extend(["--vars", vars])
 
-            if selector:
-                selector_params = str(selector).split(" ")
+            if selector and isinstance(selector, str):
+                selector_params = selector.split(" ")
                 command.extend(["--select"] + selector_params)
 
-            if isinstance(resource_type, Iterable):
+            if exclude and isinstance(exclude, str):
+                exclude_params = exclude.split(" ")
+                command.extend(["--exclude"] + exclude_params)
+
+            if isinstance(resource_type, list):
                 command.extend(["--resource-type"] + resource_type)
+
+            # Handle defer and state flags
+            if defer is True:
+                command.append("--defer")
+                # Use provided state path, fall back to config default
+                effective_state = (
+                    state if isinstance(state, str) else None
+                ) or config.state_path
+                if effective_state:
+                    command.extend(["--state", effective_state])
+                else:
+                    return "Error: --defer requires a state path. Either pass the `state` parameter or set the `DBT_MCP_STATE_PATH` environment variable."
+            elif state and isinstance(state, str):
+                # State can be used without defer for state:modified selectors
+                command.extend(["--state", state])
+
+            # Handle target flag
+            target_str = target if isinstance(target, str) else None
+            effective_target = target_str or config.target
+            if effective_target:
+                command.extend(["--target", effective_target])
+
+            if fail_fast is True:
+                command.append("--fail-fast")
+
+            if isinstance(threads, int):
+                command.extend(["--threads", str(threads)])
 
             full_command = command.copy()
             # Add --quiet flag to specific commands to reduce context window usage
@@ -96,49 +133,128 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
+        exclude: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/exclude")
+        ),
         is_full_refresh: bool | None = Field(
             default=None, description=get_prompt("dbt_cli/args/full_refresh")
         ),
         vars: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/vars")
         ),
+        defer: bool = Field(
+            default=False, description=get_prompt("dbt_cli/args/defer")
+        ),
+        state: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/state")
+        ),
+        target: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/target")
+        ),
+        fail_fast: bool = Field(
+            default=False, description=get_prompt("dbt_cli/args/fail_fast")
+        ),
+        threads: int | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/threads")
+        ),
     ) -> str:
         return _run_dbt_command(
             ["build"],
-            selector,
+            selector=selector,
+            exclude=exclude,
             is_selectable=True,
             is_full_refresh=is_full_refresh,
             vars=vars,
+            defer=defer,
+            state=state,
+            target=target,
+            fail_fast=fail_fast,
+            threads=threads,
         )
 
-    def compile() -> str:
-        return _run_dbt_command(["compile"])
+    def compile(
+        selector: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/selectors")
+        ),
+        exclude: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/exclude")
+        ),
+        vars: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/vars")
+        ),
+        defer: bool = Field(
+            default=False, description=get_prompt("dbt_cli/args/defer")
+        ),
+        state: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/state")
+        ),
+        target: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/target")
+        ),
+        threads: int | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/threads")
+        ),
+    ) -> str:
+        return _run_dbt_command(
+            ["compile"],
+            selector=selector,
+            exclude=exclude,
+            is_selectable=True,
+            vars=vars,
+            defer=defer,
+            state=state,
+            target=target,
+            threads=threads,
+        )
 
-    def docs() -> str:
-        return _run_dbt_command(["docs", "generate"])
+    def docs(
+        target: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/target")
+        ),
+    ) -> str:
+        return _run_dbt_command(["docs", "generate"], target=target)
 
     def ls(
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
+        exclude: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/exclude")
+        ),
         resource_type: list[str] | None = Field(
             default=None,
             description=get_prompt("dbt_cli/args/resource_type"),
         ),
+        state: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/state")
+        ),
+        target: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/target")
+        ),
     ) -> str:
         return _run_dbt_command(
             ["list"],
-            selector,
+            selector=selector,
+            exclude=exclude,
             resource_type=resource_type,
             is_selectable=True,
+            state=state,
+            target=target,
         )
 
-    def parse() -> str:
-        return _run_dbt_command(["parse"])
+    def parse(
+        target: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/target")
+        ),
+    ) -> str:
+        return _run_dbt_command(["parse"], target=target)
 
     def run(
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
+        ),
+        exclude: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/exclude")
         ),
         is_full_refresh: bool | None = Field(
             default=None, description=get_prompt("dbt_cli/args/full_refresh")
@@ -146,28 +262,87 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         vars: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/vars")
         ),
+        defer: bool = Field(
+            default=False, description=get_prompt("dbt_cli/args/defer")
+        ),
+        state: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/state")
+        ),
+        target: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/target")
+        ),
+        fail_fast: bool = Field(
+            default=False, description=get_prompt("dbt_cli/args/fail_fast")
+        ),
+        threads: int | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/threads")
+        ),
     ) -> str:
         return _run_dbt_command(
             ["run"],
-            selector,
+            selector=selector,
+            exclude=exclude,
             is_selectable=True,
             is_full_refresh=is_full_refresh,
             vars=vars,
+            defer=defer,
+            state=state,
+            target=target,
+            fail_fast=fail_fast,
+            threads=threads,
         )
 
     def test(
         selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/selectors")
         ),
+        exclude: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/exclude")
+        ),
         vars: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/vars")
         ),
+        defer: bool = Field(
+            default=False, description=get_prompt("dbt_cli/args/defer")
+        ),
+        state: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/state")
+        ),
+        target: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/target")
+        ),
+        fail_fast: bool = Field(
+            default=False, description=get_prompt("dbt_cli/args/fail_fast")
+        ),
+        threads: int | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/threads")
+        ),
     ) -> str:
-        return _run_dbt_command(["test"], selector, is_selectable=True, vars=vars)
+        return _run_dbt_command(
+            ["test"],
+            selector=selector,
+            exclude=exclude,
+            is_selectable=True,
+            vars=vars,
+            defer=defer,
+            state=state,
+            target=target,
+            fail_fast=fail_fast,
+            threads=threads,
+        )
 
     def show(
         sql_query: str = Field(description=get_prompt("dbt_cli/args/sql_query")),
         limit: int = Field(default=5, description=get_prompt("dbt_cli/args/limit")),
+        defer: bool = Field(
+            default=False, description=get_prompt("dbt_cli/args/defer")
+        ),
+        state: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/state")
+        ),
+        target: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/target")
+        ),
     ) -> str:
         args = ["show", "--inline", sql_query, "--favor-state"]
         # This is quite crude, but it should be okay for now
@@ -185,7 +360,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         if cli_limit is not None:
             args.extend(["--limit", str(cli_limit)])
         args.extend(["--output", "json"])
-        return _run_dbt_command(args)
+        return _run_dbt_command(args, defer=defer, state=state, target=target)
 
     def _get_manifest() -> Manifest:
         """Helper function to load the dbt manifest.json file."""

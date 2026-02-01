@@ -69,6 +69,8 @@ class DbtMcpSettings(BaseSettings):
     dbt_cli_timeout: int = Field(DEFAULT_DBT_CLI_TIMEOUT, alias="DBT_CLI_TIMEOUT")
     dbt_warn_error_options: str | None = Field(None, alias="DBT_WARN_ERROR_OPTIONS")
     dbt_profiles_dir: str | None = Field(None, alias="DBT_PROFILES_DIR")
+    dbt_mcp_state_path: str | None = Field(None, alias="DBT_MCP_STATE_PATH")
+    dbt_mcp_target: str | None = Field(None, alias="DBT_MCP_TARGET")
 
     # Disable tool settings
     disable_dbt_cli: bool = Field(False, alias="DISABLE_DBT_CLI")
@@ -242,7 +244,7 @@ class DbtMcpSettings(BaseSettings):
             raise ValueError(f"{field_name} path does not exist: {v}")
         return v
 
-    @field_validator("dbt_project_dir", "dbt_profiles_dir", mode="after")
+    @field_validator("dbt_project_dir", "dbt_profiles_dir", "dbt_mcp_state_path", mode="after")
     @classmethod
     def validate_dir_exists(cls, v: str | None, info: ValidationInfo) -> str | None:
         """Validate a directory path exists in the system."""

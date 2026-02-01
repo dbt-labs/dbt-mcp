@@ -42,6 +42,8 @@ mock_dbt_cli_config = DbtCliConfig(
     dbt_path="/path/to/dbt",
     dbt_cli_timeout=10,
     binary_type=BinaryType.DBT_CORE,
+    state_path=None,
+    target=None,
 )
 
 mock_dbt_codegen_config = DbtCodegenConfig(

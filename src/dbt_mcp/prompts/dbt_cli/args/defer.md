@@ -1,0 +1,1 @@
+If true, dbt will defer to a previous state for unselected nodes. This enables slim CI workflows where only modified models are built, with references to upstream models resolved from a production manifest. Requires a state path to be set (via the `state` parameter or `DBT_MCP_STATE_PATH` environment variable).

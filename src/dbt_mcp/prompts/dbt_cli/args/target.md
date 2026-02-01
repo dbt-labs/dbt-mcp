@@ -1,0 +1,1 @@
+The name of the target profile to use for this dbt invocation. Targets define connection details for different environments (e.g., dev, prod, staging). If not provided, uses the default target from the profiles.yml file or the `DBT_MCP_TARGET` environment variable.

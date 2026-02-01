@@ -1,0 +1,1 @@
+The path to a directory containing a manifest.json file from a previous dbt run. Used with `--defer` to resolve references to unselected nodes. Typically points to a production artifacts directory. If not provided and `defer` is true, the `DBT_MCP_STATE_PATH` environment variable will be used.

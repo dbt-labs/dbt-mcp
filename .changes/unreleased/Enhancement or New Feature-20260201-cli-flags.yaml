@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Add support for common dbt CLI flags (--defer, --state, --exclude, --target, --fail-fast, --threads) to build, run, test, compile, list, parse, docs, and show tools. Also adds DBT_MCP_STATE_PATH and DBT_MCP_TARGET environment variables for configuring default values.
+time: 2026-02-01T12:00:00.000000Z

@@ -48,6 +48,8 @@ class DbtCliConfig:
     dbt_path: str
     dbt_cli_timeout: int
     binary_type: BinaryType
+    state_path: str | None = None
+    target: str | None = None
 
 
 @dataclass
@@ -123,6 +125,8 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
             dbt_path=settings.dbt_path,
             dbt_cli_timeout=settings.dbt_cli_timeout,
             binary_type=binary_type,
+            state_path=settings.dbt_mcp_state_path,
+            target=settings.dbt_mcp_target,
         )
 
     dbt_codegen_config = None

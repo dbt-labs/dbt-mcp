@@ -1,0 +1,1 @@
+A selector pattern to exclude specific nodes from the operation. Nodes matching this pattern will be skipped even if they match the main selector. Uses the same syntax as the selector parameter. For example, to run all models except staging models: selector="+my_model", exclude="staging.*".
