@@ -296,9 +296,7 @@ class DbtMcpSettings(BaseSettings):
             resolved_dir = _resolve_project_dir_default(resolved_dbt_path)
             if resolved_dir:
                 object.__setattr__(self, "dbt_project_dir", resolved_dir)
-                logger.info(
-                    f"Auto-detected dbt project directory: {resolved_dir}"
-                )
+                logger.info(f"Auto-detected dbt project directory: {resolved_dir}")
 
         return self
 
@@ -637,7 +635,10 @@ def _validate_dbt_project_with_parse(
                 # Use select on Unix to avoid blocking indefinitely
                 if sys.platform != "win32":
                     ready, _, _ = select.select(
-                        [process.stdout], [], [], 1.0  # type: ignore[list-item]
+                        [process.stdout],
+                        [],
+                        [],
+                        1.0,  # type: ignore[list-item]
                     )
                     if not ready:
                         continue
