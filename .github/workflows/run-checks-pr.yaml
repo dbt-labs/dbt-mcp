@@ -68,6 +68,8 @@ jobs:
         id: setup-python
       - name: Install go-task
         run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+      - name: Install d2
+        run: curl -fsSL https://d2lang.com/install.sh | sh -s --
       - name: Validate documentation is up to date
         run: task docs:generate CHECK_FLAG=--check
 

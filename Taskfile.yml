@@ -114,7 +114,8 @@ tasks:
   docs:generate:
     desc: "Generate documentation from tool definitions"
     cmds:
-      - uv run python scripts/generate_docs.py {{.CHECK_FLAG}}
+      - uv run python scripts/generate_docs.py
+      - task: d2
 
   d2:
     desc: "Update d2 diagram from the config"
