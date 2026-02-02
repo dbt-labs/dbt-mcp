@@ -1,6 +1,10 @@
 import logging
+import os
+import select
 import shutil
 import socket
+import subprocess
+import sys
 import time
 from enum import Enum
 from pathlib import Path
@@ -265,6 +269,38 @@ class DbtMcpSettings(BaseSettings):
     @classmethod
     def parse_enable_tools(cls, env_var: str | None) -> list[ToolName] | None:
         return _parse_tool_list(env_var, "DBT_MCP_ENABLE_TOOLS")
+
+    @model_validator(mode="after")
+    def apply_cli_defaults(self) -> "DbtMcpSettings":
+        """Apply sensible defaults for dbt CLI settings when env vars are not set.
+
+        If DBT_PATH is not set (or is the default "dbt"), attempt to find dbt on PATH.
+        If DBT_PROJECT_DIR is not set, attempt to use the current working directory
+        if it appears to be a valid dbt project (validated with `dbt parse`).
+        """
+        # Skip if CLI is explicitly disabled
+        if self.disable_dbt_cli:
+            return self
+
+        # Resolve dbt_path if it's the default "dbt" or not set
+        resolved_dbt_path = self.dbt_path
+        if self.dbt_path in ["dbt", "dbtf"] or not self.dbt_path:
+            resolved = _resolve_dbt_path_default()
+            if resolved:
+                resolved_dbt_path = resolved
+                object.__setattr__(self, "dbt_path", resolved)
+                logger.info(f"Auto-detected dbt executable at: {resolved}")
+
+        # Resolve dbt_project_dir if not set
+        if not self.dbt_project_dir:
+            resolved_dir = _resolve_project_dir_default(resolved_dbt_path)
+            if resolved_dir:
+                object.__setattr__(self, "dbt_project_dir", resolved_dir)
+                logger.info(
+                    f"Auto-detected dbt project directory: {resolved_dir}"
+                )
+
+        return self
 
     @model_validator(mode="after")
     def auto_disable(self) -> "DbtMcpSettings":
@@ -547,6 +583,177 @@ def validate_dbt_cli_settings(settings: DbtMcpSettings) -> list[str]:
                     f"DBT_PATH executable can't be found: {settings.dbt_path}"
                 )
     return errors
+
+
+def _validate_dbt_project_with_parse(
+    dbt_path: str, project_dir: str, timeout: int = 30
+) -> bool:
+    """
+    Validate that the given directory is a valid dbt project by running `dbt parse`.
+
+    Runs `dbt parse` and checks if the output indicates the directory is not a dbt project.
+    The process is terminated early once we can determine success or failure.
+
+    Only returns False for errors that indicate the project directory itself is invalid
+    (no dbt_project.yml found, not a dbt project dir). Other errors (e.g., syntax errors
+    in models) still indicate a valid project directory.
+
+    Args:
+        dbt_path: Path to the dbt executable
+        project_dir: Directory to validate as a dbt project
+        timeout: Maximum seconds to wait for validation (default 30)
+
+    Returns:
+        True if the directory is (or contains) a valid dbt project, False otherwise
+    """
+    try:
+        process = subprocess.Popen(
+            [dbt_path, "parse", "--project-dir", project_dir],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            text=True,
+            cwd=project_dir,
+        )
+
+        # Read output line by line to detect success or failure early
+        output_lines: list[str] = []
+        start_time = time.time()
+
+        try:
+            while True:
+                # Check timeout
+                if time.time() - start_time > timeout:
+                    logger.debug(f"dbt parse validation timed out after {timeout}s")
+                    process.terminate()
+                    process.wait(timeout=5)
+                    # Timeout without "not a project" error - assume valid
+                    return True
+
+                # Check if process has ended
+                if process.poll() is not None:
+                    break
+
+                # Use select on Unix to avoid blocking indefinitely
+                if sys.platform != "win32":
+                    ready, _, _ = select.select(
+                        [process.stdout], [], [], 1.0  # type: ignore[list-item]
+                    )
+                    if not ready:
+                        continue
+
+                line = process.stdout.readline()  # type: ignore[union-attr]
+                if not line:
+                    break
+
+                output_lines.append(line)
+                line_lower = line.lower()
+
+                # Check for specific "not a project" indicators only
+                # dbt Core: "No dbt_project.yml found" or similar
+                # dbt Fusion: "not a dbt project" or "is not a dbt project dir"
+                # These indicate the directory itself is wrong, not just a parsing error
+                if (
+                    "no dbt_project.yml" in line_lower
+                    or "not a dbt project" in line_lower
+                    or "is not a dbt project" in line_lower
+                ):
+                    process.terminate()
+                    process.wait(timeout=5)
+                    return False
+
+                # Success indicators - dbt found the project and is parsing
+                # "found X models" or similar indicates parsing is happening
+                # Note: "Running with dbt=" is printed before validation, so don't use it
+                if "found" in line_lower and any(
+                    word in line_lower
+                    for word in ["model", "source", "test", "seed", "snapshot"]
+                ):
+                    process.terminate()
+                    process.wait(timeout=5)
+                    return True
+
+        except Exception:
+            pass
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+
+        # If process completed successfully, it's a valid project
+        return_code = process.poll()
+        if return_code is not None and return_code == 0:
+            return True
+
+        # Check accumulated output for "not a project" indicators
+        full_output = "".join(output_lines).lower()
+        if (
+            "no dbt_project.yml" in full_output
+            or "not a dbt project" in full_output
+            or "is not a dbt project" in full_output
+        ):
+            return False
+
+        # If we got output but no "not a project" errors, assume the directory is valid
+        # (other errors like syntax errors still mean the project dir is correct)
+        if output_lines:
+            return True
+
+        return False
+
+    except FileNotFoundError:
+        # dbt executable not found
+        return False
+    except Exception as e:
+        logger.debug(f"Error validating dbt project with parse: {e}")
+        return False
+
+
+def _resolve_dbt_path_default() -> str | None:
+    """
+    Attempt to find a dbt executable on the system PATH.
+
+    Returns:
+        The full path to the dbt executable, or None if not found
+    """
+    # Try common dbt executable names
+    for executable in ["dbt", "dbtf"]:
+        resolved = shutil.which(executable)
+        if resolved:
+            logger.debug(f"Resolved dbt executable: {resolved}")
+            return resolved
+    return None
+
+
+def _resolve_project_dir_default(dbt_path: str | None) -> str | None:
+    """
+    Attempt to use the current working directory as the dbt project directory.
+
+    Validates the directory by running `dbt parse`, which will find dbt_project.yml
+    even if it's in a parent directory.
+
+    Args:
+        dbt_path: Path to the dbt executable (required for validation)
+
+    Returns:
+        The current working directory if it's a valid dbt project, None otherwise
+    """
+    if not dbt_path:
+        # Can't validate without dbt
+        return None
+
+    cwd = os.getcwd()
+
+    # Validate with dbt parse - this will find dbt_project.yml in parent dirs too
+    if _validate_dbt_project_with_parse(dbt_path, cwd):
+        logger.debug(f"Validated {cwd} as dbt project directory using dbt parse")
+        return cwd
+    else:
+        logger.debug(f"dbt parse validation failed for {cwd}")
+        return None
 
 
 class CredentialsProvider:
