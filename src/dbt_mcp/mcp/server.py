@@ -157,6 +157,8 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
         ),
         name="dbt",
         lifespan=app_lifespan,
+        host=config.settings.fastmcp_host,
+        port=config.settings.fastmcp_port or 8000,
     )
 
     disabled_tools = set(config.disable_tools)

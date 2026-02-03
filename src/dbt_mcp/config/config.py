@@ -78,6 +78,7 @@ class Config:
     admin_api_config_provider: DefaultAdminApiConfigProvider | None
     credentials_provider: CredentialsProvider
     lsp_config: LspConfig | None
+    settings: DbtMcpSettings
 
 
 def load_config(enable_proxied_tools: bool = True) -> Config:
@@ -168,4 +169,5 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         admin_api_config_provider=admin_api_config_provider,
         credentials_provider=credentials_provider,
         lsp_config=lsp_config,
+        settings=settings,
     )

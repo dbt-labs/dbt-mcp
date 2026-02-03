@@ -1,0 +1,11 @@
+services:
+  dbt-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dbt-mcp-server
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
