@@ -9,7 +9,6 @@ from dbt_mcp.discovery.client import (
     AppliedResourceType,
     ExposuresFetcher,
     LineageFetcher,
-    LineageResourceType,
     MacrosFetcher,
     MetadataAPIClient,
     ModelPerformanceFetcher,
