@@ -70,6 +70,10 @@ class DbtMcpSettings(BaseSettings):
     dbt_warn_error_options: str | None = Field(None, alias="DBT_WARN_ERROR_OPTIONS")
     dbt_profiles_dir: str | None = Field(None, alias="DBT_PROFILES_DIR")
 
+    # FastMCP HTTP server settings
+    fastmcp_host: str = Field("127.0.0.1", alias="FASTMCP_HOST")
+    fastmcp_port: int | None = Field(None, alias="FASTMCP_PORT")
+
     # Disable tool settings
     disable_dbt_cli: bool = Field(False, alias="DISABLE_DBT_CLI")
     disable_dbt_codegen: bool = Field(True, alias="DISABLE_DBT_CODEGEN")
