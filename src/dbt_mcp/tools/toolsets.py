@@ -86,7 +86,7 @@ toolsets = {
         ToolName.RUN,
         ToolName.TEST,
         ToolName.SHOW,
-        ToolName.GET_MODEL_LINEAGE_DEV,
+        ToolName.GET_LINEAGE_DEV,
         ToolName.GET_NODE_DETAILS_DEV,
     },
     Toolset.ADMIN_API: {

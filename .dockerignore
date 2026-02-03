@@ -1,0 +1,58 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv
+venv
+env
+.env
+.env.*
+*.egg-info
+dist
+build
+.eggs
+
+# IDE
+.vscode
+.cursor
+.idea
+*.swp
+*.swo
+
+# Testing
+.pytest_cache
+.mypy_cache
+.ruff_cache
+htmlcov
+.coverage
+coverage.xml
+
+# Project specific
+.changes
+.claude
+.github
+.task
+docs
+evals
+examples
+tests
+ui
+logs
+*.md
+!README.md
+Taskfile.yml
+.pre-commit-config.yaml
+.changie.yaml
+.mcpbignore
+.mcpc.json
+mcpc.json
+manifest.json
+server.json
+.tool-versions
+.envrc

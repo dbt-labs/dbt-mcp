@@ -223,10 +223,46 @@ async def test_fetch_lineage_depth_limits_traversal(lineage_fetcher, mock_api_cl
     assert "model.test.model3" in unique_ids
 
 
-async def test_fetch_lineage_depth_zero_raises_error(lineage_fetcher, mock_api_client):
-    """Test that depth=0 raises a ToolCallError."""
-    with pytest.raises(ToolCallError, match="Depth must be greater than 0"):
-        await lineage_fetcher.fetch_lineage(unique_id="model.test.customers", depth=0)
+async def test_fetch_lineage_depth_zero_is_infinite(lineage_fetcher, mock_api_client):
+    """Test that depth=0 is treated as infinite depth."""
+    mock_api_client.execute_query.return_value = {
+        "data": {
+            "environment": {
+                "applied": {
+                    "lineage": [
+                        {
+                            "uniqueId": "model.test.model1",
+                            "parentIds": [],
+                            "resourceType": "model",
+                        },
+                        {
+                            "uniqueId": "model.test.model2",
+                            "parentIds": ["model.test.model1"],
+                            "resourceType": "model",
+                        },
+                        {
+                            "uniqueId": "model.test.model3",
+                            "parentIds": ["model.test.model2"],
+                            "resourceType": "model",
+                        },
+                    ]
+                }
+            }
+        }
+    }
+
+    # Depth 0 should return all connected nodes regardless of distance
+    result = await lineage_fetcher.fetch_lineage(unique_id="model.test.model1", depth=0)
+    unique_ids = {node["uniqueId"] for node in result}
+    assert unique_ids == {"model.test.model1", "model.test.model2", "model.test.model3"}
+
+
+async def test_fetch_lineage_negative_depth_raises_error(
+    lineage_fetcher, mock_api_client
+):
+    """Test that negative depth raises a ToolCallError."""
+    with pytest.raises(ToolCallError, match="Depth must be greater than or equal to 0"):
+        await lineage_fetcher.fetch_lineage(unique_id="model.test.customers", depth=-1)
 
 
 async def test_fetch_lineage_depth_one_returns_immediate_neighbors(

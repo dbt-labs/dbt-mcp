@@ -40,7 +40,7 @@ def test_generate_source_basic_schema(
         fastmcp,
         mock_dbt_codegen_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -90,7 +90,7 @@ def test_generate_source_with_all_parameters(
         fastmcp,
         mock_dbt_codegen_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -133,7 +133,7 @@ def test_generate_model_yaml(monkeypatch: MonkeyPatch, mock_process, mock_fastmc
         fastmcp,
         mock_dbt_codegen_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -173,7 +173,7 @@ def test_generate_staging_model(monkeypatch: MonkeyPatch, mock_process, mock_fas
         fastmcp,
         mock_dbt_codegen_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -225,7 +225,7 @@ def test_codegen_error_handling_missing_package(monkeypatch: MonkeyPatch, mock_f
         fastmcp,
         mock_dbt_codegen_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -266,7 +266,7 @@ def test_codegen_error_handling_general_error(monkeypatch: MonkeyPatch, mock_fas
         fastmcp,
         mock_dbt_codegen_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -302,7 +302,7 @@ def test_codegen_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
         fastmcp,
         mock_dbt_codegen_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -335,7 +335,7 @@ def test_quiet_flag_placement(monkeypatch: MonkeyPatch, mock_process, mock_fastm
         fastmcp,
         mock_dbt_codegen_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -378,7 +378,7 @@ def test_absolute_path_handling(monkeypatch: MonkeyPatch, mock_process, mock_fas
         fastmcp,
         mock_dbt_codegen_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -405,7 +405,7 @@ def test_all_tools_registered(mock_fastmcp):
         fastmcp,
         mock_dbt_codegen_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )

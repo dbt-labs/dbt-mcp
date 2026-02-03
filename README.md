@@ -60,7 +60,7 @@ The dbt MCP server architecture allows for your agent to connect to a variety of
 - `build`
 - `compile`
 - `docs`
-- `get_model_lineage_dev`
+- `get_lineage_dev`
 - `get_node_details_dev`
 - `list`
 - `parse`
@@ -91,7 +91,7 @@ The dbt MCP server architecture allows for your agent to connect to a variety of
 - `fusion.get_column_lineage`
 - `get_column_lineage`
 
-### Mcp Server Metadata
+### MCP Server Metadata
 - `get_mcp_server_version`
 
 

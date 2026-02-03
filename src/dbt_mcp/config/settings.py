@@ -258,12 +258,12 @@ class DbtMcpSettings(BaseSettings):
 
     @field_validator("disable_tools", mode="before")
     @classmethod
-    def parse_disable_tools(cls, env_var: str | None) -> list[ToolName]:
+    def parse_disable_tools(cls, env_var: str | None) -> list[ToolName] | None:
         return _parse_tool_list(env_var, "DISABLE_TOOLS")
 
     @field_validator("enable_tools", mode="before")
     @classmethod
-    def parse_enable_tools(cls, env_var: str | None) -> list[ToolName]:
+    def parse_enable_tools(cls, env_var: str | None) -> list[ToolName] | None:
         return _parse_tool_list(env_var, "DBT_MCP_ENABLE_TOOLS")
 
     @model_validator(mode="after")
@@ -294,22 +294,26 @@ class DbtMcpSettings(BaseSettings):
         return self
 
 
-def _parse_tool_list(env_var: str | None, field_name: str) -> list[ToolName]:
+def _parse_tool_list(env_var: str | None, field_name: str) -> list[ToolName] | None:
     """Parse comma-separated tool names from environment variable.
+
+    Invalid tool names are logged as warnings and skipped, allowing the
+    application to continue with valid tool names only.
+
+    The distinction between None and empty list is important:
+    - None: env var not set -> default behavior (all tools enabled)
+    - Empty list: env var set but no valid tools -> allowlist mode with nothing allowed
 
     Args:
         env_var: Comma-separated tool names
         field_name: Name of the field for error messages
 
     Returns:
-        List of validated ToolName enums
-
-    Raises:
-        ValueError: If any tool names are invalid
+        None if env var not set, otherwise list of validated ToolName enums
+        (invalid names are skipped)
     """
-    if not env_var:
-        return []
-    errors: list[str] = []
+    if env_var is None:
+        return None
     tool_names: list[ToolName] = []
     for tool_name in env_var.split(","):
         tool_name_stripped = tool_name.strip()
@@ -318,12 +322,10 @@ def _parse_tool_list(env_var: str | None, field_name: str) -> list[ToolName]:
         try:
             tool_names.append(ToolName(tool_name_stripped.lower()))
         except ValueError:
-            errors.append(
-                f"Invalid tool name in {field_name}: {tool_name_stripped}. "
+            logger.warning(
+                f"Ignoring invalid tool name in {field_name}: '{tool_name_stripped}'. "
                 "Must be a valid tool name."
             )
-    if errors:
-        raise ValueError("\n".join(errors))
     return tool_names
 
 
