@@ -15,6 +15,7 @@ from dbt_mcp.config.config_providers import (
 )
 from dbt_mcp.config.headers import AdminApiHeadersProvider
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
+from dbt_mcp.errors.hints import with_multicell_hint
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
 from dbt_mcp.oauth.dbt_platform import (
     DbtPlatformContext,
@@ -122,6 +123,8 @@ def create_app(
             logger.exception("OAuth callback failed")
             default_msg = "An unexpected error occurred during authentication"
             error_message = str(e) if str(e) else default_msg
+            # Add hint for SSL errors (common with multi-cell misconfiguration)
+            error_message = with_multicell_hint(error_message)
             return error_redirect("oauth_failed", error_message)
 
     @app.post("/shutdown")
