@@ -3,6 +3,7 @@ import pytest
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.client import (
     DEFAULT_PAGE_SIZE,
+    DBT_BUILTIN_PACKAGES,
     ExposuresFetcher,
     MacrosFetcher,
     ModelFilter,
@@ -295,7 +296,6 @@ async def test_get_all_macros_tool(
     config_provider: ConfigProvider[DiscoveryConfig],
 ) -> None:
     """Test the get_all_macros tool function integration."""
-    from dbt_mcp.discovery.client import DBT_BUILTIN_PACKAGES
 
     # Create tool definitions
     tool_definitions = DISCOVERY_TOOLS
@@ -313,7 +313,9 @@ async def test_get_all_macros_tool(
 
     # Execute the tool function
     result = await get_all_macros_tool.fn(
-        context=DiscoveryToolContext(config_provider=config_provider)
+        context=DiscoveryToolContext(config_provider=config_provider),
+        package_names=None,
+        return_package_names_only=False,
     )
 
     # Validate the result
