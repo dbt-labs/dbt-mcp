@@ -618,6 +618,7 @@ class MacrosFetcher:
         self,
         package_names: list[str] | None = None,
         return_package_names_only: bool = False,
+        include_default_dbt_packages: bool = False,
     ) -> list[dict] | list[str]:
         """Fetch all macros with optional filtering.
 
@@ -626,6 +627,8 @@ class MacrosFetcher:
             return_package_names_only: If True, returns only unique package names
                 instead of full macro details. Useful for discovering available
                 packages before drilling down.
+            include_default_dbt_packages: If True, includes the default dbt macros that
+                are maintained by dbt Labs.
 
         Returns:
             List of macros with name, uniqueId, description, and packageName,
@@ -638,12 +641,13 @@ class MacrosFetcher:
             variables={"filter": macro_filter},
         )
 
-        # Filter out dbt-labs first-party macros
-        macros = [
-            m
-            for m in macros
-            if not self._is_dbt_builtin_package(m.get("packageName", ""))
-        ]
+        # Filter out dbt-labs first-party macros unless include_default_dbt_packages is True
+        if not include_default_dbt_packages:
+            macros = [
+                m
+                for m in macros
+                if not self._is_dbt_builtin_package(m.get("packageName", ""))
+            ]
 
         # Filter by package names if specified
         if package_names is not None:

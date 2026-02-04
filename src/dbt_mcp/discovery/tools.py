@@ -331,10 +331,16 @@ async def get_all_macros(
         "full macro details. Use this to discover available packages first, "
         "then filter by specific packages to get macro details.",
     ),
+    include_default_dbt_packages: bool = Field(
+        default=False,
+        description="If True, includes the default dbt macros that "
+        "are maintained by dbt Labs.",
+    ),
 ) -> list[dict] | list[str]:
     return await context.macros_fetcher.fetch_macros(
         package_names=package_names,
         return_package_names_only=return_package_names_only,
+        include_default_dbt_packages=include_default_dbt_packages,
     )
 
 

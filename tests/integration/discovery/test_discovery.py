@@ -316,6 +316,7 @@ async def test_get_all_macros_tool(
         context=DiscoveryToolContext(config_provider=config_provider),
         package_names=None,
         return_package_names_only=False,
+        include_default_dbt_packages=False,
     )
 
     # Validate the result

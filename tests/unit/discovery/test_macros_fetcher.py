@@ -291,6 +291,112 @@ async def test_fetch_macros_empty_response(macros_fetcher, mock_api_client):
     assert result == []
 
 
+async def test_fetch_macros_includes_default_dbt_packages_when_flag_set(
+    macros_fetcher, mock_api_client
+):
+    """Test that dbt-labs first-party macros are included when include_default_dbt_packages=True."""
+    mock_response = {
+        "data": {
+            "environment": {
+                "applied": {
+                    "resources": {
+                        "pageInfo": {"hasNextPage": False, "endCursor": "cursor_end"},
+                        "edges": [
+                            {
+                                "node": {
+                                    "name": "my_macro",
+                                    "uniqueId": "macro.my_project.my_macro",
+                                    "description": "A custom macro",
+                                    "packageName": "my_project",
+                                }
+                            },
+                            {
+                                "node": {
+                                    "name": "run_query",
+                                    "uniqueId": "macro.dbt.run_query",
+                                    "description": "dbt core macro",
+                                    "packageName": "dbt",
+                                }
+                            },
+                            {
+                                "node": {
+                                    "name": "snapshot_merge_sql",
+                                    "uniqueId": "macro.dbt_postgres.snapshot_merge_sql",
+                                    "description": "dbt_postgres adapter macro",
+                                    "packageName": "dbt_postgres",
+                                }
+                            },
+                        ],
+                    }
+                }
+            }
+        }
+    }
+
+    mock_api_client.execute_query.return_value = mock_response
+
+    result = await macros_fetcher.fetch_macros(include_default_dbt_packages=True)
+
+    # All macros should be returned, including dbt core and dbt_postgres
+    assert len(result) == 3
+    assert result[0]["name"] == "my_macro"
+    assert result[1]["name"] == "run_query"
+    assert result[2]["name"] == "snapshot_merge_sql"
+
+
+async def test_fetch_macros_return_package_names_only_with_include_default(
+    macros_fetcher, mock_api_client
+):
+    """Test return_package_names_only includes dbt packages when include_default_dbt_packages=True."""
+    mock_response = {
+        "data": {
+            "environment": {
+                "applied": {
+                    "resources": {
+                        "pageInfo": {"hasNextPage": False, "endCursor": "cursor_end"},
+                        "edges": [
+                            {
+                                "node": {
+                                    "name": "my_macro",
+                                    "uniqueId": "macro.my_project.my_macro",
+                                    "description": "A custom macro",
+                                    "packageName": "my_project",
+                                }
+                            },
+                            {
+                                "node": {
+                                    "name": "dbt_macro",
+                                    "uniqueId": "macro.dbt.dbt_macro",
+                                    "description": "A dbt core macro",
+                                    "packageName": "dbt",
+                                }
+                            },
+                            {
+                                "node": {
+                                    "name": "utils_macro",
+                                    "uniqueId": "macro.dbt_utils.utils_macro",
+                                    "description": "A dbt_utils macro",
+                                    "packageName": "dbt_utils",
+                                }
+                            },
+                        ],
+                    }
+                }
+            }
+        }
+    }
+
+    mock_api_client.execute_query.return_value = mock_response
+
+    result = await macros_fetcher.fetch_macros(
+        return_package_names_only=True,
+        include_default_dbt_packages=True,
+    )
+
+    # Should include dbt core package name since include_default_dbt_packages=True
+    assert result == ["dbt", "dbt_utils", "my_project"]
+
+
 def test_is_dbt_builtin_package():
     """Test the _is_dbt_builtin_package helper method."""
     from dbt_mcp.discovery.client import MacrosFetcher
