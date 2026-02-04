@@ -73,6 +73,7 @@ class DbtMcpSettings(BaseSettings):
     # FastMCP HTTP server settings
     fastmcp_host: str = Field("127.0.0.1", alias="FASTMCP_HOST")
     fastmcp_port: int | None = Field(None, alias="FASTMCP_PORT")
+    fastmcp_stateless_http: bool = Field(False, alias="FASTMCP_STATELESS_HTTP")
 
     # Disable tool settings
     disable_dbt_cli: bool = Field(False, alias="DISABLE_DBT_CLI")

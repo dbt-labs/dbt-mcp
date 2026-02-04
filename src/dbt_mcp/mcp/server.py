@@ -149,6 +149,10 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
 
 
 async def create_dbt_mcp(config: Config) -> DbtMCP:
+    logger.info(f"FastMCP host configured: {config.settings.fastmcp_host}")
+    if config.settings.fastmcp_port is not None:
+        logger.info(f"FastMCP port configured: {config.settings.fastmcp_port}")
+
     dbt_mcp = DbtMCP(
         config=config,
         usage_tracker=DefaultUsageTracker(
@@ -159,6 +163,7 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
         lifespan=app_lifespan,
         host=config.settings.fastmcp_host,
         port=config.settings.fastmcp_port or 8000,
+        stateless_http=config.settings.fastmcp_stateless_http,
     )
 
     disabled_tools = set(config.disable_tools)
