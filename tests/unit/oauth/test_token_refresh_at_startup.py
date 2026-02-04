@@ -6,6 +6,7 @@ from dbt_mcp.config.credentials import (
     _is_token_valid,
     _try_refresh_token,
 )
+
 from dbt_mcp.oauth.dbt_platform import (
     DbtPlatformContext,
     DbtPlatformEnvironment,
