@@ -1,0 +1,20 @@
+{
+  "name": "ai-sdk-agent",
+  "version": "0.1.0",
+  "description": "Example of using Vercel AI SDK with dbt-mcp",
+  "type": "module",
+  "scripts": {
+    "start": "npx tsx src/index.ts",
+    "start:local": "npx tsx src/local.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "ai": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.0"
+  }
+}
