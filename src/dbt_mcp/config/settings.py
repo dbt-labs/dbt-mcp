@@ -24,6 +24,7 @@ from dbt_mcp.oauth.dbt_platform import (
     dbt_platform_context_from_token_response,
 )
 from dbt_mcp.oauth.login import login
+from dbt_mcp.errors.hints import with_multicell_hint
 from dbt_mcp.oauth.token_provider import (
     OAuthTokenProvider,
     StaticTokenProvider,
@@ -417,7 +418,9 @@ def _try_refresh_token(
         logger.info("Successfully refreshed access token at startup")
         return updated_context
     except Exception as e:
-        logger.warning(f"Failed to refresh token at startup: {e}")
+        logger.warning(
+            f"Failed to refresh token at startup: {with_multicell_hint(str(e))}"
+        )
         return None
 
 
@@ -447,11 +450,15 @@ async def get_dbt_platform_context(
 
         # Fall back to full OAuth login flow
         selected_port = _find_available_port(start_port=OAUTH_REDIRECT_STARTING_PORT)
-        return await login(
-            dbt_platform_url=dbt_platform_url,
-            port=selected_port,
-            dbt_platform_context_manager=dbt_platform_context_manager,
-        )
+        try:
+            return await login(
+                dbt_platform_url=dbt_platform_url,
+                port=selected_port,
+                dbt_platform_context_manager=dbt_platform_context_manager,
+            )
+        except Exception as e:
+            # Add helpful hint for SSL errors (common with multi-cell misconfiguration)
+            raise type(e)(with_multicell_hint(str(e))) from e
 
 
 def get_dbt_host(
