@@ -41,6 +41,22 @@ class AuthenticationMethod(Enum):
     ENV_VAR = "env_var"
 
 
+class DbtMcpLogSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="",
+        case_sensitive=False,
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    file_logging: bool = Field(False, alias="DBT_MCP_SERVER_FILE_LOGGING")
+    log_level: str | int | None = Field(None, alias="DBT_MCP_LOG_LEVEL")
+
+    def __repr__(self):
+        return f"DbtMcpLogSettings(file_logging={self.file_logging}, log_level={self.log_level})"
+
+
 class DbtMcpSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="",
@@ -105,10 +121,6 @@ class DbtMcpSettings(BaseSettings):
         None, alias="DBT_SEND_ANONYMOUS_USAGE_STATS"
     )
 
-    # Developer settings
-    file_logging: bool = Field(False, alias="DBT_MCP_SERVER_FILE_LOGGING")
-    log_level: str | int | None = Field(None, alias="DBT_MCP_LOG_LEVEL")
-
     def __repr__(self):
         """Custom repr to bring most important settings to front. Redact sensitive info."""
         return (
@@ -140,8 +152,7 @@ class DbtMcpSettings(BaseSettings):
             f"dbt_user_id={self.dbt_user_id}, "
             f"dbt_account_id={self.dbt_account_id}, "
             f"dbt_token={'***redacted***' if self.dbt_token else None}, "
-            f"send_anonymous_usage_data={self.send_anonymous_usage_data}, "
-            f"file_logging={self.file_logging})"
+            f"send_anonymous_usage_data={self.send_anonymous_usage_data})"
         )
 
     @property

@@ -10,6 +10,7 @@ from dbt_mcp.config.config_providers import (
 from dbt_mcp.config.settings import (
     CredentialsProvider,
     DbtMcpSettings,
+    DbtMcpLogSettings,
 )
 from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo, dbt_lsp_binary_info
@@ -80,34 +81,12 @@ class Config:
     lsp_config: LspConfig | None
 
 
-def _pre_settings_logging_config():
-    """Minimal logging from environment first.
-
-    Needed so any logs emitted during `DbtMcpSettings()` construction are captured.
-    """
-    pre_file_logging = os.environ.get("DBT_MCP_SERVER_FILE_LOGGING")
-    pre_log_level = os.environ.get("DBT_MCP_LOG_LEVEL")
-
-    def _parse_bool(v: str | None) -> bool:
-        return bool(v) and str(v).lower() in ("1", "true", "yes", "on")
-
-    pre_file_logging_bool = _parse_bool(pre_file_logging)
-    if pre_log_level is not None:
-        try:
-            parsed_log_level = int(pre_log_level)
-        except ValueError:
-            parsed_log_level = pre_log_level.upper()
-    else:
-        parsed_log_level = None
-
-    configure_logging(file_logging=pre_file_logging_bool, log_level=parsed_log_level)
-
-
 def load_config(enable_proxied_tools: bool = True) -> Config:
-    _pre_settings_logging_config()
+    log_settings = DbtMcpLogSettings()  # type: ignore
+    configure_logging(
+        file_logging=log_settings.file_logging, log_level=log_settings.log_level
+    )
     settings = DbtMcpSettings()  # type: ignore
-    # Re-configure logging using resolved settings (may come from .env or defaults)
-    configure_logging(file_logging=settings.file_logging, log_level=settings.log_level)
     credentials_provider = CredentialsProvider(settings)
 
     # Set default warn error options if not provided
