@@ -47,6 +47,29 @@ npm start
 npm run start:local
 ```
 
+## Example Session
+
+```
+Connected to dbt MCP server
+Available tools: 65
+Type 'quit' to exit
+
+You: What version is the MCP server?
+[Tool: get_mcp_server_version]
+[Result: {"version":"0.5.0"}]
+
+Assistant: The MCP server version is 0.5.0.
+
+You: List the available metrics
+[Tool: list_metrics]
+[Result: [{"name":"revenue","type":"simple"},{"name":"orders","type":"simple"}...]]
+
+Assistant: Here are the available metrics in your dbt project...
+
+You: quit
+Goodbye!
+```
+
 ## Alternative LLM Providers
 
 The AI SDK supports multiple providers. To use a different model, modify the import and model in the source files:

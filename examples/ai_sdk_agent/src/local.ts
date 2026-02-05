@@ -61,18 +61,28 @@ async function main() {
         maxSteps: 10,
         system: "You are a helpful assistant with access to dbt tools. Use them to answer questions about the user's dbt project, metrics, models, and data.",
         prompt: userInput,
-        onStepFinish: ({ toolCalls }) => {
+        onStepFinish: ({ toolCalls, toolResults }) => {
           if (toolCalls?.length) {
             for (const call of toolCalls) {
               console.log(`\n[Tool: ${call.toolName}]`);
             }
-            process.stdout.write("Assistant: ");
+          }
+          if (toolResults?.length) {
+            for (const result of toolResults) {
+              const preview = JSON.stringify(result.result).slice(0, 200);
+              console.log(`[Result: ${preview}${preview.length >= 200 ? "..." : ""}]`);
+            }
+            process.stdout.write("\nAssistant: ");
           }
         },
       });
 
-      for await (const chunk of (await result).textStream) {
-        process.stdout.write(chunk);
+      try {
+        for await (const chunk of (await result).textStream) {
+          process.stdout.write(chunk);
+        }
+      } catch (err) {
+        console.error(`\n[Error: ${err instanceof Error ? err.message : err}]`);
       }
       console.log("\n");
     }
