@@ -47,6 +47,22 @@ npm start
 npm run start:local
 ```
 
+## Example Queries
+
+This is a terminal-based chat interface. After running `npm start` or `npm run start:local`, you can ask natural language questions about your dbt project. Here are some examples:
+
+| Query | Tools Used |
+|-------|------------|
+| "What version is the MCP server?" | `get_mcp_server_version` |
+| "List all available metrics" | `list_metrics` |
+| "Show me the dimensions for the revenue metric" | `get_dimensions` |
+| "What models are in my project?" | `get_mart_models` |
+| "Show the lineage for the orders model" | `get_model_lineage` |
+| "Run a query to get total revenue by month" | `query_metrics` |
+| "Describe the customers table" | `get_model_columns` |
+
+Type `quit` to exit the chat.
+
 ## Example Session
 
 ```
@@ -85,3 +101,22 @@ const model = google("gemini-2.0-flash");
 ```
 
 Install the corresponding provider package (e.g., `@ai-sdk/anthropic`).
+
+## Building Your Own Application
+
+This example is a starting point. The core pattern can be adapted for other use cases:
+
+- **Web API**: Replace the readline loop with an Express/Fastify endpoint
+- **Slack Bot**: Handle Slack events and respond with `streamText` results
+- **CLI Tool**: Add command-line arguments for non-interactive queries
+
+The key integration points are:
+
+```typescript
+// 1. Connect to dbt MCP
+const mcpClient = await createMCPClient({ transport });
+const tools = await mcpClient.tools();
+
+// 2. Use tools with any AI SDK function
+const result = await generateText({ model, tools, prompt });
+```
