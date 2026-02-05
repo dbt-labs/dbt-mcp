@@ -1,3 +1,10 @@
+/**
+ * AI SDK Agent Example - Remote (dbt Cloud)
+ *
+ * Demonstrates connecting to dbt-mcp via dbt Cloud's hosted MCP endpoint.
+ * Uses Vercel's AI SDK to wire up an LLM with dbt-mcp tools.
+ */
+
 import { createMCPClient } from "ai";
 import { streamText } from "ai";
 import { openai } from "@ai-sdk/openai";
@@ -14,6 +21,7 @@ if (!token || !prodEnvId) {
 }
 
 async function main() {
+  // Connect to dbt Cloud's hosted MCP server
   const transport = new StreamableHTTPClientTransport(
     new URL(`https://${host}/api/ai/v1/mcp/`),
     {
@@ -26,6 +34,7 @@ async function main() {
     }
   );
 
+  // Initialize MCP client and fetch available tools
   const mcpClient = await createMCPClient({ transport });
   const tools = await mcpClient.tools();
 
@@ -42,6 +51,7 @@ async function main() {
     new Promise((resolve) => rl.question(query, resolve));
 
   try {
+    // Main chat loop
     while (true) {
       const userInput = await prompt("You: ");
 
@@ -55,6 +65,7 @@ async function main() {
 
       process.stdout.write("Assistant: ");
 
+      // Stream response from LLM, allowing it to call dbt-mcp tools
       const result = streamText({
         model: openai("gpt-4o"),
         tools,

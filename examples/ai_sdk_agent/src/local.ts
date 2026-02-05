@@ -1,3 +1,10 @@
+/**
+ * AI SDK Agent Example - Local (stdio)
+ *
+ * Demonstrates connecting to a local dbt-mcp server via stdio transport.
+ * Useful for development and testing without dbt Cloud.
+ */
+
 import { createMCPClient } from "ai";
 import { streamText } from "ai";
 import { openai } from "@ai-sdk/openai";
@@ -11,11 +18,13 @@ const dbtMcpDir = path.resolve(__dirname, "../../..");
 const envFilePath = process.env.DBT_ENV_FILE ?? path.join(dbtMcpDir, ".env");
 
 async function main() {
+  // Spawn local dbt-mcp server as a subprocess
   const transport = new StdioClientTransport({
     command: "uvx",
     args: ["--env-file", envFilePath, "dbt-mcp"],
   });
 
+  // Initialize MCP client and fetch available tools
   const mcpClient = await createMCPClient({ transport });
   const tools = await mcpClient.tools();
 
@@ -32,6 +41,7 @@ async function main() {
     new Promise((resolve) => rl.question(query, resolve));
 
   try {
+    // Main chat loop
     while (true) {
       const userInput = await prompt("You: ");
 
@@ -45,6 +55,7 @@ async function main() {
 
       process.stdout.write("Assistant: ");
 
+      // Stream response from LLM, allowing it to call dbt-mcp tools
       const result = streamText({
         model: openai("gpt-4o"),
         tools,
