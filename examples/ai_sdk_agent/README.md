@@ -57,9 +57,9 @@ This is a terminal-based chat interface. After running `npm start` or `npm run s
 | "List all available metrics" | `list_metrics` |
 | "Show me the dimensions for the revenue metric" | `get_dimensions` |
 | "What models are in my project?" | `get_mart_models` |
-| "Show the lineage for the orders model" | `get_model_lineage` |
+| "Show the lineage for the orders model" | `get_lineage` |
 | "Run a query to get total revenue by month" | `query_metrics` |
-| "Describe the customers table" | `get_model_columns` |
+| "Describe the customers model" | `get_model_details` |
 
 Type `quit` to exit the chat.
 
