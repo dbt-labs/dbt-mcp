@@ -5,8 +5,7 @@
  * Useful for development and testing without dbt Cloud.
  */
 
-import { createMCPClient } from "ai";
-import { streamText } from "ai";
+import { experimental_createMCPClient as createMCPClient, streamText } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import * as readline from "readline";

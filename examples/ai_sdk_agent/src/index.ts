@@ -5,8 +5,7 @@
  * Uses Vercel's AI SDK to wire up an LLM with dbt-mcp tools.
  */
 
-import { createMCPClient } from "ai";
-import { streamText } from "ai";
+import { experimental_createMCPClient as createMCPClient, streamText } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import * as readline from "readline";
