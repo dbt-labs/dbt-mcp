@@ -13,6 +13,7 @@ import * as readline from "readline";
 const host = process.env.DBT_HOST ?? "cloud.getdbt.com";
 const token = process.env.DBT_TOKEN;
 const prodEnvId = process.env.DBT_PROD_ENV_ID;
+const accountPrefix = process.env.MULTICELL_ACCOUNT_PREFIX;
 
 if (!token || !prodEnvId) {
   console.error("Missing required environment variables: DBT_TOKEN, DBT_PROD_ENV_ID");
@@ -21,8 +22,9 @@ if (!token || !prodEnvId) {
 
 async function main() {
   // Connect to dbt Cloud's hosted MCP server
+  const baseHost = accountPrefix ? `${accountPrefix}.${host}` : host;
   const transport = new StreamableHTTPClientTransport(
-    new URL(`https://${host}/api/ai/v1/mcp/`),
+    new URL(`https://${baseHost}/api/ai/v1/mcp/`),
     {
       requestInit: {
         headers: {
