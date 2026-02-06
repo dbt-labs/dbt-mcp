@@ -24,7 +24,7 @@ repos:
     hooks:
       - id: generate-docs
         name: Generate documentation from registered tools
-        entry: bash -c "task docs:generate"
+        entry: uv run python scripts/generate_docs.py --check
         language: system
         files: ^(src/dbt_mcp/tools/(tool_names|toolsets)\.py|README\.md|docs/diagram\.d2)$
         pass_filenames: false

@@ -15,6 +15,21 @@ from dbt_mcp.tools.parameters import LineageResourceType
 DEFAULT_PAGE_SIZE = 100
 DEFAULT_MAX_NODE_QUERY_LIMIT = 10000
 
+# dbt-labs first-party packages (from dbt-labs/dbt-adapters monorepo)
+# These are the only packages maintained directly by dbt Labs
+# See: https://github.com/dbt-labs/dbt-adapters
+DBT_BUILTIN_PACKAGES = frozenset(
+    {
+        "dbt",  # dbt-core
+        "dbt_postgres",  # dbt-postgres
+        "dbt_redshift",  # dbt-redshift
+        "dbt_snowflake",  # dbt-snowflake
+        "dbt_bigquery",  # dbt-bigquery
+        "dbt_spark",  # dbt-spark
+        "dbt_athena",  # dbt-athena
+    }
+)
+
 
 class GraphQLQueries:
     GET_MODELS = textwrap.dedent("""
@@ -303,6 +318,36 @@ class GraphQLQueries:
         }
     """)
 
+    GET_MACROS = textwrap.dedent("""
+        query GetMacros(
+            $environmentId: BigInt!,
+            $filter: AppliedResourcesFilter!,
+            $after: String,
+            $first: Int
+        ) {
+            environment(id: $environmentId) {
+                applied {
+                    resources(filter: $filter, after: $after, first: $first) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
+                        edges {
+                            node {
+                                ... on MacroDefinitionNode {
+                                    name
+                                    uniqueId
+                                    description
+                                    packageName
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    """)
+
     # Lineage query
     GET_FULL_LINEAGE = load_query("get_full_lineage.gql")
 
@@ -423,6 +468,11 @@ class SourceFilter(TypedDict, total=False):
     sourceNames: list[str]
     uniqueIds: list[str] | None
     identifier: str
+
+
+class MacroFilter(TypedDict, total=False):
+    types: list[str]
+    uniqueIds: list[str] | None
 
 
 class ModelsFetcher:
@@ -553,6 +603,75 @@ class SourcesFetcher:
             GraphQLQueries.GET_SOURCES,
             variables={"sourcesFilter": source_filter},
         )
+
+
+class MacrosFetcher:
+    def __init__(
+        self,
+        api_client: MetadataAPIClient,
+        paginator: PaginatedResourceFetcher,
+    ):
+        self.api_client = api_client
+        self._paginator = paginator
+
+    async def fetch_macros(
+        self,
+        package_names: list[str] | None = None,
+        return_package_names_only: bool = False,
+        include_default_dbt_packages: bool = False,
+    ) -> list[dict] | list[str]:
+        """Fetch all macros with optional filtering.
+
+        Args:
+            package_names: Optional list of package names to filter by.
+            return_package_names_only: If True, returns only unique package names
+                instead of full macro details. Useful for discovering available
+                packages before drilling down.
+            include_default_dbt_packages: If True, includes the default dbt macros that
+                are maintained by dbt Labs.
+
+        Returns:
+            List of macros with name, uniqueId, description, and packageName,
+            or list of unique package names if return_package_names_only is True.
+        """
+        macro_filter: MacroFilter = {"types": ["Macro"]}
+
+        macros = await self._paginator.fetch_paginated(
+            GraphQLQueries.GET_MACROS,
+            variables={"filter": macro_filter},
+        )
+
+        # Filter out dbt-labs first-party macros unless include_default_dbt_packages is True
+        if not include_default_dbt_packages:
+            macros = [
+                m
+                for m in macros
+                if not self._is_dbt_builtin_package(m.get("packageName", ""))
+            ]
+
+        # Filter by package names if specified
+        if package_names is not None:
+            package_names_lower = [p.lower() for p in package_names]
+            macros = [
+                m
+                for m in macros
+                if m.get("packageName", "").lower() in package_names_lower
+            ]
+
+        # Return only unique package names if requested
+        if return_package_names_only:
+            unique_packages = sorted(
+                {name for m in macros if (name := m.get("packageName"))}
+            )
+            return unique_packages
+
+        return macros
+
+    def _is_dbt_builtin_package(self, package_name: str) -> bool:
+        """Check if a package is dbt core or a dbt-labs first-party adapter."""
+        if not package_name:
+            return False
+        return package_name.lower() in DBT_BUILTIN_PACKAGES
 
 
 class AppliedResourceType(StrEnum):
