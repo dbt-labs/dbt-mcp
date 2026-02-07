@@ -12,7 +12,7 @@ async def submit_request(
         payload["variables"] = {}
     payload["variables"]["environmentId"] = sl_config.prod_environment_id
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
             sl_config.url,
             json=payload,
