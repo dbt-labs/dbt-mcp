@@ -47,7 +47,10 @@ async def test_get_column_lineage_success(lsp_client, mock_lsp_connection):
         "workspace/executeCommand",
         {
             "command": "dbt.listNodes",
-            "arguments": ["+column:model.my_project.my_model.CUSTOMER_ID+"],
+            "arguments": [
+                "@model.my_project.my_model",
+                "+column:model.my_project.my_model.CUSTOMER_ID+",
+            ],
         },
     )
 
