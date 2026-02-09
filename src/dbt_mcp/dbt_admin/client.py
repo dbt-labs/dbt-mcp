@@ -8,7 +8,7 @@ from dbt_mcp.config.config_providers import (
     AdminApiConfig,
     ConfigProvider,
 )
-from dbt_mcp.errors import AdminAPIError, ArtifactRetrievalError
+from dbt_mcp.errors import AdminAPIError, ArtifactRetrievalError, InvalidParameterError
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +42,14 @@ class DbtAdminAPIClient:
                 response = await client.request(method, url, headers=headers, **kwargs)
                 response.raise_for_status()
                 return response.json()
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code < 500:
+                raise InvalidParameterError(f"API request failed: {e}") from e
+            logger.error(f"API request failed: {e}")
+            raise AdminAPIError(f"API request failed: {e}") from e
         except httpx.HTTPError as e:
             logger.error(f"API request failed: {e}")
-            raise AdminAPIError(f"API request failed: {e}")
+            raise AdminAPIError(f"API request failed: {e}") from e
 
     @cache
     async def list_jobs(self, account_id: int, **params) -> list[dict[str, Any]]:
@@ -264,6 +269,14 @@ class DbtAdminAPIClient:
                 )
                 response.raise_for_status()
                 return response.text
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code < 500:
+                raise InvalidParameterError(
+                    f"Artifact '{artifact_path}' not available for run {run_id}"
+                ) from e
+            raise ArtifactRetrievalError(
+                f"Artifact '{artifact_path}' not available for run {run_id}"
+            ) from e
         except httpx.HTTPError as e:
             raise ArtifactRetrievalError(
                 f"Artifact '{artifact_path}' not available for run {run_id}"

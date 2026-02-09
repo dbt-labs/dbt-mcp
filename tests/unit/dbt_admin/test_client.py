@@ -8,6 +8,7 @@ from dbt_mcp.dbt_admin.client import (
     AdminAPIError,
     ArtifactRetrievalError,
     DbtAdminAPIClient,
+    InvalidParameterError,
 )
 
 
@@ -100,10 +101,27 @@ async def test_make_request_success(client):
     )
 
 
-async def test_make_request_failure(client):
+async def test_make_request_4xx_raises_invalid_parameter_error(client):
+    mock_http_response = MagicMock()
+    mock_http_response.status_code = 404
     mock_response = MagicMock()
     mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
-        "404 Not Found", request=MagicMock(), response=MagicMock()
+        "404 Not Found", request=MagicMock(), response=mock_http_response
+    )
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        with pytest.raises(InvalidParameterError):
+            await client._make_request("GET", "/test/endpoint")
+
+
+async def test_make_request_5xx_raises_admin_api_error(client):
+    mock_http_response = MagicMock()
+    mock_http_response.status_code = 500
+    mock_response = MagicMock()
+    mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "500 Internal Server Error", request=MagicMock(), response=mock_http_response
     )
 
     mock_client = create_mock_httpx_client(mock_response)
@@ -535,14 +553,31 @@ async def test_get_job_run_artifact_no_step_param(client):
     )
 
 
-async def test_get_job_run_artifact_request_exception(client):
+async def test_get_job_run_artifact_4xx_raises_invalid_parameter_error(client):
+    mock_http_response = MagicMock()
+    mock_http_response.status_code = 404
     mock_response = MagicMock()
     mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
-        "404 Not Found", request=MagicMock(), response=MagicMock()
+        "404 Not Found", request=MagicMock(), response=mock_http_response
+    )
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        with pytest.raises(InvalidParameterError):
+            await client.get_job_run_artifact(12345, 100, "nonexistent.json")
+
+
+async def test_get_job_run_artifact_5xx_raises_artifact_retrieval_error(client):
+    mock_http_response = MagicMock()
+    mock_http_response.status_code = 502
+    mock_response = MagicMock()
+    mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "502 Bad Gateway", request=MagicMock(), response=mock_http_response
     )
 
     mock_client = create_mock_httpx_client(mock_response)
 
     with patch("httpx.AsyncClient", return_value=mock_client):
         with pytest.raises(ArtifactRetrievalError):
-            await client.get_job_run_artifact(12345, 100, "nonexistent.json")
+            await client.get_job_run_artifact(12345, 100, "manifest.json")
