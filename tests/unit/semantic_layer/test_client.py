@@ -284,8 +284,8 @@ def test_default_result_formatter_with_mixed_types() -> None:
 def test_format_semantic_layer_error_cleans_query_failed_error(fetcher) -> None:
     """Normal QueryFailedError messages should be cleaned up."""
     error = Exception(
-        'QueryFailedError(INVALID_ARGUMENT: [FlightSQL] Failed to prepare statement: '
-        'com.dbt.semanticlayer.exceptions.DataPlatformException: column not found'
+        "QueryFailedError(INVALID_ARGUMENT: [FlightSQL] Failed to prepare statement: "
+        "com.dbt.semanticlayer.exceptions.DataPlatformException: column not found"
     )
     result = fetcher._format_semantic_layer_error(error)
     assert result == "column not found"
@@ -293,7 +293,7 @@ def test_format_semantic_layer_error_cleans_query_failed_error(fetcher) -> None:
 
 def test_format_semantic_layer_error_fallback_on_empty(fetcher) -> None:
     """When cleaning strips the message to empty, fall back to the original."""
-    error = Exception('[]')
+    error = Exception("[]")
     result = fetcher._format_semantic_layer_error(error)
     assert result == "[]"
 
