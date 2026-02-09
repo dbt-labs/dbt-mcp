@@ -281,6 +281,30 @@ def test_default_result_formatter_with_mixed_types() -> None:
     assert parsed[0]["binary_col"] == base64.b64encode(b"data").decode("utf-8")
 
 
+def test_format_semantic_layer_error_cleans_query_failed_error(fetcher) -> None:
+    """Normal QueryFailedError messages should be cleaned up."""
+    error = Exception(
+        'QueryFailedError(INVALID_ARGUMENT: [FlightSQL] Failed to prepare statement: '
+        'com.dbt.semanticlayer.exceptions.DataPlatformException: column not found'
+    )
+    result = fetcher._format_semantic_layer_error(error)
+    assert result == "column not found"
+
+
+def test_format_semantic_layer_error_fallback_on_empty(fetcher) -> None:
+    """When cleaning strips the message to empty, fall back to the original."""
+    error = Exception('[]')
+    result = fetcher._format_semantic_layer_error(error)
+    assert result == "[]"
+
+
+def test_format_semantic_layer_error_fallback_on_empty_str(fetcher) -> None:
+    """When the original str is also empty, fall back to the class name."""
+    error = RuntimeError()
+    result = fetcher._format_semantic_layer_error(error)
+    assert "RuntimeError" in result
+
+
 @pytest.fixture
 def mock_config_provider():
     config_provider = AsyncMock()
