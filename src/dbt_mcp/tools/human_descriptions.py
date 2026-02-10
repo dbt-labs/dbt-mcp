@@ -41,7 +41,7 @@ HUMAN_DESCRIPTIONS: dict[ToolName, str] = {
     ToolName.GET_SEMANTIC_MODEL_DETAILS: "Gets details for a specific semantic model.",
     ToolName.GET_SNAPSHOT_DETAILS: "Gets details for a specific snapshot.",
     ToolName.GET_TEST_DETAILS: "Gets details for a specific test.",
-    ToolName.SEARCH: "Searches for resources across the dbt project.",
+    ToolName.SEARCH: "[Alpha] Searches for resources across the dbt project (not generally available).",
     # SQL tools
     ToolName.TEXT_TO_SQL: "Generates SQL from natural language using project context.",
     ToolName.EXECUTE_SQL: "Executes SQL on dbt Platform infrastructure with Semantic Layer support.",
