@@ -225,7 +225,7 @@ class SemanticLayerFetcher:
     def _format_semantic_layer_error(self, error: Exception) -> str:
         """Format semantic layer errors by cleaning up common error message patterns."""
         error_str = str(error)
-        return (
+        formatted = (
             error_str.replace("QueryFailedError(", "")
             .rstrip(")")
             .lstrip("[")
@@ -239,6 +239,9 @@ class SemanticLayerFetcher:
             .replace("com.dbt.semanticlayer.exceptions.DataPlatformException:", "")
             .strip()
         )
+        if not formatted:
+            return error_str or f"Semantic layer query failed: {type(error).__name__}"
+        return formatted
 
     def _format_get_metrics_compiled_sql_error(
         self, compile_error: Exception
