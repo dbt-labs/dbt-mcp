@@ -54,7 +54,7 @@ The dbt MCP server architecture allows for your agent to connect to a variety of
 - `get_snapshot_details`: Gets details for a specific snapshot.
 - `get_source_details`: Gets source details including columns and freshness.
 - `get_test_details`: Gets details for a specific test.
-- `search`: Searches for resources across the dbt project.
+- `search`: [Alpha] Searches for resources across the dbt project (not generally available).
 
 ### dbt CLI
 - `build`: Executes models, tests, snapshots, and seeds in DAG order.
