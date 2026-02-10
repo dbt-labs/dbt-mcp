@@ -10,6 +10,7 @@ from dbt_mcp.config.config_providers import (
 from dbt_mcp.config.settings import (
     CredentialsProvider,
     DbtMcpSettings,
+    DbtMcpLogSettings,
 )
 from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo, dbt_lsp_binary_info
@@ -81,8 +82,11 @@ class Config:
 
 
 def load_config(enable_proxied_tools: bool = True) -> Config:
+    log_settings = DbtMcpLogSettings()  # type: ignore
+    configure_logging(
+        file_logging=log_settings.file_logging, log_level=log_settings.log_level
+    )
     settings = DbtMcpSettings()  # type: ignore
-    configure_logging(file_logging=settings.file_logging, log_level=settings.log_level)
     credentials_provider = CredentialsProvider(settings)
 
     # Set default warn error options if not provided
