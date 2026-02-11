@@ -92,11 +92,15 @@ class LSPClient(LSPClientProtocol):
 
         logger.info(f"Requesting column lineage for {model_id}.{column_name}")
 
-        selector = f"+column:{model_id}.{column_name.upper()}+"
+        model_selector = f"@{model_id}"
+        column_selector = f"+column:{model_id}.{column_name.upper()}+"
         async with asyncio.timeout(timeout or self.timeout):
             result = await self.lsp_connection.send_request(
                 "workspace/executeCommand",
-                {"command": "dbt.listNodes", "arguments": [selector]},
+                {
+                    "command": "dbt.listNodes",
+                    "arguments": [model_selector, column_selector],
+                },
             )
             if not result:
                 return {"error": "No result from LSP"}
