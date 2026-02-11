@@ -71,7 +71,7 @@ jobs:
       - name: Install d2
         run: curl -fsSL https://d2lang.com/install.sh | sh -s --
       - name: Validate documentation is up to date
-        run: task docs:generate CHECK_FLAG=--check
+        run: task docs:generate CHECK_FLAG=1
 
   # validates mcpb manifest
   validate-mcpb:
