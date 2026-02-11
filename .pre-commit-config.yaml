@@ -24,9 +24,9 @@ repos:
     hooks:
       - id: generate-docs
         name: Generate documentation from registered tools
-        entry: uv run python scripts/generate_docs.py --check
+        entry: uv run python scripts/generate_docs.py
         language: system
-        files: ^(src/dbt_mcp/tools/(tool_names|toolsets)\.py|README\.md|docs/diagram\.d2)$
+        files: ^(src/dbt_mcp/tools/(tool_names|toolsets|human_descriptions)\.py|README\.md|docs/diagram\.d2)$
         pass_filenames: false
       - id: uv lock check
         name: uv lock check

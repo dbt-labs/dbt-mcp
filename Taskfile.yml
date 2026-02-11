@@ -113,8 +113,10 @@ tasks:
 
   docs:generate:
     desc: "Generate documentation from tool definitions"
+    vars:
+      CHECK_ARG: '{{if .CHECK_FLAG}}--check{{end}}'
     cmds:
-      - uv run python scripts/generate_docs.py
+      - uv run python scripts/generate_docs.py {{.CHECK_ARG}}
       - task: d2
 
   d2:
