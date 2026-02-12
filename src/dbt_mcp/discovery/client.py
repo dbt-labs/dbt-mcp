@@ -947,14 +947,14 @@ class ModelPerformanceFetcher:
                 name=name,
             )
             if not details:
-                raise ToolCallError(f"Model not found: {name}")
+                raise InvalidParameterError(f"Model not found: {name}")
             # Model name can map to multiple unique_ids - require disambiguation
             # For example, if multiple dbt packages define a model with the same name
             if len(details) > 1:
                 matches = ", ".join(
                     sorted(d.get("uniqueId", "") for d in details if d.get("uniqueId"))
                 )
-                raise ToolCallError(
+                raise InvalidParameterError(
                     f"Multiple models found for name '{name}'. "
                     "Please provide the unique_id instead. "
                     f"Matches: {matches}"
