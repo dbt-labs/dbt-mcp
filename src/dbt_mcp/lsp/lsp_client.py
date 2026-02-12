@@ -85,7 +85,18 @@ class LSPClient(LSPClientProtocol):
 
         Returns:
             Dictionary containing lineage information with 'nodes' key
+
+        Raises:
+            ValueError: If model_id or column_name is empty or invalid
         """
+        # Validate inputs - dbt.listNodes requires both model_selector and column_selector
+        # as separate args (https://github.com/dbt-labs/dbt-mcp/pull/590)
+        if not isinstance(model_id, str) or not model_id:
+            raise ValueError(f"model_id must be a non-empty string, got: {model_id!r}")
+        if not isinstance(column_name, str) or not column_name:
+            raise ValueError(
+                f"column_name must be a non-empty string, got: {column_name!r}"
+            )
 
         if not self.lsp_connection.compiled():
             await self.compile()
