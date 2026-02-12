@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.graphql import load_query
 from dbt_mcp.errors import InvalidParameterError, ToolCallError
+from dbt_mcp.errors.common import NotFoundError
 from dbt_mcp.gql.errors import raise_gql_error
 from dbt_mcp.tools.parameters import LineageResourceType
 
@@ -947,14 +948,14 @@ class ModelPerformanceFetcher:
                 name=name,
             )
             if not details:
-                raise ToolCallError(f"Model not found: {name}")
+                raise NotFoundError(f"Model not found: {name}")
             # Model name can map to multiple unique_ids - require disambiguation
             # For example, if multiple dbt packages define a model with the same name
             if len(details) > 1:
                 matches = ", ".join(
                     sorted(d.get("uniqueId", "") for d in details if d.get("uniqueId"))
                 )
-                raise ToolCallError(
+                raise NotFoundError(
                     f"Multiple models found for name '{name}'. "
                     "Please provide the unique_id instead. "
                     f"Matches: {matches}"
