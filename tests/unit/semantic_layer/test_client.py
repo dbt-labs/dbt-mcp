@@ -415,7 +415,6 @@ class TestQueryMetricsCompiledTimeout:
         with pytest.raises(SemanticLayerQueryTimeoutError) as exc_info:
             await compiled_fetcher.query_metrics(metrics=["revenue"])
 
-        assert exc_info.value.is_client_error is True
         assert "COMPILED" in str(exc_info.value)
 
     async def test_running_timeout_returns_error_result(

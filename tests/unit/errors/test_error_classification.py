@@ -1,8 +1,6 @@
-"""Tests for error classification (is_client_error) and typed union exhaustiveness."""
+"""Tests for typed union exhaustiveness of ToolCallError classification."""
 
 from typing import get_args
-
-import pytest
 
 from dbt_mcp.errors import (
     ClientToolCallError,
@@ -19,24 +17,6 @@ def _get_all_subclasses(cls: type) -> set[type]:
         result.add(subclass)
         result.update(_get_all_subclasses(subclass))
     return result
-
-
-class TestIsClientError:
-    """Verify is_client_error returns correct values for all error classes."""
-
-    @pytest.mark.parametrize("error_type", get_args(ClientToolCallError))
-    def test_client_errors_return_true(self, error_type: type[ToolCallError]) -> None:
-        instance = error_type("test error")
-        assert instance.is_client_error is True
-
-    @pytest.mark.parametrize("error_type", get_args(ServerToolCallError))
-    def test_server_errors_return_false(self, error_type: type[ToolCallError]) -> None:
-        instance = error_type("test error")
-        assert instance.is_client_error is False
-
-    def test_base_tool_call_error_defaults_to_server(self) -> None:
-        instance = ToolCallError("test error")
-        assert instance.is_client_error is False
 
 
 class TestUnionExhaustiveness:

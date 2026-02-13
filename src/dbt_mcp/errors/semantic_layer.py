@@ -17,6 +17,4 @@ class SemanticLayerQueryTimeoutError(SemanticLayerToolCallError):
     complex or returns too much data, and the client should simplify the request.
     """
 
-    @property
-    def is_client_error(self) -> bool:
-        return True
+    pass

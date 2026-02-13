@@ -12,6 +12,4 @@ class DiscoveryToolCallError(ToolCallError):
 class GraphQLError(DiscoveryToolCallError):
     """Exception raised for GraphQL API and query errors."""
 
-    @property
-    def is_client_error(self) -> bool:
-        return True
+    pass
