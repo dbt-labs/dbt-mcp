@@ -9,10 +9,14 @@ class InvalidParameterError(ToolCallError):
     This is a cross-cutting error used by multiple tool types.
     """
 
-    pass
+    @property
+    def is_client_error(self) -> bool:
+        return True
 
 
 class NotFoundError(ToolCallError):
     """Exception raised when a resource is not found."""
 
-    pass
+    @property
+    def is_client_error(self) -> bool:
+        return True
