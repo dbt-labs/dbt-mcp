@@ -292,7 +292,7 @@ dev = [
 requires-dist = [
     { name = "authlib", specifier = "==1.6.6" },
     { name = "dbt-protos", specifier = "==1.0.382" },
-    { name = "dbt-sl-sdk", extras = ["sync"], specifier = "==0.13.1" },
+    { name = "dbt-sl-sdk", extras = ["sync"], git = "https://github.com/dbt-labs/semantic-layer-sdk-python.git?branch=devonfulcher%2Fsl-sdk-retry-timeout-status" },
     { name = "dbtlabs-vortex", specifier = "==0.2.0" },
     { name = "fastapi", specifier = ">=0.116.1" },
     { name = "filelock", specifier = ">=3.18.0" },
@@ -334,18 +334,14 @@ wheels = [
 
 [[package]]
 name = "dbt-sl-sdk"
-version = "0.13.1"
-source = { registry = "https://pypi.org/simple" }
+version = "0.13.2"
+source = { git = "https://github.com/dbt-labs/semantic-layer-sdk-python.git?branch=devonfulcher%2Fsl-sdk-retry-timeout-status#076d4819a9513737a1dbec76be8c0696ee9cd70b" }
 dependencies = [
     { name = "adbc-driver-flightsql" },
     { name = "adbc-driver-manager" },
     { name = "mashumaro" },
     { name = "pyarrow" },
     { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/2e/c9/23c8dea0efdd623ec304b7209d2350209f716f0101e98770eaf419584897/dbt_sl_sdk-0.13.1.tar.gz", hash = "sha256:8901cd701bec9b00eb495fdb99b52cda4556d80c51270c2cf5693458365f992b", size = 29516, upload-time = "2025-12-19T18:48:50.152Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/70/89/399e7cd7396d30c7772d00601cf46e1155a81be2228e8df20aabf0059410/dbt_sl_sdk-0.13.1-py3-none-any.whl", hash = "sha256:17c3e34914f12c32326eff911c32a5ea8626ddc43d11c97fb04b6b17eb71dabd", size = 48011, upload-time = "2025-12-19T18:48:49.096Z" },
 ]
 
 [package.optional-dependencies]

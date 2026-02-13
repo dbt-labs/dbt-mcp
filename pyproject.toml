@@ -81,5 +81,9 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 pythonpath = [".", "src"]
 
+[tool.uv.sources]
+# TODO: Replace with version pin (dbt-sl-sdk[sync]>=0.13.2) once SDK release is cut
+dbt-sl-sdk = { git = "https://github.com/dbt-labs/semantic-layer-sdk-python.git", branch = "devonfulcher/sl-sdk-retry-timeout-status" }
+
 [tool.ruff.lint]
 extend-select = ["UP"] # UP=pyupgrade
