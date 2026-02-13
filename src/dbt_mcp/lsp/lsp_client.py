@@ -9,6 +9,7 @@ import asyncio
 import logging
 from typing import Any
 
+from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.lsp.lsp_connection import LspEventName
 from dbt_mcp.lsp.providers.lsp_connection_provider import (
     LSPConnectionProviderProtocol,
@@ -89,12 +90,12 @@ class LSPClient(LSPClientProtocol):
         Raises:
             ValueError: If model_id or column_name is empty or invalid
         """
-        # Validate inputs - dbt.listNodes requires both model_selector and column_selector
-        # as separate args (https://github.com/dbt-labs/dbt-mcp/pull/590)
         if not isinstance(model_id, str) or not model_id:
-            raise ValueError(f"model_id must be a non-empty string, got: {model_id!r}")
+            raise InvalidParameterError(
+                f"model_id must be a non-empty string, got: {model_id!r}"
+            )
         if not isinstance(column_name, str) or not column_name:
-            raise ValueError(
+            raise InvalidParameterError(
                 f"column_name must be a non-empty string, got: {column_name!r}"
             )
 
