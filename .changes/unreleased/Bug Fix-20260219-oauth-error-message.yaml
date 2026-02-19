@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Show user-friendly error message on OAuth setup failure instead of raw TypeError
+time: 2026-02-19T00:00:00.000000-08:00

@@ -412,7 +412,13 @@ export default function App() {
         setResponseText(text);
       }
     } catch (err) {
-      setResponseText(String(err));
+      if (isNetworkError(err)) {
+        setResponseText(
+          "Something went wrong when setting up the authentication. Please close this window and try again."
+        );
+      } else {
+        setResponseText(String(err));
+      }
     } finally {
       setContinuing(false);
     }
