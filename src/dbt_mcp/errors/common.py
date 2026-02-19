@@ -10,3 +10,9 @@ class InvalidParameterError(ToolCallError):
     """
 
     pass
+
+
+class NotFoundError(ToolCallError):
+    """Exception raised when a resource is not found."""
+
+    pass

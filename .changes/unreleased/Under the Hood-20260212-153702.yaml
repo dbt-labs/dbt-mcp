@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: Add validation for dbt LSP args in LSPClient
+time: 2026-02-12T15:37:02.45852-08:00

@@ -9,6 +9,7 @@ import asyncio
 import logging
 from typing import Any
 
+from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.lsp.lsp_connection import LspEventName
 from dbt_mcp.lsp.providers.lsp_connection_provider import (
     LSPConnectionProviderProtocol,
@@ -85,18 +86,33 @@ class LSPClient(LSPClientProtocol):
 
         Returns:
             Dictionary containing lineage information with 'nodes' key
+
+        Raises:
+            ValueError: If model_id or column_name is empty or invalid
         """
+        if not isinstance(model_id, str) or not model_id:
+            raise InvalidParameterError(
+                f"model_id must be a non-empty string, got: {model_id!r}"
+            )
+        if not isinstance(column_name, str) or not column_name:
+            raise InvalidParameterError(
+                f"column_name must be a non-empty string, got: {column_name!r}"
+            )
 
         if not self.lsp_connection.compiled():
             await self.compile()
 
         logger.info(f"Requesting column lineage for {model_id}.{column_name}")
 
-        selector = f"+column:{model_id}.{column_name.upper()}+"
+        model_selector = f"@{model_id}"
+        column_selector = f"+column:{model_id}.{column_name.upper()}+"
         async with asyncio.timeout(timeout or self.timeout):
             result = await self.lsp_connection.send_request(
                 "workspace/executeCommand",
-                {"command": "dbt.listNodes", "arguments": [selector]},
+                {
+                    "command": "dbt.listNodes",
+                    "arguments": [model_selector, column_selector],
+                },
             )
             if not result:
                 return {"error": "No result from LSP"}

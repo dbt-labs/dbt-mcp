@@ -3,7 +3,9 @@ import pytest
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.client import (
     DEFAULT_PAGE_SIZE,
+    DBT_BUILTIN_PACKAGES,
     ExposuresFetcher,
+    MacrosFetcher,
     ModelFilter,
     ModelsFetcher,
     SourcesFetcher,
@@ -232,3 +234,101 @@ async def test_get_all_sources_tool(
             assert "sourceName" in source
             assert "resourceType" in source
             assert source["resourceType"] == "source"
+
+
+@pytest.mark.asyncio
+async def test_fetch_macros(macros_fetcher: MacrosFetcher):
+    """Test basic macros fetching functionality (excluding dbt-labs first-party macros)."""
+    from dbt_mcp.discovery.client import DBT_BUILTIN_PACKAGES
+
+    results = await macros_fetcher.fetch_macros()
+
+    # Basic validation of the response
+    assert isinstance(results, list)
+
+    # If macros exist, validate their structure
+    if len(results) > 0:
+        for macro in results:
+            assert isinstance(macro, dict)
+            assert "name" in macro
+            assert "uniqueId" in macro
+            assert "packageName" in macro
+            assert isinstance(macro["name"], str)
+            assert isinstance(macro["uniqueId"], str)
+
+            # Check for description (may be None)
+            assert "description" in macro
+
+            # Verify dbt-labs first-party macros are excluded by default
+            package_name = macro.get("packageName", "")
+            assert package_name.lower() not in DBT_BUILTIN_PACKAGES
+
+
+@pytest.mark.asyncio
+async def test_fetch_macros_with_package_filter(macros_fetcher: MacrosFetcher):
+    """Test macros fetching with package name filter."""
+    # First get all macros to find available packages
+    all_macros = await macros_fetcher.fetch_macros()
+
+    if len(all_macros) > 0:
+        first_macro = all_macros[0]
+        assert isinstance(first_macro, dict)
+
+        # Pick the first package name for filtering
+        package_name = first_macro["packageName"]
+
+        # Test filtering by package name
+        filtered_results = await macros_fetcher.fetch_macros(
+            package_names=[package_name]
+        )
+
+        # Validate filtered results
+        assert isinstance(filtered_results, list)
+
+        # All results should have the specified package name
+        for macro in filtered_results:
+            assert isinstance(macro, dict)
+            assert macro["packageName"].lower() == package_name.lower()
+
+
+@pytest.mark.asyncio
+async def test_get_all_macros_tool(
+    config_provider: ConfigProvider[DiscoveryConfig],
+) -> None:
+    """Test the get_all_macros tool function integration."""
+
+    # Create tool definitions
+    tool_definitions = DISCOVERY_TOOLS
+
+    # Find the get_all_macros tool
+    get_all_macros_tool = None
+    for tool_def in tool_definitions:
+        if tool_def.get_name() == ToolName.GET_ALL_MACROS:
+            get_all_macros_tool = tool_def
+            break
+
+    assert get_all_macros_tool is not None, (
+        "get_all_macros tool not found in tool definitions"
+    )
+
+    # Execute the tool function
+    result = await get_all_macros_tool.fn(
+        context=DiscoveryToolContext(config_provider=config_provider),
+        package_names=None,
+        return_package_names_only=False,
+        include_default_dbt_packages=False,
+    )
+
+    # Validate the result
+    assert isinstance(result, list)
+
+    # If macros exist, validate structure
+    if len(result) > 0:
+        for macro in result:
+            assert "name" in macro
+            assert "uniqueId" in macro
+            assert "packageName" in macro
+
+            # Verify dbt-labs first-party macros are excluded by default
+            package_name = macro.get("packageName", "").lower()
+            assert package_name not in DBT_BUILTIN_PACKAGES

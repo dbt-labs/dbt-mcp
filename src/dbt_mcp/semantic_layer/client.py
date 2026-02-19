@@ -21,7 +21,6 @@ from dbt_mcp.config.config_providers import ConfigProvider, SemanticLayerConfig
 from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.semantic_layer.gql.gql import GRAPHQL_QUERIES
 from dbt_mcp.semantic_layer.gql.gql_request import submit_request
-from dbt_mcp.semantic_layer.levenshtein import get_misspellings
 from dbt_mcp.semantic_layer.types import (
     DimensionToolResponse,
     EntityToolResponse,
@@ -226,7 +225,7 @@ class SemanticLayerFetcher:
     def _format_semantic_layer_error(self, error: Exception) -> str:
         """Format semantic layer errors by cleaning up common error message patterns."""
         error_str = str(error)
-        return (
+        formatted = (
             error_str.replace("QueryFailedError(", "")
             .rstrip(")")
             .lstrip("[")
@@ -240,6 +239,9 @@ class SemanticLayerFetcher:
             .replace("com.dbt.semanticlayer.exceptions.DataPlatformException:", "")
             .strip()
         )
+        if not formatted:
+            return error_str or f"Semantic layer query failed: {type(error).__name__}"
+        return formatted
 
     def _format_get_metrics_compiled_sql_error(
         self, compile_error: Exception
@@ -248,49 +250,6 @@ class SemanticLayerFetcher:
         return GetMetricsCompiledSqlError(
             error=self._format_semantic_layer_error(compile_error)
         )
-
-    async def validate_query_metrics_params(
-        self, metrics: list[str], group_by: list[GroupByParam] | None
-    ) -> str | None:
-        errors = []
-        available_metrics_names = [m.name for m in await self.list_metrics()]
-        metric_misspellings = get_misspellings(
-            targets=metrics,
-            words=available_metrics_names,
-            top_k=5,
-        )
-        for metric_misspelling in metric_misspellings:
-            recommendations = (
-                " Did you mean: " + ", ".join(metric_misspelling.similar_words) + "?"
-            )
-            errors.append(
-                f"Metric {metric_misspelling.word} not found."
-                + (recommendations if metric_misspelling.similar_words else "")
-            )
-
-        if errors:
-            return f"Errors: {', '.join(errors)}"
-
-        available_group_by = [d.name for d in await self.get_dimensions(metrics)] + [
-            e.name for e in await self.get_entities(metrics)
-        ]
-        group_by_misspellings = get_misspellings(
-            targets=[g.name for g in group_by or []],
-            words=available_group_by,
-            top_k=5,
-        )
-        for group_by_misspelling in group_by_misspellings:
-            recommendations = (
-                " Did you mean: " + ", ".join(group_by_misspelling.similar_words) + "?"
-            )
-            errors.append(
-                f"Group by {group_by_misspelling.word} not found."
-                + (recommendations if group_by_misspelling.similar_words else "")
-            )
-
-        if errors:
-            return f"Errors: {', '.join(errors)}"
-        return None
 
     # TODO: move this to the SDK
     def _format_query_failed_error(self, query_error: Exception) -> QueryMetricsError:
@@ -351,13 +310,6 @@ class SemanticLayerFetcher:
         Returns:
             GetMetricsCompiledSqlResult with either the compiled SQL or an error
         """
-        validation_error = await self.validate_query_metrics_params(
-            metrics=metrics,
-            group_by=group_by,
-        )
-        if validation_error:
-            return GetMetricsCompiledSqlError(error=validation_error)
-
         try:
             sl_client = await self.client_provider.get_client()
             with sl_client.session():
@@ -388,13 +340,6 @@ class SemanticLayerFetcher:
         limit: int | None = None,
         result_formatter: Callable[[pa.Table], str] | None = None,
     ) -> QueryMetricsResult:
-        validation_error = await self.validate_query_metrics_params(
-            metrics=metrics,
-            group_by=group_by,
-        )
-        if validation_error:
-            return QueryMetricsError(error=validation_error)
-
         try:
             query_error = None
             sl_client = await self.client_provider.get_client()
