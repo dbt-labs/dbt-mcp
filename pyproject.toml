@@ -30,7 +30,7 @@ classifiers = [
 dependencies = [
   "authlib==1.6.6",
   "dbt-protos==1.0.382",
-  "dbt-sl-sdk[sync]==0.13.1",
+  "dbt-sl-sdk[sync]>=0.13.2",
   "dbtlabs-vortex==0.2.0",
   "fastapi>=0.116.1",
   "uvicorn>=0.31.1",

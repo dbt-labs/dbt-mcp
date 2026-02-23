@@ -6,8 +6,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pyarrow as pa
 import pytest
+from dbtsl.error import RetryTimeoutError
 
+from dbt_mcp.errors.semantic_layer import SemanticLayerQueryTimeoutError
 from dbt_mcp.semantic_layer.client import DEFAULT_RESULT_FORMATTER, SemanticLayerFetcher
+from dbt_mcp.semantic_layer.types import QueryMetricsError
+
+
 
 
 def test_default_result_formatter_outputs_iso_dates() -> None:
@@ -376,3 +381,62 @@ async def test_get_dimensions_includes_metadata(
     assert result[0].metadata == {"display_name": "Order Date"}
     assert result[1].metadata is None
     assert result[2].metadata is None
+
+
+class TestQueryMetricsCompiledTimeout:
+    """Tests for COMPILED timeout handling in query_metrics."""
+
+    @pytest.fixture
+    def mock_sl_client(self):
+        client = MagicMock()
+        session_ctx = MagicMock()
+        client.session.return_value = session_ctx
+        session_ctx.__enter__ = MagicMock(return_value=client)
+        session_ctx.__exit__ = MagicMock(return_value=False)
+        return client
+
+    @pytest.fixture
+    def compiled_fetcher(self, mock_config_provider, mock_sl_client):
+        client_provider = AsyncMock()
+        client_provider.get_client.return_value = mock_sl_client
+        return SemanticLayerFetcher(
+            config_provider=mock_config_provider,
+            client_provider=client_provider,
+        )
+
+    async def test_compiled_timeout_raises_client_error(
+        self, compiled_fetcher, mock_sl_client
+    ):
+        """COMPILED status timeout should raise SemanticLayerQueryTimeoutError."""
+        mock_sl_client.query.side_effect = RetryTimeoutError(
+            timeout_s=60, status="COMPILED"
+        )
+
+        with pytest.raises(SemanticLayerQueryTimeoutError) as exc_info:
+            await compiled_fetcher.query_metrics(metrics=["revenue"])
+
+        assert "COMPILED" in str(exc_info.value)
+
+    async def test_running_timeout_returns_error_result(
+        self, compiled_fetcher, mock_sl_client
+    ):
+        """RUNNING status timeout should return QueryMetricsError, not raise."""
+        mock_sl_client.query.side_effect = RetryTimeoutError(
+            timeout_s=60, status="RUNNING"
+        )
+
+        result = await compiled_fetcher.query_metrics(metrics=["revenue"])
+
+        assert isinstance(result, QueryMetricsError)
+        assert result.error is not None
+
+    async def test_none_status_timeout_returns_error_result(
+        self, compiled_fetcher, mock_sl_client
+    ):
+        """None status timeout should return QueryMetricsError, not raise."""
+        mock_sl_client.query.side_effect = RetryTimeoutError(timeout_s=60)
+
+        result = await compiled_fetcher.query_metrics(metrics=["revenue"])
+
+        assert isinstance(result, QueryMetricsError)
+        assert result.error is not None
