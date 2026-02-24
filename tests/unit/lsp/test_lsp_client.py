@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.lsp.lsp_client import LSPClient
 from dbt_mcp.lsp.lsp_connection import SocketLSPConnection, LspConnectionState
 
@@ -91,3 +92,27 @@ async def test_get_column_lineage_error(lsp_client, mock_lsp_connection):
     )
 
     assert result == {"error": "LSP server error"}
+
+
+@pytest.mark.asyncio
+async def test_get_column_lineage_empty_model_id(lsp_client):
+    """Test column lineage request with empty model_id raises ValueError."""
+    with pytest.raises(
+        InvalidParameterError, match="model_id must be a non-empty string"
+    ):
+        await lsp_client.get_column_lineage(
+            model_id="",
+            column_name="customer_id",
+        )
+
+
+@pytest.mark.asyncio
+async def test_get_column_lineage_empty_column_name(lsp_client):
+    """Test column lineage request with empty column_name raises ValueError."""
+    with pytest.raises(
+        InvalidParameterError, match="column_name must be a non-empty string"
+    ):
+        await lsp_client.get_column_lineage(
+            model_id="model.my_project.my_model",
+            column_name="",
+        )
