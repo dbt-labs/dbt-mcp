@@ -13,8 +13,6 @@ from dbt_mcp.semantic_layer.client import DEFAULT_RESULT_FORMATTER, SemanticLaye
 from dbt_mcp.semantic_layer.types import QueryMetricsError
 
 
-
-
 def test_default_result_formatter_outputs_iso_dates() -> None:
     timestamp = dt.datetime(2025, 9, 1, tzinfo=dt.UTC)
     table = pa.table(

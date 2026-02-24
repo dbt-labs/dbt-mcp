@@ -5,7 +5,6 @@ from typing import get_args
 from dbt_mcp.errors import (
     ClientToolCallError,
     ServerToolCallError,
-    ToolCallError,
 )
 from dbt_mcp.errors.base import ToolCallError as BaseToolCallError
 

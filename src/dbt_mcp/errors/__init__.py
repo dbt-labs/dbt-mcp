@@ -1,5 +1,3 @@
-from typing import TypeAlias
-
 from dbt_mcp.errors.admin_api import (
     AdminAPIError,
     AdminAPIToolCallError,
@@ -15,14 +13,14 @@ from dbt_mcp.errors.semantic_layer import (
 )
 from dbt_mcp.errors.sql import RemoteToolError, SQLToolCallError
 
-ClientToolCallError: TypeAlias = (
+ClientToolCallError = (
     InvalidParameterError
     | NotFoundError
     | SemanticLayerQueryTimeoutError
     | GraphQLError
 )
 
-ServerToolCallError: TypeAlias = (
+ServerToolCallError = (
     SemanticLayerToolCallError
     | CLIToolCallError
     | BinaryExecutionError

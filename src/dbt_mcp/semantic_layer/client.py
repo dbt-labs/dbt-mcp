@@ -343,7 +343,7 @@ class SemanticLayerFetcher:
         result_formatter: Callable[[pa.Table], str] | None = None,
     ) -> QueryMetricsResult:
         try:
-            query_error = None
+            query_error: Exception | None = None
             sl_client = await self.client_provider.get_client()
             with sl_client.session():
                 # Catching any exception within the session
