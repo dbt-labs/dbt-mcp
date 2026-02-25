@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: Classify ToolCallErrors as client/server via TypeAlias unions and catch COMPILED timeouts as SemanticLayerQueryTimeoutError
+time: 2026-02-23T13:17:53.310801-06:00

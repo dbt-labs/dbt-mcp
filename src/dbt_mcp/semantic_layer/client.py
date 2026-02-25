@@ -15,10 +15,12 @@ from dbtsl.api.shared.query_params import (
     OrderBySpec,
 )
 from dbtsl.client.sync import SyncSemanticLayerClient
-from dbtsl.error import QueryFailedError
+from dbtsl.error import QueryFailedError, RetryTimeoutError
+from dbtsl.models.query import QueryStatus
 
 from dbt_mcp.config.config_providers import ConfigProvider, SemanticLayerConfig
 from dbt_mcp.errors import InvalidParameterError
+from dbt_mcp.errors.semantic_layer import SemanticLayerQueryTimeoutError
 from dbt_mcp.semantic_layer.gql.gql import GRAPHQL_QUERIES
 from dbt_mcp.semantic_layer.gql.gql_request import submit_request
 from dbt_mcp.semantic_layer.types import (
@@ -341,7 +343,7 @@ class SemanticLayerFetcher:
         result_formatter: Callable[[pa.Table], str] | None = None,
     ) -> QueryMetricsResult:
         try:
-            query_error = None
+            query_error: Exception | None = None
             sl_client = await self.client_provider.get_client()
             with sl_client.session():
                 # Catching any exception within the session
@@ -358,6 +360,20 @@ class SemanticLayerFetcher:
                         where=[where] if where else None,
                         limit=limit,
                     )
+                except RetryTimeoutError as e:
+                    # Queries that timeout with COMPILED status have finished SQL
+                    # compilation and are executing against the data platform. In
+                    # agent contexts, this indicates the query is too complex and
+                    # the client should request a simpler query.
+                    if e.status == QueryStatus.COMPILED.value:
+                        raise SemanticLayerQueryTimeoutError(
+                            f"The semantic layer query timed out after {e.timeout_s}s while "
+                            f"executing against the data platform (status: COMPILED). This "
+                            f"indicates the query is too complex or returns too much data "
+                            f"for an agent context. Please simplify the query by adding "
+                            f"filters, reducing dimensions, or limiting results."
+                        ) from e
+                    query_error = e
                 except Exception as e:
                     query_error = e
             if query_error:
@@ -365,5 +381,7 @@ class SemanticLayerFetcher:
             formatter = result_formatter or DEFAULT_RESULT_FORMATTER
             json_result = formatter(query_result)
             return QueryMetricsSuccess(result=json_result or "")
+        except SemanticLayerQueryTimeoutError:
+            raise
         except Exception as e:
             return self._format_query_failed_error(e)
