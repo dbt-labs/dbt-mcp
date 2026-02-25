@@ -297,7 +297,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.116.1" },
     { name = "filelock", specifier = ">=3.18.0" },
     { name = "httpx", specifier = "==0.28.1" },
-    { name = "mcp", extras = ["cli"], specifier = "~=1.26.0" },
+    { name = "mcp", extras = ["cli"], specifier = "==1.26.0" },
     { name = "pydantic-settings", specifier = "==2.10.1" },
     { name = "pyjwt", specifier = "==2.10.1" },
     { name = "pyyaml", specifier = "==6.0.2" },
