@@ -17,7 +17,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: setup python
-        uses: ./.github/actions/setup-python
+        uses: ./.github/actions/setup-python-and-pnpm
         id: setup-python
       - name: Check for changes
         run: |
