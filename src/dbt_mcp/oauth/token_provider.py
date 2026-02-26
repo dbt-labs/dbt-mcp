@@ -4,6 +4,7 @@ from typing import Protocol
 
 from authlib.integrations.requests_client import OAuth2Session
 
+from dbt_mcp.errors.hints import with_multicell_hint
 from dbt_mcp.oauth.client_id import OAUTH_CLIENT_ID
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
 from dbt_mcp.oauth.dbt_platform import dbt_platform_context_from_token_response
@@ -85,7 +86,9 @@ class OAuthTokenProvider:
                 )
                 await self._refresh_token()
             except Exception as e:
-                logger.error(f"Error in background refresh worker: {e}")
+                # Add hint for SSL errors (common with multi-cell misconfiguration)
+                error_msg = with_multicell_hint(str(e))
+                logger.error(f"Error in background refresh worker: {error_msg}")
                 await self.refresh_strategy.wait_after_error()
 
 
