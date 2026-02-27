@@ -141,4 +141,5 @@ mock_config = Config(
     disabled_toolsets=set(),
     enabled_toolsets=set(),
     credentials_provider=MockCredentialsProvider(),
+    settings=mock_settings,
 )
