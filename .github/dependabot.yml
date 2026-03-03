@@ -2,6 +2,8 @@ version: 2
 updates:
   - package-ecosystem: "uv"
     directory: "/"
+    # Ignore version update PRs - security updates remain active
+    open-pull-requests-limit: 0
     exclude-paths:
       - "examples/**"
     schedule:
@@ -9,5 +11,7 @@ updates:
 
   - package-ecosystem: "npm"
     directory: "/ui"
+    # Ignore version update PRs - security updates remain active
+    open-pull-requests-limit: 0
     schedule:
       interval: "weekly"
