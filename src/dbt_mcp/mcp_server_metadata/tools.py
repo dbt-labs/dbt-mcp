@@ -1,7 +1,9 @@
 """MCP Server tools for server information and management."""
 
 import logging
+import subprocess
 from importlib.metadata import version
+from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
@@ -12,11 +14,29 @@ from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
 
+_THIS_DIR = Path(__file__).resolve().parent
+
 
 def _get_server_version() -> str:
     """Get the dbt-mcp server version from package metadata."""
     try:
         return version("dbt-mcp")
+    except Exception:
+        return "unknown"
+
+
+def _get_git_branch() -> str:
+    """git rev-parse walks up from cwd to find the enclosing .git directory."""
+    try:
+        return (
+            subprocess.check_output(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=_THIS_DIR,
+                stderr=subprocess.DEVNULL,
+            )
+            .decode()
+            .strip()
+        )
     except Exception:
         return "unknown"
 
@@ -34,8 +54,22 @@ def get_mcp_server_version() -> str:
     return _get_server_version()
 
 
+@dbt_mcp_tool(
+    description="Get the current git branch of the running dbt MCP server. Useful when running a local development build to identify which branch is active.",
+    title="Get MCP Server Branch",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+    open_world_hint=False,
+)
+def get_mcp_server_branch() -> str:
+    """Returns the current git branch of the dbt MCP server."""
+    return _get_git_branch()
+
+
 MCP_SERVER_TOOLS = [
     get_mcp_server_version,
+    get_mcp_server_branch,
 ]
 
 

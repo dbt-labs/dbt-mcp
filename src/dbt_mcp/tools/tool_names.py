@@ -75,6 +75,7 @@ class ToolName(Enum):
 
     # MCP Server tools
     GET_MCP_SERVER_VERSION = "get_mcp_server_version"
+    GET_MCP_SERVER_BRANCH = "get_mcp_server_branch"
 
     @classmethod
     def get_all_tool_names(cls) -> set[str]:

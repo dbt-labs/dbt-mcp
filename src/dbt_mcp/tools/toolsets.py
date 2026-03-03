@@ -114,6 +114,7 @@ toolsets = {
     },
     Toolset.MCP_SERVER_METADATA: {
         ToolName.GET_MCP_SERVER_VERSION,
+        ToolName.GET_MCP_SERVER_BRANCH,
     },
 }
 
