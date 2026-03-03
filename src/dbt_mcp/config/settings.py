@@ -608,6 +608,7 @@ class CredentialsProvider:
             self.settings.dbt_host = get_dbt_host(self.settings, dbt_platform_context)
             if not dbt_platform_context.decoded_access_token:
                 raise ValueError("No decoded access token found in OAuth context")
+            # TODO: This is unreliable. We shouldn't set token here because it is static and not refreshed.
             self.settings.dbt_token = dbt_platform_context.decoded_access_token.access_token_response.access_token
 
             self.token_provider = OAuthTokenProvider(
