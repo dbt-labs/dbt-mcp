@@ -291,7 +291,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "authlib", specifier = "==1.6.6" },
-    { name = "dbt-protos", specifier = "==1.0.382" },
+    { name = "dbt-protos", specifier = "==1.0.431" },
     { name = "dbt-sl-sdk", extras = ["sync"], specifier = ">=0.13.2" },
     { name = "dbtlabs-vortex", specifier = "==0.2.0" },
     { name = "fastapi", specifier = ">=0.116.1" },
@@ -322,14 +322,14 @@ dev = [
 
 [[package]]
 name = "dbt-protos"
-version = "1.0.382"
+version = "1.0.431"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "protobuf" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4a/8f/294b89d5df1f3f8318363e9fcb162282bf2f20f56e0a41257fe7e75c2ef7/dbt_protos-1.0.382.tar.gz", hash = "sha256:3ad6a7f5ac626757265ecbf37904742a56c36868d881cc8717ac951b66617348", size = 105689, upload-time = "2025-10-06T16:31:33.013Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/29/67/777aa1c4af897773adb944c2db8d5c2073dd3ae114fa233b5559e900a550/dbt_protos-1.0.431.tar.gz", hash = "sha256:8fd3f52f2cb5532874eab93470fec3d9ace74e1ee342eaaf13b24867c042d0ce", size = 123577, upload-time = "2026-02-06T21:54:29.81Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ec/6b/e374dcb10ab208f2c7a5d3642ad9c9d7880674a98630495858fc004c0063/dbt_protos-1.0.382-py3-none-any.whl", hash = "sha256:f2345522f9f6ee9c14e576ab2aac010d7fa777c82919134fd7ef347a886331bb", size = 147232, upload-time = "2025-10-06T16:31:31.279Z" },
+    { url = "https://files.pythonhosted.org/packages/ac/56/8db9a3330af4462860fd5e38e8c1759ef9f1701f0c2111c9694c5c2e544c/dbt_protos-1.0.431-py3-none-any.whl", hash = "sha256:5ee60f11f2cae5faaf0e5f8420f7872ab48ae978ccd74fdba60d0f3ab8fd1d26", size = 178455, upload-time = "2026-02-06T21:54:28.189Z" },
 ]
 
 [[package]]
