@@ -5,6 +5,7 @@ With [task](https://taskfile.dev/) installed, simply run `task` to see the list 
 ## Setup
 
 1. Clone the repository:
+
 ```shell
 git clone https://github.com/dbt-labs/dbt-mcp.git
 cd dbt-mcp
@@ -17,10 +18,12 @@ cd dbt-mcp
 4. Run `task install`
 
 5. Configure environment variables:
-    ```shell
-    cp .env.example .env
-    ```
-    Then edit `.env` with your specific environment variables (see [our docs](https://docs.getdbt.com/docs/dbt-ai/setup-local-mcp) to determine the values).
+
+   ```shell
+   cp .env.example .env
+   ```
+
+   Then edit `.env` with your specific environment variables (see [our docs](https://docs.getdbt.com/docs/dbt-ai/setup-local-mcp) to determine the values).
 
 6. Run `task client` to chat with dbt MCP in your terminal.
 
@@ -85,6 +88,63 @@ Or, if you would like to test with Oauth, use a configuration like this:
 
 For improved debugging, you can set the `DBT_MCP_SERVER_FILE_LOGGING=true` environment variable to log to a `./dbt-mcp.log` file.
 
+## Adding Tools
+
+Tools are defined using the `@dbt_mcp_tool` decorator and registered with the MCP server via `register_tools()`.
+
+### Steps to add a new tool
+
+1. **Add a `ToolName` entry** in `src/dbt_mcp/tools/tool_names.py`
+2. **Map it to a toolset** in `src/dbt_mcp/tools/toolsets.py` (e.g., `DISCOVERY`, `SEMANTIC_LAYER`, `SQL`)
+3. **Write a prompt file** in `src/dbt_mcp/prompts/<category>/` describing the tool
+4. **Define the tool function** in the appropriate `tools.py` module:
+   ```python
+   @dbt_mcp_tool(
+       description=get_prompt("category/tool_name"),
+       title="My Tool",
+       read_only_hint=True,
+       destructive_hint=False,
+       idempotent_hint=True,
+   )
+   async def my_tool(context: MyToolContext, param: str) -> dict:
+       return await context.fetcher.do_something(param)
+   ```
+5. **Add it to the tool list** (e.g., `DISCOVERY_TOOLS`) in the same module
+6. The registration function (e.g., `register_discovery_tools`) handles context binding and registration
+
+### Adding an MCP App tool
+
+MCP Apps are tools that have an associated interactive UI rendered by the host. They build on top of regular tools with two additions:
+
+1. **Use `structured_output=True` and `meta`** to link the tool to a UI resource:
+   ```python
+   @dbt_mcp_tool(
+       description=get_prompt("category/tool_name"),
+       title="My Visualization",
+       read_only_hint=True,
+       structured_output=True,
+       meta={"ui": {"resourceUri": "ui://dbt-mcp/my-app"}},
+   )
+   async def my_viz_tool(context: MyToolContext, param: str) -> MyResultType:
+       ...
+   ```
+   The return type must be a `TypedDict` when `structured_output=True`.
+
+2. **Register an MCP resource** at the matching `ui://` URI to serve the HTML app:
+   ```python
+   @dbt_mcp.resource(
+       uri="ui://dbt-mcp/my-app",
+       name="My App",
+       mime_type="text/html;profile=mcp-app",
+   )
+   def get_my_app_ui() -> str:
+       return Path("packages/my-app/dist/index.html").read_text()
+   ```
+
+3. **Build a frontend** in `packages/` using `@modelcontextprotocol/ext-apps`. The app receives tool results via the `ontoolresult` callback and must be bundled as a single HTML file (e.g., using `vite-plugin-singlefile`) or reference external resources via CSP `resourceDomains`.
+
+The `ui://` URI convention is `ui://<server-name>/<resource-name>`. The `meta` field is passed through the full tool registration pipeline (`@dbt_mcp_tool` → `GenericToolDefinition` → `adapt_context` → `register_tools` → `FastMCP.add_tool`).
+
 ## Signed Commits
 
 Before committing changes, ensure that you have set up [signed commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
@@ -99,12 +159,14 @@ Every PR requires a changelog entry. [Install changie](https://changie.dev/) and
 The dbt-mcp server runs with `stdio` transport by default which does not allow for Python debugger support. For debugging with breakpoints, use `streamable-http` transport.
 
 ### Option 1: MCP Inspector Only (No Breakpoints)
+
 1. Run `task inspector` - this starts both the server and inspector automatically
 2. Open MCP Inspector UI
 3. Use "STDIO" Transport Type to connect
 4. Test tools interactively in the inspector UI (uses `stdio` transport, no debugger support)
 
 ### Option 2: VS Code Debugger with Breakpoints (Recommended for Debugging)
+
 1. Set breakpoints in your code
 2. Press `F5` or select "debug dbt-mcp" from the Run menu
 3. Open MCP Inspector UI via `npx @modelcontextprotocol/inspector`
@@ -112,6 +174,7 @@ The dbt-mcp server runs with `stdio` transport by default which does not allow f
 5. Call tools from Inspector - your breakpoints will trigger
 
 ### Option 3: Manual Debugging with `task dev`
+
 1. Run `task dev` - this starts the server with `streamable-http` transport on `http://localhost:8000`
 2. Set breakpoints in your code
 3. Attach your debugger manually (see [debugpy documentation](https://github.com/microsoft/debugpy#debugpy) for examples)
@@ -128,29 +191,32 @@ If you encounter any problems, you can try running `task run` to see errors in y
 Only people in the `CODEOWNERS` file should trigger a new release with these steps:
 
 1. Consider these guidelines when choosing a version number:
-  - Major
-    - Removing a tool or toolset without replacement, or in a way that would result in agents behaving much differently.
-    - Changing the behavior of existing environment variables or configurations
-  - Minor
-    - Changes to config system related to the function signature of the register functions (e.g. `register_discovery_tools`)
-    - Adding optional parameters to a tool function signature
-    - Adding a new tool or toolset
-    - Removing or adding non-optional parameters from tool function signatures
-    - Renaming a tool
-    - Removing a tool which overlaps or provides similar functionality as other tool(s)
-  - Patch
-    - Bug and security fixes - only major security and bug fixes will be back-ported to prior minor and major versions
-    - Dependency updates which don’t change behavior
-    - Minor enhancements
-    - Editing a tool or parameter description prompt
-    - Adding an allowed environment variable with the `DBT_MCP_` prefix
+
+- Major
+  - Removing a tool or toolset without replacement, or in a way that would result in agents behaving much differently.
+  - Changing the behavior of existing environment variables or configurations
+- Minor
+  - Changes to config system related to the function signature of the register functions (e.g. `register_discovery_tools`)
+  - Adding optional parameters to a tool function signature
+  - Adding a new tool or toolset
+  - Removing or adding non-optional parameters from tool function signatures
+  - Renaming a tool
+  - Removing a tool which overlaps or provides similar functionality as other tool(s)
+- Patch
+  - Bug and security fixes - only major security and bug fixes will be back-ported to prior minor and major versions
+  - Dependency updates which don’t change behavior
+  - Minor enhancements
+  - Editing a tool or parameter description prompt
+  - Adding an allowed environment variable with the `DBT_MCP_` prefix
+
 2. Trigger the [Create release PR Action](https://github.com/dbt-labs/dbt-mcp/actions/workflows/create-release-pr.yml).
-  - If the release is NOT a pre-release, select `auto` (default) to automatically determine the version bump based on changelog entries, or manually pick patch, minor or major if needed
-  - If the release is a pre-release, set the bump and the pre-release suffix. We support alpha.N, beta.N and rc.N.
-    - use alpha for early releases of experimental features that specific people might want to test. Significant changes can be expected between alpha and the official release.
-    - use beta for releases that are mostly stable but still in development. It can be used to gather feedback from a group of peopleon how a specific feature should work.
-    - use rc for releases that are mostly stable and already feature complete. Only bugfixes and minor changes are expected between rc and the official release.
-  - Picking the prerelease suffix will depend on whether the last release was the stable release or a pre-release:
+
+- If the release is NOT a pre-release, select `auto` (default) to automatically determine the version bump based on changelog entries, or manually pick patch, minor or major if needed
+- If the release is a pre-release, set the bump and the pre-release suffix. We support alpha.N, beta.N and rc.N.
+  - use alpha for early releases of experimental features that specific people might want to test. Significant changes can be expected between alpha and the official release.
+  - use beta for releases that are mostly stable but still in development. It can be used to gather feedback from a group of peopleon how a specific feature should work.
+  - use rc for releases that are mostly stable and already feature complete. Only bugfixes and minor changes are expected between rc and the official release.
+- Picking the prerelease suffix will depend on whether the last release was the stable release or a pre-release:
 
 | Last Stable | Last Pre-release | Bump  | Pre-release Suffix | Resulting Version |
 | ----------- | ---------------- | ----- | ------------------ | ----------------- |
