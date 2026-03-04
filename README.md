@@ -91,6 +91,10 @@ The dbt MCP server architecture allows for your agent to connect to a variety of
 - `fusion.get_column_lineage`: Traces column-level lineage via dbt Platform.
 - `get_column_lineage`: Traces column-level lineage locally (requires dbt-lsp via dbt Labs VSCE).
 
+### Product Docs
+- `get_product_doc_pages`: Fetches the full Markdown content of one or more docs.getdbt.com pages by path or URL.
+- `search_product_docs`: Searches docs.getdbt.com for pages matching a query; returns titles, URLs, and descriptions ranked by relevance. Use get_product_doc_pages to fetch full content.
+
 ### MCP Server Metadata
 - `get_mcp_server_branch`: Returns the current git branch of the running dbt MCP server.
 - `get_mcp_server_version`: Returns the current version of the dbt MCP server.
