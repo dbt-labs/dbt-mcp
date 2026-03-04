@@ -100,6 +100,10 @@ The dbt MCP server architecture allows for your agent to connect to a variety of
 
 Commonly, you will connect the dbt MCP server to an agent product like Claude or Cursor. However, if you are interested in creating your own agent, check out [the examples directory](https://github.com/dbt-labs/dbt-mcp/tree/main/examples) for how to get started.
 
+## Dependencies
+
+Dependencies are pinned to specific versions and are not updated automatically. Only security-related dependency updates are submitted via automated pull requests.
+
 ## Contributing
 
 Read `CONTRIBUTING.md` for instructions on how to get involved!
