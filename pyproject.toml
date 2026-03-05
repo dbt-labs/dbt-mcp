@@ -28,7 +28,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-  "authlib==1.6.6",
+  "authlib==1.6.7",
   "dbt-protos>=1.0.431",
   "dbt-sl-sdk[sync]>=0.13.2",
   "dbtlabs-vortex==0.2.0",
