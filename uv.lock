@@ -291,7 +291,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "authlib", specifier = "==1.6.6" },
-    { name = "dbt-protos", specifier = "==1.0.431" },
+    { name = "dbt-protos", specifier = ">=1.0.431" },
     { name = "dbt-sl-sdk", extras = ["sync"], specifier = ">=0.13.2" },
     { name = "dbtlabs-vortex", specifier = "==0.2.0" },
     { name = "fastapi", specifier = ">=0.116.1" },
