@@ -37,6 +37,7 @@ Tools can have associated UIs via the `meta` field:
 - `task test:unit` — run unit tests
 - `task test:integration` — run integration tests (requires dbt Platform credentials)
 - `task install` — install dependencies
+- `task docs:generate` — regenerate README tool list and d2 diagram from tool definitions (run after adding/removing tools)
 - `task dev` — run server with streamable-http transport
 - `task inspector` — run with MCP Inspector
 - `uv run pytest tests/ --ignore=tests/integration -x -q` — quick unit test run
