@@ -1,3 +1,3 @@
 kind: Under the Hood
-body: Bump dbt-protos==1.0.431
+body: Loosen version pin to dbt-protos>=1.0.431
 time: 2026-03-03T19:47:26.544664-08:00
