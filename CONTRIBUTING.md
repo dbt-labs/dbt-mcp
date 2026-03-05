@@ -112,11 +112,11 @@ Tools are defined using the `@dbt_mcp_tool` decorator and registered with the MC
 5. **Add it to the tool list** (e.g., `DISCOVERY_TOOLS`) in the same module
 6. The registration function (e.g., `register_discovery_tools`) handles context binding and registration
 
-### Adding an MCP App tool
+### Adding a tool with interactive UI (MCP Apps)
 
-MCP Apps are tools that have an associated interactive UI rendered by the host. They build on top of regular tools with two additions:
+MCP Apps are tools that have an associated interactive UI rendered by the host (e.g., Claude, VS Code). They build on top of regular tools with two additions:
 
-1. **Use `structured_output=True` and `meta`** to link the tool to a UI resource:
+1. **Use `structured_output` and `meta`** to link the tool to a UI resource:
    ```python
    @dbt_mcp_tool(
        description=get_prompt("category/tool_name"),
@@ -125,10 +125,10 @@ MCP Apps are tools that have an associated interactive UI rendered by the host. 
        structured_output=True,
        meta={"ui": {"resourceUri": "ui://dbt-mcp/my-app"}},
    )
-   async def my_viz_tool(context: MyToolContext, param: str) -> MyResultType:
+   async def my_viz_tool(context: MyToolContext, param: str) -> MyResult:
        ...
    ```
-   The return type must be a `TypedDict` when `structured_output=True`.
+   `structured_output=True` is required so the host can pass structured JSON to the UI. The return type should be a Pydantic model.
 
 2. **Register an MCP resource** at the matching `ui://` URI to serve the HTML app:
    ```python

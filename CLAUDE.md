@@ -23,11 +23,12 @@ Tools follow a consistent pattern:
 4. Context injection via `adapt_context()` — tools receive typed context objects, but MCP only sees user-facing params
 5. `register_tools()` in `tools/register.py` — precedence-based enablement (individual > toolset > default)
 
-### MCP Apps
+### MCP Apps (tools with interactive UI)
 
 Tools can have associated UIs via the `meta` field:
 - `meta={"ui": {"resourceUri": "ui://dbt-mcp/app-name"}}` on `@dbt_mcp_tool`
-- `structured_output=True` required — return type must be `TypedDict`
+- `structured_output=True` required so the host can pass structured JSON to the UI
+- Return type should be a Pydantic model
 - Register matching resource with `@dbt_mcp.resource(uri=..., mime_type="text/html;profile=mcp-app")`
 - Frontend uses `@modelcontextprotocol/ext-apps` SDK
 
