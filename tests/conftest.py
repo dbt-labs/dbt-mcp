@@ -125,9 +125,11 @@ def env_setup(tmp_path: Path, monkeypatch):
 class MockFastMCP:
     def __init__(self):
         self.tools = {}
+        self.tool_kwargs = {}
 
     def add_tool(self, fn: Callable[..., Any], **kwargs):
         self.tools[fn.__name__] = fn
+        self.tool_kwargs[fn.__name__] = kwargs
 
     def tool(self, **kwargs):
         def decorator(func):
