@@ -125,7 +125,10 @@ def display_url(url: str) -> str:
 
 
 def normalize_doc_url(path: str) -> str:
-    """Turn a path or URL into a full ``docs.getdbt.com`` ``.md`` URL."""
+    """Turn a path or URL into a full ``docs.getdbt.com`` ``.md`` URL.
+
+    Raises ``ValueError`` if the resulting URL is not on docs.getdbt.com.
+    """
     url = path.strip()
 
     if not url.startswith("http"):
@@ -136,6 +139,9 @@ def normalize_doc_url(path: str) -> str:
 
     if not url.endswith(".md"):
         url = f"{url}.md"
+
+    if not url.startswith(f"{DOCS_BASE_URL}/"):
+        raise ValueError(f"URL must be on docs.getdbt.com, got: {url}")
 
     return url
 

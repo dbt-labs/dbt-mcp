@@ -155,6 +155,18 @@ class TestNormalizeDocUrl:
         result = normalize_doc_url("  /docs/build/incremental-models  ")
         assert result == "https://docs.getdbt.com/docs/build/incremental-models.md"
 
+    def test_rejects_external_https_url(self):
+        with pytest.raises(ValueError, match="docs.getdbt.com"):
+            normalize_doc_url("https://evil.com/foo")
+
+    def test_rejects_external_http_url(self):
+        with pytest.raises(ValueError, match="docs.getdbt.com"):
+            normalize_doc_url("http://internal:8080/secret")
+
+    def test_rejects_subdomain_spoofing(self):
+        with pytest.raises(ValueError, match="docs.getdbt.com"):
+            normalize_doc_url("https://docs.getdbt.com.evil.com/page")
+
 
 class TestSearchProductDocs:
     @pytest.mark.asyncio
@@ -394,6 +406,31 @@ class TestGetProductDocPages:
         mock_client.get_page.return_value = "# Content"
         result = await get_product_doc_pages.fn(context, ["/docs/build/models"])
         assert not result.pages[0].url.endswith(".md")
+
+    @pytest.mark.asyncio
+    async def test_rejects_external_url(self, context, mock_client):
+        result = await get_product_doc_pages.fn(
+            context, ["https://evil.com/steal-data"]
+        )
+        page = result.pages[0]
+        assert page.error is not None
+        assert page.error.startswith("URL must be on docs.getdbt.com")
+        assert page.content == ""
+
+    @pytest.mark.asyncio
+    async def test_error_url_is_normalized(self, context, mock_client):
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_client.get_page.side_effect = httpx.HTTPStatusError(
+            "404 Not Found",
+            request=Mock(),
+            response=mock_response,
+        )
+        result = await get_product_doc_pages.fn(context, ["/docs/build/models"])
+        page = result.pages[0]
+        assert page.error is not None
+        assert page.url.startswith("https://docs.getdbt.com/")
+        assert not page.url.endswith(".md")
 
 
 class TestParseLlmsFullTxt:

@@ -57,7 +57,10 @@ def _dict_to_doc_search_result(entry: dict[str, str]) -> DocSearchResult:
 
 async def _fetch_page(client: ProductDocsClient, url: str) -> ProductDocPageResponse:
     """Fetch a single page, returning a typed response with error handling."""
-    normalized = normalize_doc_url(url)
+    try:
+        normalized = normalize_doc_url(url)
+    except ValueError as e:
+        return ProductDocPageResponse(url=url, content="", error=str(e))
     try:
         content = await client.get_page(normalized)
     except httpx.HTTPStatusError as e:
@@ -166,12 +169,16 @@ async def get_product_doc_pages(
     pages: list[ProductDocPageResponse] = []
     for i, result in enumerate(results):
         if isinstance(result, BaseException):
-            logger.warning("Failed to fetch %s: %s", paths[i], result)
+            try:
+                err_url = display_url(normalize_doc_url(paths[i]))
+            except Exception:
+                err_url = paths[i]
+            logger.warning("Failed to fetch %s: %s", err_url, result)
             pages.append(
                 ProductDocPageResponse(
-                    url=paths[i],
+                    url=err_url,
                     content="",
-                    error=f"Failed to fetch page: {paths[i]} ({result})",
+                    error=f"Failed to fetch page: {err_url} ({result})",
                 )
             )
         else:
@@ -195,9 +202,10 @@ def register_product_docs_tools(
     disabled_toolsets: set[Toolset],
 ) -> None:
     """Register Product Docs tools."""
+    shared_client = ProductDocsClient()
 
     def bind_context() -> ProductDocsToolContext:
-        return ProductDocsToolContext()
+        return ProductDocsToolContext(client=shared_client)
 
     register_tools(
         dbt_mcp,
