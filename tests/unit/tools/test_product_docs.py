@@ -83,12 +83,8 @@ def mock_client():
     """Create a mock ProductDocsClient with AsyncMock methods."""
     client = Mock()
     client.get_index = AsyncMock(return_value=parse_llms_txt(SAMPLE_LLMS_TXT))
-    client.get_full_text_index = AsyncMock(
-        return_value=parse_llms_full_txt(SAMPLE_LLMS_FULL_TXT)
-    )
     client.get_page = AsyncMock(return_value="# Page Content")
     client.search_index = AsyncMock(return_value=[])
-    client.search_full_text = AsyncMock(return_value=[])
     return client
 
 
@@ -186,7 +182,6 @@ class TestSearchProductDocs:
     @pytest.mark.asyncio
     async def test_search_no_matches(self, context, mock_client):
         mock_client.search_index.return_value = []
-        mock_client.search_full_text.return_value = []
         result = await search_product_docs.fn(context, "zzzznonexistent")
         assert result.total_matches == 0
         assert result.results == []
@@ -237,44 +232,45 @@ class TestSearchProductDocs:
         assert result.results[0].section == "Build"
 
     @pytest.mark.asyncio
-    async def test_full_text_fallback_when_few_title_matches(
-        self, context, mock_client
-    ):
-        mock_client.search_index.return_value = []
-        mock_client.search_full_text.return_value = [
-            {
-                "url": "https://docs.getdbt.com/docs/fusion/about-fusion",
-                "title": "About Fusion",
-            },
+    async def test_query_expansion_when_few_title_matches(self, context, mock_client):
+        mock_client.search_index.side_effect = [
+            [],
+            [
+                {
+                    "url": "https://docs.getdbt.com/docs/build/udfs",
+                    "title": "User-defined functions",
+                },
+            ],
         ]
-        result = await search_product_docs.fn(context, "fusion engine rust")
+        result = await search_product_docs.fn(context, "udf")
         assert len(result.results) > 0
-        assert result.results[0].title == "About Fusion"
-        assert result.search_method == "full_text_fallback"
+        assert result.results[0].title == "User-defined functions"
+        assert result.search_method == "query_expansion"
+        assert mock_client.search_index.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_full_text_fallback_deduplicates_urls(self, context, mock_client):
-        mock_client.search_index.return_value = [
-            {
-                "title": "Incremental models",
-                "url": "https://docs.getdbt.com/docs/build/incremental-models",
-            },
+    async def test_query_expansion_deduplicates_urls(self, context, mock_client):
+        mock_client.search_index.side_effect = [
+            [
+                {
+                    "title": "Incremental models",
+                    "url": "https://docs.getdbt.com/docs/build/incremental-models",
+                },
+            ],
+            [
+                {
+                    "url": "https://docs.getdbt.com/docs/build/incremental-models",
+                    "title": "Duplicate",
+                },
+                {"url": "https://docs.getdbt.com/docs/new-page", "title": "New Page"},
+            ],
         ]
-        mock_client.search_full_text.return_value = [
-            {
-                "url": "https://docs.getdbt.com/docs/build/incremental-models",
-                "title": "Duplicate",
-            },
-            {"url": "https://docs.getdbt.com/docs/new-page", "title": "New Page"},
-        ]
-        result = await search_product_docs.fn(context, "incremental")
+        result = await search_product_docs.fn(context, "ci")
         urls = [r.url for r in result.results]
         assert len(urls) == len(set(urls))
 
     @pytest.mark.asyncio
-    async def test_no_full_text_fallback_when_enough_results(
-        self, context, mock_client
-    ):
+    async def test_no_query_expansion_when_enough_results(self, context, mock_client):
         mock_client.search_index.return_value = [
             {"title": "A", "url": "https://docs.getdbt.com/a"},
             {"title": "B", "url": "https://docs.getdbt.com/b"},
@@ -282,7 +278,7 @@ class TestSearchProductDocs:
         ]
         result = await search_product_docs.fn(context, "test")
         assert result.search_method is None
-        mock_client.search_full_text.assert_not_called()
+        assert mock_client.search_index.call_count == 1
 
 
 class TestGetProductDocPages:

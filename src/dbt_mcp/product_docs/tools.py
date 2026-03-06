@@ -4,7 +4,7 @@ Registers two tools that let AI agents query the public dbt product
 documentation at docs.getdbt.com in real time:
 
 - ``search_product_docs`` — keyword search against the llms.txt index
-  (with automatic full-text fallback via llms-full.txt)
+  (with query-expansion retry for abbreviations/synonyms)
 - ``get_product_doc_pages`` — fetch one or more pages as clean Markdown
 """
 
@@ -38,7 +38,7 @@ from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
 
-FULL_TEXT_THRESHOLD = 3
+QUERY_EXPANSION_THRESHOLD = 3
 
 
 @dataclass
@@ -108,21 +108,23 @@ async def search_product_docs(
 
     client = context.client
     results = await client.search_index(query)
-    used_full_text = False
+    used_query_expansion = False
 
-    if len(results) < FULL_TEXT_THRESHOLD:
-        keywords = expand_keywords(query)
-        try:
-            full_text_results = await client.search_full_text(keywords, max_results=10)
-            seen_urls = {r["url"] for r in results}
-            for ft_result in full_text_results:
-                if ft_result["url"] not in seen_urls:
-                    results.append(ft_result)
-                    seen_urls.add(ft_result["url"])
-            if full_text_results:
-                used_full_text = True
-        except Exception as e:
-            logger.warning("Full-text search fallback failed: %s", e)
+    if len(results) < QUERY_EXPANSION_THRESHOLD:
+        expanded_keywords = expand_keywords(query)
+        expanded_query = " ".join(expanded_keywords)
+        if expanded_query and expanded_query.lower() != query.strip().lower():
+            try:
+                expansion_results = await client.search_index(expanded_query)
+                seen_urls = {r["url"] for r in results}
+                for entry in expansion_results:
+                    if entry["url"] not in seen_urls:
+                        results.append(entry)
+                        seen_urls.add(entry["url"])
+                if expansion_results:
+                    used_query_expansion = True
+            except Exception as e:
+                logger.warning("Query expansion fallback failed: %s", e)
 
     doc_results = [_dict_to_doc_search_result(r) for r in results]
 
@@ -131,7 +133,7 @@ async def search_product_docs(
         total_matches=len(doc_results),
         showing=len(doc_results),
         results=doc_results,
-        search_method="full_text_fallback" if used_full_text else None,
+        search_method="query_expansion" if used_query_expansion else None,
     )
 
 
