@@ -67,6 +67,9 @@ HUMAN_DESCRIPTIONS: dict[ToolName, str] = {
     ToolName.FUSION_GET_COLUMN_LINEAGE: "Traces column-level lineage via dbt Platform.",
     # MCP Server tools
     ToolName.GET_MCP_SERVER_VERSION: "Returns the current version of the dbt MCP server.",
+    # Product docs tools
+    ToolName.SEARCH_PRODUCT_DOCS: "Searches docs.getdbt.com for pages matching a query; returns titles, URLs, and descriptions ranked by relevance. Use get_product_doc_pages to fetch full content.",
+    ToolName.GET_PRODUCT_DOC_PAGES: "Fetches the full Markdown content of one or more docs.getdbt.com pages by path or URL.",
     ToolName.GET_MCP_SERVER_BRANCH: "Returns the current git branch of the running dbt MCP server.",
 }
 

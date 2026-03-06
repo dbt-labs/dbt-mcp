@@ -19,6 +19,7 @@ class Toolset(Enum):
     ADMIN_API = "admin_api"
     DBT_CODEGEN = "dbt_codegen"
     DBT_LSP = "dbt_lsp"
+    PRODUCT_DOCS = "product_docs"
     MCP_SERVER_METADATA = "mcp_server_metadata"
 
 
@@ -111,6 +112,10 @@ toolsets = {
         ToolName.GET_COLUMN_LINEAGE,
         ToolName.FUSION_COMPILE_SQL,
         ToolName.FUSION_GET_COLUMN_LINEAGE,
+    },
+    Toolset.PRODUCT_DOCS: {
+        ToolName.SEARCH_PRODUCT_DOCS,
+        ToolName.GET_PRODUCT_DOC_PAGES,
     },
     Toolset.MCP_SERVER_METADATA: {
         ToolName.GET_MCP_SERVER_VERSION,

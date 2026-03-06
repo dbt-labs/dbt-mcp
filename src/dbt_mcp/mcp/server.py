@@ -15,6 +15,7 @@ from dbt_mcp.config.config import Config
 from dbt_mcp.dbt_admin.tools import register_admin_api_tools
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.dbt_codegen.tools import register_dbt_codegen_tools
+from dbt_mcp.product_docs.tools import register_product_docs_tools
 from dbt_mcp.discovery.tools import register_discovery_tools
 from dbt_mcp.mcp_server_metadata.tools import register_mcp_server_tools
 from dbt_mcp.lsp.providers.local_lsp_client_provider import LocalLSPClientProvider
@@ -165,6 +166,16 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
     )
     enabled_toolsets = config.enabled_toolsets
     disabled_toolsets = config.disabled_toolsets
+
+    # Register product docs tools (always available, fetches from public docs.getdbt.com)
+    logger.info("Registering product docs tools")
+    register_product_docs_tools(
+        dbt_mcp,
+        disabled_tools=disabled_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
+    )
 
     # Register MCP server tools (always available)
     logger.info("Registering MCP server tools")
