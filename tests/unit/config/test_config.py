@@ -49,7 +49,8 @@ class TestDbtMcpSettings:
         }  # Keep HOME for potential path resolution
         with env_setup(env_vars=clean_env):
             settings = DbtMcpSettings(_env_file=None)
-            assert settings.dbt_path == "dbt"
+            # dbt_path defaults to "dbt" but may be auto-resolved to full path if found on PATH
+            assert settings.dbt_path == "dbt" or settings.dbt_path.endswith("/dbt")
             assert settings.dbt_cli_timeout == DEFAULT_DBT_CLI_TIMEOUT
             assert settings.disable_remote is None, "disable_remote"
             assert settings.disable_dbt_cli is False, "disable_dbt_cli"
