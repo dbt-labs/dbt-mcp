@@ -58,7 +58,7 @@ jobs:
           ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
 
       - name: Setup Python
-        uses: ./.github/actions/setup-python
+        uses: ./.github/actions/setup-python-and-pnpm
         id: setup-python
 
       - name: Install go-task

@@ -1,5 +1,5 @@
-name: Setup Python
-description: Setup Python for ai-codegen-api
+name: Setup Python and pnpm
+description: Setup Python, uv, and pnpm for dbt-mcp
 
 runs:
   using: "composite"
@@ -15,6 +15,11 @@ runs:
       with:
         enable-cache: true
         cache-dependency-glob: "uv.lock"
+
+    - name: Setup pnpm
+      uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+      with:
+        version: 10
 
     - name: Install the project
       shell: bash
