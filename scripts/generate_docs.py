@@ -4,7 +4,7 @@ import re
 import sys
 from pathlib import Path
 
-from dbt_mcp.tools.human_descriptions import HUMAN_DESCRIPTIONS
+from dbt_mcp.tools.readme_mappings import HUMAN_DESCRIPTIONS, TOOLSET_DESCRIPTIONS
 from dbt_mcp.tools.toolsets import toolsets
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -42,6 +42,10 @@ def generate_readme_tools_section() -> str:
     for toolset, tool_names in toolsets.items():
         heading = format_toolset_heading(toolset.value)
         lines.append(f"### {heading}")
+        desc = TOOLSET_DESCRIPTIONS.get(toolset)
+        if desc:
+            lines.append("")
+            lines.append(desc)
 
         sorted_tools = sorted(tool_names, key=lambda t: t.value)
         for tool in sorted_tools:

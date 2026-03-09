@@ -1,6 +1,7 @@
-"""Human-readable descriptions for each tool. This is used in README auto-generation only."""
+"""Mappings for README doc auto-generation."""
 
 from dbt_mcp.tools.tool_names import ToolName
+from dbt_mcp.tools.toolsets import Toolset
 
 HUMAN_DESCRIPTIONS: dict[ToolName, str] = {
     # dbt CLI tools
@@ -73,6 +74,17 @@ HUMAN_DESCRIPTIONS: dict[ToolName, str] = {
     ToolName.GET_MCP_SERVER_BRANCH: "Returns the current git branch of the running dbt MCP server.",
 }
 
+TOOLSET_DESCRIPTIONS: dict[Toolset, str] = {
+    Toolset.SQL: "Tools for executing and generating SQL on dbt Platform infrastructure.",
+    Toolset.SEMANTIC_LAYER: "To learn more about the dbt Semantic Layer, click [here](https://docs.getdbt.com/docs/use-dbt-semantic-layer/dbt-sl).",
+    Toolset.DISCOVERY: "To learn more about the dbt Discovery API, click [here](https://docs.getdbt.com/docs/dbt-cloud-apis/discovery-api).",
+    Toolset.DBT_CLI: "Allowing your client to utilize dbt commands through the MCP tooling could modify your data models, sources, and warehouse objects. Proceed only if you trust the client and understand the potential impact.",
+    Toolset.ADMIN_API: "To learn more about the dbt Administrative API, click [here](https://docs.getdbt.com/docs/dbt-cloud-apis/admin-cloud-api).",
+    Toolset.DBT_CODEGEN: "These tools help automate boilerplate code generation for dbt project files.",
+    Toolset.DBT_LSP: "A set of tools that leverage the Fusion engine for advanced SQL compilation and column-level lineage analysis.",
+    Toolset.MCP_SERVER_METADATA: "These tools provide information about the MCP server itself.",
+}
+
 
 def validate_human_descriptions() -> None:
     """Ensure all ToolName members have a human description.
@@ -88,5 +100,20 @@ def validate_human_descriptions() -> None:
         )
 
 
-# Check when module imported
+def validate_toolset_descriptions() -> None:
+    """Ensure all Toolset members have an intro description.
+
+    Raises:
+        ValueError: If any toolsets are missing a description
+    """
+    missing = set(Toolset) - set(TOOLSET_DESCRIPTIONS.keys())
+    if missing:
+        missing_names = [ts.value for ts in missing]
+        raise ValueError(
+            f"The following toolsets are missing descriptions: {', '.join(missing_names)}"
+        )
+
+
+# Check when modules imported
 validate_human_descriptions()
+validate_toolset_descriptions()

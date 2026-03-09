@@ -23,10 +23,14 @@ The dbt MCP server architecture allows for your agent to connect to a variety of
 ## Tools
 
 ### SQL
+
+Tools for executing and generating SQL on dbt Platform infrastructure.
 - `execute_sql`: Executes SQL on dbt Platform infrastructure with Semantic Layer support.
 - `text_to_sql`: Generates SQL from natural language using project context.
 
 ### Semantic Layer
+
+To learn more about the dbt Semantic Layer, click [here](https://docs.getdbt.com/docs/use-dbt-semantic-layer/dbt-sl).
 - `get_dimensions`: Gets dimensions for specified metrics.
 - `get_entities`: Gets entities for specified metrics.
 - `get_metrics_compiled_sql`: Returns compiled SQL for metrics without executing the query.
@@ -35,6 +39,8 @@ The dbt MCP server architecture allows for your agent to connect to a variety of
 - `query_metrics`: Executes metric queries with filtering and grouping options.
 
 ### Discovery
+
+To learn more about the dbt Discovery API, click [here](https://docs.getdbt.com/docs/dbt-cloud-apis/discovery-api).
 - `get_all_macros`: Retrieves macros; option to filter by package or return package names only.
 - `get_all_models`: Retrieves name and description of all models.
 - `get_all_sources`: Gets all sources with freshness status; option to filter by source name.
@@ -57,6 +63,8 @@ The dbt MCP server architecture allows for your agent to connect to a variety of
 - `search`: [Alpha] Searches for resources across the dbt project (not generally available).
 
 ### dbt CLI
+
+Allowing your client to utilize dbt commands through the MCP tooling could modify your data models, sources, and warehouse objects. Proceed only if you trust the client and understand the potential impact.
 - `build`: Executes models, tests, snapshots, and seeds in DAG order.
 - `compile`: Generates executable SQL from models/tests/analyses; useful for validating Jinja logic.
 - `docs`: Generates documentation for the dbt project.
@@ -69,6 +77,8 @@ The dbt MCP server architecture allows for your agent to connect to a variety of
 - `test`: Runs tests to validate data and model integrity.
 
 ### Admin API
+
+To learn more about the dbt Administrative API, click [here](https://docs.getdbt.com/docs/dbt-cloud-apis/admin-cloud-api).
 - `cancel_job_run`: Cancels a running job.
 - `get_job_details`: Gets job configuration including triggers, schedule, and dbt commands.
 - `get_job_run_artifact`: Downloads a specific artifact file from a job run.
@@ -82,11 +92,15 @@ The dbt MCP server architecture allows for your agent to connect to a variety of
 - `trigger_job_run`: Triggers a job run; option to override git branch, schema, or other settings.
 
 ### dbt Codegen
+
+These tools help automate boilerplate code generation for dbt project files.
 - `generate_model_yaml`: Generates model YAML with columns; option to inherit upstream descriptions.
 - `generate_source`: Generates source YAML by introspecting database schemas; option to include columns.
 - `generate_staging_model`: Generates staging model SQL from a source table.
 
 ### dbt LSP
+
+A set of tools that leverage the Fusion engine for advanced SQL compilation and column-level lineage analysis.
 - `fusion.compile_sql`: Compiles SQL in project context via dbt Platform.
 - `fusion.get_column_lineage`: Traces column-level lineage via dbt Platform.
 - `get_column_lineage`: Traces column-level lineage locally (requires dbt-lsp via dbt Labs VSCE).
@@ -96,6 +110,8 @@ The dbt MCP server architecture allows for your agent to connect to a variety of
 - `search_product_docs`: Searches docs.getdbt.com for pages matching a query; returns titles, URLs, and descriptions ranked by relevance. Use get_product_doc_pages to fetch full content.
 
 ### MCP Server Metadata
+
+These tools provide information about the MCP server itself.
 - `get_mcp_server_branch`: Returns the current git branch of the running dbt MCP server.
 - `get_mcp_server_version`: Returns the current version of the dbt MCP server.
 
