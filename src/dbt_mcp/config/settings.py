@@ -117,6 +117,12 @@ class DbtMcpSettings(BaseSettings):
         False, alias="DBT_MCP_ENABLE_MCP_SERVER_METADATA"
     )
 
+    # MCP Apps settings
+    cdn_base: str = Field(
+        "https://cloud-ui.cdn.getdbt.com/dbt-ui/mcp-apps",
+        alias="DBT_MCP_CDN_BASE",
+    )
+
     # Tracking settings
     do_not_track: str | None = Field(None, alias="DO_NOT_TRACK")
     send_anonymous_usage_data: str | None = Field(

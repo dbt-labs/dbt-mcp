@@ -20,6 +20,14 @@ from dbt_mcp.tools.toolsets import Toolset
 
 PACKAGE_NAME = "dbt-mcp"
 
+DEFAULT_CDN_BASE = "https://cloud-ui.cdn.getdbt.com/dbt-ui/mcp-apps"
+
+
+@dataclass
+class AppsConfig:
+    cdn_base: str
+
+
 TOOLSET_TO_DISABLE_ATTR = {
     Toolset.SEMANTIC_LAYER: "disable_semantic_layer",
     Toolset.ADMIN_API: "disable_admin_api",
@@ -81,6 +89,7 @@ class Config:
     admin_api_config_provider: DefaultAdminApiConfigProvider | None
     credentials_provider: CredentialsProvider
     lsp_config: LspConfig | None
+    apps_config: AppsConfig
 
 
 def load_config(enable_proxied_tools: bool = True) -> Config:
@@ -161,6 +170,10 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
             lsp_binary_info=lsp_binary_info,
         )
 
+    apps_config = AppsConfig(
+        cdn_base=settings.cdn_base,
+    )
+
     return Config(
         disable_tools=settings.disable_tools or [],
         enable_tools=settings.enable_tools,
@@ -174,4 +187,5 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         admin_api_config_provider=admin_api_config_provider,
         credentials_provider=credentials_provider,
         lsp_config=lsp_config,
+        apps_config=apps_config,
     )

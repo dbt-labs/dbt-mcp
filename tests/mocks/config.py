@@ -1,4 +1,6 @@
 from dbt_mcp.config.config import (
+    DEFAULT_CDN_BASE,
+    AppsConfig,
     Config,
     DbtCliConfig,
     DbtCodegenConfig,
@@ -143,4 +145,5 @@ mock_config = Config(
     disabled_toolsets=set(),
     enabled_toolsets=set(),
     credentials_provider=MockCredentialsProvider(),
+    apps_config=AppsConfig(cdn_base=DEFAULT_CDN_BASE),
 )
