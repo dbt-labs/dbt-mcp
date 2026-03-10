@@ -44,3 +44,9 @@ jobs:
             echo "Don't edit 'CHANGELOG.md' manually nor run 'changie merge'."
             exit 1
           fi
+
+      - name: Validate unreleased changelog entries
+        uses: miniscruff/changie-action@6dcc2533cac0495148ed4046c438487e4dceaa23
+        with:
+          version: latest
+          args: next auto
