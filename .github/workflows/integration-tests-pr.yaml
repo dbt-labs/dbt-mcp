@@ -16,7 +16,6 @@ on:
       - ".claude/**"
       - ".cursor/**"
       - ".changes/**"
-      - ".github/workflows/create-release-pr.yml"
       - "LICENSE"
   pull_request_target:
     types: [labeled]
