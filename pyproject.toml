@@ -59,7 +59,7 @@ dev = [
 ]
 
 [tool.uv.sources]
-mcp = { git = "ssh://git@github.com/dbt-labs/mcp-python-sdk.git", branch = "dbt-labs/patched" }
+mcp = { git = "https://github.com/dbt-labs/mcp-python-sdk.git", branch = "dbt-labs/patched" }
 
 [project.urls]
 Documentation = "https://docs.getdbt.com/docs/dbt-ai/about-mcp"
