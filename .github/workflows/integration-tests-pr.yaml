@@ -9,6 +9,15 @@ name: Integration tests
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    paths-ignore:
+      - "*.md"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - ".claude/**"
+      - ".cursor/**"
+      - ".changes/**"
+      - ".github/workflows/create-release-pr.yml"
+      - "LICENSE"
   pull_request_target:
     types: [labeled]
 
