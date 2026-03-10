@@ -98,6 +98,7 @@ class DbtMcpSettings(BaseSettings):
         None, alias="DISABLE_TOOLS"
     )
     disable_lsp: bool | None = Field(None, alias="DISABLE_LSP")
+    disable_product_docs: bool = Field(False, alias="DISABLE_PRODUCT_DOCS")
     disable_mcp_server_metadata: bool = Field(True, alias="DISABLE_MCP_SERVER_METADATA")
 
     # Enable tool settings (allowlist)
@@ -111,6 +112,7 @@ class DbtMcpSettings(BaseSettings):
     enable_discovery: bool = Field(False, alias="DBT_MCP_ENABLE_DISCOVERY")
     enable_lsp: bool = Field(False, alias="DBT_MCP_ENABLE_LSP")
     enable_sql: bool = Field(False, alias="DBT_MCP_ENABLE_SQL")
+    enable_product_docs: bool = Field(False, alias="DBT_MCP_ENABLE_PRODUCT_DOCS")
     enable_mcp_server_metadata: bool = Field(
         False, alias="DBT_MCP_ENABLE_MCP_SERVER_METADATA"
     )
@@ -135,6 +137,7 @@ class DbtMcpSettings(BaseSettings):
             f"disable_discovery={self.disable_discovery}, "
             f"disable_admin_api={self.disable_admin_api}, "
             f"disable_sql={self.disable_sql}, "
+            f"disable_product_docs={self.disable_product_docs}, "
             f"disable_tools={self.disable_tools}, "
             f"disable_lsp={self.disable_lsp}, "
             # enable settings
@@ -145,6 +148,7 @@ class DbtMcpSettings(BaseSettings):
             f"enable_dbt_codegen={self.enable_dbt_codegen}, "
             f"enable_discovery={self.enable_discovery}, "
             f"enable_lsp={self.enable_lsp}, "
+            f"enable_product_docs={self.enable_product_docs}, "
             f"enable_sql={self.enable_sql}, "
             # everything else
             f"dbt_prod_env_id={self.dbt_prod_env_id}, "

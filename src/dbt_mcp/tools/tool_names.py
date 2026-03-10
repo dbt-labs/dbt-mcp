@@ -73,6 +73,10 @@ class ToolName(Enum):
     FUSION_COMPILE_SQL = "fusion.compile_sql"
     FUSION_GET_COLUMN_LINEAGE = "fusion.get_column_lineage"
 
+    # Product Docs tools (docs.getdbt.com)
+    SEARCH_PRODUCT_DOCS = "search_product_docs"
+    GET_PRODUCT_DOC_PAGES = "get_product_doc_pages"
+
     # MCP Server tools
     GET_MCP_SERVER_VERSION = "get_mcp_server_version"
     GET_MCP_SERVER_BRANCH = "get_mcp_server_branch"
