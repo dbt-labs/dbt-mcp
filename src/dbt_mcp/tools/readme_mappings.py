@@ -83,6 +83,7 @@ TOOLSET_DESCRIPTIONS: dict[Toolset, str] = {
     Toolset.DBT_CODEGEN: "These tools help automate boilerplate code generation for dbt project files.",
     Toolset.DBT_LSP: "A set of tools that leverage the Fusion engine for advanced SQL compilation and column-level lineage analysis.",
     Toolset.MCP_SERVER_METADATA: "These tools provide information about the MCP server itself.",
+    Toolset.PRODUCT_DOCS: "Tools for searching and fetching content from the official dbt documentation at docs.getdbt.com.",
 }
 
 

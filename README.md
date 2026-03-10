@@ -106,6 +106,8 @@ A set of tools that leverage the Fusion engine for advanced SQL compilation and 
 - `get_column_lineage`: Traces column-level lineage locally (requires dbt-lsp via dbt Labs VSCE).
 
 ### Product Docs
+
+Tools for searching and fetching content from the official dbt documentation at docs.getdbt.com.
 - `get_product_doc_pages`: Fetches the full Markdown content of one or more docs.getdbt.com pages by path or URL.
 - `search_product_docs`: Searches docs.getdbt.com for pages matching a query; returns titles, URLs, and descriptions ranked by relevance. Use get_product_doc_pages to fetch full content.
 
