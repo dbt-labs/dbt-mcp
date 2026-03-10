@@ -118,9 +118,26 @@ tasks:
     cmds:
       - uv run python scripts/generate_docs.py {{.CHECK_ARG}}
       - task: d2
+      # d2.png check lives here (not in generate_docs.py)
+      # because task: d2 must run first to regenerate png
+      - silent: true
+        cmd: |
+          if git diff --exit-code docs/d2.png > /dev/null 2>&1; then
+            if [ -n "{{.CHECK_FLAG}}" ]; then
+              echo "✓ d2.png is up to date"
+            else
+              echo "d2.png was already up to date"
+            fi
+          elif [ -n "{{.CHECK_FLAG}}" ]; then
+            echo "✗ d2.png is out of date"
+            exit 1
+          else
+            echo "d2.png updated successfully"
+          fi
 
   d2:
     desc: "Update d2 diagram from the config"
+    silent: true
     preconditions:
       - sh: command -v d2 &> /dev/null
         msg: "Error: d2 command not found. You can install it with 'brew install d2'"
