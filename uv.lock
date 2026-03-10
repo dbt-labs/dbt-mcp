@@ -610,8 +610,8 @@ wheels = [
 
 [[package]]
 name = "mcp"
-version = "0.0.1.dev822+9fe04bc"
-source = { git = "https://github.com/dbt-labs/mcp-python-sdk.git?branch=dbt-labs%2Fpatched#9fe04bcab487377bc3205c7fa28d48ba255b18cf" }
+version = "0.0.1.dev699+3d4f595"
+source = { git = "https://github.com/dbt-labs/mcp-python-sdk.git?branch=dbt-labs%2Fpatched#3d4f595b8832bf04e9ab55aeaee87496ecf629d9" }
 dependencies = [
     { name = "anyio" },
     { name = "httpx" },
