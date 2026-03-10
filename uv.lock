@@ -297,7 +297,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.116.1" },
     { name = "filelock", specifier = ">=3.18.0" },
     { name = "httpx", specifier = "==0.28.1" },
-    { name = "mcp", extras = ["cli"], git = "ssh://git@github.com/dbt-labs/mcp-python-sdk.git?branch=dbt-labs%2Fpatched" },
+    { name = "mcp", extras = ["cli"], git = "https://github.com/dbt-labs/mcp-python-sdk.git?branch=dbt-labs%2Fpatched" },
     { name = "pydantic-settings", specifier = "==2.10.1" },
     { name = "pyjwt", specifier = "==2.10.1" },
     { name = "pyyaml", specifier = "==6.0.2" },
@@ -611,7 +611,7 @@ wheels = [
 [[package]]
 name = "mcp"
 version = "0.0.1.dev822+9fe04bc"
-source = { git = "ssh://git@github.com/dbt-labs/mcp-python-sdk.git?branch=dbt-labs%2Fpatched#9fe04bcab487377bc3205c7fa28d48ba255b18cf" }
+source = { git = "https://github.com/dbt-labs/mcp-python-sdk.git?branch=dbt-labs%2Fpatched#9fe04bcab487377bc3205c7fa28d48ba255b18cf" }
 dependencies = [
     { name = "anyio" },
     { name = "httpx" },
