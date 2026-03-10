@@ -465,8 +465,7 @@ class TestSearchFullText:
         from dbt_mcp.product_docs.client import ProductDocsClient
 
         client = ProductDocsClient()
-        client._full_text_cache = parse_llms_full_txt(SAMPLE_LLMS_FULL_TXT)
-        client._full_text_cache_time = 9999999999.0
+        client._cache["full_text"] = parse_llms_full_txt(SAMPLE_LLMS_FULL_TXT)
         results = await client.search_full_text(["rust"])
         urls = [r["url"] for r in results]
         assert any("fusion" in u for u in urls)
@@ -476,8 +475,7 @@ class TestSearchFullText:
         from dbt_mcp.product_docs.client import ProductDocsClient
 
         client = ProductDocsClient()
-        client._full_text_cache = parse_llms_full_txt(SAMPLE_LLMS_FULL_TXT)
-        client._full_text_cache_time = 9999999999.0
+        client._cache["full_text"] = parse_llms_full_txt(SAMPLE_LLMS_FULL_TXT)
         results = await client.search_full_text(["zzzznonexistent"])
         assert results == []
 
@@ -486,8 +484,7 @@ class TestSearchFullText:
         from dbt_mcp.product_docs.client import ProductDocsClient
 
         client = ProductDocsClient()
-        client._full_text_cache = parse_llms_full_txt(SAMPLE_LLMS_FULL_TXT)
-        client._full_text_cache_time = 9999999999.0
+        client._cache["full_text"] = parse_llms_full_txt(SAMPLE_LLMS_FULL_TXT)
         results = await client.search_full_text(["rust", "deploy"])
         urls = [r["url"] for r in results]
         assert any("fusion" in u for u in urls)
@@ -498,8 +495,7 @@ class TestSearchFullText:
         from dbt_mcp.product_docs.client import ProductDocsClient
 
         client = ProductDocsClient()
-        client._full_text_cache = parse_llms_full_txt(SAMPLE_LLMS_FULL_TXT)
-        client._full_text_cache_time = 9999999999.0
+        client._cache["full_text"] = parse_llms_full_txt(SAMPLE_LLMS_FULL_TXT)
         results = await client.search_full_text(["incremental"])
         assert results[0]["url"].endswith("incremental-models-overview")
 

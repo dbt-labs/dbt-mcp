@@ -1,14 +1,16 @@
 """Client for fetching, caching, and searching docs.getdbt.com content.
 
-Provides ``ProductDocsClient``, which handles HTTP requests, TTL-based
+Provides ``ProductDocsClient``, which handles HTTP requests, in-memory
 caching, and keyword search/ranking over the llms.txt index and
 llms-full.txt full-text corpus.
+
+Caches live for the lifetime of the MCP server process; restart the
+server to refresh.
 """
 
-import asyncio
 import logging
 import re
-import time
+from typing import Any
 
 import httpx
 
@@ -17,9 +19,6 @@ logger = logging.getLogger(__name__)
 LLMS_TXT_URL = "https://docs.getdbt.com/llms.txt"
 LLMS_FULL_TXT_URL = "https://docs.getdbt.com/llms-full.txt"
 DOCS_BASE_URL = "https://docs.getdbt.com"
-INDEX_CACHE_TTL_SECONDS = 3600  # 1 hour
-PAGE_CACHE_TTL_SECONDS = 1800  # 30 minutes
-FULL_TEXT_CACHE_TTL_SECONDS = 86400  # 24 hours (large file, changes rarely)
 
 # Cap page content length in tool responses to avoid Cursor IDE freezing.
 MAX_CONTENT_CHARS_PER_PAGE = 28_000
@@ -303,75 +302,38 @@ def expand_keywords(query: str) -> list[str]:
 class ProductDocsClient:
     """Async client for fetching and searching docs.getdbt.com content.
 
-    All caching state lives on the instance, not at module level.
+    Caches are simple dicts that live for the lifetime of the instance
+    (and thus the MCP server process).  Restart the server to refresh.
     """
 
     def __init__(self) -> None:
-        self._index_cache: list[dict[str, str]] | None = None
-        self._index_cache_time: float = 0.0
-
-        self._page_cache: dict[str, tuple[float, str]] = {}
-
-        self._full_text_cache: list[dict[str, str]] | None = None
-        self._full_text_cache_time: float = 0.0
-
-        self._index_lock = asyncio.Lock()
-        self._full_text_lock = asyncio.Lock()
+        self._cache: dict[str, Any] = {}
 
     # -- fetchers ------------------------------------------------------------
 
     async def get_index(self) -> list[dict[str, str]]:
-        """Return the cached llms.txt index, refreshing if stale."""
-        if (
-            self._index_cache is not None
-            and (time.time() - self._index_cache_time) < INDEX_CACHE_TTL_SECONDS
-        ):
-            return self._index_cache
-
-        async with self._index_lock:
-            if (
-                self._index_cache is not None
-                and (time.time() - self._index_cache_time) < INDEX_CACHE_TTL_SECONDS
-            ):
-                return self._index_cache
-
+        """Return the cached llms.txt index, fetching on first call."""
+        if "index" not in self._cache:
             logger.info("Fetching llms.txt index from %s", LLMS_TXT_URL)
             async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
                 response = await client.get(LLMS_TXT_URL)
                 response.raise_for_status()
-
-            self._index_cache = parse_llms_txt(response.text)
-            self._index_cache_time = time.time()
-            logger.info("Cached llms.txt index: %d pages", len(self._index_cache))
-            return self._index_cache
+            self._cache["index"] = parse_llms_txt(response.text)
+            logger.info("Cached llms.txt index: %d pages", len(self._cache["index"]))
+        return self._cache["index"]
 
     async def get_full_text_index(self) -> list[dict[str, str]]:
-        """Return the cached llms-full.txt page index, refreshing if stale."""
-        if (
-            self._full_text_cache is not None
-            and (time.time() - self._full_text_cache_time) < FULL_TEXT_CACHE_TTL_SECONDS
-        ):
-            return self._full_text_cache
-
-        async with self._full_text_lock:
-            if (
-                self._full_text_cache is not None
-                and (time.time() - self._full_text_cache_time)
-                < FULL_TEXT_CACHE_TTL_SECONDS
-            ):
-                return self._full_text_cache
-
+        """Return the cached llms-full.txt page index, fetching on first call."""
+        if "full_text" not in self._cache:
             logger.info("Fetching llms-full.txt from %s", LLMS_FULL_TXT_URL)
             async with httpx.AsyncClient(
                 timeout=120.0, follow_redirects=True
             ) as client:
                 response = await client.get(LLMS_FULL_TXT_URL)
                 response.raise_for_status()
-
-            self._full_text_cache = parse_llms_full_txt(response.text)
-            self._full_text_cache_time = time.time()
-            logger.info("Cached llms-full.txt: %d pages", len(self._full_text_cache))
-            return self._full_text_cache
+            self._cache["full_text"] = parse_llms_full_txt(response.text)
+            logger.info("Cached llms-full.txt: %d pages", len(self._cache["full_text"]))
+        return self._cache["full_text"]
 
     async def get_page(self, url: str) -> str:
         """Fetch a page with caching.
@@ -380,23 +342,13 @@ class ProductDocsClient:
         Raises httpx.HTTPStatusError on 4xx/5xx responses.
         Raises httpx.RequestError on network/connection failures.
         """
-        cached = self._page_cache.get(url)
-        if cached is not None and (time.time() - cached[0]) < PAGE_CACHE_TTL_SECONDS:
-            return cached[1]
-
-        logger.info("Fetching product doc page: %s", url)
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-            response = await client.get(url)
-            response.raise_for_status()
-            content = response.text
-
-        self._page_cache[url] = (time.time(), content)
-
-        if len(self._page_cache) > 50:
-            oldest_key = min(self._page_cache, key=lambda k: self._page_cache[k][0])
-            self._page_cache.pop(oldest_key, None)
-
-        return content
+        if url not in self._cache:
+            logger.info("Fetching product doc page: %s", url)
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                response = await client.get(url)
+                response.raise_for_status()
+            self._cache[url] = response.text
+        return self._cache[url]
 
     # -- search --------------------------------------------------------------
 
