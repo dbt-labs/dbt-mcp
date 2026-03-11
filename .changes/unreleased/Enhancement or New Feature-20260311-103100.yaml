@@ -1,0 +1,5 @@
+kind: Enhancement or New Feature
+body: 'Add version awareness to product_docs toolset: detects dbt version from dbt_project.yml,
+  includes it in search/page responses, annotates EOL pages, and adds LLM prompt instructions
+  for version-specific guidance'
+time: 2026-03-11T10:31:00.789229Z

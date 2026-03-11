@@ -7,6 +7,7 @@ from dbt_mcp.config.config_providers import (
     DefaultProxiedToolConfigProvider,
     DefaultSemanticLayerConfigProvider,
 )
+from dbt_mcp.config.dbt_project import parse_dbt_version_minor
 from dbt_mcp.config.settings import (
     CredentialsProvider,
     DbtMcpSettings,
@@ -81,6 +82,7 @@ class Config:
     admin_api_config_provider: DefaultAdminApiConfigProvider | None
     credentials_provider: CredentialsProvider
     lsp_config: LspConfig | None
+    dbt_version: str | None = None
 
 
 def load_config(enable_proxied_tools: bool = True) -> Config:
@@ -161,6 +163,11 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
             lsp_binary_info=lsp_binary_info,
         )
 
+    dbt_version: str | None = None
+    project_yml = settings.dbt_project_yml
+    if project_yml and project_yml.require_dbt_version:
+        dbt_version = parse_dbt_version_minor(project_yml.require_dbt_version)
+
     return Config(
         disable_tools=settings.disable_tools or [],
         enable_tools=settings.enable_tools,
@@ -174,4 +181,5 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         admin_api_config_provider=admin_api_config_provider,
         credentials_provider=credentials_provider,
         lsp_config=lsp_config,
+        dbt_version=dbt_version,
     )
