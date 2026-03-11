@@ -208,7 +208,6 @@ async def get_model_performance(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
-
     num_runs: int = Field(
         default=1,
         description="Number of historical runs to return. Default is 1 (latest run only). "
@@ -327,7 +326,6 @@ async def get_source_details(
 )
 async def get_all_macros(
     context: DiscoveryToolContext,
-
     package_names: list[str] | None = Field(
         default=None,
         description="Optional list of package names to filter macros by "
