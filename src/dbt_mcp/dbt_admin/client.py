@@ -143,17 +143,6 @@ class DbtAdminAPIClient:
             for p in data
         ]
 
-    async def list_environments(
-        self, account_id: int, project_id: int
-    ) -> list[dict[str, Any]]:
-        """List active environments for a project."""
-        result = await self._make_request(
-            "GET",
-            f"/api/v3/accounts/{account_id}/projects/{project_id}/environments/",
-            params={"state": 1},
-        )
-        return result.get("data", [])
-
     async def get_project_details(
         self, account_id: int, project_id: int
     ) -> dict[str, Any]:
