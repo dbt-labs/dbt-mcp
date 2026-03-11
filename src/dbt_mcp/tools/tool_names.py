@@ -51,6 +51,7 @@ class ToolName(Enum):
     EXECUTE_SQL = "execute_sql"
 
     # Admin API tools
+    LIST_PROJECTS = "list_projects"
     LIST_JOBS = "list_jobs"
     GET_JOB_DETAILS = "get_job_details"
     GET_PROJECT_DETAILS = "get_project_details"

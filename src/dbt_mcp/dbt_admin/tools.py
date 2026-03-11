@@ -31,6 +31,19 @@ class AdminToolContext:
 
 
 @dbt_mcp_tool(
+    description=get_prompt("admin_api/list_projects"),
+    title="List Projects",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+)
+async def list_projects(context: AdminToolContext) -> list[dict[str, Any]]:
+    """List active projects in the account."""
+    admin_api_config = await context.admin_api_config_provider.get_config()
+    return await context.admin_client.list_projects(admin_api_config.account_id)
+
+
+@dbt_mcp_tool(
     description=get_prompt("admin_api/list_jobs"),
     title="List Jobs",
     read_only_hint=True,
@@ -282,6 +295,7 @@ async def get_job_run_error(
 
 
 ADMIN_TOOLS = [
+    list_projects,
     list_jobs,
     get_job_details,
     get_project_details,
