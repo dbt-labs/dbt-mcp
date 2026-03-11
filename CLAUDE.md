@@ -52,6 +52,11 @@ Tools can have associated UIs via the `meta` field:
 - Use `*` in param lists when adjacent params share a type
 - Avoid code in `__init__.py`
 
+## Changelog
+
+Every PR requires a changelog entry. Run `changie new --kind "<kind>" --body "<description>"` to create one.
+Valid kinds: `Breaking Change` (major), `Enhancement or New Feature` (minor), `Under the Hood` (patch), `Bug Fix` (patch), `Security` (patch). See `CONTRIBUTING.md` for full contributing guidelines.
+
 ## Testing
 
 - `MockFastMCP` in `tests/conftest.py` captures registered tools and their kwargs (including `meta`)
