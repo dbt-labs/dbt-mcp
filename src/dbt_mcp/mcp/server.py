@@ -44,6 +44,7 @@ class DbtMCP(FastMCP):
             | None
         ),
         lsp_connection_provider: LocalLSPConnectionProvider | None = None,
+        static_project_id: int | None = None,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -51,13 +52,31 @@ class DbtMCP(FastMCP):
         self.usage_tracker = usage_tracker
         self.config = config
         self.lsp_connection_provider = lsp_connection_provider
+        self.static_project_id = static_project_id
         self._lsp_connection_task: (
             asyncio.Task[LSPConnectionProviderProtocol] | None
         ) = None
 
+    def strip_project_id_from_tools(self) -> None:
+        """Remove project_id from all registered tool schemas (single-project mode)."""
+        for tool in self._tool_manager._tools.values():
+            properties = tool.parameters.get("properties", {})
+            if "project_id" in properties:
+                tool.parameters["properties"] = {
+                    k: v for k, v in properties.items() if k != "project_id"
+                }
+                required = tool.parameters.get("required", [])
+                new_required = [r for r in required if r != "project_id"]
+                if new_required:
+                    tool.parameters["required"] = new_required
+                else:
+                    tool.parameters.pop("required", None)
+
     async def call_tool(
         self, name: str, arguments: dict[str, Any]
     ) -> Sequence[ContentBlock] | dict[str, Any]:
+        if self.static_project_id is not None:
+            arguments = {**arguments, "project_id": self.static_project_id}
         logger.info(f"Calling tool: {name} with arguments: {arguments}")
         result = None
         start_time = int(time.time() * 1000)
