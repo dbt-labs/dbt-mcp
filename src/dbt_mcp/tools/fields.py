@@ -34,6 +34,13 @@ DEPTH_FIELD = Field(
     "A depth of 0 returns the entire lineage graph.",
 )
 
+PROJECT_ID_FIELD = Field(
+    default=None,
+    description="The dbt Cloud project ID. "
+    "Required in multi-project mode. "
+    "Use list_projects to find available projects.",
+)
+
 TYPES_FIELD = Field(
     default=None,
     description="List of resource types to include in lineage results. "

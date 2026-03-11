@@ -20,6 +20,7 @@ from dbt_mcp.semantic_layer.types import (
     SavedQueryToolResponse,
 )
 from dbt_mcp.tools.definitions import dbt_mcp_tool
+from dbt_mcp.tools.fields import PROJECT_ID_FIELD
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
@@ -49,7 +50,9 @@ class SemanticLayerToolContext:
     idempotent_hint=True,
 )
 async def list_metrics(
-    context: SemanticLayerToolContext, search: str | None = None
+    context: SemanticLayerToolContext,
+    search: str | None = None,
+    project_id: int | None = PROJECT_ID_FIELD,
 ) -> list[MetricToolResponse]:
     return await context.semantic_layer_fetcher.list_metrics(search=search)
 
@@ -64,6 +67,7 @@ async def list_metrics(
 async def list_saved_queries(
     context: SemanticLayerToolContext,
     search: str | None = None,
+    project_id: int | None = PROJECT_ID_FIELD,
 ) -> list[SavedQueryToolResponse]:
     return await context.semantic_layer_fetcher.list_saved_queries(search=search)
 
@@ -76,7 +80,10 @@ async def list_saved_queries(
     idempotent_hint=True,
 )
 async def get_dimensions(
-    context: SemanticLayerToolContext, metrics: list[str], search: str | None = None
+    context: SemanticLayerToolContext,
+    metrics: list[str],
+    search: str | None = None,
+    project_id: int | None = PROJECT_ID_FIELD,
 ) -> list[DimensionToolResponse]:
     return await context.semantic_layer_fetcher.get_dimensions(
         metrics=metrics, search=search
@@ -91,7 +98,10 @@ async def get_dimensions(
     idempotent_hint=True,
 )
 async def get_entities(
-    context: SemanticLayerToolContext, metrics: list[str], search: str | None = None
+    context: SemanticLayerToolContext,
+    metrics: list[str],
+    search: str | None = None,
+    project_id: int | None = PROJECT_ID_FIELD,
 ) -> list[EntityToolResponse]:
     return await context.semantic_layer_fetcher.get_entities(
         metrics=metrics, search=search
@@ -112,6 +122,7 @@ async def query_metrics(
     order_by: list[OrderByParam] | None = None,
     where: str | None = None,
     limit: int | None = None,
+    project_id: int | None = PROJECT_ID_FIELD,
 ) -> str:
     result = await context.semantic_layer_fetcher.query_metrics(
         metrics=metrics,
@@ -140,6 +151,7 @@ async def get_metrics_compiled_sql(
     order_by: list[OrderByParam] | None = None,
     where: str | None = None,
     limit: int | None = None,
+    project_id: int | None = PROJECT_ID_FIELD,
 ) -> str:
     result = await context.semantic_layer_fetcher.get_metrics_compiled_sql(
         metrics=metrics,

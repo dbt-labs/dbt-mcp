@@ -22,6 +22,7 @@ from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.fields import (
     DEPTH_FIELD,
     NAME_FIELD,
+    PROJECT_ID_FIELD,
     TYPES_FIELD,
     UNIQUE_ID_FIELD,
     UNIQUE_ID_REQUIRED_FIELD,
@@ -111,7 +112,10 @@ class DiscoveryToolContext:
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def get_mart_models(context: DiscoveryToolContext) -> list[dict]:
+async def get_mart_models(
+    context: DiscoveryToolContext,
+    project_id: int | None = PROJECT_ID_FIELD,
+) -> list[dict]:
     mart_models = await context.models_fetcher.fetch_models(
         model_filter={"modelingLayer": "marts"}
     )
@@ -125,7 +129,10 @@ async def get_mart_models(context: DiscoveryToolContext) -> list[dict]:
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def get_all_models(context: DiscoveryToolContext) -> list[dict]:
+async def get_all_models(
+    context: DiscoveryToolContext,
+    project_id: int | None = PROJECT_ID_FIELD,
+) -> list[dict]:
     return await context.models_fetcher.fetch_models()
 
 
@@ -140,6 +147,7 @@ async def get_model_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    project_id: int | None = PROJECT_ID_FIELD,
 ) -> list[dict]:
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.MODEL,
@@ -159,6 +167,7 @@ async def get_model_parents(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    project_id: int | None = PROJECT_ID_FIELD,
 ) -> list[dict]:
     return await context.models_fetcher.fetch_model_parents(name, unique_id)
 
@@ -174,6 +183,7 @@ async def get_model_children(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    project_id: int | None = PROJECT_ID_FIELD,
 ) -> list[dict]:
     return await context.models_fetcher.fetch_model_children(name, unique_id)
 
@@ -189,6 +199,7 @@ async def get_model_health(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    project_id: int | None = PROJECT_ID_FIELD,
 ) -> list[dict]:
     return await context.models_fetcher.fetch_model_health(name, unique_id)
 
@@ -204,6 +215,7 @@ async def get_model_performance(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    project_id: int | None = PROJECT_ID_FIELD,
     num_runs: int = Field(
         default=1,
         description="Number of historical runs to return. Default is 1 (latest run only). "
@@ -241,6 +253,7 @@ async def get_lineage(
     unique_id: str = UNIQUE_ID_REQUIRED_FIELD,
     types: list[LineageResourceType] | None = TYPES_FIELD,
     depth: int = DEPTH_FIELD,
+    project_id: int | None = PROJECT_ID_FIELD,
 ) -> list[dict]:
     return await context.lineage_fetcher.fetch_lineage(
         unique_id=unique_id, types=types, depth=depth
@@ -254,7 +267,10 @@ async def get_lineage(
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def get_exposures(context: DiscoveryToolContext) -> list[dict]:
+async def get_exposures(
+    context: DiscoveryToolContext,
+    project_id: int | None = PROJECT_ID_FIELD,
+) -> list[dict]:
     return await context.exposures_fetcher.fetch_exposures()
 
 
@@ -269,6 +285,7 @@ async def get_exposure_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    project_id: int | None = PROJECT_ID_FIELD,
 ) -> list[dict]:
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.EXPOSURE,
@@ -288,6 +305,7 @@ async def get_all_sources(
     context: DiscoveryToolContext,
     source_names: list[str] | None = None,
     unique_ids: list[str] | None = None,
+    project_id: int | None = PROJECT_ID_FIELD,
 ) -> list[dict]:
     return await context.sources_fetcher.fetch_sources(source_names, unique_ids)
 
@@ -303,6 +321,7 @@ async def get_source_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    project_id: int | None = PROJECT_ID_FIELD,
 ) -> list[dict]:
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SOURCE,
@@ -320,6 +339,7 @@ async def get_source_details(
 )
 async def get_all_macros(
     context: DiscoveryToolContext,
+    project_id: int | None = PROJECT_ID_FIELD,
     package_names: list[str] | None = Field(
         default=None,
         description="Optional list of package names to filter macros by "
@@ -355,6 +375,7 @@ async def get_macro_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    project_id: int | None = PROJECT_ID_FIELD,
 ) -> list[dict]:
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.MACRO,
@@ -374,6 +395,7 @@ async def get_seed_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    project_id: int | None = PROJECT_ID_FIELD,
 ) -> list[dict]:
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SEED,
@@ -393,6 +415,7 @@ async def get_semantic_model_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    project_id: int | None = PROJECT_ID_FIELD,
 ) -> list[dict]:
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SEMANTIC_MODEL,
@@ -412,6 +435,7 @@ async def get_snapshot_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    project_id: int | None = PROJECT_ID_FIELD,
 ) -> list[dict]:
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SNAPSHOT,
@@ -431,6 +455,7 @@ async def get_test_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    project_id: int | None = PROJECT_ID_FIELD,
 ) -> list[dict]:
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.TEST,
