@@ -124,7 +124,7 @@ async def trigger_job_run(
 ) -> dict[str, Any]:
     """Trigger a job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
-    kwargs = {}
+    kwargs: dict[str, str | list[str]] = {}
     if git_branch:
         kwargs["git_branch"] = git_branch
     if git_sha:
