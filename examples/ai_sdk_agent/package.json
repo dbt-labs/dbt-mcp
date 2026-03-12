@@ -2,7 +2,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^1.0.0",
     "@modelcontextprotocol/sdk": "^1.12.0",
-    "ai": "^4.0.0"
+    "ai": "^5.0.52"
   },
   "description": "Example of using Vercel AI SDK with dbt-mcp",
   "devDependencies": {
