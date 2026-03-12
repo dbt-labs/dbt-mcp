@@ -485,32 +485,16 @@ def get_dbt_host(
     return actual_host.removeprefix(host_prefix_with_period)
 
 
-def validate_settings(
-    settings: DbtMcpSettings,
-    *,
-    has_token: bool = False,
-) -> None:
+def validate_settings(settings: DbtMcpSettings) -> None:
     errors: list[str] = []
-    errors.extend(validate_dbt_platform_settings(settings, has_token=has_token))
+    errors.extend(validate_dbt_platform_settings(settings))
     errors.extend(validate_dbt_cli_settings(settings))
     if errors:
         raise ValueError("Errors found in configuration:\n\n" + "\n".join(errors))
 
 
-def validate_dbt_platform_settings(
-    settings: DbtMcpSettings,
-    *,
-    has_token: bool = False,
-) -> list[str]:
-    """Validate platform settings.
-
-    Args:
-        settings: The settings to validate.
-        has_token: When True, skip the ``dbt_token`` check because the token is
-            supplied by a token provider (e.g. OAuth) rather than the static
-            ``DBT_TOKEN`` env var.  This prevents ``settings.dbt_token`` from
-            being accessed or relied upon after startup.
-    """
+def validate_dbt_platform_settings(settings: DbtMcpSettings) -> list[str]:
+    """Validate platform settings."""
     errors: list[str] = []
     if (
         not settings.disable_semantic_layer
@@ -526,7 +510,7 @@ def validate_dbt_platform_settings(
             errors.append(
                 "DBT_PROD_ENV_ID environment variable is required when semantic layer, discovery, SQL or admin API tools are enabled."
             )
-        if not has_token and not settings.dbt_token:
+        if not settings.dbt_token:
             errors.append(
                 "DBT_TOKEN environment variable is required when semantic layer, discovery, SQL or admin API tools are enabled."
             )
@@ -638,7 +622,16 @@ class CredentialsProvider:
             token_provider.start_background_refresh()
             self.token_provider = token_provider
 
-            validate_settings(self.settings, has_token=True)
+            # Only validate CLI settings here — platform settings were already
+            # checked at the top of get_credentials() and the OAuth flow has
+            # populated the remaining fields (host, env ids, account id).
+            # dbt_token stays None in the OAuth path since the OAuthTokenProvider
+            # supplies the token instead.
+            cli_errors = validate_dbt_cli_settings(self.settings)
+            if cli_errors:
+                raise ValueError(
+                    "Errors found in configuration:\n\n" + "\n".join(cli_errors)
+                )
             self.authentication_method = AuthenticationMethod.OAUTH
             self._log_settings()
             return self.settings, self.token_provider

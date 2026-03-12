@@ -199,8 +199,12 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
             mock_provider_instance.start_background_refresh.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_oauth_path_passes_has_token_to_validate(self):
-        """OAuth path should call validate_settings with has_token=True."""
+    async def test_oauth_path_does_not_call_validate_settings(self):
+        """OAuth path should not call validate_settings (which checks dbt_token).
+
+        The OAuth path validates CLI settings directly instead, since
+        dbt_token is not used when a token provider supplies the token.
+        """
         mock_settings = DbtMcpSettings.model_construct(
             dbt_host="cloud.getdbt.com",
             dbt_prod_env_id=123,
@@ -230,9 +234,10 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
             ),
             patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_tp_cls,
             patch("dbt_mcp.config.settings.validate_settings") as mock_validate,
+            patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
         ):
             mock_tp_cls.return_value = MagicMock()
 
             await credentials_provider.get_credentials()
 
-            mock_validate.assert_called_once_with(mock_settings, has_token=True)
+            mock_validate.assert_not_called()
