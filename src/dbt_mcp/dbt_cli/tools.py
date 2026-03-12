@@ -33,6 +33,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         is_selectable: bool = False,
         is_full_refresh: bool | None = False,
         vars: str | None = None,
+        sample: str | None = None,
     ) -> str:
         try:
             # Commands that should always be quiet to reduce output verbosity
@@ -48,6 +49,9 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
 
             if is_full_refresh is True:
                 command.append("--full-refresh")
+
+            if sample and isinstance(sample, str):
+                command.extend(["--sample", sample])
 
             if vars and isinstance(vars, str):
                 command.extend(["--vars", vars])
@@ -102,6 +106,9 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         vars: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/vars")
         ),
+        sample: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/sample")
+        ),
     ) -> str:
         return _run_dbt_command(
             ["build"],
@@ -109,6 +116,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             is_selectable=True,
             is_full_refresh=is_full_refresh,
             vars=vars,
+            sample=sample,
         )
 
     def compile() -> str:
@@ -146,6 +154,9 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         vars: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/vars")
         ),
+        sample: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/sample")
+        ),
     ) -> str:
         return _run_dbt_command(
             ["run"],
@@ -153,6 +164,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             is_selectable=True,
             is_full_refresh=is_full_refresh,
             vars=vars,
+            sample=sample,
         )
 
     def test(
