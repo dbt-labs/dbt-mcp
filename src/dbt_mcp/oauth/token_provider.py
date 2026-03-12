@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from typing import Protocol
 
 from authlib.integrations.requests_client import OAuth2Session
@@ -12,6 +13,10 @@ from dbt_mcp.oauth.token import AccessTokenResponse
 
 logger = logging.getLogger(__name__)
 
+# Buffer in seconds before expiry at which get_token() considers the token expired
+# and triggers an inline refresh.
+TOKEN_EXPIRY_BUFFER_SECONDS = 30
+
 
 class TokenProvider(Protocol):
     def get_token(self) -> str: ...
@@ -20,6 +25,13 @@ class TokenProvider(Protocol):
 class OAuthTokenProvider:
     """
     Token provider for OAuth access token with periodic refresh.
+
+    The background refresh worker is started eagerly in ``start_background_refresh``
+    (called from ``CredentialsProvider`` right after construction) so that the token
+    stays fresh even before the first ``get_token()`` call.
+
+    As a safety net, ``get_token()`` also validates the token expiry and performs an
+    inline (synchronous) refresh when the token is about to expire.
     """
 
     def __init__(
@@ -38,7 +50,6 @@ class OAuthTokenProvider:
             client_id=OAUTH_CLIENT_ID,
             token_endpoint=self.token_url,
         )
-        self.refresh_started = False
 
     def _get_access_token_response(self) -> AccessTokenResponse:
         dbt_platform_context = self.context_manager.read_context()
@@ -46,10 +57,43 @@ class OAuthTokenProvider:
             raise ValueError("No decoded access token found in context")
         return dbt_platform_context.decoded_access_token.access_token_response
 
+    def _is_token_expired(self) -> bool:
+        """Check whether the current access token is expired or about to expire."""
+        return (
+            self.access_token_response.expires_at
+            < time.time() + TOKEN_EXPIRY_BUFFER_SECONDS
+        )
+
+    def _refresh_token_sync(self) -> None:
+        """Perform a synchronous token refresh using the refresh token.
+
+        This is the inline safety-net used by ``get_token()`` when the background
+        worker has not refreshed in time.
+        """
+        logger.info("Performing inline synchronous token refresh")
+        token_response = self.oauth_client.refresh_token(
+            url=self.token_url,
+            refresh_token=self.access_token_response.refresh_token,
+        )
+        dbt_platform_context = dbt_platform_context_from_token_response(
+            token_response, self.dbt_platform_url
+        )
+        self.context_manager.update_context(dbt_platform_context)
+        if not dbt_platform_context.decoded_access_token:
+            raise ValueError("No decoded access token found in context")
+        self.access_token_response = (
+            dbt_platform_context.decoded_access_token.access_token_response
+        )
+        logger.info("Inline token refresh completed successfully")
+
     def get_token(self) -> str:
-        if not self.refresh_started:
-            self.start_background_refresh()
-            self.refresh_started = True
+        if self._is_token_expired():
+            try:
+                self._refresh_token_sync()
+            except Exception as e:
+                raise ValueError(
+                    "OAuth access token is expired and inline refresh failed"
+                ) from e
         return self.access_token_response.access_token
 
     def start_background_refresh(self) -> asyncio.Task[None]:

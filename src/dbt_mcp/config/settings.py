@@ -485,9 +485,13 @@ def get_dbt_host(
     return actual_host.removeprefix(host_prefix_with_period)
 
 
-def validate_settings(settings: DbtMcpSettings):
+def validate_settings(
+    settings: DbtMcpSettings,
+    *,
+    has_token: bool = False,
+) -> None:
     errors: list[str] = []
-    errors.extend(validate_dbt_platform_settings(settings))
+    errors.extend(validate_dbt_platform_settings(settings, has_token=has_token))
     errors.extend(validate_dbt_cli_settings(settings))
     if errors:
         raise ValueError("Errors found in configuration:\n\n" + "\n".join(errors))
@@ -495,7 +499,18 @@ def validate_settings(settings: DbtMcpSettings):
 
 def validate_dbt_platform_settings(
     settings: DbtMcpSettings,
+    *,
+    has_token: bool = False,
 ) -> list[str]:
+    """Validate platform settings.
+
+    Args:
+        settings: The settings to validate.
+        has_token: When True, skip the ``dbt_token`` check because the token is
+            supplied by a token provider (e.g. OAuth) rather than the static
+            ``DBT_TOKEN`` env var.  This prevents ``settings.dbt_token`` from
+            being accessed or relied upon after startup.
+    """
     errors: list[str] = []
     if (
         not settings.disable_semantic_layer
@@ -511,7 +526,7 @@ def validate_dbt_platform_settings(
             errors.append(
                 "DBT_PROD_ENV_ID environment variable is required when semantic layer, discovery, SQL or admin API tools are enabled."
             )
-        if not settings.dbt_token:
+        if not has_token and not settings.dbt_token:
             errors.append(
                 "DBT_TOKEN environment variable is required when semantic layer, discovery, SQL or admin API tools are enabled."
             )
@@ -612,15 +627,18 @@ class CredentialsProvider:
             self.settings.dbt_host = get_dbt_host(self.settings, dbt_platform_context)
             if not dbt_platform_context.decoded_access_token:
                 raise ValueError("No decoded access token found in OAuth context")
-            # TODO: This is unreliable. We shouldn't set token here because it is static and not refreshed.
-            self.settings.dbt_token = dbt_platform_context.decoded_access_token.access_token_response.access_token
 
-            self.token_provider = OAuthTokenProvider(
+            token_provider = OAuthTokenProvider(
                 access_token_response=dbt_platform_context.decoded_access_token.access_token_response,
                 dbt_platform_url=dbt_platform_url,
                 context_manager=dbt_platform_context_manager,
             )
-            validate_settings(self.settings)
+            # Eagerly start the background refresh so the token stays fresh
+            # even before the first get_token() call.
+            token_provider.start_background_refresh()
+            self.token_provider = token_provider
+
+            validate_settings(self.settings, has_token=True)
             self.authentication_method = AuthenticationMethod.OAUTH
             self._log_settings()
             return self.settings, self.token_provider

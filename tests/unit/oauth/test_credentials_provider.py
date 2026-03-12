@@ -46,7 +46,8 @@ class TestCredentialsProviderAuthenticationMethod:
             patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_token_provider,
             patch("dbt_mcp.config.settings.validate_settings"),
         ):
-            mock_token_provider.return_value = MagicMock()
+            mock_provider_instance = MagicMock()
+            mock_token_provider.return_value = mock_provider_instance
 
             settings, token_provider = await credentials_provider.get_credentials()
 
@@ -111,3 +112,127 @@ class TestCredentialsProviderAuthenticationMethod:
                 credentials_provider.authentication_method
                 == AuthenticationMethod.ENV_VAR
             )
+
+
+class TestCredentialsProviderOAuthDoesNotSetDbtToken:
+    """DI-3441: OAuth path should not mutate settings.dbt_token."""
+
+    @pytest.mark.asyncio
+    async def test_oauth_path_does_not_set_dbt_token(self):
+        """After OAuth credential setup, settings.dbt_token must remain None."""
+        mock_settings = DbtMcpSettings.model_construct(
+            dbt_host="cloud.getdbt.com",
+            dbt_prod_env_id=123,
+            dbt_account_id=456,
+            dbt_token=None,
+        )
+
+        credentials_provider = CredentialsProvider(mock_settings)
+
+        mock_dbt_context = MagicMock()
+        mock_dbt_context.account_id = 456
+        mock_dbt_context.host_prefix = ""
+        mock_dbt_context.user_id = 789
+        mock_dbt_context.dev_environment.id = 111
+        mock_dbt_context.prod_environment.id = 123
+        mock_decoded_token = MagicMock()
+        mock_decoded_token.access_token_response.access_token = "mock_oauth_token"
+        mock_dbt_context.decoded_access_token = mock_decoded_token
+
+        with (
+            patch(
+                "dbt_mcp.config.settings.get_dbt_platform_context",
+                return_value=mock_dbt_context,
+            ),
+            patch(
+                "dbt_mcp.config.settings.get_dbt_host", return_value="cloud.getdbt.com"
+            ),
+            patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_tp_cls,
+            patch("dbt_mcp.config.settings.validate_settings"),
+        ):
+            mock_tp_cls.return_value = MagicMock()
+
+            settings, _ = await credentials_provider.get_credentials()
+
+            # settings.dbt_token must NOT have been set to the OAuth access token
+            assert settings.dbt_token is None
+
+    @pytest.mark.asyncio
+    async def test_oauth_path_eagerly_starts_background_refresh(self):
+        """After OAuth credential setup, background refresh must have been started."""
+        mock_settings = DbtMcpSettings.model_construct(
+            dbt_host="cloud.getdbt.com",
+            dbt_prod_env_id=123,
+            dbt_account_id=456,
+            dbt_token=None,
+        )
+
+        credentials_provider = CredentialsProvider(mock_settings)
+
+        mock_dbt_context = MagicMock()
+        mock_dbt_context.account_id = 456
+        mock_dbt_context.host_prefix = ""
+        mock_dbt_context.user_id = 789
+        mock_dbt_context.dev_environment.id = 111
+        mock_dbt_context.prod_environment.id = 123
+        mock_decoded_token = MagicMock()
+        mock_decoded_token.access_token_response.access_token = "mock_token"
+        mock_dbt_context.decoded_access_token = mock_decoded_token
+
+        with (
+            patch(
+                "dbt_mcp.config.settings.get_dbt_platform_context",
+                return_value=mock_dbt_context,
+            ),
+            patch(
+                "dbt_mcp.config.settings.get_dbt_host", return_value="cloud.getdbt.com"
+            ),
+            patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_tp_cls,
+            patch("dbt_mcp.config.settings.validate_settings"),
+        ):
+            mock_provider_instance = MagicMock()
+            mock_tp_cls.return_value = mock_provider_instance
+
+            await credentials_provider.get_credentials()
+
+            # start_background_refresh must have been called eagerly
+            mock_provider_instance.start_background_refresh.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_oauth_path_passes_has_token_to_validate(self):
+        """OAuth path should call validate_settings with has_token=True."""
+        mock_settings = DbtMcpSettings.model_construct(
+            dbt_host="cloud.getdbt.com",
+            dbt_prod_env_id=123,
+            dbt_account_id=456,
+            dbt_token=None,
+        )
+
+        credentials_provider = CredentialsProvider(mock_settings)
+
+        mock_dbt_context = MagicMock()
+        mock_dbt_context.account_id = 456
+        mock_dbt_context.host_prefix = ""
+        mock_dbt_context.user_id = 789
+        mock_dbt_context.dev_environment.id = 111
+        mock_dbt_context.prod_environment.id = 123
+        mock_decoded_token = MagicMock()
+        mock_decoded_token.access_token_response.access_token = "mock_token"
+        mock_dbt_context.decoded_access_token = mock_decoded_token
+
+        with (
+            patch(
+                "dbt_mcp.config.settings.get_dbt_platform_context",
+                return_value=mock_dbt_context,
+            ),
+            patch(
+                "dbt_mcp.config.settings.get_dbt_host", return_value="cloud.getdbt.com"
+            ),
+            patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_tp_cls,
+            patch("dbt_mcp.config.settings.validate_settings") as mock_validate,
+        ):
+            mock_tp_cls.return_value = MagicMock()
+
+            await credentials_provider.get_credentials()
+
+            mock_validate.assert_called_once_with(mock_settings, has_token=True)
