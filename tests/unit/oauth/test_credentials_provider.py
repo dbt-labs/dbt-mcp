@@ -44,7 +44,7 @@ class TestCredentialsProviderAuthenticationMethod:
                 "dbt_mcp.config.settings.get_dbt_host", return_value="cloud.getdbt.com"
             ),
             patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_token_provider,
-            patch("dbt_mcp.config.settings.validate_settings"),
+            patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
         ):
             mock_provider_instance = MagicMock()
             mock_token_provider.return_value = mock_provider_instance
@@ -148,7 +148,7 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
                 "dbt_mcp.config.settings.get_dbt_host", return_value="cloud.getdbt.com"
             ),
             patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_tp_cls,
-            patch("dbt_mcp.config.settings.validate_settings"),
+            patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
         ):
             mock_tp_cls.return_value = MagicMock()
 
@@ -188,7 +188,7 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
                 "dbt_mcp.config.settings.get_dbt_host", return_value="cloud.getdbt.com"
             ),
             patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_tp_cls,
-            patch("dbt_mcp.config.settings.validate_settings"),
+            patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
         ):
             mock_provider_instance = MagicMock()
             mock_tp_cls.return_value = mock_provider_instance
