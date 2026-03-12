@@ -64,13 +64,14 @@ class OAuthTokenProvider:
             < time.time() + TOKEN_EXPIRY_BUFFER_SECONDS
         )
 
-    def _refresh_token_sync(self) -> None:
-        """Perform a synchronous token refresh using the refresh token.
+    def _refresh_token(self) -> None:
+        """Refresh the OAuth access token using the refresh token.
 
-        This is the inline safety-net used by ``get_token()`` when the background
-        worker has not refreshed in time.
+        Used by both the background worker and the inline safety-net in
+        ``get_token()``.  All operations (authlib's ``refresh_token``, context
+        persistence) are synchronous, so a plain ``def`` is sufficient.
         """
-        logger.info("Performing inline synchronous token refresh")
+        logger.info("Refreshing OAuth access token")
         token_response = self.oauth_client.refresh_token(
             url=self.token_url,
             refresh_token=self.access_token_response.refresh_token,
@@ -84,15 +85,16 @@ class OAuthTokenProvider:
         self.access_token_response = (
             dbt_platform_context.decoded_access_token.access_token_response
         )
-        logger.info("Inline token refresh completed successfully")
+        logger.info("OAuth access token refreshed successfully")
 
     def get_token(self) -> str:
         if self._is_token_expired():
             try:
-                self._refresh_token_sync()
+                self._refresh_token()
             except Exception as e:
                 raise ValueError(
-                    "OAuth access token is expired and inline refresh failed"
+                    "OAuth access token is expired and inline refresh failed. "
+                    "Please re-authenticate by restarting the MCP server."
                 ) from e
         return self.access_token_response.access_token
 
@@ -102,23 +104,6 @@ class OAuthTokenProvider:
             self._background_refresh_worker(), name="oauth-token-refresh"
         )
 
-    async def _refresh_token(self) -> None:
-        logger.info("Refreshing OAuth access token using authlib")
-        token_response = self.oauth_client.refresh_token(
-            url=self.token_url,
-            refresh_token=self.access_token_response.refresh_token,
-        )
-        dbt_platform_context = dbt_platform_context_from_token_response(
-            token_response, self.dbt_platform_url
-        )
-        self.context_manager.update_context(dbt_platform_context)
-        if not dbt_platform_context.decoded_access_token:
-            raise ValueError("No decoded access token found in context")
-        self.access_token_response = (
-            dbt_platform_context.decoded_access_token.access_token_response
-        )
-        logger.info("OAuth access token refreshed and context updated successfully")
-
     async def _background_refresh_worker(self) -> None:
         """Background worker that periodically refreshes tokens before expiry."""
         logger.info("Background token refresh worker started")
@@ -127,7 +112,7 @@ class OAuthTokenProvider:
                 await self.refresh_strategy.wait_until_refresh_needed(
                     self.access_token_response.expires_at
                 )
-                await self._refresh_token()
+                self._refresh_token()
             except Exception as e:
                 logger.error(f"Error in background refresh worker: {e}")
                 await self.refresh_strategy.wait_after_error()

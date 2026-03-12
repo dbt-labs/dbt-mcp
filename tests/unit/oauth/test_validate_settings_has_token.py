@@ -1,6 +1,6 @@
 """
 Tests for validate_dbt_platform_settings with has_token parameter.
-DI-3441: When has_token=True, the dbt_token check should be skipped.
+When has_token=True, the dbt_token check should be skipped.
 """
 
 from dbt_mcp.config.settings import (

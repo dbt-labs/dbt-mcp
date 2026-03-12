@@ -1,8 +1,8 @@
 """
 Tests for OAuthTokenProvider -- covers:
-  - DI-3438: get_token() validates token expiry and refreshes inline
-  - DI-3440: background refresh can be started eagerly (no lazy start in get_token)
-  - DI-3441: settings.dbt_token is not accessed after startup
+  - get_token() validates token expiry and refreshes inline
+  - background refresh can be started eagerly (no lazy start in get_token)
+  - settings.dbt_token is not accessed after startup
 """
 
 import asyncio
@@ -44,7 +44,7 @@ def _make_provider(
 
 
 class TestGetTokenValidatesExpiry:
-    """DI-3438: get_token() should check token validity."""
+    """get_token() should check token validity."""
 
     def test_returns_token_when_valid(self):
         """A non-expired token is returned directly."""
@@ -113,7 +113,7 @@ class TestGetTokenValidatesExpiry:
 
 
 class TestNoLazyStartInGetToken:
-    """DI-3440: get_token() should NOT start background refresh lazily."""
+    """get_token() should NOT start background refresh lazily."""
 
     def test_get_token_does_not_call_start_background_refresh(self):
         """get_token() must not start background refresh itself."""
@@ -124,7 +124,7 @@ class TestNoLazyStartInGetToken:
 
 
 class TestEagerBackgroundRefresh:
-    """DI-3440: start_background_refresh creates an asyncio task."""
+    """start_background_refresh creates an asyncio task."""
 
     @pytest.mark.asyncio
     async def test_start_background_refresh_creates_task(self):
@@ -141,7 +141,7 @@ class TestEagerBackgroundRefresh:
 
 
 class TestNoRefreshStartedFlag:
-    """DI-3440: The old refresh_started flag should no longer exist."""
+    """The old refresh_started flag should no longer exist."""
 
     def test_no_refresh_started_attribute(self):
         """OAuthTokenProvider should not have a refresh_started attribute."""

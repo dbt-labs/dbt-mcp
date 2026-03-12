@@ -115,7 +115,7 @@ class TestCredentialsProviderAuthenticationMethod:
 
 
 class TestCredentialsProviderOAuthDoesNotSetDbtToken:
-    """DI-3441: OAuth path should not mutate settings.dbt_token."""
+    """OAuth path should not mutate settings.dbt_token."""
 
     @pytest.mark.asyncio
     async def test_oauth_path_does_not_set_dbt_token(self):
