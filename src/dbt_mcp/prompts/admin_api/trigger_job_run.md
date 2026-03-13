@@ -7,21 +7,11 @@ This tool starts a new run for a specified job with the ability to override defa
 ## Parameters
 
 - **job_id** (required): The job ID to trigger
-- **cause** (required): Description of why the job is being triggered
+- **cause** (optional, default: "Triggered by dbt MCP"): Description of why the job is being triggered
 - **git_branch** (optional): Override the Git branch to checkout
 - **git_sha** (optional): Override the Git SHA to checkout
 - **schema_override** (optional): Override the destination schema
-
-## Additional Override Options
-
-The API supports additional overrides (can be added to the implementation):
-
-- **dbt_version_override**: Override the dbt version
-- **threads_override**: Override the number of threads
-- **target_name_override**: Override the target name
-- **generate_docs_override**: Override docs generation setting
-- **timeout_seconds_override**: Override the timeout
-- **steps_override**: Override the dbt commands to execute
+- **steps_override** (optional): Override the dbt commands to execute. Each element is a full dbt command string (e.g., `"dbt run --select my_model --full-refresh"`). When provided, the job's default steps are replaced entirely.
 
 ## Returns
 
@@ -56,5 +46,13 @@ Run object with information about the newly triggered run including:
   "cause": "Testing feature branch",
   "git_branch": "feature/new-models",
   "schema_override": "dev_testing"
+}
+```
+
+```json
+{
+  "job_id": 456,
+  "cause": "Selective production build",
+  "steps_override": ["dbt run --select my_model+ --full-refresh"]
 }
 ```

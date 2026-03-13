@@ -120,16 +120,19 @@ async def trigger_job_run(
     git_branch: str | None = None,
     git_sha: str | None = None,
     schema_override: str | None = None,
+    steps_override: list[str] | None = None,
 ) -> dict[str, Any]:
     """Trigger a job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
-    kwargs = {}
+    kwargs: dict[str, str | list[str]] = {}
     if git_branch:
         kwargs["git_branch"] = git_branch
     if git_sha:
         kwargs["git_sha"] = git_sha
     if schema_override:
         kwargs["schema_override"] = schema_override
+    if steps_override is not None:
+        kwargs["steps_override"] = steps_override
     return await context.admin_client.trigger_job_run(
         admin_api_config.account_id, job_id, cause, **kwargs
     )

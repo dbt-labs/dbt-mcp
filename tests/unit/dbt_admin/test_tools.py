@@ -278,6 +278,45 @@ async def test_trigger_job_run_with_all_optional_params(admin_context):
     )
 
 
+async def test_trigger_job_run_with_steps_override(admin_context):
+    steps = ["dbt run --select my_model+ --full-refresh"]
+    result = await trigger_job_run.fn(
+        admin_context,
+        job_id=1,
+        cause="Selective build",
+        steps_override=steps,
+    )
+
+    assert isinstance(result, dict)
+    admin_context.admin_client.trigger_job_run.assert_called_once_with(
+        12345, 1, "Selective build", steps_override=steps
+    )
+
+
+async def test_trigger_job_run_steps_override_empty_list_is_passed_through(
+    admin_context,
+):
+    result = await trigger_job_run.fn(
+        admin_context,
+        job_id=1,
+        cause="Empty override",
+        steps_override=[],
+    )
+
+    assert isinstance(result, dict)
+    admin_context.admin_client.trigger_job_run.assert_called_once_with(
+        12345, 1, "Empty override", steps_override=[]
+    )
+
+
+async def test_trigger_job_run_steps_override_none_not_passed(admin_context):
+    await trigger_job_run.fn(admin_context, job_id=1, cause="No override")
+
+    admin_context.admin_client.trigger_job_run.assert_called_once_with(
+        12345, 1, "No override"
+    )
+
+
 @patch("dbt_mcp.dbt_admin.tools.ErrorFetcher")
 async def test_get_job_run_error_tool(mock_error_fetcher_class, admin_context):
     # Mock the ErrorFetcher instance and its analyze_run_errors method
