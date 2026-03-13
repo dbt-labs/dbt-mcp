@@ -44,6 +44,12 @@ Tools can have associated UIs via the `meta` field:
 - `task inspector` — run with MCP Inspector
 - `uv run pytest tests/ --ignore=tests/integration -x -q` — quick unit test run
 
+## PRs
+
+- **This is an open-source repo.** Do not include internal links (Notion, Slack, Jira) or internal details in PR descriptions, commit messages, or code comments. Keep PR descriptions focused on the public-facing what and why.
+- Run `task check` before every PR push
+- Run `task test:unit` before every commit to catch failures early
+
 ## Style
 
 - See `.cursor/rules/python.mdc` for Python conventions

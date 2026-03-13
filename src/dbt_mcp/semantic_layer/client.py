@@ -102,7 +102,7 @@ class DefaultSemanticLayerClientProvider:
         config = await self.config_provider.get_config()
         return SyncSemanticLayerClient(
             environment_id=config.prod_environment_id,
-            auth_token=config.token,
+            auth_token=config.token_provider.get_token(),
             host=config.host,
         )
 
