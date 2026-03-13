@@ -485,7 +485,7 @@ def get_dbt_host(
     return actual_host.removeprefix(host_prefix_with_period)
 
 
-def validate_settings(settings: DbtMcpSettings):
+def validate_settings(settings: DbtMcpSettings) -> None:
     errors: list[str] = []
     errors.extend(validate_dbt_platform_settings(settings))
     errors.extend(validate_dbt_cli_settings(settings))
@@ -493,9 +493,8 @@ def validate_settings(settings: DbtMcpSettings):
         raise ValueError("Errors found in configuration:\n\n" + "\n".join(errors))
 
 
-def validate_dbt_platform_settings(
-    settings: DbtMcpSettings,
-) -> list[str]:
+def validate_dbt_platform_settings(settings: DbtMcpSettings) -> list[str]:
+    """Validate platform settings."""
     errors: list[str] = []
     if (
         not settings.disable_semantic_layer
@@ -612,15 +611,24 @@ class CredentialsProvider:
             self.settings.dbt_host = get_dbt_host(self.settings, dbt_platform_context)
             if not dbt_platform_context.decoded_access_token:
                 raise ValueError("No decoded access token found in OAuth context")
-            # TODO: This is unreliable. We shouldn't set token here because it is static and not refreshed.
-            self.settings.dbt_token = dbt_platform_context.decoded_access_token.access_token_response.access_token
 
-            self.token_provider = OAuthTokenProvider(
+            token_provider = await OAuthTokenProvider.create(
                 access_token_response=dbt_platform_context.decoded_access_token.access_token_response,
                 dbt_platform_url=dbt_platform_url,
                 context_manager=dbt_platform_context_manager,
             )
-            validate_settings(self.settings)
+            self.token_provider = token_provider
+
+            # Only validate CLI settings here — platform settings were already
+            # checked at the top of get_credentials() and the OAuth flow has
+            # populated the remaining fields (host, env ids, account id).
+            # dbt_token stays None in the OAuth path since the OAuthTokenProvider
+            # supplies the token instead.
+            cli_errors = validate_dbt_cli_settings(self.settings)
+            if cli_errors:
+                raise ValueError(
+                    "Errors found in configuration:\n\n" + "\n".join(cli_errors)
+                )
             self.authentication_method = AuthenticationMethod.OAUTH
             self._log_settings()
             return self.settings, self.token_provider
