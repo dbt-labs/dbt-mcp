@@ -6,9 +6,6 @@ from mcp.types import CallToolResult, TextContent
 
 from dbt_mcp.discovery.tools import (
     DiscoveryToolContext,
-    LineageEdge,
-    LineageGraph,
-    LineageNode,
     get_lineage as get_lineage_tool,
 )
 
@@ -48,7 +45,9 @@ SAMPLE_NODES = [
 
 async def test_get_lineage_returns_call_tool_result(mock_discovery_tool_context):
     """Test that get_lineage returns a CallToolResult."""
-    mock_discovery_tool_context.lineage_fetcher.fetch_lineage.return_value = SAMPLE_NODES
+    mock_discovery_tool_context.lineage_fetcher.fetch_lineage.return_value = (
+        SAMPLE_NODES
+    )
 
     result = await get_lineage(
         context=mock_discovery_tool_context,
@@ -62,7 +61,9 @@ async def test_get_lineage_returns_call_tool_result(mock_discovery_tool_context)
 
 async def test_get_lineage_text_content_contains_raw_nodes(mock_discovery_tool_context):
     """Test that the text content contains the raw node data as JSON."""
-    mock_discovery_tool_context.lineage_fetcher.fetch_lineage.return_value = SAMPLE_NODES
+    mock_discovery_tool_context.lineage_fetcher.fetch_lineage.return_value = (
+        SAMPLE_NODES
+    )
 
     result = await get_lineage(
         context=mock_discovery_tool_context,
@@ -81,7 +82,9 @@ async def test_get_lineage_structured_content_has_correct_graph(
     mock_discovery_tool_context,
 ):
     """Test that structuredContent contains a well-formed LineageGraph."""
-    mock_discovery_tool_context.lineage_fetcher.fetch_lineage.return_value = SAMPLE_NODES
+    mock_discovery_tool_context.lineage_fetcher.fetch_lineage.return_value = (
+        SAMPLE_NODES
+    )
 
     result = await get_lineage(
         context=mock_discovery_tool_context,
