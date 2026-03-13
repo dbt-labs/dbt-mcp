@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -47,7 +47,7 @@ class TestCredentialsProviderAuthenticationMethod:
             patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
         ):
             mock_provider_instance = MagicMock()
-            mock_token_provider.return_value = mock_provider_instance
+            mock_token_provider.create = AsyncMock(return_value=mock_provider_instance)
 
             settings, token_provider = await credentials_provider.get_credentials()
 
@@ -150,7 +150,7 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
             patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_tp_cls,
             patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
         ):
-            mock_tp_cls.return_value = MagicMock()
+            mock_tp_cls.create = AsyncMock(return_value=MagicMock())
 
             settings, _ = await credentials_provider.get_credentials()
 
@@ -158,8 +158,8 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
             assert settings.dbt_token is None
 
     @pytest.mark.asyncio
-    async def test_oauth_path_eagerly_starts_background_refresh(self):
-        """After OAuth credential setup, background refresh must have been started."""
+    async def test_oauth_path_uses_factory_with_background_refresh(self):
+        """OAuth path must use the create() factory which starts background refresh."""
         mock_settings = DbtMcpSettings.model_construct(
             dbt_host="cloud.getdbt.com",
             dbt_prod_env_id=123,
@@ -191,12 +191,11 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
             patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
         ):
             mock_provider_instance = MagicMock()
-            mock_tp_cls.return_value = mock_provider_instance
+            mock_tp_cls.create = AsyncMock(return_value=mock_provider_instance)
 
             await credentials_provider.get_credentials()
 
-            # start_background_refresh must have been called eagerly
-            mock_provider_instance.start_background_refresh.assert_called_once()
+            mock_tp_cls.create.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_oauth_path_does_not_call_validate_settings(self):
@@ -236,7 +235,7 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
             patch("dbt_mcp.config.settings.validate_settings") as mock_validate,
             patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
         ):
-            mock_tp_cls.return_value = MagicMock()
+            mock_tp_cls.create = AsyncMock(return_value=MagicMock())
 
             await credentials_provider.get_credentials()
 

@@ -43,6 +43,18 @@ def _make_provider(
     )
 
 
+async def _make_provider_with_background_refresh(
+    *, expires_at: int | None = None, access_token: str = "valid_token"
+) -> OAuthTokenProvider:
+    return await OAuthTokenProvider.create(
+        access_token_response=_make_access_token_response(
+            expires_at=expires_at, access_token=access_token
+        ),
+        dbt_platform_url="https://cloud.getdbt.com",
+        context_manager=MagicMock(),
+    )
+
+
 class TestGetTokenValidatesExpiry:
     """get_token() should check token validity."""
 
@@ -124,18 +136,19 @@ class TestNoLazyStartInGetToken:
 
 
 class TestEagerBackgroundRefresh:
-    """start_background_refresh creates an asyncio task."""
+    """create() starts a background refresh asyncio task."""
 
     @pytest.mark.asyncio
-    async def test_start_background_refresh_creates_task(self):
-        """start_background_refresh() should create an asyncio task."""
-        provider = _make_provider()
-        task = provider.start_background_refresh()
-        assert isinstance(task, asyncio.Task)
-        assert task.get_name() == "oauth-token-refresh"
-        task.cancel()
+    async def test_create_starts_background_refresh(self):
+        """create() should start a background refresh task."""
+        await _make_provider_with_background_refresh()
+        tasks = [
+            t for t in asyncio.all_tasks() if t.get_name() == "oauth-token-refresh"
+        ]
+        assert len(tasks) == 1
+        tasks[0].cancel()
         try:
-            await task
+            await tasks[0]
         except asyncio.CancelledError:
             pass
 

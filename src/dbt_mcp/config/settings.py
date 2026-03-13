@@ -612,14 +612,11 @@ class CredentialsProvider:
             if not dbt_platform_context.decoded_access_token:
                 raise ValueError("No decoded access token found in OAuth context")
 
-            token_provider = OAuthTokenProvider(
+            token_provider = await OAuthTokenProvider.create(
                 access_token_response=dbt_platform_context.decoded_access_token.access_token_response,
                 dbt_platform_url=dbt_platform_url,
                 context_manager=dbt_platform_context_manager,
             )
-            # Eagerly start the background refresh so the token stays fresh
-            # even before the first get_token() call.
-            token_provider.start_background_refresh()
             self.token_provider = token_provider
 
             # Only validate CLI settings here — platform settings were already

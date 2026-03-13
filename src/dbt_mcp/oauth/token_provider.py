@@ -26,9 +26,9 @@ class OAuthTokenProvider:
     """
     Token provider for OAuth access token with periodic refresh.
 
-    The background refresh worker is started eagerly in ``start_background_refresh``
-    (called from ``CredentialsProvider`` right after construction) so that the token
-    stays fresh even before the first ``get_token()`` call.
+    Use the async ``create()`` factory to construct an instance -- it starts the
+    background refresh worker automatically so the token stays fresh even before
+    the first ``get_token()`` call.
 
     As a safety net, ``get_token()`` also validates the token expiry and performs an
     inline (synchronous) refresh when the token is about to expire.
@@ -36,6 +36,7 @@ class OAuthTokenProvider:
 
     def __init__(
         self,
+        *,
         access_token_response: AccessTokenResponse,
         dbt_platform_url: str,
         context_manager: DbtPlatformContextManager,
@@ -50,6 +51,24 @@ class OAuthTokenProvider:
             client_id=OAUTH_CLIENT_ID,
             token_endpoint=self.token_url,
         )
+
+    @classmethod
+    async def create(
+        cls,
+        *,
+        access_token_response: AccessTokenResponse,
+        dbt_platform_url: str,
+        context_manager: DbtPlatformContextManager,
+        refresh_strategy: RefreshStrategy | None = None,
+    ) -> "OAuthTokenProvider":
+        provider = cls(
+            access_token_response=access_token_response,
+            dbt_platform_url=dbt_platform_url,
+            context_manager=context_manager,
+            refresh_strategy=refresh_strategy,
+        )
+        provider.start_background_refresh()
+        return provider
 
     def _get_access_token_response(self) -> AccessTokenResponse:
         dbt_platform_context = self.context_manager.read_context()
