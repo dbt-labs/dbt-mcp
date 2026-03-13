@@ -1,0 +1,3 @@
+kind: Security
+body: Update minimatch, rollup, and ajv in ui/pnpm-lock.yaml and ai package in examples/ai_sdk_agent to fix known security vulnerabilities
+time: 2026-03-12T15:50:12.420818-05:00
