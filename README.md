@@ -88,6 +88,7 @@ To learn more about the dbt Administrative API, click [here](https://docs.getdbt
 - `list_job_run_artifacts`: Lists available artifacts from a job run.
 - `list_jobs`: Lists jobs in a dbt Platform account; option to filter by project or environment.
 - `list_jobs_runs`: Lists job runs; option to filter by job, status, or order by field.
+- `list_projects`: Lists all projects in the dbt Platform account.
 - `retry_job_run`: Retries a failed job run.
 - `trigger_job_run`: Triggers a job run; option to override git branch, schema, or other settings.
 

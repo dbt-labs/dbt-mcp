@@ -111,7 +111,9 @@ class DiscoveryToolContext:
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def get_mart_models(context: DiscoveryToolContext) -> list[dict]:
+async def get_mart_models(
+    context: DiscoveryToolContext,
+) -> list[dict]:
     mart_models = await context.models_fetcher.fetch_models(
         model_filter={"modelingLayer": "marts"}
     )
@@ -125,7 +127,9 @@ async def get_mart_models(context: DiscoveryToolContext) -> list[dict]:
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def get_all_models(context: DiscoveryToolContext) -> list[dict]:
+async def get_all_models(
+    context: DiscoveryToolContext,
+) -> list[dict]:
     return await context.models_fetcher.fetch_models()
 
 
@@ -254,7 +258,9 @@ async def get_lineage(
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def get_exposures(context: DiscoveryToolContext) -> list[dict]:
+async def get_exposures(
+    context: DiscoveryToolContext,
+) -> list[dict]:
     return await context.exposures_fetcher.fetch_exposures()
 
 

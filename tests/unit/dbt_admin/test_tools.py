@@ -121,7 +121,7 @@ async def test_register_admin_api_tools_all_tools(mock_register_tools, mock_fast
     mock_register_tools.assert_called_once()
     args, kwargs = mock_register_tools.call_args
     tool_definitions = kwargs["tool_definitions"]
-    assert len(tool_definitions) == 11
+    assert len(tool_definitions) == 12
 
 
 @patch("dbt_mcp.dbt_admin.tools.register_tools")
@@ -140,13 +140,13 @@ async def test_register_admin_api_tools_with_disabled_tools(
         disabled_toolsets=set(),
     )
 
-    # Should still call register_tools with all 11 tool definitions
+    # Should still call register_tools with all 12 tool definitions
     # The exclude_tools parameter is passed to register_tools to handle filtering
     mock_register_tools.assert_called_once()
     args, kwargs = mock_register_tools.call_args
     tool_definitions = kwargs["tool_definitions"]
     disabled_tools = kwargs["disabled_tools"]
-    assert len(tool_definitions) == 11
+    assert len(tool_definitions) == 12
     assert disabled_tools == set(disable_tools)
 
 
@@ -278,6 +278,45 @@ async def test_trigger_job_run_with_all_optional_params(admin_context):
     )
 
 
+async def test_trigger_job_run_with_steps_override(admin_context):
+    steps = ["dbt run --select my_model+ --full-refresh"]
+    result = await trigger_job_run.fn(
+        admin_context,
+        job_id=1,
+        cause="Selective build",
+        steps_override=steps,
+    )
+
+    assert isinstance(result, dict)
+    admin_context.admin_client.trigger_job_run.assert_called_once_with(
+        12345, 1, "Selective build", steps_override=steps
+    )
+
+
+async def test_trigger_job_run_steps_override_empty_list_is_passed_through(
+    admin_context,
+):
+    result = await trigger_job_run.fn(
+        admin_context,
+        job_id=1,
+        cause="Empty override",
+        steps_override=[],
+    )
+
+    assert isinstance(result, dict)
+    admin_context.admin_client.trigger_job_run.assert_called_once_with(
+        12345, 1, "Empty override", steps_override=[]
+    )
+
+
+async def test_trigger_job_run_steps_override_none_not_passed(admin_context):
+    await trigger_job_run.fn(admin_context, job_id=1, cause="No override")
+
+    admin_context.admin_client.trigger_job_run.assert_called_once_with(
+        12345, 1, "No override"
+    )
+
+
 @patch("dbt_mcp.dbt_admin.tools.ErrorFetcher")
 async def test_get_job_run_error_tool(mock_error_fetcher_class, admin_context):
     # Mock the ErrorFetcher instance and its analyze_run_errors method
@@ -323,6 +362,7 @@ async def test_get_job_run_error_tool(mock_error_fetcher_class, admin_context):
 def test_admin_tools_list_contains_all_tools():
     """Test that ADMIN_TOOLS contains all expected tools."""
     expected_tool_names = {
+        "list_projects",
         "list_jobs",
         "get_job_details",
         "get_project_details",
@@ -338,4 +378,4 @@ def test_admin_tools_list_contains_all_tools():
 
     actual_tool_names = {tool.fn.__name__ for tool in ADMIN_TOOLS}
     assert actual_tool_names == expected_tool_names
-    assert len(ADMIN_TOOLS) == 11
+    assert len(ADMIN_TOOLS) == 12

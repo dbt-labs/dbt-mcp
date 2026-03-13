@@ -91,6 +91,7 @@ toolsets = {
         ToolName.GET_NODE_DETAILS_DEV,
     },
     Toolset.ADMIN_API: {
+        ToolName.LIST_PROJECTS,
         ToolName.LIST_JOBS,
         ToolName.GET_JOB_DETAILS,
         ToolName.GET_PROJECT_DETAILS,

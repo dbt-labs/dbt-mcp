@@ -31,6 +31,19 @@ class AdminToolContext:
 
 
 @dbt_mcp_tool(
+    description=get_prompt("admin_api/list_projects"),
+    title="List Projects",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+)
+async def list_projects(context: AdminToolContext) -> list[dict[str, Any]]:
+    """List active projects in the account."""
+    admin_api_config = await context.admin_api_config_provider.get_config()
+    return await context.admin_client.list_projects(admin_api_config.account_id)
+
+
+@dbt_mcp_tool(
     description=get_prompt("admin_api/list_jobs"),
     title="List Jobs",
     read_only_hint=True,
@@ -107,16 +120,19 @@ async def trigger_job_run(
     git_branch: str | None = None,
     git_sha: str | None = None,
     schema_override: str | None = None,
+    steps_override: list[str] | None = None,
 ) -> dict[str, Any]:
     """Trigger a job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
-    kwargs = {}
+    kwargs: dict[str, str | list[str]] = {}
     if git_branch:
         kwargs["git_branch"] = git_branch
     if git_sha:
         kwargs["git_sha"] = git_sha
     if schema_override:
         kwargs["schema_override"] = schema_override
+    if steps_override is not None:
+        kwargs["steps_override"] = steps_override
     return await context.admin_client.trigger_job_run(
         admin_api_config.account_id, job_id, cause, **kwargs
     )
@@ -282,6 +298,7 @@ async def get_job_run_error(
 
 
 ADMIN_TOOLS = [
+    list_projects,
     list_jobs,
     get_job_details,
     get_project_details,

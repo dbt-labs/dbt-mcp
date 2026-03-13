@@ -47,6 +47,7 @@ HUMAN_DESCRIPTIONS: dict[ToolName, str] = {
     ToolName.TEXT_TO_SQL: "Generates SQL from natural language using project context.",
     ToolName.EXECUTE_SQL: "Executes SQL on dbt Platform infrastructure with Semantic Layer support.",
     # Admin API tools
+    ToolName.LIST_PROJECTS: "Lists all projects in the dbt Platform account.",
     ToolName.LIST_JOBS: "Lists jobs in a dbt Platform account; option to filter by project or environment.",
     ToolName.GET_JOB_DETAILS: "Gets job configuration including triggers, schedule, and dbt commands.",
     ToolName.GET_PROJECT_DETAILS: "Gets project information for a specific dbt project.",

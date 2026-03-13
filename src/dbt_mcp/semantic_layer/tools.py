@@ -49,7 +49,8 @@ class SemanticLayerToolContext:
     idempotent_hint=True,
 )
 async def list_metrics(
-    context: SemanticLayerToolContext, search: str | None = None
+    context: SemanticLayerToolContext,
+    search: str | None = None,
 ) -> list[MetricToolResponse]:
     return await context.semantic_layer_fetcher.list_metrics(search=search)
 
@@ -76,7 +77,9 @@ async def list_saved_queries(
     idempotent_hint=True,
 )
 async def get_dimensions(
-    context: SemanticLayerToolContext, metrics: list[str], search: str | None = None
+    context: SemanticLayerToolContext,
+    metrics: list[str],
+    search: str | None = None,
 ) -> list[DimensionToolResponse]:
     return await context.semantic_layer_fetcher.get_dimensions(
         metrics=metrics, search=search
@@ -91,7 +94,9 @@ async def get_dimensions(
     idempotent_hint=True,
 )
 async def get_entities(
-    context: SemanticLayerToolContext, metrics: list[str], search: str | None = None
+    context: SemanticLayerToolContext,
+    metrics: list[str],
+    search: str | None = None,
 ) -> list[EntityToolResponse]:
     return await context.semantic_layer_fetcher.get_entities(
         metrics=metrics, search=search
