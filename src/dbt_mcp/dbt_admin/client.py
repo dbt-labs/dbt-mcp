@@ -126,6 +126,23 @@ class DbtAdminAPIClient:
         )
         return result.get("data", {})
 
+    async def list_projects(self, account_id: int) -> list[dict[str, Any]]:
+        """List active projects for an account."""
+        result = await self._make_request(
+            "GET",
+            f"/api/v3/accounts/{account_id}/projects/",
+            params={"state": 1},
+        )
+        data = result.get("data", [])
+        return [
+            {
+                "id": p["id"],
+                "name": p["name"],
+                "description": p.get("description"),
+            }
+            for p in data
+        ]
+
     async def get_project_details(
         self, account_id: int, project_id: int
     ) -> dict[str, Any]:
