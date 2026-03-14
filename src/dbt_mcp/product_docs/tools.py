@@ -17,8 +17,10 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from dbt_mcp.product_docs.client import (
+    EOL_PAGE_WARNING,
     MAX_CONTENT_CHARS_PER_PAGE,
     ProductDocsClient,
+    detect_eol_page,
     display_url,
     expand_keywords,
     normalize_doc_url,
@@ -44,6 +46,7 @@ QUERY_EXPANSION_THRESHOLD = 3
 @dataclass
 class ProductDocsToolContext:
     client: ProductDocsClient = field(default_factory=ProductDocsClient)
+    dbt_version: str | None = None
 
 
 def _dict_to_doc_search_result(entry: dict[str, str]) -> DocSearchResult:
@@ -76,10 +79,19 @@ async def _fetch_page(client: ProductDocsClient, url: str) -> ProductDocPageResp
             error=f"Failed to fetch page: {normalized} ({e})",
         )
 
+    version_note: str | None = None
+    if detect_eol_page(normalized):
+        version_note = (
+            "This page is for an end-of-life dbt Core version (v1.6 or older)."
+        )
+        content = EOL_PAGE_WARNING + content
+
     content = truncate_content(
         content, MAX_CONTENT_CHARS_PER_PAGE, display_url(normalized)
     )
-    return ProductDocPageResponse(url=display_url(normalized), content=content)
+    return ProductDocPageResponse(
+        url=display_url(normalized), content=content, version_note=version_note
+    )
 
 
 @dbt_mcp_tool(
@@ -106,6 +118,7 @@ async def search_product_docs(
             total_matches=0,
             showing=0,
             results=[],
+            dbt_project_version=context.dbt_version,
             error="Query must not be empty.",
         )
 
@@ -136,6 +149,7 @@ async def search_product_docs(
         total_matches=len(doc_results),
         showing=len(doc_results),
         results=doc_results,
+        dbt_project_version=context.dbt_version,
         search_method="query_expansion" if used_query_expansion else None,
     )
 
@@ -184,7 +198,9 @@ async def get_product_doc_pages(
         else:
             pages.append(result)
 
-    return GetProductDocPagesResponse(pages=pages)
+    return GetProductDocPagesResponse(
+        pages=pages, dbt_project_version=context.dbt_version
+    )
 
 
 PRODUCT_DOCS_TOOLS = [
@@ -196,6 +212,7 @@ PRODUCT_DOCS_TOOLS = [
 def register_product_docs_tools(
     dbt_mcp: FastMCP,
     *,
+    dbt_version: str | None = None,
     disabled_tools: set[ToolName],
     enabled_tools: set[ToolName] | None,
     enabled_toolsets: set[Toolset],
@@ -205,7 +222,7 @@ def register_product_docs_tools(
     shared_client = ProductDocsClient()
 
     def bind_context() -> ProductDocsToolContext:
-        return ProductDocsToolContext(client=shared_client)
+        return ProductDocsToolContext(client=shared_client, dbt_version=dbt_version)
 
     register_tools(
         dbt_mcp,

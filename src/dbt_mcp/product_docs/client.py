@@ -86,6 +86,21 @@ _ABBREVIATION_EXPANSIONS: dict[str, list[str]] = {
 
 _LLMS_TXT_ENTRY_RE = re.compile(r"^-\s+\[([^\]]+)\]\(([^)]+)\)(?::\s*(.+))?$")
 
+_EOL_URL_RE = re.compile(r"/core-upgrade/Older(?:\s|%20)versions/", re.IGNORECASE)
+
+EOL_PAGE_WARNING = (
+    ">>> VERSION NOTICE: This page describes a dbt Core version that has "
+    "reached end-of-life (EOL) and is no longer supported. The information "
+    "may be outdated or differ from current behavior. See the latest version "
+    "support info at https://docs.getdbt.com/docs/dbt-versions/core\n\n---\n\n"
+)
+
+
+def detect_eol_page(url: str) -> bool:
+    """Return ``True`` if *url* points to a page for an EOL dbt Core version."""
+    return bool(_EOL_URL_RE.search(url))
+
+
 # Relevance scoring weights for search_index ranking.
 # Higher weights push results toward the top when terms appear in
 # more-specific fields (title > description > section).
