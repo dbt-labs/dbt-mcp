@@ -31,6 +31,7 @@ class DbtPlatformAccount(BaseModel):
 class DbtPlatformProject(BaseModel):
     id: int
     name: str
+    description: str | None = None
     account_id: int
     account_name: str
 

@@ -328,6 +328,66 @@ def test_vars_flag_added_to_command(
     assert "environment: production" in args_list
 
 
+@pytest.mark.parametrize("command_name", ["run", "build"])
+def test_sample_flag_added_to_command(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, command_name
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    tool = tools[command_name]
+
+    tool(sample="3 days")
+
+    assert mock_calls
+    args_list = mock_calls[0]
+    assert "--sample" in args_list
+    assert "3 days" in args_list
+
+
+def test_sample_not_added_when_none(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    build_tool = tools["build"]
+
+    build_tool()
+
+    assert mock_calls
+    args_list = mock_calls[0]
+    assert "--sample" not in args_list
+
+
 def test_vars_not_added_when_none(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp):
     mock_calls = []
 

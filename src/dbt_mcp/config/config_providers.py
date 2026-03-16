@@ -7,6 +7,7 @@ from dbt_mcp.config.headers import (
     HeadersProvider,
     ProxiedToolHeadersProvider,
     SemanticLayerHeadersProvider,
+    TokenProvider,
 )
 from dbt_mcp.config.settings import CredentialsProvider
 
@@ -16,7 +17,7 @@ class SemanticLayerConfig:
     url: str
     host: str
     prod_environment_id: int
-    token: str
+    token_provider: TokenProvider
     headers_provider: HeadersProvider
 
 
@@ -55,11 +56,7 @@ class DefaultSemanticLayerConfigProvider(ConfigProvider[SemanticLayerConfig]):
 
     async def get_config(self) -> SemanticLayerConfig:
         settings, token_provider = await self.credentials_provider.get_credentials()
-        assert (
-            settings.actual_host
-            and settings.actual_prod_environment_id
-            and settings.dbt_token
-        )
+        assert settings.actual_host and settings.actual_prod_environment_id
         is_local = settings.actual_host and settings.actual_host.startswith("localhost")
         if is_local:
             host = settings.actual_host
@@ -75,7 +72,7 @@ class DefaultSemanticLayerConfigProvider(ConfigProvider[SemanticLayerConfig]):
             url=f"http://{host}" if is_local else f"https://{host}" + "/api/graphql",
             host=host,
             prod_environment_id=settings.actual_prod_environment_id,
-            token=token_provider.get_token(),
+            token_provider=token_provider,
             headers_provider=SemanticLayerHeadersProvider(
                 token_provider=token_provider
             ),
@@ -88,11 +85,7 @@ class DefaultDiscoveryConfigProvider(ConfigProvider[DiscoveryConfig]):
 
     async def get_config(self) -> DiscoveryConfig:
         settings, token_provider = await self.credentials_provider.get_credentials()
-        assert (
-            settings.actual_host
-            and settings.actual_prod_environment_id
-            and settings.dbt_token
-        )
+        assert settings.actual_host and settings.actual_prod_environment_id
         if settings.actual_host_prefix:
             url = f"https://{settings.actual_host_prefix}.metadata.{settings.actual_host}/graphql"
         else:
@@ -111,7 +104,7 @@ class DefaultAdminApiConfigProvider(ConfigProvider[AdminApiConfig]):
 
     async def get_config(self) -> AdminApiConfig:
         settings, token_provider = await self.credentials_provider.get_credentials()
-        assert settings.dbt_token and settings.actual_host and settings.dbt_account_id
+        assert settings.actual_host and settings.dbt_account_id
         if settings.actual_host_prefix:
             url = f"https://{settings.actual_host_prefix}.{settings.actual_host}"
         else:
@@ -131,7 +124,7 @@ class DefaultProxiedToolConfigProvider(ConfigProvider[ProxiedToolConfig]):
 
     async def get_config(self) -> ProxiedToolConfig:
         settings, token_provider = await self.credentials_provider.get_credentials()
-        assert settings.dbt_token and settings.actual_host
+        assert settings.actual_host
         is_local = settings.actual_host and settings.actual_host.startswith("localhost")
         path = "/v1/mcp/" if is_local else "/api/ai/v1/mcp/"
         scheme = "http://" if is_local else "https://"

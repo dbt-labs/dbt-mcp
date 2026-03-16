@@ -37,7 +37,7 @@ Tools can have associated UIs via the `meta` field:
 - `task test:unit` — run unit tests
 - `task test:integration` — run integration tests (requires dbt Platform credentials)
 - `task install` — install dependencies
-- `task check` — run linting and type checking
+- `task check` — run linting and type checking. **Run before every PR push.**
 - `task fmt` — format code
 - `task docs:generate` — regenerate README tool list and d2 diagram from tool definitions (run after adding/removing tools)
 - `task dev` — run server with streamable-http transport
@@ -48,6 +48,7 @@ Tools can have associated UIs via the `meta` field:
 
 - **This is an open-source repo.** Do not include internal links (Notion, Slack, Jira) or internal details in PR descriptions, commit messages, or code comments. Keep PR descriptions focused on the public-facing what and why.
 - Run `task check` before every PR push
+- Run `task test:unit` before every commit to catch failures early
 
 ## Style
 
