@@ -3,11 +3,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from dbt_mcp.config.settings import (
+from dbt_mcp.config.credentials import (
     AuthenticationMethod,
     CredentialsProvider,
-    DbtMcpSettings,
 )
+from dbt_mcp.config.settings import DbtMcpSettings
 
 
 class TestCredentialsProviderAuthenticationMethod:
@@ -38,10 +38,10 @@ class TestCredentialsProviderAuthenticationMethod:
 
         with (
             patch(
-                "dbt_mcp.config.settings.get_dbt_platform_context",
+                "dbt_mcp.config.credentials.get_dbt_platform_context",
                 return_value=mock_dbt_context,
             ),
-            patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_token_provider,
+            patch("dbt_mcp.config.credentials.OAuthTokenProvider") as mock_token_provider,
             patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
         ):
             mock_provider_instance = MagicMock()
@@ -139,10 +139,10 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
 
         with (
             patch(
-                "dbt_mcp.config.settings.get_dbt_platform_context",
+                "dbt_mcp.config.credentials.get_dbt_platform_context",
                 return_value=mock_dbt_context,
             ),
-            patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_tp_cls,
+            patch("dbt_mcp.config.credentials.OAuthTokenProvider") as mock_tp_cls,
             patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
         ):
             mock_tp_cls.create = AsyncMock(return_value=MagicMock())
@@ -176,10 +176,10 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
 
         with (
             patch(
-                "dbt_mcp.config.settings.get_dbt_platform_context",
+                "dbt_mcp.config.credentials.get_dbt_platform_context",
                 return_value=mock_dbt_context,
             ),
-            patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_tp_cls,
+            patch("dbt_mcp.config.credentials.OAuthTokenProvider") as mock_tp_cls,
             patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
         ):
             mock_provider_instance = MagicMock()
@@ -217,10 +217,10 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
 
         with (
             patch(
-                "dbt_mcp.config.settings.get_dbt_platform_context",
+                "dbt_mcp.config.credentials.get_dbt_platform_context",
                 return_value=mock_dbt_context,
             ),
-            patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_tp_cls,
+            patch("dbt_mcp.config.credentials.OAuthTokenProvider") as mock_tp_cls,
             patch("dbt_mcp.config.settings.validate_settings") as mock_validate,
             patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
         ):
@@ -270,13 +270,13 @@ class TestCredentialsProviderOAuthUrl:
 
         with (
             patch(
-                "dbt_mcp.config.settings.get_dbt_platform_context",
+                "dbt_mcp.config.credentials.get_dbt_platform_context",
                 side_effect=capture_platform_context,
             ),
-            patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_tp_cls,
+            patch("dbt_mcp.config.credentials.OAuthTokenProvider") as mock_tp_cls,
             patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
-            patch("dbt_mcp.config.settings.get_dbt_profiles_path"),
-            patch("dbt_mcp.config.settings.DbtPlatformContextManager"),
+            patch("dbt_mcp.config.credentials.get_dbt_profiles_path"),
+            patch("dbt_mcp.config.credentials.DbtPlatformContextManager"),
         ):
             mock_tp_cls.create = AsyncMock(return_value=MagicMock())
 
@@ -318,18 +318,18 @@ class TestCredentialsProviderWarnings:
 
         with (
             patch(
-                "dbt_mcp.config.settings.get_dbt_platform_context",
+                "dbt_mcp.config.credentials.get_dbt_platform_context",
                 return_value=mock_dbt_context,
             ),
-            patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_tp_cls,
+            patch("dbt_mcp.config.credentials.OAuthTokenProvider") as mock_tp_cls,
             patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
-            patch("dbt_mcp.config.settings.get_dbt_profiles_path"),
-            patch("dbt_mcp.config.settings.DbtPlatformContextManager"),
+            patch("dbt_mcp.config.credentials.get_dbt_profiles_path"),
+            patch("dbt_mcp.config.credentials.DbtPlatformContextManager"),
             patch(
                 "dbt_mcp.config.settings.validate_dbt_platform_settings",
                 return_value=["DBT_PROD_ENV_ID environment variable is required"],
             ),
-            caplog.at_level(logging.WARNING, logger="dbt_mcp.config.settings"),
+            caplog.at_level(logging.WARNING, logger="dbt_mcp.config.credentials"),
         ):
             mock_tp_cls.create = AsyncMock(return_value=MagicMock())
 
