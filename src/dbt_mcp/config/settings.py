@@ -8,13 +8,6 @@ from pydantic import Field, field_validator, model_validator
 from pydantic_core.core_schema import ValidationInfo
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
-from dbt_mcp.config.credentials import (
-    AuthenticationMethod as AuthenticationMethod,  # noqa: F401
-    CredentialsProvider as CredentialsProvider,  # noqa: F401
-    OAUTH_REDIRECT_STARTING_PORT as OAUTH_REDIRECT_STARTING_PORT,  # noqa: F401
-    get_dbt_platform_context as get_dbt_platform_context,  # noqa: F401
-    get_dbt_profiles_path as get_dbt_profiles_path,  # noqa: F401
-)
 from dbt_mcp.config.dbt_project import DbtProjectYaml
 from dbt_mcp.config.dbt_yaml import try_read_yaml
 from dbt_mcp.tools.tool_names import ToolName

@@ -7,7 +7,8 @@ from dbt_mcp.config.config_providers import (
     DefaultDiscoveryConfigProvider,
     DiscoveryConfig,
 )
-from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
+from dbt_mcp.config.credentials import CredentialsProvider
+from dbt_mcp.config.settings import DbtMcpSettings
 from dbt_mcp.discovery.client import (
     DEFAULT_MAX_NODE_QUERY_LIMIT,
     DEFAULT_PAGE_SIZE,
