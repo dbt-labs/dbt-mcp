@@ -311,10 +311,12 @@ class DbtMcpSettings(BaseSettings):
         host = self.actual_host
         prefix = self.actual_host_prefix
         if host and prefix and host.startswith(f"{prefix}."):
+            base = host.removeprefix(f"{prefix}.")
             logger.warning(
                 f"DBT_HOST ('{host}') already contains the account prefix '{prefix}'. "
                 "The prefix will be stripped to avoid URL duplication. "
-                f"Consider using only DBT_HOST='{host}' and removing MULTICELL_ACCOUNT_PREFIX."
+                f"Consider setting DBT_HOST='{base}' (base host without the account prefix) "
+                f"and keeping DBT_HOST_PREFIX='{prefix}'."
             )
 
         # platform features
