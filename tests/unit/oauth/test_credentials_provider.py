@@ -1,3 +1,4 @@
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -240,3 +241,151 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
             await credentials_provider.get_credentials()
 
             mock_validate.assert_not_called()
+
+
+class TestCredentialsProviderOAuthUrl:
+    """OAuth URL construction respects MULTICELL_ACCOUNT_PREFIX and avoids double-prefix."""
+
+    @pytest.mark.asyncio
+    async def test_dbt_platform_url_includes_prefix_when_bare_host(self):
+        """dbt_platform_url uses prefix when MULTICELL_ACCOUNT_PREFIX is set and DBT_HOST is bare."""
+        mock_settings = DbtMcpSettings.model_construct(
+            dbt_host="us1.dbt.com",
+            multicell_account_prefix="ab123",
+            host_prefix=None,
+            dbt_prod_env_id=None,  # Missing — triggers OAuth fallback
+            dbt_token=None,
+        )
+
+        credentials_provider = CredentialsProvider(mock_settings)
+
+        mock_dbt_context = MagicMock()
+        mock_dbt_context.account_id = 456
+        mock_dbt_context.host_prefix = "ab123"
+        mock_dbt_context.user_id = 789
+        mock_dbt_context.dev_environment = None
+        mock_dbt_context.prod_environment.id = 123
+        mock_dbt_context.decoded_access_token = MagicMock()
+
+        captured_urls: list[str] = []
+
+        async def capture_platform_context(**kwargs: object) -> MagicMock:
+            captured_urls.append(str(kwargs["dbt_platform_url"]))
+            return mock_dbt_context
+
+        with (
+            patch(
+                "dbt_mcp.config.settings.get_dbt_platform_context",
+                side_effect=capture_platform_context,
+            ),
+            patch("dbt_mcp.config.settings.get_dbt_host", return_value="us1.dbt.com"),
+            patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_tp_cls,
+            patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
+            patch("dbt_mcp.config.settings.get_dbt_profiles_path"),
+            patch("dbt_mcp.config.settings.DbtPlatformContextManager"),
+        ):
+            mock_tp_cls.create = AsyncMock(return_value=MagicMock())
+
+            await credentials_provider.get_credentials()
+
+        assert len(captured_urls) == 1
+        assert captured_urls[0] == "https://ab123.us1.dbt.com"
+
+    @pytest.mark.asyncio
+    async def test_dbt_platform_url_no_double_prefix_when_host_embeds_prefix(self):
+        """dbt_platform_url does not double the prefix when DBT_HOST already embeds it."""
+        mock_settings = DbtMcpSettings.model_construct(
+            dbt_host="ab123.us1.dbt.com",
+            multicell_account_prefix="ab123",
+            host_prefix=None,
+            dbt_prod_env_id=None,
+            dbt_token=None,
+        )
+
+        credentials_provider = CredentialsProvider(mock_settings)
+
+        mock_dbt_context = MagicMock()
+        mock_dbt_context.account_id = 456
+        mock_dbt_context.host_prefix = "ab123"
+        mock_dbt_context.user_id = 789
+        mock_dbt_context.dev_environment = None
+        mock_dbt_context.prod_environment.id = 123
+        mock_dbt_context.decoded_access_token = MagicMock()
+
+        captured_urls: list[str] = []
+
+        async def capture_platform_context(**kwargs: object) -> MagicMock:
+            captured_urls.append(str(kwargs["dbt_platform_url"]))
+            return mock_dbt_context
+
+        with (
+            patch(
+                "dbt_mcp.config.settings.get_dbt_platform_context",
+                side_effect=capture_platform_context,
+            ),
+            patch("dbt_mcp.config.settings.get_dbt_host", return_value="us1.dbt.com"),
+            patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_tp_cls,
+            patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
+            patch("dbt_mcp.config.settings.get_dbt_profiles_path"),
+            patch("dbt_mcp.config.settings.DbtPlatformContextManager"),
+        ):
+            mock_tp_cls.create = AsyncMock(return_value=MagicMock())
+
+            await credentials_provider.get_credentials()
+
+        assert len(captured_urls) == 1
+        assert captured_urls[0] == "https://ab123.us1.dbt.com"
+
+
+class TestCredentialsProviderWarnings:
+    """Warnings emitted by CredentialsProvider for misconfigured settings."""
+
+    @pytest.mark.asyncio
+    async def test_warning_logged_when_dbt_token_set_but_platform_settings_incomplete(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        """A warning is logged when DBT_TOKEN is present but platform settings are invalid."""
+        mock_settings = DbtMcpSettings.model_construct(
+            dbt_host="us1.dbt.com",
+            multicell_account_prefix="ab123",
+            host_prefix=None,
+            dbt_prod_env_id=None,  # Missing — triggers validation failure
+            dbt_token="some-token",
+            disable_semantic_layer=False,
+            disable_discovery=False,
+            disable_admin_api=False,
+            disable_sql=False,
+        )
+
+        credentials_provider = CredentialsProvider(mock_settings)
+
+        mock_dbt_context = MagicMock()
+        mock_dbt_context.account_id = 456
+        mock_dbt_context.host_prefix = "ab123"
+        mock_dbt_context.user_id = 789
+        mock_dbt_context.dev_environment = None
+        mock_dbt_context.prod_environment.id = 123
+        mock_dbt_context.decoded_access_token = MagicMock()
+
+        with (
+            patch(
+                "dbt_mcp.config.settings.get_dbt_platform_context",
+                return_value=mock_dbt_context,
+            ),
+            patch("dbt_mcp.config.settings.get_dbt_host", return_value="us1.dbt.com"),
+            patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_tp_cls,
+            patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
+            patch("dbt_mcp.config.settings.get_dbt_profiles_path"),
+            patch("dbt_mcp.config.settings.DbtPlatformContextManager"),
+            patch(
+                "dbt_mcp.config.settings.validate_dbt_platform_settings",
+                return_value=["DBT_PROD_ENV_ID environment variable is required"],
+            ),
+            caplog.at_level(logging.WARNING, logger="dbt_mcp.config.settings"),
+        ):
+            mock_tp_cls.create = AsyncMock(return_value=MagicMock())
+
+            await credentials_provider.get_credentials()
+
+        assert "DBT_TOKEN is set but will be ignored" in caplog.text
+        assert "Falling back to OAuth authentication" in caplog.text

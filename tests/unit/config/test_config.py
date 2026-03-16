@@ -217,6 +217,27 @@ class TestDbtMcpSettings:
                 settings.actual_prod_environment_id == 123
             )  # DBT_PROD_ENV_ID takes precedence
 
+    def test_base_host_strips_prefix_when_prefix_embedded_in_host(self):
+        with patch.dict(
+            os.environ,
+            {"DBT_HOST": "ab123.us1.dbt.com", "MULTICELL_ACCOUNT_PREFIX": "ab123"},
+        ):
+            settings = DbtMcpSettings(_env_file=None)
+            assert settings.base_host == "us1.dbt.com"
+
+    def test_base_host_unchanged_when_prefix_not_embedded(self):
+        with patch.dict(
+            os.environ,
+            {"DBT_HOST": "us1.dbt.com", "MULTICELL_ACCOUNT_PREFIX": "ab123"},
+        ):
+            settings = DbtMcpSettings(_env_file=None)
+            assert settings.base_host == "us1.dbt.com"
+
+    def test_base_host_unchanged_when_no_prefix_configured(self):
+        with patch.dict(os.environ, {"DBT_HOST": "ab123.us1.dbt.com"}):
+            settings = DbtMcpSettings(_env_file=None)
+            assert settings.base_host == "ab123.us1.dbt.com"
+
     def test_auto_disable_platform_features_logging(self):
         with patch.dict(os.environ, {}, clear=True):
             settings = DbtMcpSettings(_env_file=None)
