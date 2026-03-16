@@ -6,7 +6,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Annotated
 
-from authlib.integrations.requests_client import OAuth2Session
 from filelock import FileLock
 from pydantic import Field, field_validator, model_validator
 from pydantic_core.core_schema import ValidationInfo
@@ -17,13 +16,10 @@ from dbt_mcp.config.dbt_yaml import try_read_yaml
 from dbt_mcp.config.headers import (
     TokenProvider,
 )
-from dbt_mcp.oauth.client_id import OAUTH_CLIENT_ID
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
-from dbt_mcp.oauth.dbt_platform import (
-    DbtPlatformContext,
-    dbt_platform_context_from_token_response,
-)
+from dbt_mcp.oauth.dbt_platform import DbtPlatformContext
 from dbt_mcp.oauth.expiry import STARTUP_EXPIRY_BUFFER_SECONDS
+from dbt_mcp.oauth.refresh import refresh_oauth_token
 from dbt_mcp.oauth.login import login
 from dbt_mcp.oauth.token_provider import (
     OAuthTokenProvider,
@@ -416,16 +412,10 @@ def _try_refresh_token(
     try:
         logger.info("Access token expired, attempting refresh using refresh token")
         token_url = f"{dbt_platform_url}/oauth/token"
-        oauth_client = OAuth2Session(
-            client_id=OAUTH_CLIENT_ID,
-            token_endpoint=token_url,
-        )
-        token_response = oauth_client.refresh_token(
-            url=token_url,
+        new_context = refresh_oauth_token(
             refresh_token=refresh_token,
-        )
-        new_context = dbt_platform_context_from_token_response(
-            token_response, dbt_platform_url
+            token_url=token_url,
+            dbt_platform_url=dbt_platform_url,
         )
         # Merge the new token with the existing context (preserves account/env info)
         updated_context = dbt_ctx.override(new_context)
