@@ -527,7 +527,7 @@ def get_dbt_host(
     if actual_host.startswith(host_prefix_with_period):
         # Prefix is embedded in DBT_HOST — strip it so it's tracked only via host_prefix
         return actual_host.removeprefix(host_prefix_with_period)
-    # Prefix not embedded (tracked separately via MULTICELL_ACCOUNT_PREFIX) — return as-is
+    # Prefix not embedded (tracked separately via host_prefix settings / actual_host_prefix) — return as-is
     return actual_host
 
 
