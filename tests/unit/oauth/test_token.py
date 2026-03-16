@@ -241,7 +241,9 @@ class TestFetchJwksAndVerifyTokenCaching:
 
     @patch("dbt_mcp.oauth.token.jwt.decode", return_value={"sub": "123"})
     @patch("dbt_mcp.oauth.token.PyJWKClient")
-    def test_same_url_reuses_client(self, mock_client_cls: MagicMock, _mock_decode: MagicMock):
+    def test_same_url_reuses_client(
+        self, mock_client_cls: MagicMock, _mock_decode: MagicMock
+    ):
         mock_instance = MagicMock()
         mock_client_cls.return_value = mock_instance
 
@@ -252,7 +254,9 @@ class TestFetchJwksAndVerifyTokenCaching:
 
     @patch("dbt_mcp.oauth.token.jwt.decode", return_value={"sub": "123"})
     @patch("dbt_mcp.oauth.token.PyJWKClient")
-    def test_different_urls_get_different_clients(self, mock_client_cls: MagicMock, _mock_decode: MagicMock):
+    def test_different_urls_get_different_clients(
+        self, mock_client_cls: MagicMock, _mock_decode: MagicMock
+    ):
         mock_instance = MagicMock()
         mock_client_cls.return_value = mock_instance
 
