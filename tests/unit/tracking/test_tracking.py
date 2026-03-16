@@ -4,7 +4,8 @@ from unittest.mock import patch
 
 import pytest
 
-from dbt_mcp.config.settings import AuthenticationMethod, DbtMcpSettings
+from dbt_mcp.config.credentials import AuthenticationMethod
+from dbt_mcp.config.settings import DbtMcpSettings
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset, proxied_tools
 from dbt_mcp.tracking.tracking import DefaultUsageTracker, ToolCalledEvent

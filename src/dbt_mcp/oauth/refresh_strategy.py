@@ -27,7 +27,11 @@ class RefreshStrategy(Protocol):
 class DefaultRefreshStrategy:
     """Default strategy that refreshes tokens with a buffer before expiry."""
 
-    def __init__(self, buffer_seconds: int = BACKGROUND_REFRESH_BUFFER_SECONDS, error_retry_delay: float = 5.0):
+    def __init__(
+        self,
+        buffer_seconds: int = BACKGROUND_REFRESH_BUFFER_SECONDS,
+        error_retry_delay: float = 5.0,
+    ):
         """
         Initialize with timing configuration.
 
