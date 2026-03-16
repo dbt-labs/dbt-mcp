@@ -41,9 +41,12 @@ class TestCredentialsProviderAuthenticationMethod:
                 return_value=mock_dbt_context,
             ),
             patch(
-                "dbt_mcp.config.credentials.get_dbt_host", return_value="cloud.getdbt.com"
+                "dbt_mcp.config.credentials.get_dbt_host",
+                return_value="cloud.getdbt.com",
             ),
-            patch("dbt_mcp.config.credentials.OAuthTokenProvider") as mock_token_provider,
+            patch(
+                "dbt_mcp.config.credentials.OAuthTokenProvider"
+            ) as mock_token_provider,
             patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
         ):
             mock_provider_instance = MagicMock()
@@ -145,7 +148,8 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
                 return_value=mock_dbt_context,
             ),
             patch(
-                "dbt_mcp.config.credentials.get_dbt_host", return_value="cloud.getdbt.com"
+                "dbt_mcp.config.credentials.get_dbt_host",
+                return_value="cloud.getdbt.com",
             ),
             patch("dbt_mcp.config.credentials.OAuthTokenProvider") as mock_tp_cls,
             patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
@@ -185,7 +189,8 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
                 return_value=mock_dbt_context,
             ),
             patch(
-                "dbt_mcp.config.credentials.get_dbt_host", return_value="cloud.getdbt.com"
+                "dbt_mcp.config.credentials.get_dbt_host",
+                return_value="cloud.getdbt.com",
             ),
             patch("dbt_mcp.config.credentials.OAuthTokenProvider") as mock_tp_cls,
             patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
@@ -229,7 +234,8 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
                 return_value=mock_dbt_context,
             ),
             patch(
-                "dbt_mcp.config.credentials.get_dbt_host", return_value="cloud.getdbt.com"
+                "dbt_mcp.config.credentials.get_dbt_host",
+                return_value="cloud.getdbt.com",
             ),
             patch("dbt_mcp.config.credentials.OAuthTokenProvider") as mock_tp_cls,
             patch("dbt_mcp.config.settings.validate_settings") as mock_validate,
