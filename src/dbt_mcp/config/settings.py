@@ -76,7 +76,9 @@ class DbtMcpSettings(BaseSettings):
     dbt_user_id: int | None = Field(None, alias="DBT_USER_ID")
     dbt_account_id: int | None = Field(None, alias="DBT_ACCOUNT_ID")
     dbt_token: str | None = Field(None, alias="DBT_TOKEN")
-    multicell_account_prefix: str | None = Field(None, alias="MULTICELL_ACCOUNT_PREFIX")
+    multicell_account_prefix: str | None = Field(
+        None, alias="MULTICELL_ACCOUNT_PREFIX"
+    )  # legacy support
     host_prefix: str | None = Field(None, alias="DBT_HOST_PREFIX")
     dbt_lsp_path: str | None = Field(None, alias="DBT_LSP_PATH")
 
