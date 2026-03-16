@@ -1,3 +1,4 @@
+from functools import lru_cache
 from typing import Any
 
 import jwt
@@ -5,17 +6,13 @@ from jwt import PyJWKClient
 from pydantic import BaseModel
 
 
-_jwks_clients: dict[str, PyJWKClient] = {}
-
-
+@lru_cache(maxsize=1)
 def _get_jwks_client(jwks_url: str) -> PyJWKClient:
-    if jwks_url not in _jwks_clients:
-        _jwks_clients[jwks_url] = PyJWKClient(jwks_url)
-    return _jwks_clients[jwks_url]
+    return PyJWKClient(jwks_url)
 
 
 def _clear_jwks_cache() -> None:
-    _jwks_clients.clear()
+    _get_jwks_client.cache_clear()
 
 
 class AccessTokenResponse(BaseModel):
