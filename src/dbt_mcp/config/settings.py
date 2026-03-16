@@ -316,7 +316,8 @@ class DbtMcpSettings(BaseSettings):
                 f"DBT_HOST ('{host}') already contains the account prefix '{prefix}'. "
                 "The prefix will be stripped to avoid URL duplication. "
                 f"Consider setting DBT_HOST='{base}' (base host without the account prefix) "
-                f"and keeping DBT_HOST_PREFIX='{prefix}'."
+                "and keeping the configured host prefix environment variable set to "
+                f"'{prefix}'."
             )
 
         # platform features
