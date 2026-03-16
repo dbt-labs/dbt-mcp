@@ -74,31 +74,24 @@ class TestGetTokenValidatesExpiry:
         mock_context = MagicMock()
         mock_context.decoded_access_token.access_token_response = new_token_response
 
-        with patch.object(provider, "oauth_client") as mock_client:
-            mock_client.refresh_token.return_value = {
-                "access_token": "fresh",
-                "refresh_token": "new_refresh",
-                "expires_in": 3600,
-                "scope": "user_access offline_access",
-                "token_type": "Bearer",
-                "expires_at": int(time.time()) + 3600,
-            }
-            with patch(
-                "dbt_mcp.oauth.token_provider.dbt_platform_context_from_token_response"
-            ) as mock_from_token:
-                mock_from_token.return_value = mock_context
-                token = provider.get_token()
+        with patch(
+            "dbt_mcp.oauth.token_provider.refresh_oauth_token"
+        ) as mock_refresh:
+            mock_refresh.return_value = mock_context
+            token = provider.get_token()
 
         assert token == "fresh"
-        mock_client.refresh_token.assert_called_once()
+        mock_refresh.assert_called_once()
 
     def test_raises_when_refresh_fails(self):
         """If inline refresh fails, a clear error is raised (not a stale token)."""
         expired_at = int(time.time()) - 100
         provider = _make_provider(expires_at=expired_at, access_token="stale")
 
-        with patch.object(provider, "oauth_client") as mock_client:
-            mock_client.refresh_token.side_effect = Exception("network error")
+        with patch(
+            "dbt_mcp.oauth.token_provider.refresh_oauth_token"
+        ) as mock_refresh:
+            mock_refresh.side_effect = Exception("network error")
             with pytest.raises(ValueError, match="expired and inline refresh failed"):
                 provider.get_token()
 
@@ -113,13 +106,11 @@ class TestGetTokenValidatesExpiry:
         mock_context = MagicMock()
         mock_context.decoded_access_token.access_token_response = new_token_response
 
-        with patch.object(provider, "oauth_client") as mock_client:
-            mock_client.refresh_token.return_value = {}
-            with patch(
-                "dbt_mcp.oauth.token_provider.dbt_platform_context_from_token_response"
-            ) as mock_from_token:
-                mock_from_token.return_value = mock_context
-                token = provider.get_token()
+        with patch(
+            "dbt_mcp.oauth.token_provider.refresh_oauth_token"
+        ) as mock_refresh:
+            mock_refresh.return_value = mock_context
+            token = provider.get_token()
 
         assert token == "fresh"
 

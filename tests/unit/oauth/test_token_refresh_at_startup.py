@@ -142,9 +142,9 @@ class TestTryRefreshToken:
         }
 
         with (
-            patch("dbt_mcp.config.settings.OAuth2Session") as mock_oauth_session_class,
+            patch("dbt_mcp.oauth.refresh.OAuth2Session") as mock_oauth_session_class,
             patch(
-                "dbt_mcp.config.settings.dbt_platform_context_from_token_response"
+                "dbt_mcp.oauth.refresh.dbt_platform_context_from_token_response"
             ) as mock_from_token,
         ):
             mock_oauth_session = MagicMock()
@@ -168,7 +168,7 @@ class TestTryRefreshToken:
         ctx = _create_mock_context(expires_at=int(time.time()) - 3600)
         mock_context_manager = MagicMock()
 
-        with patch("dbt_mcp.config.settings.OAuth2Session") as mock_oauth_session_class:
+        with patch("dbt_mcp.oauth.refresh.OAuth2Session") as mock_oauth_session_class:
             mock_oauth_session = MagicMock()
             mock_oauth_session.refresh_token.side_effect = Exception("Network error")
             mock_oauth_session_class.return_value = mock_oauth_session

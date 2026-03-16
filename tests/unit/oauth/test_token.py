@@ -1,11 +1,18 @@
 """
-Tests for OAuth token models.
+Tests for OAuth token models and JWKS verification.
 """
+
+from unittest.mock import MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
 
-from dbt_mcp.oauth.token import AccessTokenResponse, DecodedAccessToken
+from dbt_mcp.oauth.token import (
+    AccessTokenResponse,
+    DecodedAccessToken,
+    _clear_jwks_cache,
+    fetch_jwks_and_verify_token,
+)
 
 
 class TestAccessTokenResponse:
@@ -221,3 +228,40 @@ class TestDecodedAccessToken:
             decoded_token.decoded_claims["metadata"]["created_at"]
             == "2021-01-01T00:00:00Z"
         )
+
+
+class TestFetchJwksAndVerifyTokenCaching:
+    """JWKS client should be cached per platform URL to avoid redundant HTTP fetches."""
+
+    def setup_method(self):
+        _clear_jwks_cache()
+
+    def teardown_method(self):
+        _clear_jwks_cache()
+
+    @patch("dbt_mcp.oauth.token.jwt.decode", return_value={"sub": "123"})
+    @patch("dbt_mcp.oauth.token.PyJWKClient")
+    def test_jwks_client_reused_across_calls(self, mock_client_cls, _mock_decode):
+        """Same platform URL should reuse the PyJWKClient instance."""
+        mock_instance = MagicMock()
+        mock_client_cls.return_value = mock_instance
+        mock_instance.get_signing_key_from_jwt.return_value = MagicMock(key="key")
+
+        fetch_jwks_and_verify_token("token1", "https://cloud.getdbt.com")
+        fetch_jwks_and_verify_token("token2", "https://cloud.getdbt.com")
+
+        # PyJWKClient should only be constructed once for the same URL
+        assert mock_client_cls.call_count == 1
+
+    @patch("dbt_mcp.oauth.token.jwt.decode", return_value={"sub": "123"})
+    @patch("dbt_mcp.oauth.token.PyJWKClient")
+    def test_different_urls_get_different_clients(self, mock_client_cls, _mock_decode):
+        """Different platform URLs should get separate cached clients."""
+        mock_instance = MagicMock()
+        mock_client_cls.return_value = mock_instance
+        mock_instance.get_signing_key_from_jwt.return_value = MagicMock(key="key")
+
+        fetch_jwks_and_verify_token("token1", "https://cloud.getdbt.com")
+        fetch_jwks_and_verify_token("token2", "https://emea.dbt.com")
+
+        assert mock_client_cls.call_count == 2

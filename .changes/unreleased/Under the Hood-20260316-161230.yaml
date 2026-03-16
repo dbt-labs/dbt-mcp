@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: 'Simplify OAuth token refresh: consolidate duplicate refresh logic, unify expiry constants, add JWKS caching, and extract credentials module from settings'
+time: 2026-03-16T16:12:30.736639-05:00

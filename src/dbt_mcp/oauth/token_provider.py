@@ -3,19 +3,16 @@ import logging
 import time
 from typing import Protocol
 
-from authlib.integrations.requests_client import OAuth2Session
-
-from dbt_mcp.oauth.client_id import OAUTH_CLIENT_ID
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
-from dbt_mcp.oauth.dbt_platform import dbt_platform_context_from_token_response
+from dbt_mcp.oauth.expiry import INLINE_REFRESH_BUFFER_SECONDS
+from dbt_mcp.oauth.refresh import refresh_oauth_token
 from dbt_mcp.oauth.refresh_strategy import DefaultRefreshStrategy, RefreshStrategy
 from dbt_mcp.oauth.token import AccessTokenResponse
 
 logger = logging.getLogger(__name__)
 
-# Buffer in seconds before expiry at which get_token() considers the token expired
-# and triggers an inline refresh.
-TOKEN_EXPIRY_BUFFER_SECONDS = 30
+# Re-export for backward compatibility with tests that import this name.
+TOKEN_EXPIRY_BUFFER_SECONDS = INLINE_REFRESH_BUFFER_SECONDS
 
 
 class TokenProvider(Protocol):
@@ -47,10 +44,6 @@ class OAuthTokenProvider:
         self.dbt_platform_url = dbt_platform_url
         self.refresh_strategy = refresh_strategy or DefaultRefreshStrategy()
         self.token_url = f"{self.dbt_platform_url}/oauth/token"
-        self.oauth_client = OAuth2Session(
-            client_id=OAUTH_CLIENT_ID,
-            token_endpoint=self.token_url,
-        )
 
     @classmethod
     async def create(
@@ -70,12 +63,6 @@ class OAuthTokenProvider:
         provider.start_background_refresh()
         return provider
 
-    def _get_access_token_response(self) -> AccessTokenResponse:
-        dbt_platform_context = self.context_manager.read_context()
-        if not dbt_platform_context or not dbt_platform_context.decoded_access_token:
-            raise ValueError("No decoded access token found in context")
-        return dbt_platform_context.decoded_access_token.access_token_response
-
     def _is_token_expired(self) -> bool:
         """Check whether the current access token is expired or about to expire."""
         return (
@@ -87,16 +74,13 @@ class OAuthTokenProvider:
         """Refresh the OAuth access token using the refresh token.
 
         Used by both the background worker and the inline safety-net in
-        ``get_token()``.  All operations (authlib's ``refresh_token``, context
-        persistence) are synchronous, so a plain ``def`` is sufficient.
+        ``get_token()``.
         """
         logger.info("Refreshing OAuth access token")
-        token_response = self.oauth_client.refresh_token(
-            url=self.token_url,
+        dbt_platform_context = refresh_oauth_token(
             refresh_token=self.access_token_response.refresh_token,
-        )
-        dbt_platform_context = dbt_platform_context_from_token_response(
-            token_response, self.dbt_platform_url
+            token_url=self.token_url,
+            dbt_platform_url=self.dbt_platform_url,
         )
         self.context_manager.update_context(dbt_platform_context)
         if not dbt_platform_context.decoded_access_token:
