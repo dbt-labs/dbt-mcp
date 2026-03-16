@@ -2,10 +2,17 @@
 Tests for OAuth token models.
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from pydantic import ValidationError
 
-from dbt_mcp.oauth.token import AccessTokenResponse, DecodedAccessToken
+from dbt_mcp.oauth.token import (
+    AccessTokenResponse,
+    DecodedAccessToken,
+    _clear_jwks_cache,
+    fetch_jwks_and_verify_token,
+)
 
 
 class TestAccessTokenResponse:
@@ -221,3 +228,35 @@ class TestDecodedAccessToken:
             decoded_token.decoded_claims["metadata"]["created_at"]
             == "2021-01-01T00:00:00Z"
         )
+
+
+class TestFetchJwksAndVerifyTokenCaching:
+    """Test that JWKS clients are cached per URL."""
+
+    def setup_method(self):
+        _clear_jwks_cache()
+
+    def teardown_method(self):
+        _clear_jwks_cache()
+
+    @patch("dbt_mcp.oauth.token.jwt.decode", return_value={"sub": "123"})
+    @patch("dbt_mcp.oauth.token.PyJWKClient")
+    def test_same_url_reuses_client(self, mock_client_cls: MagicMock, _mock_decode: MagicMock):
+        mock_instance = MagicMock()
+        mock_client_cls.return_value = mock_instance
+
+        fetch_jwks_and_verify_token("token1", "https://cloud.getdbt.com")
+        fetch_jwks_and_verify_token("token2", "https://cloud.getdbt.com")
+
+        assert mock_client_cls.call_count == 1
+
+    @patch("dbt_mcp.oauth.token.jwt.decode", return_value={"sub": "123"})
+    @patch("dbt_mcp.oauth.token.PyJWKClient")
+    def test_different_urls_get_different_clients(self, mock_client_cls: MagicMock, _mock_decode: MagicMock):
+        mock_instance = MagicMock()
+        mock_client_cls.return_value = mock_instance
+
+        fetch_jwks_and_verify_token("token1", "https://cloud.getdbt.com")
+        fetch_jwks_and_verify_token("token2", "https://emea.dbt.com")
+
+        assert mock_client_cls.call_count == 2
