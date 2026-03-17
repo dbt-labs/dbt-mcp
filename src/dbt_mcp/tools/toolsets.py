@@ -135,6 +135,8 @@ toolsets = {
 
 multi_project_tools: set[ToolName] = toolsets[Toolset.MULTI_PROJECT_SEMANTIC_LAYER]
 
+multi_project_only_toolsets: set[Toolset] = {Toolset.MULTI_PROJECT_SEMANTIC_LAYER}
+
 
 # Mapping from individual tools to their toolsets (for precedence logic)
 TOOL_TO_TOOLSET: dict[ToolName, Toolset] = {}

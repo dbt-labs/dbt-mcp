@@ -118,16 +118,6 @@ These tools provide information about the MCP server itself.
 - `get_mcp_server_branch`: Returns the current git branch of the running dbt MCP server.
 - `get_mcp_server_version`: Returns the current version of the dbt MCP server.
 
-### Multi Project Semantic Layer
-
-Multi-project variants of the Semantic Layer tools that accept a project_id parameter to query metrics across different dbt projects.
-- `get_dimensions_for_project`: Gets dimensions for specified metrics in a specific project.
-- `get_entities_for_project`: Gets entities for specified metrics in a specific project.
-- `get_metrics_compiled_sql_for_project`: Returns compiled SQL for metrics without executing the query for a specific project.
-- `list_metrics_for_project`: Retrieves all defined metrics for a specific project.
-- `list_saved_queries_for_project`: Retrieves all saved queries for a specific project.
-- `query_metrics_for_project`: Executes metric queries with filtering and grouping options for a specific project.
-
 
 ## Examples
 
