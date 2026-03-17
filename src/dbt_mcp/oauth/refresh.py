@@ -1,5 +1,3 @@
-import logging
-
 from authlib.integrations.requests_client import OAuth2Session
 
 from dbt_mcp.oauth.client_id import OAUTH_CLIENT_ID
@@ -7,8 +5,6 @@ from dbt_mcp.oauth.dbt_platform import (
     DbtPlatformContext,
     dbt_platform_context_from_token_response,
 )
-
-logger = logging.getLogger(__name__)
 
 
 def refresh_oauth_token(
