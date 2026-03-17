@@ -23,13 +23,18 @@ class CountingMetadataAPIClient(MetadataAPIClient):
         self.request_payloads: list[dict] = []
 
     async def execute_query(
-        self, query: str, variables: dict[str, Any]
+        self,
+        query: str,
+        variables: dict[str, Any],
+        config_override: DiscoveryConfig | None = None,
     ) -> dict[str, Any]:
         self.request_calls += 1
         self.request_payloads.append(
             copy.deepcopy({"query": query, "variables": variables})
         )
-        return await super().execute_query(query, variables)
+        return await super().execute_query(
+            query, variables, config_override=config_override
+        )
 
 
 @pytest.fixture
