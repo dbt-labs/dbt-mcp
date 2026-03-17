@@ -1,6 +1,7 @@
 from strands import Agent, tool
-from strands_tools import python_repl, shell, file_read, file_write, editor
-import os, json, subprocess
+import os
+import json
+import subprocess
 
 from dotenv import load_dotenv
 
@@ -13,6 +14,7 @@ When asked to 'find a problem' or 'compile a project' on your local dbt project,
     2) Recommend a concrete fix in 1-3 bullet points (e.g., correct ref(), add column, fix Jinja).
     3) If no errors, say compile is clean and suggest next step (e.g., run build state:modified+).
 """
+
 
 @tool
 def dbt_compile(query: str) -> str:
@@ -27,16 +29,16 @@ def dbt_compile(query: str) -> str:
     # Get the DBT_ROOT environment variable, default to current directory
     dbt_project_location = os.getenv("DBT_PROJECT_LOCATION", os.getcwd())
     dbt_executable = os.getenv("DBT_EXECUTABLE")
-    
+
     print(f"Running dbt compile in: {dbt_project_location}")
     print(f"Running dbt executable located here: {dbt_executable}")
 
     proc = subprocess.run(
-            [dbt_executable, "compile", "--log-format", "json"],
-            cwd=dbt_project_location,
-            text=True,
-            capture_output=True
-        )
+        [dbt_executable, "compile", "--log-format", "json"],
+        cwd=dbt_project_location,
+        text=True,
+        capture_output=True,
+    )
     print(proc)
     logs: List[Dict] = []
     for stream in (proc.stdout, proc.stderr):
@@ -50,7 +52,7 @@ def dbt_compile(query: str) -> str:
 
     # Format the query for the compile agent with clear instructions
     formatted_query = f"User will have asked to compile a dbt project. Summarize the results of the compile command output: {output_of_compile}"
-    
+
     try:
         print("Routed to dbt compile agent")
         # Create the dbt compile agent with relevant tools
@@ -63,7 +65,7 @@ def dbt_compile(query: str) -> str:
 
         if len(text_response) > 0:
             return text_response
-        
+
         return "I apologize, but I couldn't process your dbt compile question. Please try rephrasing or providing more specific details about what you're trying to learn or accomplish."
     except Exception as e:
         # Return specific error message for dbt compile processing
