@@ -8,7 +8,7 @@ from dbt_mcp.config.config import (
     DbtMcpSettings,
     load_config,
 )
-from dbt_mcp.config.settings import DEFAULT_DBT_CLI_TIMEOUT
+from dbt_mcp.config.settings import DEFAULT_DBT_CLI_TIMEOUT, _build_dbt_platform_url
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.tools.tool_names import ToolName
 
@@ -237,6 +237,19 @@ class TestDbtMcpSettings:
         with patch.dict(os.environ, {"DBT_HOST": "ab123.us1.dbt.com"}):
             settings = DbtMcpSettings(_env_file=None)
             assert settings.base_host == "ab123.us1.dbt.com"
+
+    def test_build_dbt_platform_url_raises_on_prefix_mismatch(self):
+        """ValueError raised when DBT_HOST embeds a different prefix than the configured one."""
+        with pytest.raises(ValueError, match="already contain an account prefix"):
+            _build_dbt_platform_url("xy999.us1.dbt.com", "ab123")
+
+    def test_build_dbt_platform_url_no_error_when_prefix_matches(self):
+        url = _build_dbt_platform_url("ab123.us1.dbt.com", "ab123")
+        assert url == "https://ab123.us1.dbt.com"
+
+    def test_build_dbt_platform_url_no_error_when_no_embedded_prefix(self):
+        url = _build_dbt_platform_url("us1.dbt.com", "ab123")
+        assert url == "https://ab123.us1.dbt.com"
 
     def test_auto_disable_platform_features_logging(self):
         with patch.dict(os.environ, {}, clear=True):

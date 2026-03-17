@@ -312,12 +312,15 @@ class DbtMcpSettings(BaseSettings):
         prefix = self.actual_host_prefix
         if host and prefix and host.startswith(f"{prefix}."):
             base = host.removeprefix(f"{prefix}.")
+            prefix_env_var = (
+                "DBT_HOST_PREFIX"
+                if self.host_prefix is not None
+                else "MULTICELL_ACCOUNT_PREFIX"
+            )
             logger.warning(
                 f"DBT_HOST ('{host}') already contains the account prefix '{prefix}'. "
                 "The prefix will be stripped to avoid URL duplication. "
-                f"Consider setting DBT_HOST='{base}' (base host without the account prefix) "
-                "and keeping the configured host prefix environment variable set to "
-                f"'{prefix}'."
+                f"Consider setting DBT_HOST='{base}' and keeping {prefix_env_var}='{prefix}'."
             )
 
         # platform features
@@ -513,7 +516,17 @@ def _build_dbt_platform_url(actual_host: str, actual_host_prefix: str | None) ->
     - Prefix set, already in host: use host as-is (no double prefix)
     - No prefix: use host as-is
     """
-    if actual_host_prefix and not actual_host.startswith(f"{actual_host_prefix}."):
+    if actual_host_prefix:
+        if actual_host.startswith(f"{actual_host_prefix}."):
+            return f"https://{actual_host}"
+        labels = actual_host.split(".")
+        if len(labels) >= 4 and labels[0] != actual_host_prefix:
+            raise ValueError(
+                f"DBT_HOST ('{actual_host}') appears to already contain an account prefix "
+                f"('{labels[0]}') that differs from the configured prefix '{actual_host_prefix}'. "
+                f"Set DBT_HOST to the base host (e.g. '{'.'.join(labels[1:])}') "
+                "or update your prefix env var."
+            )
         return f"https://{actual_host_prefix}.{actual_host}"
     return f"https://{actual_host}"
 
@@ -526,9 +539,21 @@ def get_dbt_host(
         raise ValueError("DBT_HOST is a required environment variable")
     host_prefix_with_period = f"{dbt_platform_context.host_prefix}."
     if actual_host.startswith(host_prefix_with_period):
-        # Prefix is embedded in DBT_HOST — strip it so it's tracked only via host_prefix
+        # Prefix is embedded in DBT_HOST — strip it so it's tracked only via host_prefix settings
         return actual_host.removeprefix(host_prefix_with_period)
-    # Prefix not embedded (tracked separately via host_prefix settings / actual_host_prefix) — return as-is
+    # Check for a different prefix already embedded in the host
+    labels = actual_host.split(".")
+    if (
+        dbt_platform_context.host_prefix
+        and len(labels) >= 4
+        and labels[0] != dbt_platform_context.host_prefix
+    ):
+        logger.warning(
+            f"DBT_HOST ('{actual_host}') appears to contain a different account prefix "
+            f"('{labels[0]}') than the one from context ('{dbt_platform_context.host_prefix}'). "
+            "This may result in incorrect URL construction."
+        )
+    # Prefix not embedded (tracked separately via host_prefix settings) — return as-is
     return actual_host
 
 

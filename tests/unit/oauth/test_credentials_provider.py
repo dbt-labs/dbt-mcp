@@ -7,6 +7,7 @@ from dbt_mcp.config.settings import (
     AuthenticationMethod,
     CredentialsProvider,
     DbtMcpSettings,
+    get_dbt_host,
 )
 
 
@@ -349,7 +350,7 @@ class TestCredentialsProviderWarnings:
             dbt_host="us1.dbt.com",
             multicell_account_prefix="ab123",
             host_prefix=None,
-            dbt_prod_env_id=None,  # Missing — triggers validation failure
+            dbt_prod_env_id=None,  # incomplete platform settings trigger validation failure
             dbt_token="some-token",
             disable_semantic_layer=False,
             disable_discovery=False,
@@ -389,3 +390,25 @@ class TestCredentialsProviderWarnings:
 
         assert "DBT_TOKEN is set but will be ignored" in caplog.text
         assert "Falling back to OAuth authentication" in caplog.text
+
+
+class TestGetDbtHost:
+    """Tests for get_dbt_host helper."""
+
+    def test_prefix_mismatch_logs_warning(self, caplog: pytest.LogCaptureFixture):
+        """A warning is logged when DBT_HOST embeds a different prefix than the one from context."""
+        mock_settings = DbtMcpSettings.model_construct(
+            dbt_host="xy999.us1.dbt.com",
+            host_prefix=None,
+            multicell_account_prefix=None,
+        )
+        mock_context = MagicMock()
+        mock_context.host_prefix = "ab123"
+
+        with caplog.at_level(logging.WARNING, logger="dbt_mcp.config.settings"):
+            result = get_dbt_host(mock_settings, mock_context)
+
+        assert result == "xy999.us1.dbt.com"
+        assert "appears to contain a different account prefix" in caplog.text
+        assert "'xy999'" in caplog.text
+        assert "'ab123'" in caplog.text
