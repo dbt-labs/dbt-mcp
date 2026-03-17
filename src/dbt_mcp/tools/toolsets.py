@@ -21,6 +21,7 @@ class Toolset(Enum):
     DBT_LSP = "dbt_lsp"
     PRODUCT_DOCS = "product_docs"
     MCP_SERVER_METADATA = "mcp_server_metadata"
+    PROJECT = "project"
 
 
 proxied_tools: set[
@@ -42,6 +43,13 @@ proxied_tools: set[
         ToolName.FUSION_GET_COLUMN_LINEAGE,
     ]
 )
+
+# Tools only registered on the multi-project server (Server B), not on the
+# single-project server (Server A). Tests for Server A account for these
+# separately, similar to proxied_tools.
+multiproject_only_tools: set[Literal[ToolName.LIST_PROJECTS_AND_ENVIRONMENTS,]] = {
+    ToolName.LIST_PROJECTS_AND_ENVIRONMENTS,
+}
 
 toolsets = {
     Toolset.SQL: {
@@ -121,6 +129,9 @@ toolsets = {
     Toolset.MCP_SERVER_METADATA: {
         ToolName.GET_MCP_SERVER_VERSION,
         ToolName.GET_MCP_SERVER_BRANCH,
+    },
+    Toolset.PROJECT: {
+        ToolName.LIST_PROJECTS_AND_ENVIRONMENTS,
     },
 }
 

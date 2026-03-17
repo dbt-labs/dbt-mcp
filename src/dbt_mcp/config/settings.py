@@ -100,6 +100,7 @@ class DbtMcpSettings(BaseSettings):
     disable_lsp: bool | None = Field(None, alias="DISABLE_LSP")
     disable_product_docs: bool = Field(False, alias="DISABLE_PRODUCT_DOCS")
     disable_mcp_server_metadata: bool = Field(True, alias="DISABLE_MCP_SERVER_METADATA")
+    disable_project: bool = Field(False, alias="DISABLE_PROJECT")
 
     # Enable tool settings (allowlist)
     enable_tools: Annotated[list[ToolName] | None, NoDecode] = Field(
@@ -116,6 +117,7 @@ class DbtMcpSettings(BaseSettings):
     enable_mcp_server_metadata: bool = Field(
         False, alias="DBT_MCP_ENABLE_MCP_SERVER_METADATA"
     )
+    enable_project: bool = Field(False, alias="DBT_MCP_ENABLE_PROJECT")
 
     # Tracking settings
     do_not_track: str | None = Field(None, alias="DO_NOT_TRACK")

@@ -20,10 +20,9 @@ def main() -> None:
         logger.info(
             "DBT_MCP_MULTI_PROJECT_ENABLED=true -> Multi-project mode (Server B)"
         )
-        raise NotImplementedError(
-            "Multi-project mode is not yet implemented. "
-            "It will be available in a future release."
-        )
+        from dbt_mcp.mcp.server_multiproject import create_dbt_mcp_multiproject
+
+        server = asyncio.run(create_dbt_mcp_multiproject(config))
     else:
         logger.info("Multi-project mode disabled -> Env-var mode (Server A)")
         server = asyncio.run(create_dbt_mcp(config))
