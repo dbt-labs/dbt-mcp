@@ -8,6 +8,7 @@ from dbt_mcp.config.config_providers import (
     DefaultSemanticLayerConfigProvider,
     SemanticLayerConfig,
 )
+from dbt_mcp.config.headers import SemanticLayerHeadersProvider
 from dbt_mcp.project.environment_resolver import get_environments_for_project
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.semantic_layer.client import (
@@ -57,11 +58,21 @@ async def _resolve_sl_config_for_project(
     )
     if not prod_env:
         raise ValueError(f"No production environment found for project {project_id}")
-    return DefaultSemanticLayerConfigProvider._build_config(
-        host=settings.actual_host,
-        host_prefix=settings.actual_host_prefix,
+    host = settings.actual_host
+    host_prefix = settings.actual_host_prefix
+    is_local = host.startswith("localhost")
+    if is_local:
+        sl_host = host
+    elif host_prefix:
+        sl_host = f"{host_prefix}.semantic-layer.{host}"
+    else:
+        sl_host = f"semantic-layer.{host}"
+    return SemanticLayerConfig(
+        url=f"http://{sl_host}" if is_local else f"https://{sl_host}/api/graphql",
+        host=sl_host,
         prod_environment_id=prod_env.id,
         token_provider=token_provider,
+        headers_provider=SemanticLayerHeadersProvider(token_provider=token_provider),
     )
 
 
