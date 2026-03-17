@@ -118,9 +118,20 @@ class SemanticLayerFetcher:
         self.entities_cache: dict[str, list[EntityToolResponse]] = {}
         self.dimensions_cache: dict[str, list[DimensionToolResponse]] = {}
 
-    async def list_metrics(self, search: str | None = None) -> list[MetricToolResponse]:
+    async def _resolve_config(
+        self, config_override: SemanticLayerConfig | None = None
+    ) -> SemanticLayerConfig:
+        if config_override is not None:
+            return config_override
+        return await self.config_provider.get_config()
+
+    async def list_metrics(
+        self,
+        search: str | None = None,
+        config_override: SemanticLayerConfig | None = None,
+    ) -> list[MetricToolResponse]:
         metrics_result = await submit_request(
-            await self.config_provider.get_config(),
+            await self._resolve_config(config_override),
             {"query": GRAPHQL_QUERIES["metrics"], "variables": {"search": search}},
         )
         return [
@@ -135,11 +146,13 @@ class SemanticLayerFetcher:
         ]
 
     async def list_saved_queries(
-        self, search: str | None = None
+        self,
+        search: str | None = None,
+        config_override: SemanticLayerConfig | None = None,
     ) -> list[SavedQueryToolResponse]:
         """Fetch all saved queries from the Semantic Layer API."""
         saved_queries_result = await submit_request(
-            await self.config_provider.get_config(),
+            await self._resolve_config(config_override),
             {
                 "query": GRAPHQL_QUERIES["saved_queries"],
                 "variables": {"search": search},
@@ -168,12 +181,15 @@ class SemanticLayerFetcher:
         ]
 
     async def get_dimensions(
-        self, metrics: list[str], search: str | None = None
+        self,
+        metrics: list[str],
+        search: str | None = None,
+        config_override: SemanticLayerConfig | None = None,
     ) -> list[DimensionToolResponse]:
         metrics_key = ",".join(sorted(metrics))
         if metrics_key not in self.dimensions_cache:
             dimensions_result = await submit_request(
-                await self.config_provider.get_config(),
+                await self._resolve_config(config_override),
                 {
                     "query": GRAPHQL_QUERIES["dimensions"],
                     "variables": {
@@ -199,12 +215,15 @@ class SemanticLayerFetcher:
         return self.dimensions_cache[metrics_key]
 
     async def get_entities(
-        self, metrics: list[str], search: str | None = None
+        self,
+        metrics: list[str],
+        search: str | None = None,
+        config_override: SemanticLayerConfig | None = None,
     ) -> list[EntityToolResponse]:
         metrics_key = ",".join(sorted(metrics))
         if metrics_key not in self.entities_cache:
             entities_result = await submit_request(
-                await self.config_provider.get_config(),
+                await self._resolve_config(config_override),
                 {
                     "query": GRAPHQL_QUERIES["entities"],
                     "variables": {
@@ -291,6 +310,17 @@ class SemanticLayerFetcher:
                 )
         return result
 
+    async def _resolve_client(
+        self, config_override: SemanticLayerConfig | None = None
+    ) -> SemanticLayerClientProtocol:
+        if config_override is not None:
+            return SyncSemanticLayerClient(
+                environment_id=config_override.prod_environment_id,
+                auth_token=config_override.token_provider.get_token(),
+                host=config_override.host,
+            )
+        return await self.client_provider.get_client()
+
     async def get_metrics_compiled_sql(
         self,
         metrics: list[str],
@@ -298,6 +328,7 @@ class SemanticLayerFetcher:
         order_by: list[OrderByParam] | None = None,
         where: str | None = None,
         limit: int | None = None,
+        config_override: SemanticLayerConfig | None = None,
     ) -> GetMetricsCompiledSqlResult:
         """
         Get compiled SQL for the given metrics and group by parameters using the SDK.
@@ -313,7 +344,7 @@ class SemanticLayerFetcher:
             GetMetricsCompiledSqlResult with either the compiled SQL or an error
         """
         try:
-            sl_client = await self.client_provider.get_client()
+            sl_client = await self._resolve_client(config_override)
             with sl_client.session():
                 parsed_order_by: list[OrderBySpec] = self._get_order_bys(
                     order_by=order_by, metrics=metrics, group_by=group_by
@@ -341,10 +372,11 @@ class SemanticLayerFetcher:
         where: str | None = None,
         limit: int | None = None,
         result_formatter: Callable[[pa.Table], str] | None = None,
+        config_override: SemanticLayerConfig | None = None,
     ) -> QueryMetricsResult:
         try:
             query_error: Exception | None = None
-            sl_client = await self.client_provider.get_client()
+            sl_client = await self._resolve_client(config_override)
             with sl_client.session():
                 # Catching any exception within the session
                 # to ensure it is closed properly

@@ -5,7 +5,7 @@ from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo
 from dbt_mcp.mcp.server import create_dbt_mcp
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.toolsets import proxied_tools
+from dbt_mcp.tools.toolsets import multi_project_tools, proxied_tools
 
 
 async def test_tool_names_match_server_tools(env_setup):
@@ -30,11 +30,13 @@ async def test_tool_names_match_server_tools(env_setup):
 
         # Get all tools from the server
         server_tools = await dbt_mcp.list_tools()
-        # Manually adding proxied tools here because the server doesn't get them
-        # in this unit test.
-        server_tool_names = {tool.name for tool in server_tools} | {
-            p.value for p in proxied_tools
-        }
+        # Manually adding proxied tools and multi-project tools here because
+        # they are not registered on the default server in this unit test.
+        server_tool_names = (
+            {tool.name for tool in server_tools}
+            | {p.value for p in proxied_tools}
+            | {m.value for m in multi_project_tools}
+        )
         enum_names = {n for n in ToolName.get_all_tool_names()}
 
         # This should not raise any errors if the enum is in sync

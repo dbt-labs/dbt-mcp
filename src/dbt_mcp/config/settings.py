@@ -104,6 +104,9 @@ class DbtMcpSettings(BaseSettings):
     disable_lsp: bool | None = Field(None, alias="DISABLE_LSP")
     disable_product_docs: bool = Field(False, alias="DISABLE_PRODUCT_DOCS")
     disable_mcp_server_metadata: bool = Field(True, alias="DISABLE_MCP_SERVER_METADATA")
+    disable_multi_project_semantic_layer: bool = Field(
+        True, alias="DISABLE_MULTI_PROJECT_SEMANTIC_LAYER"
+    )
 
     # Enable tool settings (allowlist)
     enable_tools: Annotated[list[ToolName] | None, NoDecode] = Field(
@@ -119,6 +122,9 @@ class DbtMcpSettings(BaseSettings):
     enable_product_docs: bool = Field(False, alias="DBT_MCP_ENABLE_PRODUCT_DOCS")
     enable_mcp_server_metadata: bool = Field(
         False, alias="DBT_MCP_ENABLE_MCP_SERVER_METADATA"
+    )
+    enable_multi_project_semantic_layer: bool = Field(
+        False, alias="DBT_MCP_ENABLE_MULTI_PROJECT_SEMANTIC_LAYER"
     )
 
     # Tracking settings
