@@ -68,18 +68,6 @@ class ToolName(Enum):
     LIST_JOBS_FOR_PROJECT = "list_jobs_for_project"
     LIST_JOBS_RUNS_FOR_PROJECT = "list_jobs_runs_for_project"
 
-    # Multi-project tools
-    LIST_METRICS_FOR_PROJECT = "list_metrics_for_project"
-    LIST_SAVED_QUERIES_FOR_PROJECT = "list_saved_queries_for_project"
-    GET_DIMENSIONS_FOR_PROJECT = "get_dimensions_for_project"
-    GET_ENTITIES_FOR_PROJECT = "get_entities_for_project"
-    QUERY_METRICS_FOR_PROJECT = "query_metrics_for_project"
-    GET_METRICS_COMPILED_SQL_FOR_PROJECT = "get_metrics_compiled_sql_for_project"
-    TEXT_TO_SQL_FOR_PROJECT = "text_to_sql_for_project"
-    EXECUTE_SQL_FOR_PROJECT = "execute_sql_for_project"
-    LIST_JOBS_FOR_PROJECT = "list_jobs_for_project"
-    LIST_JOBS_RUNS_FOR_PROJECT = "list_jobs_runs_for_project"
-
     # dbt-codegen tools
     GENERATE_SOURCE = "generate_source"
     GENERATE_MODEL_YAML = "generate_model_yaml"

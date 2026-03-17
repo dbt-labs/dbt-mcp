@@ -18,34 +18,34 @@ async def test_server_b_registers_list_projects():
 
 
 async def test_server_b_registers_multiproject_semantic_layer_tools():
-    """Server B registers all 6 multi-project semantic layer tools."""
+    """Server B registers all 6 multi-project semantic layer tools (same names as single-project)."""
     dbt_mcp = await create_dbt_mcp_multiproject(mock_config)
     tool_names = {tool.name for tool in await dbt_mcp.list_tools()}
     expected = {
-        "list_metrics_for_project",
-        "list_saved_queries_for_project",
-        "get_dimensions_for_project",
-        "get_entities_for_project",
-        "query_metrics_for_project",
-        "get_metrics_compiled_sql_for_project",
+        "list_metrics",
+        "list_saved_queries",
+        "get_dimensions",
+        "get_entities",
+        "query_metrics",
+        "get_metrics_compiled_sql",
     }
     assert expected <= tool_names
 
 
 async def test_server_b_registers_sql_for_project_tools():
-    """Server B registers text_to_sql_for_project and execute_sql_for_project."""
+    """Server B registers text_to_sql and execute_sql (same names, with project_id param)."""
     dbt_mcp = await create_dbt_mcp_multiproject(mock_config)
     tool_names = {tool.name for tool in await dbt_mcp.list_tools()}
-    assert "text_to_sql_for_project" in tool_names
-    assert "execute_sql_for_project" in tool_names
+    assert "text_to_sql" in tool_names
+    assert "execute_sql" in tool_names
 
 
 async def test_server_b_registers_admin_for_project_tools():
-    """Server B registers list_jobs_for_project and list_jobs_runs_for_project."""
+    """Server B registers list_jobs and list_jobs_runs (same names, with project_id param)."""
     dbt_mcp = await create_dbt_mcp_multiproject(mock_config)
     tool_names = {tool.name for tool in await dbt_mcp.list_tools()}
-    assert "list_jobs_for_project" in tool_names
-    assert "list_jobs_runs_for_project" in tool_names
+    assert "list_jobs" in tool_names
+    assert "list_jobs_runs" in tool_names
 
 
 async def test_server_b_registers_discovery_tools():
@@ -75,12 +75,11 @@ async def test_server_b_registers_discovery_tools():
     assert expected_discovery_tools <= tool_names
 
 
-async def test_server_b_does_not_register_single_project_semantic_layer_tools():
-    """Server B does NOT register the single-project semantic layer tools."""
+async def test_server_b_semantic_layer_tools_have_project_id_param():
+    """Server B semantic layer tools use the same names but include project_id parameter."""
     dbt_mcp = await create_dbt_mcp_multiproject(mock_config)
-    tool_names = {tool.name for tool in await dbt_mcp.list_tools()}
-    # These single-project tools should NOT appear in Server B
-    single_project_tools = {
+    tools = await dbt_mcp.list_tools()
+    sl_tool_names = {
         "list_metrics",
         "list_saved_queries",
         "get_dimensions",
@@ -88,10 +87,11 @@ async def test_server_b_does_not_register_single_project_semantic_layer_tools():
         "query_metrics",
         "get_metrics_compiled_sql",
     }
-    assert not (single_project_tools & tool_names), (
-        f"Server B should not register single-project semantic layer tools, "
-        f"but found: {single_project_tools & tool_names}"
-    )
+    for tool in tools:
+        if tool.name in sl_tool_names:
+            assert "project_id" in tool.inputSchema.get("properties", {}), (
+                f"Tool {tool.name} should have project_id parameter in Server B"
+            )
 
 
 async def test_server_a_not_affected_by_multiproject_flag(env_setup):
@@ -119,10 +119,10 @@ async def test_server_a_not_affected_by_multiproject_flag(env_setup):
         server_a = await create_dbt_mcp(config)
         tool_names = {tool.name for tool in await server_a.list_tools()}
 
-        # Server A should NOT have multi-project-only tools (the ones requiring
-        # per-project environment resolution, registered only in Server B)
-        assert "list_metrics_for_project" not in tool_names
-        assert "text_to_sql_for_project" not in tool_names
+        # Server A registers single-project admin tools (including list_projects)
+        assert "list_projects" in tool_names
+        # Server A registers single-project semantic layer tools (without project_id)
+        assert "list_metrics" in tool_names
 
 
 async def test_server_b_skips_discovery_when_no_config():
@@ -195,8 +195,8 @@ async def test_server_b_skips_sql_when_no_proxied_tool_config():
     dbt_mcp = await create_dbt_mcp_multiproject(config_no_proxied)
     tool_names = {tool.name for tool in await dbt_mcp.list_tools()}
 
-    assert "text_to_sql_for_project" not in tool_names
-    assert "execute_sql_for_project" not in tool_names
+    assert "text_to_sql" not in tool_names
+    assert "execute_sql" not in tool_names
 
 
 async def test_server_b_registers_product_docs_tools():
@@ -245,7 +245,7 @@ async def test_server_b_skips_admin_when_no_config():
     dbt_mcp = await create_dbt_mcp_multiproject(config_no_admin)
     tool_names = {tool.name for tool in await dbt_mcp.list_tools()}
 
-    assert "list_jobs_for_project" not in tool_names
-    assert "list_jobs_runs_for_project" not in tool_names
+    assert "list_jobs" not in tool_names
+    assert "list_jobs_runs" not in tool_names
     # When admin is None, list_projects is also not present
     assert "list_projects" not in tool_names

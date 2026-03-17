@@ -47,8 +47,6 @@ toolsets = {
     Toolset.SQL: {
         ToolName.TEXT_TO_SQL,
         ToolName.EXECUTE_SQL,
-        ToolName.TEXT_TO_SQL_FOR_PROJECT,
-        ToolName.EXECUTE_SQL_FOR_PROJECT,
     },
     Toolset.SEMANTIC_LAYER: {
         ToolName.LIST_METRICS,
@@ -57,12 +55,6 @@ toolsets = {
         ToolName.GET_ENTITIES,
         ToolName.QUERY_METRICS,
         ToolName.GET_METRICS_COMPILED_SQL,
-        ToolName.LIST_METRICS_FOR_PROJECT,
-        ToolName.LIST_SAVED_QUERIES_FOR_PROJECT,
-        ToolName.GET_DIMENSIONS_FOR_PROJECT,
-        ToolName.GET_ENTITIES_FOR_PROJECT,
-        ToolName.QUERY_METRICS_FOR_PROJECT,
-        ToolName.GET_METRICS_COMPILED_SQL_FOR_PROJECT,
     },
     Toolset.DISCOVERY: {
         ToolName.GET_MART_MODELS,
@@ -111,8 +103,6 @@ toolsets = {
         ToolName.LIST_JOB_RUN_ARTIFACTS,
         ToolName.GET_JOB_RUN_ARTIFACT,
         ToolName.GET_JOB_RUN_ERROR,
-        ToolName.LIST_JOBS_FOR_PROJECT,
-        ToolName.LIST_JOBS_RUNS_FOR_PROJECT,
     },
     Toolset.DBT_CODEGEN: {
         ToolName.GENERATE_SOURCE,
