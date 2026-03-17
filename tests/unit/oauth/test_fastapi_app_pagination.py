@@ -3,10 +3,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from dbt_mcp.oauth.dbt_platform import DbtPlatformAccount
-from dbt_mcp.oauth.fastapi_app import (
-    _get_all_environments_for_project,
-    _get_all_projects_for_account,
-)
+from dbt_mcp.project.environment_resolver import _get_all_environments_for_project
+from dbt_mcp.project.project_resolver import get_all_projects_for_account
 
 
 @pytest.fixture
@@ -62,7 +60,7 @@ async def test_get_all_projects_for_account_paginates(base_headers, account):
     mock_client = create_mock_httpx_client([first_page_resp, second_page_resp])
 
     with patch("httpx.AsyncClient", return_value=mock_client):
-        result = await _get_all_projects_for_account(
+        result = await get_all_projects_for_account(
             dbt_platform_url="https://cloud.getdbt.com",
             account=account,
             headers=base_headers,
