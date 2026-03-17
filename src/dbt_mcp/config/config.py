@@ -30,7 +30,6 @@ TOOLSET_TO_DISABLE_ATTR = {
     Toolset.SQL: "actual_disable_sql",
     Toolset.PRODUCT_DOCS: "disable_product_docs",
     Toolset.MCP_SERVER_METADATA: "disable_mcp_server_metadata",
-    Toolset.MULTI_PROJECT_SEMANTIC_LAYER: "disable_multi_project_semantic_layer",
 }
 
 TOOLSET_TO_ENABLE_ATTR = {
@@ -43,7 +42,6 @@ TOOLSET_TO_ENABLE_ATTR = {
     Toolset.SQL: "enable_sql",
     Toolset.PRODUCT_DOCS: "enable_product_docs",
     Toolset.MCP_SERVER_METADATA: "enable_mcp_server_metadata",
-    Toolset.MULTI_PROJECT_SEMANTIC_LAYER: "enable_multi_project_semantic_layer",
 }
 
 

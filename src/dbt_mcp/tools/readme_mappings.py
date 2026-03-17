@@ -73,13 +73,6 @@ HUMAN_DESCRIPTIONS: dict[ToolName, str] = {
     ToolName.SEARCH_PRODUCT_DOCS: "Searches docs.getdbt.com for pages matching a query; returns titles, URLs, and descriptions ranked by relevance. Use get_product_doc_pages to fetch full content.",
     ToolName.GET_PRODUCT_DOC_PAGES: "Fetches the full Markdown content of one or more docs.getdbt.com pages by path or URL.",
     ToolName.GET_MCP_SERVER_BRANCH: "Returns the current git branch of the running dbt MCP server.",
-    # Multi-project Semantic Layer tools
-    ToolName.LIST_METRICS_FOR_PROJECT: "Retrieves all defined metrics for a specific project.",
-    ToolName.LIST_SAVED_QUERIES_FOR_PROJECT: "Retrieves all saved queries for a specific project.",
-    ToolName.GET_DIMENSIONS_FOR_PROJECT: "Gets dimensions for specified metrics in a specific project.",
-    ToolName.GET_ENTITIES_FOR_PROJECT: "Gets entities for specified metrics in a specific project.",
-    ToolName.QUERY_METRICS_FOR_PROJECT: "Executes metric queries with filtering and grouping options for a specific project.",
-    ToolName.GET_METRICS_COMPILED_SQL_FOR_PROJECT: "Returns compiled SQL for metrics without executing the query for a specific project.",
 }
 
 TOOLSET_DESCRIPTIONS: dict[Toolset, str] = {
@@ -92,7 +85,6 @@ TOOLSET_DESCRIPTIONS: dict[Toolset, str] = {
     Toolset.DBT_LSP: "A set of tools that leverage the Fusion engine for advanced SQL compilation and column-level lineage analysis.",
     Toolset.MCP_SERVER_METADATA: "These tools provide information about the MCP server itself.",
     Toolset.PRODUCT_DOCS: "Tools for searching and fetching content from the official dbt documentation at docs.getdbt.com.",
-    Toolset.MULTI_PROJECT_SEMANTIC_LAYER: "Multi-project variants of the Semantic Layer tools that accept a project_id parameter to query metrics across different dbt projects.",
 }
 
 

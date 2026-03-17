@@ -95,13 +95,13 @@ class MultiProjectSemanticLayerToolContext:
 @generic_dbt_mcp_tool(
     description=get_prompt("semantic_layer/list_metrics"),
     name_enum=ToolName,
-    name="list_metrics_for_project",
-    title="List Metrics for Project",
+    name="list_metrics",
+    title="List Metrics",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def list_metrics_for_project(
+async def list_metrics(
     context: MultiProjectSemanticLayerToolContext,
     project_id: int,
     search: str | None = None,
@@ -117,13 +117,13 @@ async def list_metrics_for_project(
 @generic_dbt_mcp_tool(
     description=get_prompt("semantic_layer/list_saved_queries"),
     name_enum=ToolName,
-    name="list_saved_queries_for_project",
-    title="List Saved Queries for Project",
+    name="list_saved_queries",
+    title="List Saved Queries",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def list_saved_queries_for_project(
+async def list_saved_queries(
     context: MultiProjectSemanticLayerToolContext,
     project_id: int,
     search: str | None = None,
@@ -139,13 +139,13 @@ async def list_saved_queries_for_project(
 @generic_dbt_mcp_tool(
     description=get_prompt("semantic_layer/get_dimensions"),
     name_enum=ToolName,
-    name="get_dimensions_for_project",
-    title="Get Dimensions for Project",
+    name="get_dimensions",
+    title="Get Dimensions",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def get_dimensions_for_project(
+async def get_dimensions(
     context: MultiProjectSemanticLayerToolContext,
     project_id: int,
     metrics: list[str],
@@ -162,13 +162,13 @@ async def get_dimensions_for_project(
 @generic_dbt_mcp_tool(
     description=get_prompt("semantic_layer/get_entities"),
     name_enum=ToolName,
-    name="get_entities_for_project",
-    title="Get Entities for Project",
+    name="get_entities",
+    title="Get Entities",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def get_entities_for_project(
+async def get_entities(
     context: MultiProjectSemanticLayerToolContext,
     project_id: int,
     metrics: list[str],
@@ -185,13 +185,13 @@ async def get_entities_for_project(
 @generic_dbt_mcp_tool(
     description=get_prompt("semantic_layer/query_metrics"),
     name_enum=ToolName,
-    name="query_metrics_for_project",
-    title="Query Metrics for Project",
+    name="query_metrics",
+    title="Query Metrics",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def query_metrics_for_project(
+async def query_metrics(
     context: MultiProjectSemanticLayerToolContext,
     project_id: int,
     metrics: list[str],
@@ -220,13 +220,13 @@ async def query_metrics_for_project(
 @generic_dbt_mcp_tool(
     description=get_prompt("semantic_layer/get_metrics_compiled_sql"),
     name_enum=ToolName,
-    name="get_metrics_compiled_sql_for_project",
-    title="Compile SQL for Project",
+    name="get_metrics_compiled_sql",
+    title="Compile SQL",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def get_metrics_compiled_sql_for_project(
+async def get_metrics_compiled_sql(
     context: MultiProjectSemanticLayerToolContext,
     project_id: int,
     metrics: list[str],
@@ -253,12 +253,12 @@ async def get_metrics_compiled_sql_for_project(
 
 
 MULTIPROJECT_SEMANTIC_LAYER_TOOLS: list[GenericToolDefinition[ToolName]] = [
-    list_metrics_for_project,
-    list_saved_queries_for_project,
-    get_dimensions_for_project,
-    get_entities_for_project,
-    query_metrics_for_project,
-    get_metrics_compiled_sql_for_project,
+    list_metrics,
+    list_saved_queries,
+    get_dimensions,
+    get_entities,
+    query_metrics,
+    get_metrics_compiled_sql,
 ]
 
 

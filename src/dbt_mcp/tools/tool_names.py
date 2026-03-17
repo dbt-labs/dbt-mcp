@@ -24,14 +24,6 @@ class ToolName(Enum):
     QUERY_METRICS = "query_metrics"
     GET_METRICS_COMPILED_SQL = "get_metrics_compiled_sql"
 
-    # Multi-project Semantic Layer tools
-    LIST_METRICS_FOR_PROJECT = "list_metrics_for_project"
-    LIST_SAVED_QUERIES_FOR_PROJECT = "list_saved_queries_for_project"
-    GET_DIMENSIONS_FOR_PROJECT = "get_dimensions_for_project"
-    GET_ENTITIES_FOR_PROJECT = "get_entities_for_project"
-    QUERY_METRICS_FOR_PROJECT = "query_metrics_for_project"
-    GET_METRICS_COMPILED_SQL_FOR_PROJECT = "get_metrics_compiled_sql_for_project"
-
     # Discovery tools
     GET_MART_MODELS = "get_mart_models"
     GET_ALL_MODELS = "get_all_models"

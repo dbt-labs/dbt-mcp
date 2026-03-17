@@ -21,7 +21,6 @@ class Toolset(Enum):
     DBT_LSP = "dbt_lsp"
     PRODUCT_DOCS = "product_docs"
     MCP_SERVER_METADATA = "mcp_server_metadata"
-    MULTI_PROJECT_SEMANTIC_LAYER = "multi_project_semantic_layer"
 
 
 proxied_tools: set[
@@ -123,19 +122,7 @@ toolsets = {
         ToolName.GET_MCP_SERVER_VERSION,
         ToolName.GET_MCP_SERVER_BRANCH,
     },
-    Toolset.MULTI_PROJECT_SEMANTIC_LAYER: {
-        ToolName.LIST_METRICS_FOR_PROJECT,
-        ToolName.LIST_SAVED_QUERIES_FOR_PROJECT,
-        ToolName.GET_DIMENSIONS_FOR_PROJECT,
-        ToolName.GET_ENTITIES_FOR_PROJECT,
-        ToolName.QUERY_METRICS_FOR_PROJECT,
-        ToolName.GET_METRICS_COMPILED_SQL_FOR_PROJECT,
-    },
 }
-
-multi_project_tools: set[ToolName] = toolsets[Toolset.MULTI_PROJECT_SEMANTIC_LAYER]
-
-multi_project_only_toolsets: set[Toolset] = {Toolset.MULTI_PROJECT_SEMANTIC_LAYER}
 
 
 # Mapping from individual tools to their toolsets (for precedence logic)

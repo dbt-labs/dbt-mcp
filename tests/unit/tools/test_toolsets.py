@@ -8,7 +8,7 @@ from dbt_mcp.config.config import (
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo
 from dbt_mcp.mcp.server import create_dbt_mcp
-from dbt_mcp.tools.toolsets import Toolset, multi_project_tools, proxied_tools, toolsets
+from dbt_mcp.tools.toolsets import Toolset, proxied_tools, toolsets
 
 
 def test_toolset_enable_disable_attr_cover_every_toolset() -> None:
@@ -55,12 +55,11 @@ async def test_toolsets_match_server_tools(env_setup):
 
         # Get all tools from the server
         server_tools = await dbt_mcp.list_tools()
-        # Manually adding proxied tools and multi-project tools here because
+        # Manually adding proxied tools here because
         # they are not registered on the default server in this unit test.
         server_tool_names = (
             {tool.name for tool in server_tools}
             | {p.value for p in proxied_tools}
-            | {m.value for m in multi_project_tools}
         )
         defined_tools = set()
         for toolset_tools in toolsets.values():
