@@ -2,6 +2,7 @@ import logging
 import shutil
 import socket
 import time
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Annotated
@@ -204,10 +205,7 @@ class DbtMcpSettings(BaseSettings):
         host = self.actual_host
         if host is None:
             return None
-        prefix = self.actual_host_prefix
-        if prefix and host.startswith(f"{prefix}."):
-            return host.removeprefix(f"{prefix}.")
-        return host
+        return parse_host_prefix(host, self.actual_host_prefix).base_host
 
     @property
     def dbt_project_yml(self) -> DbtProjectYaml | None:
@@ -310,18 +308,19 @@ class DbtMcpSettings(BaseSettings):
         # Warn once at startup if DBT_HOST already embeds the account prefix
         host = self.actual_host
         prefix = self.actual_host_prefix
-        if host and prefix and host.startswith(f"{prefix}."):
-            base = host.removeprefix(f"{prefix}.")
-            prefix_env_var = (
-                "DBT_HOST_PREFIX"
-                if self.host_prefix is not None
-                else "MULTICELL_ACCOUNT_PREFIX"
-            )
-            logger.warning(
-                f"DBT_HOST ('{host}') already contains the account prefix '{prefix}'. "
-                "The prefix will be stripped to avoid URL duplication. "
-                f"Consider setting DBT_HOST='{base}' and keeping {prefix_env_var}='{prefix}'."
-            )
+        if host and prefix:
+            result = parse_host_prefix(host, prefix)
+            if result.prefix_embedded:
+                prefix_env_var = (
+                    "DBT_HOST_PREFIX"
+                    if self.host_prefix is not None
+                    else "MULTICELL_ACCOUNT_PREFIX"
+                )
+                logger.warning(
+                    f"DBT_HOST ('{host}') already contains the account prefix '{prefix}'. "
+                    "The prefix will be stripped to avoid URL duplication. "
+                    f"Consider setting DBT_HOST='{result.base_host}' and keeping {prefix_env_var}='{prefix}'."
+                )
 
         # platform features
         if (
@@ -508,6 +507,36 @@ async def get_dbt_platform_context(
         )
 
 
+@dataclass(frozen=True)
+class HostPrefixResult:
+    base_host: str  # Host with matching prefix stripped
+    prefix_embedded: bool  # True if configured prefix was at start of host
+    mismatched_prefix: (
+        str | None
+    )  # Set if host has 4+ labels with different first label
+
+
+def parse_host_prefix(host: str, prefix: str | None) -> HostPrefixResult:
+    if prefix and host.startswith(f"{prefix}."):
+        return HostPrefixResult(
+            base_host=host.removeprefix(f"{prefix}."),
+            prefix_embedded=True,
+            mismatched_prefix=None,
+        )
+    labels = host.split(".")
+    if prefix and len(labels) >= 4 and labels[0] != prefix:
+        return HostPrefixResult(
+            base_host=".".join(labels[1:]),
+            prefix_embedded=False,
+            mismatched_prefix=labels[0],
+        )
+    return HostPrefixResult(
+        base_host=host,
+        prefix_embedded=False,
+        mismatched_prefix=None,
+    )
+
+
 def _build_dbt_platform_url(actual_host: str, actual_host_prefix: str | None) -> str:
     """Build the dbt Platform base URL, prepending the account prefix when needed.
 
@@ -516,17 +545,15 @@ def _build_dbt_platform_url(actual_host: str, actual_host_prefix: str | None) ->
     - Prefix set, already in host: use host as-is (no double prefix)
     - No prefix: use host as-is
     """
-    if actual_host_prefix:
-        if actual_host.startswith(f"{actual_host_prefix}."):
-            return f"https://{actual_host}"
-        labels = actual_host.split(".")
-        if len(labels) >= 4 and labels[0] != actual_host_prefix:
-            raise ValueError(
-                f"DBT_HOST ('{actual_host}') appears to already contain an account prefix "
-                f"('{labels[0]}') that differs from the configured prefix '{actual_host_prefix}'. "
-                f"Set DBT_HOST to the base host (e.g. '{'.'.join(labels[1:])}') "
-                "or update your prefix env var."
-            )
+    result = parse_host_prefix(actual_host, actual_host_prefix)
+    if result.mismatched_prefix is not None:
+        raise ValueError(
+            f"DBT_HOST ('{actual_host}') appears to already contain an account prefix "
+            f"('{result.mismatched_prefix}') that differs from the configured prefix '{actual_host_prefix}'. "
+            f"Set DBT_HOST to the base host (e.g. '{result.base_host}') "
+            "or update your prefix env var."
+        )
+    if actual_host_prefix and not result.prefix_embedded:
         return f"https://{actual_host_prefix}.{actual_host}"
     return f"https://{actual_host}"
 
@@ -537,20 +564,14 @@ def get_dbt_host(
     actual_host = settings.actual_host
     if not actual_host:
         raise ValueError("DBT_HOST is a required environment variable")
-    host_prefix_with_period = f"{dbt_platform_context.host_prefix}."
-    if actual_host.startswith(host_prefix_with_period):
+    result = parse_host_prefix(actual_host, dbt_platform_context.host_prefix)
+    if result.prefix_embedded:
         # Prefix is embedded in DBT_HOST — strip it so it's tracked only via host_prefix settings
-        return actual_host.removeprefix(host_prefix_with_period)
-    # Check for a different prefix already embedded in the host
-    labels = actual_host.split(".")
-    if (
-        dbt_platform_context.host_prefix
-        and len(labels) >= 4
-        and labels[0] != dbt_platform_context.host_prefix
-    ):
+        return result.base_host
+    if result.mismatched_prefix is not None:
         logger.warning(
             f"DBT_HOST ('{actual_host}') appears to contain a different account prefix "
-            f"('{labels[0]}') than the one from context ('{dbt_platform_context.host_prefix}'). "
+            f"('{result.mismatched_prefix}') than the one from context ('{dbt_platform_context.host_prefix}'). "
             "This may result in incorrect URL construction."
         )
     # Prefix not embedded (tracked separately via host_prefix settings) — return as-is

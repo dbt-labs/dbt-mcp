@@ -8,7 +8,12 @@ from dbt_mcp.config.config import (
     DbtMcpSettings,
     load_config,
 )
-from dbt_mcp.config.settings import DEFAULT_DBT_CLI_TIMEOUT, _build_dbt_platform_url
+from dbt_mcp.config.settings import (
+    DEFAULT_DBT_CLI_TIMEOUT,
+    HostPrefixResult,
+    _build_dbt_platform_url,
+    parse_host_prefix,
+)
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.tools.tool_names import ToolName
 
@@ -237,6 +242,30 @@ class TestDbtMcpSettings:
         with patch.dict(os.environ, {"DBT_HOST": "ab123.us1.dbt.com"}):
             settings = DbtMcpSettings(_env_file=None)
             assert settings.base_host == "ab123.us1.dbt.com"
+
+    def test_parse_host_prefix_detects_mismatch(self):
+        result = parse_host_prefix("xy999.us1.dbt.com", "ab123")
+        assert result == HostPrefixResult(
+            base_host="us1.dbt.com",
+            prefix_embedded=False,
+            mismatched_prefix="xy999",
+        )
+
+    def test_parse_host_prefix_returns_no_mismatch_when_prefix_matches(self):
+        result = parse_host_prefix("ab123.us1.dbt.com", "ab123")
+        assert result == HostPrefixResult(
+            base_host="us1.dbt.com",
+            prefix_embedded=True,
+            mismatched_prefix=None,
+        )
+
+    def test_parse_host_prefix_returns_no_mismatch_for_short_host(self):
+        result = parse_host_prefix("us1.dbt.com", "ab123")
+        assert result == HostPrefixResult(
+            base_host="us1.dbt.com",
+            prefix_embedded=False,
+            mismatched_prefix=None,
+        )
 
     def test_build_dbt_platform_url_raises_on_prefix_mismatch(self):
         """ValueError raised when DBT_HOST embeds a different prefix than the configured one."""
