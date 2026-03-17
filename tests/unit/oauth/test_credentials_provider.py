@@ -41,7 +41,9 @@ class TestCredentialsProviderAuthenticationMethod:
                 "dbt_mcp.config.credentials.get_dbt_platform_context",
                 return_value=mock_dbt_context,
             ),
-            patch("dbt_mcp.config.credentials.OAuthTokenProvider") as mock_token_provider,
+            patch(
+                "dbt_mcp.config.credentials.OAuthTokenProvider"
+            ) as mock_token_provider,
             patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
         ):
             mock_provider_instance = MagicMock()
