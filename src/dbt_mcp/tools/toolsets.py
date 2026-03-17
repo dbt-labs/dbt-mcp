@@ -148,8 +148,3 @@ def validate_tool_mapping() -> None:
 
 # Validate at import time to catch errors early
 validate_tool_mapping()
-
-
-# Toolsets only available in multi-project mode.
-# Excluded from README and diagram generation.
-multi_project_only_toolsets: set[Toolset] = set()
