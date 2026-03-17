@@ -57,6 +57,12 @@ toolsets = {
         ToolName.GET_ENTITIES,
         ToolName.QUERY_METRICS,
         ToolName.GET_METRICS_COMPILED_SQL,
+        ToolName.LIST_METRICS_FOR_PROJECT,
+        ToolName.LIST_SAVED_QUERIES_FOR_PROJECT,
+        ToolName.GET_DIMENSIONS_FOR_PROJECT,
+        ToolName.GET_ENTITIES_FOR_PROJECT,
+        ToolName.QUERY_METRICS_FOR_PROJECT,
+        ToolName.GET_METRICS_COMPILED_SQL_FOR_PROJECT,
     },
     Toolset.DISCOVERY: {
         ToolName.GET_MART_MODELS,
@@ -126,14 +132,6 @@ toolsets = {
         ToolName.GET_MCP_SERVER_VERSION,
         ToolName.GET_MCP_SERVER_BRANCH,
     },
-}
-
-
-# Toolsets only registered on the multi-project server (Server B), not on the
-# single-project server (Server A). These are excluded from README and diagram
-# generation.
-multi_project_only_toolsets: set[Toolset] = {
-    Toolset.MULTI_PROJECT_SEMANTIC_LAYER,
 }
 
 

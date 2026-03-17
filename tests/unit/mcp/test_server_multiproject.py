@@ -122,10 +122,7 @@ async def test_server_a_not_affected_by_multiproject_flag(env_setup):
         # Server A should NOT have multi-project-only tools (the ones requiring
         # per-project environment resolution, registered only in Server B)
         assert "list_metrics_for_project" not in tool_names
-        assert "list_metrics_for_project" not in tool_names
         assert "text_to_sql_for_project" not in tool_names
-        # Note: list_jobs_for_project IS on Server A because it's part of ADMIN_TOOLS
-        # (admin tools use the account-level config that's available in both modes)
 
 
 async def test_server_b_skips_discovery_when_no_config():

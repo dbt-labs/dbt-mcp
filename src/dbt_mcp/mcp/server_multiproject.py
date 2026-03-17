@@ -8,14 +8,14 @@ from mcp.server.fastmcp import FastMCP
 
 from dbt_mcp.config.config import Config
 from dbt_mcp.config.config_providers import DefaultSemanticLayerConfigProvider
-from dbt_mcp.dbt_admin.tools import register_admin_api_tools
+from dbt_mcp.dbt_admin.tools import register_multiproject_admin_api_tools
 from dbt_mcp.discovery.tools_multiproject import register_multiproject_discovery_tools
 from dbt_mcp.mcp.server import DbtMCP
 from dbt_mcp.mcp_server_metadata.tools import register_mcp_server_tools
 from dbt_mcp.product_docs.tools import register_product_docs_tools
 from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
 from dbt_mcp.semantic_layer.tools_multiproject import register_multiproject_sl_tools
-from dbt_mcp.sql.tools import register_sql_for_project_tools
+from dbt_mcp.sql.tools import register_multiproject_sql_tools
 from dbt_mcp.tracking.tracking import DefaultUsageTracker
 
 logger = logging.getLogger(__name__)
@@ -78,6 +78,7 @@ async def create_dbt_mcp_multiproject(config: Config) -> DbtMCP:
         register_multiproject_discovery_tools(
             dbt_mcp,
             discovery_config_provider=config.discovery_config_provider,
+            credentials_provider=config.credentials_provider,
             disabled_tools=disabled_tools,
             enabled_tools=enabled_tools,
             enabled_toolsets=enabled_toolsets,
@@ -102,9 +103,9 @@ async def create_dbt_mcp_multiproject(config: Config) -> DbtMCP:
 
     if config.proxied_tool_config_provider:
         logger.info("Registering multi-project SQL tools")
-        register_sql_for_project_tools(
+        register_multiproject_sql_tools(
             dbt_mcp,
-            proxied_tool_config_provider=config.proxied_tool_config_provider,
+            config.credentials_provider,
             disabled_tools=disabled_tools,
             enabled_tools=enabled_tools,
             enabled_toolsets=enabled_toolsets,
@@ -113,7 +114,7 @@ async def create_dbt_mcp_multiproject(config: Config) -> DbtMCP:
 
     if config.admin_api_config_provider:
         logger.info("Registering multi-project admin API tools")
-        register_admin_api_tools(
+        register_multiproject_admin_api_tools(
             dbt_mcp,
             config.admin_api_config_provider,
             disabled_tools=disabled_tools,
