@@ -3,10 +3,8 @@ from unittest.mock import Mock, patch
 import pytest
 
 from dbt_mcp.oauth.dbt_platform import DbtPlatformAccount
-from dbt_mcp.oauth.fastapi_app import (
-    _get_all_environments_for_project,
-    _get_all_projects_for_account,
-)
+from dbt_mcp.project.environment_resolver import _get_all_environments_for_project
+from dbt_mcp.project.project_resolver import get_all_projects_for_account
 
 
 @pytest.fixture
@@ -26,7 +24,7 @@ def account():
     )
 
 
-@patch("dbt_mcp.oauth.fastapi_app.requests.get")
+@patch("dbt_mcp.project.project_resolver.requests.get")
 def test_get_all_projects_for_account_paginates(mock_get: Mock, base_headers, account):
     # Two pages: first full page (limit=2), second partial page (1 item) -> stop
     first_page_resp = Mock()
@@ -48,7 +46,7 @@ def test_get_all_projects_for_account_paginates(mock_get: Mock, base_headers, ac
 
     mock_get.side_effect = [first_page_resp, second_page_resp]
 
-    result = _get_all_projects_for_account(
+    result = get_all_projects_for_account(
         dbt_platform_url="https://cloud.getdbt.com",
         account=account,
         headers=base_headers,
@@ -72,7 +70,7 @@ def test_get_all_projects_for_account_paginates(mock_get: Mock, base_headers, ac
     assert actual_urls == expected_urls
 
 
-@patch("dbt_mcp.oauth.fastapi_app.requests.get")
+@patch("dbt_mcp.project.environment_resolver.requests.get")
 def test_get_all_environments_for_project_paginates(mock_get: Mock, base_headers):
     # Two pages: first full page (limit=2), second partial (1 item)
     first_page_resp = Mock()
