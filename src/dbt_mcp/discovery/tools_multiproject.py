@@ -536,7 +536,9 @@ def register_multiproject_discovery_tools(
     disabled_toolsets: set[Toolset],
 ) -> None:
     def bind_context() -> MultiProjectDiscoveryToolContext:
-        return MultiProjectDiscoveryToolContext(config_provider=discovery_config_provider)
+        return MultiProjectDiscoveryToolContext(
+            config_provider=discovery_config_provider
+        )
 
     register_tools(
         dbt_mcp,
