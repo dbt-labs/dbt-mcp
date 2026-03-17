@@ -1,13 +1,11 @@
 import logging
 from dataclasses import dataclass
-from enum import Enum
 
 from dbtsl.api.shared.query_params import GroupByParam
 from mcp.server.fastmcp import FastMCP
 
 from dbt_mcp.config.config_providers import (
     DefaultSemanticLayerConfigProvider,
-    SemanticLayerConfig,
 )
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.semantic_layer.client import (
@@ -234,7 +232,10 @@ def register_multiproject_sl_tools(
 
     register_tools(
         dbt_mcp,
-        [tool.adapt_context(bind_context) for tool in MULTIPROJECT_SEMANTIC_LAYER_TOOLS],
+        [
+            tool.adapt_context(bind_context)
+            for tool in MULTIPROJECT_SEMANTIC_LAYER_TOOLS
+        ],
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,
