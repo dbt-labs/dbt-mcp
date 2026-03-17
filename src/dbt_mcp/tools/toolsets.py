@@ -129,6 +129,14 @@ toolsets = {
 }
 
 
+# Toolsets only registered on the multi-project server (Server B), not on the
+# single-project server (Server A). These are excluded from README and diagram
+# generation.
+multi_project_only_toolsets: set[Toolset] = {
+    Toolset.MULTI_PROJECT_SEMANTIC_LAYER,
+}
+
+
 # Mapping from individual tools to their toolsets (for precedence logic)
 TOOL_TO_TOOLSET: dict[ToolName, Toolset] = {}
 for toolset, tools in toolsets.items():
