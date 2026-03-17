@@ -82,12 +82,6 @@ class ConfigProvider[ConfigType](ABC):
     @abstractmethod
     async def get_config(self) -> ConfigType: ...
 
-    async def get_config_for_project(self, project_id: int) -> ConfigType:
-        """Get config for a specific project. Override in subclasses that support multi-project."""
-        raise NotImplementedError(
-            f"{type(self).__name__} does not support get_config_for_project"
-        )
-
 
 class ProjectSemanticLayerConfigProvider(ConfigProvider[SemanticLayerConfig]):
     def __init__(self, config: SemanticLayerConfig):
