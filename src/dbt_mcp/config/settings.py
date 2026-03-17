@@ -192,15 +192,11 @@ class DbtMcpSettings(BaseSettings):
 
     @property
     def base_host(self) -> str | None:
-        """Returns actual_host with account prefix stripped if it's already embedded.
+        """Returns actual_host with the account prefix stripped if it's already embedded.
 
-        Use this for URL construction in config_providers.py where actual_host_prefix
-        is prepended separately. This prevents double-prefix when DBT_HOST already
-        contains the account prefix (e.g. 'ab123.us1.dbt.com') and MULTICELL_ACCOUNT_PREFIX
-        is also set to 'ab123'.
-
+        Prevents double-prefixing when DBT_HOST already contains the account prefix
+        (e.g. 'ab123.us1.dbt.com') and a prefix env var is also set to 'ab123'.
         Returns None if and only if actual_host is None.
-        The one-time warning for the double-prefix case is emitted by auto_disable at startup.
         """
         host = self.actual_host
         if host is None:

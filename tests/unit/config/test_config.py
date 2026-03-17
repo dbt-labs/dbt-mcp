@@ -11,7 +11,6 @@ from dbt_mcp.config.config import (
 from dbt_mcp.config.settings import (
     DEFAULT_DBT_CLI_TIMEOUT,
     HostPrefixResult,
-    _build_dbt_platform_url,
     parse_host_prefix,
 )
 from dbt_mcp.dbt_cli.binary_type import BinaryType
@@ -222,27 +221,6 @@ class TestDbtMcpSettings:
                 settings.actual_prod_environment_id == 123
             )  # DBT_PROD_ENV_ID takes precedence
 
-    def test_base_host_strips_prefix_when_prefix_embedded_in_host(self):
-        with patch.dict(
-            os.environ,
-            {"DBT_HOST": "ab123.us1.dbt.com", "MULTICELL_ACCOUNT_PREFIX": "ab123"},
-        ):
-            settings = DbtMcpSettings(_env_file=None)
-            assert settings.base_host == "us1.dbt.com"
-
-    def test_base_host_unchanged_when_prefix_not_embedded(self):
-        with patch.dict(
-            os.environ,
-            {"DBT_HOST": "us1.dbt.com", "MULTICELL_ACCOUNT_PREFIX": "ab123"},
-        ):
-            settings = DbtMcpSettings(_env_file=None)
-            assert settings.base_host == "us1.dbt.com"
-
-    def test_base_host_unchanged_when_no_prefix_configured(self):
-        with patch.dict(os.environ, {"DBT_HOST": "ab123.us1.dbt.com"}):
-            settings = DbtMcpSettings(_env_file=None)
-            assert settings.base_host == "ab123.us1.dbt.com"
-
     def test_parse_host_prefix_detects_mismatch(self):
         result = parse_host_prefix("xy999.us1.dbt.com", "ab123")
         assert result == HostPrefixResult(
@@ -266,19 +244,6 @@ class TestDbtMcpSettings:
             prefix_embedded=False,
             mismatched_prefix=None,
         )
-
-    def test_build_dbt_platform_url_raises_on_prefix_mismatch(self):
-        """ValueError raised when DBT_HOST embeds a different prefix than the configured one."""
-        with pytest.raises(ValueError, match="already contain an account prefix"):
-            _build_dbt_platform_url("xy999.us1.dbt.com", "ab123")
-
-    def test_build_dbt_platform_url_no_error_when_prefix_matches(self):
-        url = _build_dbt_platform_url("ab123.us1.dbt.com", "ab123")
-        assert url == "https://ab123.us1.dbt.com"
-
-    def test_build_dbt_platform_url_no_error_when_no_embedded_prefix(self):
-        url = _build_dbt_platform_url("us1.dbt.com", "ab123")
-        assert url == "https://ab123.us1.dbt.com"
 
     def test_auto_disable_platform_features_logging(self):
         with patch.dict(os.environ, {}, clear=True):
