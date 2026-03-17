@@ -6,8 +6,11 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ContentBlock
 
-from dbt_mcp.config.config_providers import ConfigProvider, ProxiedToolConfig
+from dbt_mcp.config.config_providers import ProxiedToolConfig
+from dbt_mcp.config.headers import ProxiedToolHeadersProvider
+from dbt_mcp.config.settings import CredentialsProvider
 from dbt_mcp.errors import RemoteToolError
+from dbt_mcp.project.environment_resolver import get_environments_for_project
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.proxy.tools import ProxiedToolsManager
 from dbt_mcp.tools.definitions import dbt_mcp_tool
@@ -20,19 +23,47 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SqlForProjectToolContext:
-    proxied_tool_config_provider: ConfigProvider[ProxiedToolConfig]
+    credentials_provider: CredentialsProvider
+
+
+async def _get_proxied_tool_config_for_project(
+    context: SqlForProjectToolContext,
+    project_id: int,
+) -> ProxiedToolConfig:
+    """Resolve a ProxiedToolConfig for a specific project by fetching its environments."""
+    settings, token_provider = await context.credentials_provider.get_credentials()
+    assert settings.actual_host and settings.dbt_account_id
+
+    auth_headers = {"Authorization": f"Bearer {token_provider.get_token()}"}
+    dbt_platform_url = f"https://{settings.actual_host}"
+    prod_env, dev_env = get_environments_for_project(
+        dbt_platform_url=dbt_platform_url,
+        account_id=settings.dbt_account_id,
+        project_id=project_id,
+        headers=auth_headers,
+    )
+
+    is_local = settings.actual_host.startswith("localhost")
+    path = "/v1/mcp/" if is_local else "/api/ai/v1/mcp/"
+    scheme = "http://" if is_local else "https://"
+    prefix = f"{settings.actual_host_prefix}." if settings.actual_host_prefix else ""
+    url = f"{scheme}{prefix}{settings.actual_host}{path}"
+
+    return ProxiedToolConfig(
+        user_id=settings.dbt_user_id,
+        dev_environment_id=dev_env.id if dev_env else None,
+        prod_environment_id=prod_env.id if prod_env else None,
+        url=url,
+        headers_provider=ProxiedToolHeadersProvider(token_provider=token_provider),
+    )
 
 
 async def _call_remote_sql_tool(
-    context: SqlForProjectToolContext,
-    project_id: int,
+    config: ProxiedToolConfig,
     tool_name: str,
     arguments: dict[str, Any],
 ) -> Sequence[ContentBlock]:
-    """Call a remote SQL tool with project-specific configuration."""
-    config = await context.proxied_tool_config_provider.get_config_for_project(
-        project_id
-    )
+    """Call a remote SQL tool with the given configuration."""
     headers = config.headers_provider.get_headers()
     if config.prod_environment_id:
         headers["x-dbt-prod-environment-id"] = str(config.prod_environment_id)
@@ -74,17 +105,13 @@ async def text_to_sql_for_project(
     query: str,
 ) -> Sequence[ContentBlock]:
     """Generate SQL from natural language for a specific project."""
-    config = await context.proxied_tool_config_provider.get_config_for_project(
-        project_id
-    )
+    config = await _get_proxied_tool_config_for_project(context, project_id)
     if not config.prod_environment_id:
         raise ValueError(
             f"Project {project_id} does not have a production environment configured. "
             "A production environment is required for text_to_sql."
         )
-    return await _call_remote_sql_tool(
-        context, project_id, "text_to_sql", {"query": query}
-    )
+    return await _call_remote_sql_tool(config, "text_to_sql", {"query": query})
 
 
 @dbt_mcp_tool(
@@ -102,9 +129,7 @@ async def execute_sql_for_project(
     limit: int | None = None,
 ) -> Sequence[ContentBlock]:
     """Execute SQL for a specific project."""
-    config = await context.proxied_tool_config_provider.get_config_for_project(
-        project_id
-    )
+    config = await _get_proxied_tool_config_for_project(context, project_id)
     if not config.dev_environment_id:
         raise ValueError(
             f"Project {project_id} does not have a development environment configured. "
@@ -113,7 +138,7 @@ async def execute_sql_for_project(
     arguments: dict[str, Any] = {"sql_query": sql_query}
     if limit is not None:
         arguments["limit"] = limit
-    return await _call_remote_sql_tool(context, project_id, "execute_sql", arguments)
+    return await _call_remote_sql_tool(config, "execute_sql", arguments)
 
 
 SQL_FOR_PROJECT_TOOLS = [
@@ -124,7 +149,7 @@ SQL_FOR_PROJECT_TOOLS = [
 
 def register_sql_for_project_tools(
     dbt_mcp: FastMCP,
-    proxied_tool_config_provider: ConfigProvider[ProxiedToolConfig],
+    credentials_provider: CredentialsProvider,
     *,
     disabled_tools: set[ToolName],
     enabled_tools: set[ToolName] | None,
@@ -134,9 +159,7 @@ def register_sql_for_project_tools(
     """Register multi-project SQL tools."""
 
     def bind_context() -> SqlForProjectToolContext:
-        return SqlForProjectToolContext(
-            proxied_tool_config_provider=proxied_tool_config_provider
-        )
+        return SqlForProjectToolContext(credentials_provider=credentials_provider)
 
     register_tools(
         dbt_mcp,
