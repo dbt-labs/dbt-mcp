@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from dbt_mcp.tools.readme_mappings import HUMAN_DESCRIPTIONS, TOOLSET_DESCRIPTIONS
-from dbt_mcp.tools.toolsets import server_b_toolsets, toolsets
+from dbt_mcp.tools.toolsets import multi_project_only_toolsets, toolsets
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ def generate_readme_tools_section() -> str:
     lines = ["## Tools", ""]
 
     for toolset, tool_names in toolsets.items():
-        if toolset in server_b_toolsets:
+        if toolset in multi_project_only_toolsets:
             continue
         heading = format_toolset_heading(toolset.value)
         lines.append(f"### {heading}")
@@ -64,7 +64,7 @@ def generate_diagram_tools_section() -> str:
     lines = ["tools: Tools {"]
 
     for toolset in toolsets.keys():
-        if toolset in server_b_toolsets:
+        if toolset in multi_project_only_toolsets:
             continue
         # Use enum value directly as key (e.g., "dbt_cli", "semantic_layer")
         key = toolset.value

@@ -150,6 +150,6 @@ def validate_tool_mapping() -> None:
 validate_tool_mapping()
 
 
-# Toolsets only available on Server B (multi-project mode).
-# These are excluded from README and diagram generation.
-server_b_toolsets: set[Toolset] = set()
+# Toolsets only available in multi-project mode.
+# Excluded from README and diagram generation.
+multi_project_only_toolsets: set[Toolset] = set()
