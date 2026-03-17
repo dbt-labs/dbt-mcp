@@ -6,7 +6,9 @@ from mcp.server.fastmcp import FastMCP
 
 from dbt_mcp.config.config_providers import (
     DefaultSemanticLayerConfigProvider,
+    SemanticLayerConfig,
 )
+from dbt_mcp.project.environment_resolver import get_environments_for_project
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.semantic_layer.client import (
     SemanticLayerClientProvider,
@@ -27,6 +29,40 @@ from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
+
+
+async def _resolve_sl_config_for_project(
+    config_provider: DefaultSemanticLayerConfigProvider,
+    project_id: int,
+) -> SemanticLayerConfig:
+    (
+        settings,
+        token_provider,
+    ) = await config_provider.credentials_provider.get_credentials()
+    assert settings.actual_host and settings.dbt_account_id
+    dbt_platform_url = (
+        f"https://{settings.actual_host_prefix}.{settings.actual_host}"
+        if settings.actual_host_prefix
+        else f"https://{settings.actual_host}"
+    )
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {token_provider.get_token()}",
+    }
+    prod_env, _ = get_environments_for_project(
+        dbt_platform_url=dbt_platform_url,
+        account_id=settings.dbt_account_id,
+        project_id=project_id,
+        headers=headers,
+    )
+    if not prod_env:
+        raise ValueError(f"No production environment found for project {project_id}")
+    return DefaultSemanticLayerConfigProvider._build_config(
+        host=settings.actual_host,
+        host_prefix=settings.actual_host_prefix,
+        prod_environment_id=prod_env.id,
+        token_provider=token_provider,
+    )
 
 
 @dataclass
@@ -59,8 +95,8 @@ async def list_metrics_for_project(
     project_id: int,
     search: str | None = None,
 ) -> list[MetricToolResponse]:
-    config = await context.semantic_layer_config_provider.get_config_for_project(
-        project_id
+    config = await _resolve_sl_config_for_project(
+        context.semantic_layer_config_provider, project_id
     )
     return await context.semantic_layer_fetcher.list_metrics(
         search=search, config_override=config
@@ -81,8 +117,8 @@ async def list_saved_queries_for_project(
     project_id: int,
     search: str | None = None,
 ) -> list[SavedQueryToolResponse]:
-    config = await context.semantic_layer_config_provider.get_config_for_project(
-        project_id
+    config = await _resolve_sl_config_for_project(
+        context.semantic_layer_config_provider, project_id
     )
     return await context.semantic_layer_fetcher.list_saved_queries(
         search=search, config_override=config
@@ -104,8 +140,8 @@ async def get_dimensions_for_project(
     metrics: list[str],
     search: str | None = None,
 ) -> list[DimensionToolResponse]:
-    config = await context.semantic_layer_config_provider.get_config_for_project(
-        project_id
+    config = await _resolve_sl_config_for_project(
+        context.semantic_layer_config_provider, project_id
     )
     return await context.semantic_layer_fetcher.get_dimensions(
         metrics=metrics, search=search, config_override=config
@@ -127,8 +163,8 @@ async def get_entities_for_project(
     metrics: list[str],
     search: str | None = None,
 ) -> list[EntityToolResponse]:
-    config = await context.semantic_layer_config_provider.get_config_for_project(
-        project_id
+    config = await _resolve_sl_config_for_project(
+        context.semantic_layer_config_provider, project_id
     )
     return await context.semantic_layer_fetcher.get_entities(
         metrics=metrics, search=search, config_override=config
@@ -153,8 +189,8 @@ async def query_metrics_for_project(
     where: str | None = None,
     limit: int | None = None,
 ) -> str:
-    config = await context.semantic_layer_config_provider.get_config_for_project(
-        project_id
+    config = await _resolve_sl_config_for_project(
+        context.semantic_layer_config_provider, project_id
     )
     result = await context.semantic_layer_fetcher.query_metrics(
         metrics=metrics,
@@ -188,8 +224,8 @@ async def get_metrics_compiled_sql_for_project(
     where: str | None = None,
     limit: int | None = None,
 ) -> str:
-    config = await context.semantic_layer_config_provider.get_config_for_project(
-        project_id
+    config = await _resolve_sl_config_for_project(
+        context.semantic_layer_config_provider, project_id
     )
     result = await context.semantic_layer_fetcher.get_metrics_compiled_sql(
         metrics=metrics,
