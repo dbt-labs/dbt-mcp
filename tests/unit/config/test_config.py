@@ -245,6 +245,24 @@ class TestDbtMcpSettings:
             mismatched_prefix=None,
         )
 
+    def test_base_host_mismatch_logs_warning_and_returns_host_unchanged(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        """base_host logs a warning and returns the host unchanged on prefix mismatch."""
+        settings = DbtMcpSettings.model_construct(
+            dbt_host="xy999.us1.dbt.com",
+            host_prefix="ab123",
+            multicell_account_prefix=None,
+        )
+
+        with caplog.at_level(logging.WARNING, logger="dbt_mcp.config.settings"):
+            result = settings.base_host
+
+        assert result == "xy999.us1.dbt.com"
+        assert "appears to contain a different account prefix" in caplog.text
+        assert "'xy999'" in caplog.text
+        assert "'ab123'" in caplog.text
+
     def test_auto_disable_platform_features_logging(self):
         with patch.dict(os.environ, {}, clear=True):
             settings = DbtMcpSettings(_env_file=None)

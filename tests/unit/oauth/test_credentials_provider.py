@@ -7,7 +7,6 @@ from dbt_mcp.config.settings import (
     AuthenticationMethod,
     CredentialsProvider,
     DbtMcpSettings,
-    get_dbt_host,
 )
 
 
@@ -42,16 +41,13 @@ class TestCredentialsProviderAuthenticationMethod:
                 "dbt_mcp.config.settings.get_dbt_platform_context",
                 return_value=mock_dbt_context,
             ),
-            patch(
-                "dbt_mcp.config.settings.get_dbt_host", return_value="cloud.getdbt.com"
-            ),
             patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_token_provider,
             patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
         ):
             mock_provider_instance = MagicMock()
             mock_token_provider.create = AsyncMock(return_value=mock_provider_instance)
 
-            settings, token_provider = await credentials_provider.get_credentials()
+            _, token_provider = await credentials_provider.get_credentials()
 
             assert (
                 credentials_provider.authentication_method == AuthenticationMethod.OAUTH
@@ -70,7 +66,7 @@ class TestCredentialsProviderAuthenticationMethod:
         credentials_provider = CredentialsProvider(mock_settings)
 
         with patch("dbt_mcp.config.settings.validate_settings"):
-            settings, token_provider = await credentials_provider.get_credentials()
+            _, token_provider = await credentials_provider.get_credentials()
 
             assert (
                 credentials_provider.authentication_method
@@ -146,9 +142,6 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
                 "dbt_mcp.config.settings.get_dbt_platform_context",
                 return_value=mock_dbt_context,
             ),
-            patch(
-                "dbt_mcp.config.settings.get_dbt_host", return_value="cloud.getdbt.com"
-            ),
             patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_tp_cls,
             patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
         ):
@@ -185,9 +178,6 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
             patch(
                 "dbt_mcp.config.settings.get_dbt_platform_context",
                 return_value=mock_dbt_context,
-            ),
-            patch(
-                "dbt_mcp.config.settings.get_dbt_host", return_value="cloud.getdbt.com"
             ),
             patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_tp_cls,
             patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
@@ -229,9 +219,6 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
             patch(
                 "dbt_mcp.config.settings.get_dbt_platform_context",
                 return_value=mock_dbt_context,
-            ),
-            patch(
-                "dbt_mcp.config.settings.get_dbt_host", return_value="cloud.getdbt.com"
             ),
             patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_tp_cls,
             patch("dbt_mcp.config.settings.validate_settings") as mock_validate,
@@ -286,7 +273,6 @@ class TestCredentialsProviderOAuthUrl:
                 "dbt_mcp.config.settings.get_dbt_platform_context",
                 side_effect=capture_platform_context,
             ),
-            patch("dbt_mcp.config.settings.get_dbt_host", return_value="us1.dbt.com"),
             patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_tp_cls,
             patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
             patch("dbt_mcp.config.settings.get_dbt_profiles_path"),
@@ -335,7 +321,6 @@ class TestCredentialsProviderWarnings:
                 "dbt_mcp.config.settings.get_dbt_platform_context",
                 return_value=mock_dbt_context,
             ),
-            patch("dbt_mcp.config.settings.get_dbt_host", return_value="us1.dbt.com"),
             patch("dbt_mcp.config.settings.OAuthTokenProvider") as mock_tp_cls,
             patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
             patch("dbt_mcp.config.settings.get_dbt_profiles_path"),
@@ -352,25 +337,3 @@ class TestCredentialsProviderWarnings:
 
         assert "DBT_TOKEN is set but will be ignored" in caplog.text
         assert "Falling back to OAuth authentication" in caplog.text
-
-
-class TestGetDbtHost:
-    """Tests for get_dbt_host helper."""
-
-    def test_prefix_mismatch_logs_warning(self, caplog: pytest.LogCaptureFixture):
-        """A warning is logged when DBT_HOST embeds a different prefix than the one from context."""
-        mock_settings = DbtMcpSettings.model_construct(
-            dbt_host="xy999.us1.dbt.com",
-            host_prefix=None,
-            multicell_account_prefix=None,
-        )
-        mock_context = MagicMock()
-        mock_context.host_prefix = "ab123"
-
-        with caplog.at_level(logging.WARNING, logger="dbt_mcp.config.settings"):
-            result = get_dbt_host(mock_settings, mock_context)
-
-        assert result == "xy999.us1.dbt.com"
-        assert "appears to contain a different account prefix" in caplog.text
-        assert "'xy999'" in caplog.text
-        assert "'ab123'" in caplog.text

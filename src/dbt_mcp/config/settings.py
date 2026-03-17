@@ -197,11 +197,21 @@ class DbtMcpSettings(BaseSettings):
         Prevents double-prefixing when DBT_HOST already contains the account prefix
         (e.g. 'ab123.us1.dbt.com') and a prefix env var is also set to 'ab123'.
         Returns None if and only if actual_host is None.
+        On mismatch (host has a different embedded prefix), logs a warning and returns
+        the host unchanged to avoid silently stripping the wrong label.
         """
         host = self.actual_host
         if host is None:
             return None
-        return parse_host_prefix(host, self.actual_host_prefix).base_host
+        result = parse_host_prefix(host, self.actual_host_prefix)
+        if result.mismatched_prefix is not None:
+            logger.warning(
+                f"DBT_HOST ('{host}') appears to contain a different account prefix "
+                f"('{result.mismatched_prefix}') than the configured prefix '{self.actual_host_prefix}'. "
+                "This may result in incorrect URL construction."
+            )
+            return host
+        return result.base_host
 
     @property
     def dbt_project_yml(self) -> DbtProjectYaml | None:
@@ -505,7 +515,7 @@ async def get_dbt_platform_context(
 
 @dataclass(frozen=True)
 class HostPrefixResult:
-    base_host: str  # Host with matching prefix stripped
+    base_host: str  # Host with first label stripped; matches configured prefix when prefix_embedded=True, or suggested base host on mismatch
     prefix_embedded: bool  # True if configured prefix was at start of host
     mismatched_prefix: (
         str | None
@@ -552,26 +562,6 @@ def _build_dbt_platform_url(actual_host: str, actual_host_prefix: str | None) ->
     if actual_host_prefix and not result.prefix_embedded:
         return f"https://{actual_host_prefix}.{actual_host}"
     return f"https://{actual_host}"
-
-
-def get_dbt_host(
-    settings: DbtMcpSettings, dbt_platform_context: DbtPlatformContext
-) -> str:
-    actual_host = settings.actual_host
-    if not actual_host:
-        raise ValueError("DBT_HOST is a required environment variable")
-    result = parse_host_prefix(actual_host, dbt_platform_context.host_prefix)
-    if result.prefix_embedded:
-        # Prefix is embedded in DBT_HOST — strip it so it's tracked only via host_prefix settings
-        return result.base_host
-    if result.mismatched_prefix is not None:
-        logger.warning(
-            f"DBT_HOST ('{actual_host}') appears to contain a different account prefix "
-            f"('{result.mismatched_prefix}') than the one from context ('{dbt_platform_context.host_prefix}'). "
-            "This may result in incorrect URL construction."
-        )
-    # Prefix not embedded (tracked separately via host_prefix settings) — return as-is
-    return actual_host
 
 
 def validate_settings(settings: DbtMcpSettings) -> None:
@@ -708,7 +698,7 @@ class CredentialsProvider:
             )
             self.settings.dbt_account_id = dbt_platform_context.account_id
             self.settings.host_prefix = dbt_platform_context.host_prefix
-            self.settings.dbt_host = get_dbt_host(self.settings, dbt_platform_context)
+            self.settings.dbt_host = self.settings.base_host
             if not dbt_platform_context.decoded_access_token:
                 raise ValueError("No decoded access token found in OAuth context")
 
