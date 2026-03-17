@@ -5,9 +5,10 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from dbt_mcp.config.config_providers import (
-    DefaultDiscoveryConfigProvider,
+    ConfigProvider,
     DiscoveryConfig,
 )
+from dbt_mcp.config.settings import CredentialsProvider
 from dbt_mcp.config.headers import DiscoveryHeadersProvider
 from dbt_mcp.discovery.client import (
     AppliedResourceType,
@@ -47,7 +48,7 @@ async def _resolve_discovery_config_for_project(
     (
         settings,
         token_provider,
-    ) = await context.discovery_config_provider.credentials_provider.get_credentials()
+    ) = await context.credentials_provider.get_credentials()
     assert settings.actual_host and settings.dbt_account_id
     dbt_platform_url = (
         f"https://{settings.actual_host_prefix}.{settings.actual_host}"
@@ -87,7 +88,7 @@ PROJECT_ID_FIELD = Field(
 
 @dataclass
 class MultiProjectDiscoveryToolContext:
-    discovery_config_provider: DefaultDiscoveryConfigProvider
+    credentials_provider: CredentialsProvider
     models_fetcher: ModelsFetcher
     exposures_fetcher: ExposuresFetcher
     sources_fetcher: SourcesFetcher
@@ -96,8 +97,12 @@ class MultiProjectDiscoveryToolContext:
     lineage_fetcher: LineageFetcher
     model_performance_fetcher: ModelPerformanceFetcher
 
-    def __init__(self, config_provider: DefaultDiscoveryConfigProvider):
-        self.discovery_config_provider = config_provider
+    def __init__(
+        self,
+        config_provider: ConfigProvider[DiscoveryConfig],
+        credentials_provider: CredentialsProvider,
+    ):
+        self.credentials_provider = credentials_provider
         api_client = MetadataAPIClient(config_provider=config_provider)
         self.models_fetcher = ModelsFetcher(
             api_client=api_client,
@@ -574,7 +579,8 @@ MULTIPROJECT_DISCOVERY_TOOLS = [
 
 def register_multiproject_discovery_tools(
     dbt_mcp: FastMCP,
-    discovery_config_provider: DefaultDiscoveryConfigProvider,
+    discovery_config_provider: ConfigProvider[DiscoveryConfig],
+    credentials_provider: CredentialsProvider,
     *,
     disabled_tools: set[ToolName],
     enabled_tools: set[ToolName] | None,
@@ -583,7 +589,8 @@ def register_multiproject_discovery_tools(
 ) -> None:
     def bind_context() -> MultiProjectDiscoveryToolContext:
         return MultiProjectDiscoveryToolContext(
-            config_provider=discovery_config_provider
+            config_provider=discovery_config_provider,
+            credentials_provider=credentials_provider,
         )
 
     register_tools(
