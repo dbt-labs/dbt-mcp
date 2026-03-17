@@ -148,3 +148,8 @@ def validate_tool_mapping() -> None:
 
 # Validate at import time to catch errors early
 validate_tool_mapping()
+
+
+# Toolsets only available on Server B (multi-project mode).
+# These are excluded from README and diagram generation.
+server_b_toolsets: set[Toolset] = set()
