@@ -4,11 +4,7 @@ from dataclasses import dataclass
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
-from dbt_mcp.config.config_providers import (
-    DefaultDiscoveryConfigProvider,
-    DiscoveryConfig,
-)
-from dbt_mcp.config.headers import DiscoveryHeadersProvider
+from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.client import (
     AppliedResourceType,
     ExposuresFetcher,
@@ -31,53 +27,11 @@ from dbt_mcp.tools.fields import (
     UNIQUE_ID_REQUIRED_FIELD,
 )
 from dbt_mcp.tools.parameters import LineageResourceType
-from dbt_mcp.project.environment_resolver import get_environments_for_project
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
-
-
-async def _resolve_discovery_config_for_project(
-    context: "MultiProjectDiscoveryToolContext",
-    project_id: int,
-) -> DiscoveryConfig:
-    """Resolve a DiscoveryConfig for the given project by fetching its environments."""
-    (
-        settings,
-        token_provider,
-    ) = await context.discovery_config_provider.credentials_provider.get_credentials()
-    assert settings.actual_host and settings.dbt_account_id
-    dbt_platform_url = (
-        f"https://{settings.actual_host_prefix}.{settings.actual_host}"
-        if settings.actual_host_prefix
-        else f"https://{settings.actual_host}"
-    )
-    headers = {
-        "Accept": "application/json",
-        "Authorization": f"Bearer {token_provider.get_token()}",
-    }
-    prod_env, dev_env = get_environments_for_project(
-        dbt_platform_url=dbt_platform_url,
-        account_id=settings.dbt_account_id,
-        project_id=project_id,
-        headers=headers,
-    )
-    if settings.actual_host_prefix:
-        url = f"https://{settings.actual_host_prefix}.metadata.{settings.actual_host}/graphql"
-    else:
-        url = f"https://metadata.{settings.actual_host}/graphql"
-    environment_id = prod_env.id if prod_env else (dev_env.id if dev_env else None)
-    assert environment_id is not None, (
-        f"No prod or dev environment found for project {project_id}"
-    )
-    return DiscoveryConfig(
-        url=url,
-        headers_provider=DiscoveryHeadersProvider(token_provider=token_provider),
-        environment_id=environment_id,
-    )
-
 
 PROJECT_ID_FIELD = Field(
     description="The dbt Cloud project ID to query. "
@@ -87,7 +41,7 @@ PROJECT_ID_FIELD = Field(
 
 @dataclass
 class MultiProjectDiscoveryToolContext:
-    discovery_config_provider: DefaultDiscoveryConfigProvider
+    discovery_config_provider: ConfigProvider[DiscoveryConfig]
     models_fetcher: ModelsFetcher
     exposures_fetcher: ExposuresFetcher
     sources_fetcher: SourcesFetcher
@@ -96,7 +50,7 @@ class MultiProjectDiscoveryToolContext:
     lineage_fetcher: LineageFetcher
     model_performance_fetcher: ModelPerformanceFetcher
 
-    def __init__(self, config_provider: DefaultDiscoveryConfigProvider):
+    def __init__(self, config_provider: ConfigProvider[DiscoveryConfig]):
         self.discovery_config_provider = config_provider
         api_client = MetadataAPIClient(config_provider=config_provider)
         self.models_fetcher = ModelsFetcher(
@@ -168,7 +122,7 @@ async def get_mart_models(
     context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.discovery_config_provider.get_config_for_project(project_id)
     mart_models = await context.models_fetcher.fetch_models(
         model_filter={"modelingLayer": "marts"},
         config_override=config,
@@ -187,7 +141,7 @@ async def get_all_models(
     context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.discovery_config_provider.get_config_for_project(project_id)
     return await context.models_fetcher.fetch_models(config_override=config)
 
 
@@ -204,7 +158,7 @@ async def get_model_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.discovery_config_provider.get_config_for_project(project_id)
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.MODEL,
         unique_id=unique_id,
@@ -226,7 +180,7 @@ async def get_model_parents(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.discovery_config_provider.get_config_for_project(project_id)
     return await context.models_fetcher.fetch_model_parents(
         name, unique_id, config_override=config
     )
@@ -245,7 +199,7 @@ async def get_model_children(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.discovery_config_provider.get_config_for_project(project_id)
     return await context.models_fetcher.fetch_model_children(
         name, unique_id, config_override=config
     )
@@ -264,7 +218,7 @@ async def get_model_health(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.discovery_config_provider.get_config_for_project(project_id)
     return await context.models_fetcher.fetch_model_health(
         name, unique_id, config_override=config
     )
@@ -296,7 +250,7 @@ async def get_model_performance(
         "Default is False to reduce response size.",
     ),
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.discovery_config_provider.get_config_for_project(project_id)
     return await context.model_performance_fetcher.fetch_performance(
         name=name,
         unique_id=unique_id,
@@ -320,7 +274,7 @@ async def get_lineage(
     types: list[LineageResourceType] | None = TYPES_FIELD,
     depth: int = DEPTH_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.discovery_config_provider.get_config_for_project(project_id)
     return await context.lineage_fetcher.fetch_lineage(
         unique_id=unique_id, types=types, depth=depth, config_override=config
     )
@@ -337,7 +291,7 @@ async def get_exposures(
     context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.discovery_config_provider.get_config_for_project(project_id)
     return await context.exposures_fetcher.fetch_exposures(config_override=config)
 
 
@@ -354,7 +308,7 @@ async def get_exposure_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.discovery_config_provider.get_config_for_project(project_id)
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.EXPOSURE,
         unique_id=unique_id,
@@ -376,7 +330,7 @@ async def get_all_sources(
     source_names: list[str] | None = None,
     unique_ids: list[str] | None = None,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.discovery_config_provider.get_config_for_project(project_id)
     return await context.sources_fetcher.fetch_sources(
         source_names, unique_ids, config_override=config
     )
@@ -395,7 +349,7 @@ async def get_source_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.discovery_config_provider.get_config_for_project(project_id)
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SOURCE,
         unique_id=unique_id,
@@ -431,7 +385,7 @@ async def get_all_macros(
         "are maintained by dbt Labs.",
     ),
 ) -> list[dict] | list[str]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.discovery_config_provider.get_config_for_project(project_id)
     return await context.macros_fetcher.fetch_macros(
         package_names=package_names,
         return_package_names_only=return_package_names_only,
@@ -453,7 +407,7 @@ async def get_macro_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.discovery_config_provider.get_config_for_project(project_id)
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.MACRO,
         unique_id=unique_id,
@@ -475,7 +429,7 @@ async def get_seed_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.discovery_config_provider.get_config_for_project(project_id)
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SEED,
         unique_id=unique_id,
@@ -497,7 +451,7 @@ async def get_semantic_model_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.discovery_config_provider.get_config_for_project(project_id)
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SEMANTIC_MODEL,
         unique_id=unique_id,
@@ -519,7 +473,7 @@ async def get_snapshot_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.discovery_config_provider.get_config_for_project(project_id)
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SNAPSHOT,
         unique_id=unique_id,
@@ -541,7 +495,7 @@ async def get_test_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.discovery_config_provider.get_config_for_project(project_id)
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.TEST,
         unique_id=unique_id,
@@ -574,7 +528,7 @@ MULTIPROJECT_DISCOVERY_TOOLS = [
 
 def register_multiproject_discovery_tools(
     dbt_mcp: FastMCP,
-    discovery_config_provider: DefaultDiscoveryConfigProvider,
+    discovery_config_provider: ConfigProvider[DiscoveryConfig],
     *,
     disabled_tools: set[ToolName],
     enabled_tools: set[ToolName] | None,
@@ -582,9 +536,7 @@ def register_multiproject_discovery_tools(
     disabled_toolsets: set[Toolset],
 ) -> None:
     def bind_context() -> MultiProjectDiscoveryToolContext:
-        return MultiProjectDiscoveryToolContext(
-            config_provider=discovery_config_provider
-        )
+        return MultiProjectDiscoveryToolContext(config_provider=discovery_config_provider)
 
     register_tools(
         dbt_mcp,
