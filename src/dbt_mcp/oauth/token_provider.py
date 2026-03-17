@@ -8,14 +8,14 @@ from authlib.integrations.requests_client import OAuth2Session
 from dbt_mcp.oauth.client_id import OAUTH_CLIENT_ID
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
 from dbt_mcp.oauth.dbt_platform import dbt_platform_context_from_token_response
+from dbt_mcp.oauth.expiry import INLINE_REFRESH_BUFFER_SECONDS
 from dbt_mcp.oauth.refresh_strategy import DefaultRefreshStrategy, RefreshStrategy
 from dbt_mcp.oauth.token import AccessTokenResponse
 
 logger = logging.getLogger(__name__)
 
-# Buffer in seconds before expiry at which get_token() considers the token expired
-# and triggers an inline refresh.
-TOKEN_EXPIRY_BUFFER_SECONDS = 30
+# Re-export for backward compatibility.
+TOKEN_EXPIRY_BUFFER_SECONDS = INLINE_REFRESH_BUFFER_SECONDS
 
 
 class TokenProvider(Protocol):
@@ -69,12 +69,6 @@ class OAuthTokenProvider:
         )
         provider.start_background_refresh()
         return provider
-
-    def _get_access_token_response(self) -> AccessTokenResponse:
-        dbt_platform_context = self.context_manager.read_context()
-        if not dbt_platform_context or not dbt_platform_context.decoded_access_token:
-            raise ValueError("No decoded access token found in context")
-        return dbt_platform_context.decoded_access_token.access_token_response
 
     def _is_token_expired(self) -> bool:
         """Check whether the current access token is expired or about to expire."""

@@ -23,6 +23,7 @@ from dbt_mcp.oauth.dbt_platform import (
     DbtPlatformContext,
     dbt_platform_context_from_token_response,
 )
+from dbt_mcp.oauth.expiry import STARTUP_EXPIRY_BUFFER_SECONDS
 from dbt_mcp.oauth.login import login
 from dbt_mcp.oauth.token_provider import (
     OAuthTokenProvider,
@@ -393,7 +394,7 @@ def _is_token_valid(dbt_ctx: DbtPlatformContext) -> bool:
     if not dbt_ctx.decoded_access_token:
         return False
     expires_at = dbt_ctx.decoded_access_token.access_token_response.expires_at
-    return expires_at > time.time() + 120  # 2 minutes buffer
+    return expires_at > time.time() + STARTUP_EXPIRY_BUFFER_SECONDS
 
 
 def _try_refresh_token(
