@@ -50,6 +50,12 @@ class ConfigProvider[ConfigType](ABC):
     @abstractmethod
     async def get_config(self) -> ConfigType: ...
 
+    async def get_config_for_project(self, project_id: int) -> ConfigType:
+        raise NotImplementedError(
+            f"{type(self).__name__} does not support multi-project configuration. "
+            "Use a provider with get_config_for_project() support."
+        )
+
 
 class DefaultSemanticLayerConfigProvider(ConfigProvider[SemanticLayerConfig]):
     def __init__(self, credentials_provider: CredentialsProvider):

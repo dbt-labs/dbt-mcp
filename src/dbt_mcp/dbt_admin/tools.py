@@ -298,14 +298,14 @@ async def get_job_run_error(
 
 
 @dbt_mcp_tool(
-    name="list_jobs",
-    description=get_prompt("admin_api/list_jobs"),
-    title="List Jobs",
+    name="list_jobs_for_project",
+    description=get_prompt("admin_api/list_jobs_for_project"),
+    title="List Jobs for Project",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def list_jobs_multiproject(
+async def list_jobs_for_project(
     context: AdminToolContext,
     project_id: int,
     limit: int | None = None,
@@ -322,14 +322,14 @@ async def list_jobs_multiproject(
 
 
 @dbt_mcp_tool(
-    name="list_jobs_runs",
-    description=get_prompt("admin_api/list_jobs_runs"),
-    title="List Job Runs",
+    name="list_jobs_runs_for_project",
+    description=get_prompt("admin_api/list_jobs_runs_for_project"),
+    title="List Job Runs for Project",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def list_jobs_runs_multiproject(
+async def list_jobs_runs_for_project(
     context: AdminToolContext,
     project_id: int,
     job_id: int | None = None,
@@ -364,11 +364,8 @@ ADMIN_TOOLS = [
     list_job_run_artifacts,
     get_job_run_artifact,
     get_job_run_error,
-]
-
-MULTIPROJECT_ADMIN_API_TOOLS = [
-    list_jobs_multiproject,
-    list_jobs_runs_multiproject,
+    list_jobs_for_project,
+    list_jobs_runs_for_project,
 ]
 
 
@@ -389,32 +386,6 @@ def register_admin_api_tools(
     register_tools(
         dbt_mcp,
         tool_definitions=[tool.adapt_context(bind_context) for tool in ADMIN_TOOLS],
-        disabled_tools=disabled_tools,
-        enabled_tools=enabled_tools,
-        enabled_toolsets=enabled_toolsets,
-        disabled_toolsets=disabled_toolsets,
-    )
-
-
-def register_multiproject_admin_api_tools(
-    dbt_mcp: FastMCP,
-    admin_config_provider: ConfigProvider[AdminApiConfig],
-    *,
-    disabled_tools: set[ToolName],
-    enabled_tools: set[ToolName] | None,
-    enabled_toolsets: set[Toolset],
-    disabled_toolsets: set[Toolset],
-) -> None:
-    """Register multi-project Admin API tools."""
-
-    def bind_context() -> AdminToolContext:
-        return AdminToolContext(admin_api_config_provider=admin_config_provider)
-
-    register_tools(
-        dbt_mcp,
-        tool_definitions=[
-            tool.adapt_context(bind_context) for tool in MULTIPROJECT_ADMIN_API_TOOLS
-        ],
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,

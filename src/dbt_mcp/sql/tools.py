@@ -6,12 +6,7 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ContentBlock
 
-from dbt_mcp.config.config_providers import (
-    ProxiedToolConfig,
-    _resolve_project_environments,
-)
-from dbt_mcp.config.headers import ProxiedToolHeadersProvider
-from dbt_mcp.config.settings import CredentialsProvider
+from dbt_mcp.config.config_providers import ConfigProvider, ProxiedToolConfig
 from dbt_mcp.errors import RemoteToolError
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.proxy.tools import ProxiedToolsManager
@@ -25,40 +20,19 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SqlForProjectToolContext:
-    credentials_provider: CredentialsProvider
-
-
-async def _get_proxied_tool_config_for_project(
-    context: SqlForProjectToolContext,
-    project_id: int,
-) -> ProxiedToolConfig:
-    """Resolve a ProxiedToolConfig for a specific project by fetching its environments."""
-    settings, token_provider, prod_env, dev_env = await _resolve_project_environments(
-        context.credentials_provider, project_id
-    )
-    assert settings.actual_host
-
-    is_local = settings.actual_host.startswith("localhost")
-    path = "/v1/mcp/" if is_local else "/api/ai/v1/mcp/"
-    scheme = "http://" if is_local else "https://"
-    prefix = f"{settings.actual_host_prefix}." if settings.actual_host_prefix else ""
-    url = f"{scheme}{prefix}{settings.actual_host}{path}"
-
-    return ProxiedToolConfig(
-        user_id=settings.dbt_user_id,
-        dev_environment_id=dev_env.id if dev_env else None,
-        prod_environment_id=prod_env.id,
-        url=url,
-        headers_provider=ProxiedToolHeadersProvider(token_provider=token_provider),
-    )
+    proxied_tool_config_provider: ConfigProvider[ProxiedToolConfig]
 
 
 async def _call_remote_sql_tool(
-    config: ProxiedToolConfig,
+    context: SqlForProjectToolContext,
+    project_id: int,
     tool_name: str,
     arguments: dict[str, Any],
 ) -> Sequence[ContentBlock]:
-    """Call a remote SQL tool with the given configuration."""
+    """Call a remote SQL tool with project-specific configuration."""
+    config = await context.proxied_tool_config_provider.get_config_for_project(
+        project_id
+    )
     headers = config.headers_provider.get_headers()
     if config.prod_environment_id:
         headers["x-dbt-prod-environment-id"] = str(config.prod_environment_id)
@@ -87,44 +61,50 @@ async def _call_remote_sql_tool(
 
 
 @dbt_mcp_tool(
-    name="text_to_sql",
-    description=get_prompt("sql/text_to_sql"),
-    title="Text to SQL",
+    name="text_to_sql_for_project",
+    description=get_prompt("sql/text_to_sql_for_project"),
+    title="Text to SQL for Project",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def text_to_sql_multiproject(
+async def text_to_sql_for_project(
     context: SqlForProjectToolContext,
     project_id: int,
     query: str,
 ) -> Sequence[ContentBlock]:
     """Generate SQL from natural language for a specific project."""
-    config = await _get_proxied_tool_config_for_project(context, project_id)
+    config = await context.proxied_tool_config_provider.get_config_for_project(
+        project_id
+    )
     if not config.prod_environment_id:
         raise ValueError(
             f"Project {project_id} does not have a production environment configured. "
             "A production environment is required for text_to_sql."
         )
-    return await _call_remote_sql_tool(config, "text_to_sql", {"query": query})
+    return await _call_remote_sql_tool(
+        context, project_id, "text_to_sql", {"query": query}
+    )
 
 
 @dbt_mcp_tool(
-    name="execute_sql",
-    description=get_prompt("sql/execute_sql"),
-    title="Execute SQL",
+    name="execute_sql_for_project",
+    description=get_prompt("sql/execute_sql_for_project"),
+    title="Execute SQL for Project",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=False,
 )
-async def execute_sql_multiproject(
+async def execute_sql_for_project(
     context: SqlForProjectToolContext,
     project_id: int,
     sql_query: str,
     limit: int | None = None,
 ) -> Sequence[ContentBlock]:
     """Execute SQL for a specific project."""
-    config = await _get_proxied_tool_config_for_project(context, project_id)
+    config = await context.proxied_tool_config_provider.get_config_for_project(
+        project_id
+    )
     if not config.dev_environment_id:
         raise ValueError(
             f"Project {project_id} does not have a development environment configured. "
@@ -133,18 +113,20 @@ async def execute_sql_multiproject(
     arguments: dict[str, Any] = {"sql_query": sql_query}
     if limit is not None:
         arguments["limit"] = limit
-    return await _call_remote_sql_tool(config, "execute_sql", arguments)
+    return await _call_remote_sql_tool(
+        context, project_id, "execute_sql", arguments
+    )
 
 
-MULTIPROJECT_SQL_TOOLS = [
-    text_to_sql_multiproject,
-    execute_sql_multiproject,
+SQL_FOR_PROJECT_TOOLS = [
+    text_to_sql_for_project,
+    execute_sql_for_project,
 ]
 
 
-def register_multiproject_sql_tools(
+def register_sql_for_project_tools(
     dbt_mcp: FastMCP,
-    credentials_provider: CredentialsProvider,
+    proxied_tool_config_provider: ConfigProvider[ProxiedToolConfig],
     *,
     disabled_tools: set[ToolName],
     enabled_tools: set[ToolName] | None,
@@ -154,12 +136,14 @@ def register_multiproject_sql_tools(
     """Register multi-project SQL tools."""
 
     def bind_context() -> SqlForProjectToolContext:
-        return SqlForProjectToolContext(credentials_provider=credentials_provider)
+        return SqlForProjectToolContext(
+            proxied_tool_config_provider=proxied_tool_config_provider
+        )
 
     register_tools(
         dbt_mcp,
         tool_definitions=[
-            tool.adapt_context(bind_context) for tool in MULTIPROJECT_SQL_TOOLS
+            tool.adapt_context(bind_context) for tool in SQL_FOR_PROJECT_TOOLS
         ],
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,

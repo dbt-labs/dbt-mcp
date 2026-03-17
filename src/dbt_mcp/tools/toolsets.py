@@ -47,6 +47,8 @@ toolsets = {
     Toolset.SQL: {
         ToolName.TEXT_TO_SQL,
         ToolName.EXECUTE_SQL,
+        ToolName.TEXT_TO_SQL_FOR_PROJECT,
+        ToolName.EXECUTE_SQL_FOR_PROJECT,
     },
     Toolset.SEMANTIC_LAYER: {
         ToolName.LIST_METRICS,
@@ -103,6 +105,8 @@ toolsets = {
         ToolName.LIST_JOB_RUN_ARTIFACTS,
         ToolName.GET_JOB_RUN_ARTIFACT,
         ToolName.GET_JOB_RUN_ERROR,
+        ToolName.LIST_JOBS_FOR_PROJECT,
+        ToolName.LIST_JOBS_RUNS_FOR_PROJECT,
     },
     Toolset.DBT_CODEGEN: {
         ToolName.GENERATE_SOURCE,

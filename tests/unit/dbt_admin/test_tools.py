@@ -4,7 +4,6 @@ import pytest
 
 from dbt_mcp.dbt_admin.tools import (
     ADMIN_TOOLS,
-    MULTIPROJECT_ADMIN_API_TOOLS,
     AdminToolContext,
     JobRunStatus,
     cancel_job_run,
@@ -14,9 +13,9 @@ from dbt_mcp.dbt_admin.tools import (
     get_job_run_error,
     list_job_run_artifacts,
     list_jobs,
-    list_jobs_multiproject,
+    list_jobs_for_project,
     list_jobs_runs,
-    list_jobs_runs_multiproject,
+    list_jobs_runs_for_project,
     register_admin_api_tools,
     retry_job_run,
     trigger_job_run,
@@ -120,11 +119,11 @@ async def test_register_admin_api_tools_all_tools(mock_register_tools, mock_fast
         disabled_toolsets=set(),
     )
 
-    # Should call register_tools with 12 tool definitions (multiproject tools registered separately)
+    # Should call register_tools with 14 tool definitions (12 original + 2 for_project)
     mock_register_tools.assert_called_once()
     args, kwargs = mock_register_tools.call_args
     tool_definitions = kwargs["tool_definitions"]
-    assert len(tool_definitions) == 12
+    assert len(tool_definitions) == 14
 
 
 @patch("dbt_mcp.dbt_admin.tools.register_tools")
@@ -143,13 +142,13 @@ async def test_register_admin_api_tools_with_disabled_tools(
         disabled_toolsets=set(),
     )
 
-    # Should still call register_tools with all 12 tool definitions (multiproject tools registered separately)
+    # Should still call register_tools with all 14 tool definitions
     # The exclude_tools parameter is passed to register_tools to handle filtering
     mock_register_tools.assert_called_once()
     args, kwargs = mock_register_tools.call_args
     tool_definitions = kwargs["tool_definitions"]
     disabled_tools = kwargs["disabled_tools"]
-    assert len(tool_definitions) == 12
+    assert len(tool_definitions) == 14
     assert disabled_tools == set(disable_tools)
 
 
@@ -377,22 +376,17 @@ def test_admin_tools_list_contains_all_tools():
         "list_job_run_artifacts",
         "get_job_run_artifact",
         "get_job_run_error",
+        "list_jobs_for_project",
+        "list_jobs_runs_for_project",
     }
 
     actual_tool_names = {tool.fn.__name__ for tool in ADMIN_TOOLS}
     assert actual_tool_names == expected_tool_names
-    assert len(ADMIN_TOOLS) == 12
+    assert len(ADMIN_TOOLS) == 14
 
 
-def test_multiproject_admin_api_tools_list_contains_expected_tools():
-    """Test that MULTIPROJECT_ADMIN_API_TOOLS contains multi-project tools."""
-    expected_tool_names = {"list_jobs_multiproject", "list_jobs_runs_multiproject"}
-    actual_tool_names = {tool.fn.__name__ for tool in MULTIPROJECT_ADMIN_API_TOOLS}
-    assert actual_tool_names == expected_tool_names
-
-
-async def test_list_jobs_multiproject_tool(admin_context):
-    result = await list_jobs_multiproject.fn(admin_context, project_id=42, limit=10)
+async def test_list_jobs_for_project_tool(admin_context):
+    result = await list_jobs_for_project.fn(admin_context, project_id=42, limit=10)
 
     assert isinstance(result, list)
     admin_context.admin_client.list_jobs.assert_called_with(
@@ -400,15 +394,15 @@ async def test_list_jobs_multiproject_tool(admin_context):
     )
 
 
-async def test_list_jobs_multiproject_tool_no_optional_params(admin_context):
-    result = await list_jobs_multiproject.fn(admin_context, project_id=42)
+async def test_list_jobs_for_project_tool_no_optional_params(admin_context):
+    result = await list_jobs_for_project.fn(admin_context, project_id=42)
 
     assert isinstance(result, list)
     admin_context.admin_client.list_jobs.assert_called_with(12345, project_id=42)
 
 
-async def test_list_jobs_runs_multiproject_tool(admin_context):
-    result = await list_jobs_runs_multiproject.fn(
+async def test_list_jobs_runs_for_project_tool(admin_context):
+    result = await list_jobs_runs_for_project.fn(
         admin_context, project_id=42, job_id=1, status=JobRunStatus.SUCCESS, limit=5
     )
 
@@ -418,8 +412,8 @@ async def test_list_jobs_runs_multiproject_tool(admin_context):
     )
 
 
-async def test_list_jobs_runs_multiproject_tool_no_optional_params(admin_context):
-    result = await list_jobs_runs_multiproject.fn(admin_context, project_id=42)
+async def test_list_jobs_runs_for_project_tool_no_optional_params(admin_context):
+    result = await list_jobs_runs_for_project.fn(admin_context, project_id=42)
 
     assert isinstance(result, list)
     admin_context.admin_client.list_jobs_runs.assert_called_with(12345, project_id=42)
