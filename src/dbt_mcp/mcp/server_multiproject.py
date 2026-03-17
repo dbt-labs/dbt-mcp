@@ -7,8 +7,8 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 from dbt_mcp.config.config import Config
+from dbt_mcp.dbt_admin.tools import register_admin_api_tools
 from dbt_mcp.mcp.server import DbtMCP
-from dbt_mcp.project.tools import register_project_tools
 from dbt_mcp.tracking.tracking import DefaultUsageTracker
 
 logger = logging.getLogger(__name__)
@@ -47,14 +47,15 @@ async def create_dbt_mcp_multiproject(config: Config) -> DbtMCP:
     enabled_toolsets = config.enabled_toolsets
     disabled_toolsets = config.disabled_toolsets
 
-    logger.info("Registering project discovery tools")
-    register_project_tools(
-        dbt_mcp,
-        credentials_provider=config.credentials_provider,
-        disabled_tools=disabled_tools,
-        enabled_tools=enabled_tools,
-        enabled_toolsets=enabled_toolsets,
-        disabled_toolsets=disabled_toolsets,
-    )
+    if config.admin_api_config_provider:
+        logger.info("Registering admin API tools for project discovery")
+        register_admin_api_tools(
+            dbt_mcp,
+            config.admin_api_config_provider,
+            disabled_tools=disabled_tools,
+            enabled_tools=enabled_tools,
+            enabled_toolsets=enabled_toolsets,
+            disabled_toolsets=disabled_toolsets,
+        )
 
     return dbt_mcp

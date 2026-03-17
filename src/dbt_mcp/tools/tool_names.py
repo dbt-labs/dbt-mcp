@@ -78,9 +78,6 @@ class ToolName(Enum):
     SEARCH_PRODUCT_DOCS = "search_product_docs"
     GET_PRODUCT_DOC_PAGES = "get_product_doc_pages"
 
-    # Project tools
-    LIST_PROJECTS_AND_ENVIRONMENTS = "list_projects_and_environments"
-
     # MCP Server tools
     GET_MCP_SERVER_VERSION = "get_mcp_server_version"
     GET_MCP_SERVER_BRANCH = "get_mcp_server_branch"

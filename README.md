@@ -118,11 +118,6 @@ These tools provide information about the MCP server itself.
 - `get_mcp_server_branch`: Returns the current git branch of the running dbt MCP server.
 - `get_mcp_server_version`: Returns the current version of the dbt MCP server.
 
-### Project
-
-Tools for discovering projects and environments across dbt Cloud accounts.
-- `list_projects_and_environments`: Lists all accessible projects and their environments for multi-project discovery.
-
 
 ## Examples
 
