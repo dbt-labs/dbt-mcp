@@ -113,9 +113,7 @@ async def execute_sql_for_project(
     arguments: dict[str, Any] = {"sql_query": sql_query}
     if limit is not None:
         arguments["limit"] = limit
-    return await _call_remote_sql_tool(
-        context, project_id, "execute_sql", arguments
-    )
+    return await _call_remote_sql_tool(context, project_id, "execute_sql", arguments)
 
 
 SQL_FOR_PROJECT_TOOLS = [
