@@ -7,11 +7,8 @@ from dbt_mcp.config.config_providers import (
     DefaultProxiedToolConfigProvider,
     DefaultSemanticLayerConfigProvider,
 )
-from dbt_mcp.config.settings import (
-    CredentialsProvider,
-    DbtMcpSettings,
-    DbtMcpLogSettings,
-)
+from dbt_mcp.config.credentials import CredentialsProvider
+from dbt_mcp.config.settings import DbtMcpSettings, DbtMcpLogSettings
 from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo, dbt_lsp_binary_info
 from dbt_mcp.telemetry.logging import configure_logging

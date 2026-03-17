@@ -17,11 +17,8 @@ from dbtlabs_vortex.producer import log_proto
 
 from dbt_mcp.config.config import PACKAGE_NAME, TOOLSET_TO_DISABLE_ATTR
 from dbt_mcp.config.dbt_yaml import try_read_yaml
-from dbt_mcp.config.settings import (
-    CredentialsProvider,
-    DbtMcpSettings,
-    get_dbt_profiles_path,
-)
+from dbt_mcp.config.credentials import CredentialsProvider, get_dbt_profiles_path
+from dbt_mcp.config.settings import DbtMcpSettings
 from dbt_mcp.tools.toolsets import Toolset, proxied_tools
 
 logger = logging.getLogger(__name__)

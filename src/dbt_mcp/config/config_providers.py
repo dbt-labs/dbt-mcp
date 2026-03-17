@@ -9,7 +9,7 @@ from dbt_mcp.config.headers import (
     SemanticLayerHeadersProvider,
     TokenProvider,
 )
-from dbt_mcp.config.settings import CredentialsProvider
+from dbt_mcp.config.credentials import CredentialsProvider
 
 
 @dataclass
