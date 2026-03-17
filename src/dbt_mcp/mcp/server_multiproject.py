@@ -13,7 +13,6 @@ from dbt_mcp.discovery.tools_multiproject import register_multiproject_discovery
 from dbt_mcp.mcp.server import DbtMCP
 from dbt_mcp.mcp_server_metadata.tools import register_mcp_server_tools
 from dbt_mcp.product_docs.tools import register_product_docs_tools
-from dbt_mcp.project.tools import register_project_tools
 from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
 from dbt_mcp.semantic_layer.tools_multiproject import register_multiproject_sl_tools
 from dbt_mcp.sql.tools import register_sql_for_project_tools
@@ -68,16 +67,6 @@ async def create_dbt_mcp_multiproject(config: Config) -> DbtMCP:
     logger.info("Registering MCP server metadata tools")
     register_mcp_server_tools(
         dbt_mcp,
-        disabled_tools=disabled_tools,
-        enabled_tools=enabled_tools,
-        enabled_toolsets=enabled_toolsets,
-        disabled_toolsets=disabled_toolsets,
-    )
-
-    logger.info("Registering project discovery tools")
-    register_project_tools(
-        dbt_mcp,
-        credentials_provider=config.credentials_provider,
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,

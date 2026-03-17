@@ -10,11 +10,11 @@ from dbt_mcp.mcp.server_multiproject import create_dbt_mcp_multiproject
 from tests.mocks.config import mock_config
 
 
-async def test_server_b_registers_project_tools():
-    """Server B always registers list_projects_and_environments."""
+async def test_server_b_registers_list_projects():
+    """Server B always registers list_projects via admin API tools."""
     dbt_mcp = await create_dbt_mcp_multiproject(mock_config)
     tool_names = {tool.name for tool in await dbt_mcp.list_tools()}
-    assert "list_projects_and_environments" in tool_names
+    assert "list_projects" in tool_names
 
 
 async def test_server_b_registers_multiproject_semantic_layer_tools():
@@ -121,7 +121,7 @@ async def test_server_a_not_affected_by_multiproject_flag(env_setup):
 
         # Server A should NOT have multi-project-only tools (the ones requiring
         # per-project environment resolution, registered only in Server B)
-        assert "list_projects_and_environments" not in tool_names
+        assert "list_metrics_for_project" not in tool_names
         assert "list_metrics_for_project" not in tool_names
         assert "text_to_sql_for_project" not in tool_names
         # Note: list_jobs_for_project IS on Server A because it's part of ADMIN_TOOLS
@@ -163,8 +163,8 @@ async def test_server_b_skips_discovery_when_no_config():
     assert "get_mart_models" not in tool_names
     assert "get_all_models" not in tool_names
 
-    # But project tools should still be present
-    assert "list_projects_and_environments" in tool_names
+    # But admin tools (including list_projects) should still be present
+    assert "list_projects" in tool_names
 
 
 async def test_server_b_skips_sql_when_no_proxied_tool_config():
@@ -250,5 +250,5 @@ async def test_server_b_skips_admin_when_no_config():
 
     assert "list_jobs_for_project" not in tool_names
     assert "list_jobs_runs_for_project" not in tool_names
-    # But project tools should still be present
-    assert "list_projects_and_environments" in tool_names
+    # When admin is None, list_projects is also not present
+    assert "list_projects" not in tool_names

@@ -81,7 +81,7 @@ async def _resolve_discovery_config_for_project(
 
 PROJECT_ID_FIELD = Field(
     description="The dbt Cloud project ID to query. "
-    "Use list_projects_and_environments to discover available project IDs.",
+    "Use list_projects to discover available project IDs.",
 )
 
 
