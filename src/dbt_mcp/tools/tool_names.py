@@ -49,8 +49,6 @@ class ToolName(Enum):
     # SQL tools
     TEXT_TO_SQL = "text_to_sql"
     EXECUTE_SQL = "execute_sql"
-    TEXT_TO_SQL_FOR_PROJECT = "text_to_sql_for_project"
-    EXECUTE_SQL_FOR_PROJECT = "execute_sql_for_project"
 
     # Admin API tools
     LIST_PROJECTS = "list_projects"
@@ -65,8 +63,6 @@ class ToolName(Enum):
     LIST_JOB_RUN_ARTIFACTS = "list_job_run_artifacts"
     GET_JOB_RUN_ARTIFACT = "get_job_run_artifact"
     GET_JOB_RUN_ERROR = "get_job_run_error"
-    LIST_JOBS_FOR_PROJECT = "list_jobs_for_project"
-    LIST_JOBS_RUNS_FOR_PROJECT = "list_jobs_runs_for_project"
 
     # dbt-codegen tools
     GENERATE_SOURCE = "generate_source"

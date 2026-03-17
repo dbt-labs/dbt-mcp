@@ -46,8 +46,6 @@ HUMAN_DESCRIPTIONS: dict[ToolName, str] = {
     # SQL tools
     ToolName.TEXT_TO_SQL: "Generates SQL from natural language using project context.",
     ToolName.EXECUTE_SQL: "Executes SQL on dbt Platform infrastructure with Semantic Layer support.",
-    ToolName.TEXT_TO_SQL_FOR_PROJECT: "Generates SQL from natural language for a specific project (multi-project).",
-    ToolName.EXECUTE_SQL_FOR_PROJECT: "Executes SQL for a specific project (multi-project).",
     # Admin API tools
     ToolName.LIST_PROJECTS: "Lists all projects in the dbt Platform account.",
     ToolName.LIST_JOBS: "Lists jobs in a dbt Platform account; option to filter by project or environment.",
@@ -61,8 +59,6 @@ HUMAN_DESCRIPTIONS: dict[ToolName, str] = {
     ToolName.LIST_JOB_RUN_ARTIFACTS: "Lists available artifacts from a job run.",
     ToolName.GET_JOB_RUN_ARTIFACT: "Downloads a specific artifact file from a job run.",
     ToolName.GET_JOB_RUN_ERROR: "Gets error and/or warning details for a job run; option to include or show warnings only.",
-    ToolName.LIST_JOBS_FOR_PROJECT: "Lists jobs filtered by a specific project (multi-project).",
-    ToolName.LIST_JOBS_RUNS_FOR_PROJECT: "Lists job runs filtered by a specific project (multi-project).",
     # dbt-codegen tools
     ToolName.GENERATE_SOURCE: "Generates source YAML by introspecting database schemas; option to include columns.",
     ToolName.GENERATE_MODEL_YAML: "Generates model YAML with columns; option to inherit upstream descriptions.",

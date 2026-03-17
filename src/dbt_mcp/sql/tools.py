@@ -92,14 +92,14 @@ async def _call_remote_sql_tool(
 
 
 @dbt_mcp_tool(
-    name="text_to_sql_for_project",
-    description=get_prompt("sql/text_to_sql_for_project"),
-    title="Text to SQL for Project",
+    name="text_to_sql",
+    description=get_prompt("sql/text_to_sql"),
+    title="Text to SQL",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def text_to_sql_for_project(
+async def text_to_sql_multiproject(
     context: SqlForProjectToolContext,
     project_id: int,
     query: str,
@@ -115,14 +115,14 @@ async def text_to_sql_for_project(
 
 
 @dbt_mcp_tool(
-    name="execute_sql_for_project",
-    description=get_prompt("sql/execute_sql_for_project"),
-    title="Execute SQL for Project",
+    name="execute_sql",
+    description=get_prompt("sql/execute_sql"),
+    title="Execute SQL",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=False,
 )
-async def execute_sql_for_project(
+async def execute_sql_multiproject(
     context: SqlForProjectToolContext,
     project_id: int,
     sql_query: str,
@@ -141,13 +141,13 @@ async def execute_sql_for_project(
     return await _call_remote_sql_tool(config, "execute_sql", arguments)
 
 
-SQL_FOR_PROJECT_TOOLS = [
-    text_to_sql_for_project,
-    execute_sql_for_project,
+MULTIPROJECT_SQL_TOOLS = [
+    text_to_sql_multiproject,
+    execute_sql_multiproject,
 ]
 
 
-def register_sql_for_project_tools(
+def register_multiproject_sql_tools(
     dbt_mcp: FastMCP,
     credentials_provider: CredentialsProvider,
     *,
@@ -164,7 +164,7 @@ def register_sql_for_project_tools(
     register_tools(
         dbt_mcp,
         tool_definitions=[
-            tool.adapt_context(bind_context) for tool in SQL_FOR_PROJECT_TOOLS
+            tool.adapt_context(bind_context) for tool in MULTIPROJECT_SQL_TOOLS
         ],
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
