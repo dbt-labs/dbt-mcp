@@ -30,8 +30,8 @@ async def test_tool_names_match_server_tools(env_setup):
 
         # Get all tools from the server
         server_tools = await dbt_mcp.list_tools()
-        # Manually adding proxied tools here because the server doesn't get them
-        # in this unit test.
+        # Manually adding proxied tools here because
+        # they are not registered on the default server in this unit test.
         server_tool_names = {tool.name for tool in server_tools} | {
             p.value for p in proxied_tools
         }
