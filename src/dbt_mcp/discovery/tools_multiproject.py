@@ -7,6 +7,7 @@ from pydantic import Field
 from dbt_mcp.config.config_providers import (
     ConfigProvider,
     DiscoveryConfig,
+    _resolve_project_environments,
 )
 from dbt_mcp.config.settings import CredentialsProvider
 from dbt_mcp.config.headers import DiscoveryHeadersProvider
@@ -32,7 +33,6 @@ from dbt_mcp.tools.fields import (
     UNIQUE_ID_REQUIRED_FIELD,
 )
 from dbt_mcp.tools.parameters import LineageResourceType
-from dbt_mcp.project.environment_resolver import get_environments_for_project
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
@@ -45,26 +45,10 @@ async def _resolve_discovery_config_for_project(
     project_id: int,
 ) -> DiscoveryConfig:
     """Resolve a DiscoveryConfig for the given project by fetching its environments."""
-    (
-        settings,
-        token_provider,
-    ) = await context.credentials_provider.get_credentials()
-    assert settings.actual_host and settings.dbt_account_id
-    dbt_platform_url = (
-        f"https://{settings.actual_host_prefix}.{settings.actual_host}"
-        if settings.actual_host_prefix
-        else f"https://{settings.actual_host}"
+    settings, token_provider, prod_env, dev_env = await _resolve_project_environments(
+        context.credentials_provider, project_id
     )
-    headers = {
-        "Accept": "application/json",
-        "Authorization": f"Bearer {token_provider.get_token()}",
-    }
-    prod_env, dev_env = await get_environments_for_project(
-        dbt_platform_url=dbt_platform_url,
-        account_id=settings.dbt_account_id,
-        project_id=project_id,
-        headers=headers,
-    )
+    assert settings.actual_host
     if settings.actual_host_prefix:
         url = f"https://{settings.actual_host_prefix}.metadata.{settings.actual_host}/graphql"
     else:
