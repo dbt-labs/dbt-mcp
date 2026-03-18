@@ -32,10 +32,9 @@ async def test_tool_names_match_server_tools(env_setup):
         server_tools = await dbt_mcp.list_tools()
         # Manually adding proxied tools here because
         # they are not registered on the default server in this unit test.
-        server_tool_names = (
-            {tool.name for tool in server_tools}
-            | {p.value for p in proxied_tools}
-        )
+        server_tool_names = {tool.name for tool in server_tools} | {
+            p.value for p in proxied_tools
+        }
         enum_names = {n for n in ToolName.get_all_tool_names()}
 
         # This should not raise any errors if the enum is in sync

@@ -57,10 +57,9 @@ async def test_toolsets_match_server_tools(env_setup):
         server_tools = await dbt_mcp.list_tools()
         # Manually adding proxied tools here because
         # they are not registered on the default server in this unit test.
-        server_tool_names = (
-            {tool.name for tool in server_tools}
-            | {p.value for p in proxied_tools}
-        )
+        server_tool_names = {tool.name for tool in server_tools} | {
+            p.value for p in proxied_tools
+        }
         defined_tools = set()
         for toolset_tools in toolsets.values():
             defined_tools.update({t.value for t in toolset_tools})

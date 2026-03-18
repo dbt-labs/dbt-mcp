@@ -70,7 +70,7 @@ class DefaultSemanticLayerConfigProvider(ConfigProvider[SemanticLayerConfig]):
             "Accept": "application/json",
             "Authorization": f"Bearer {token_provider.get_token()}",
         }
-        prod_env, _ = get_environments_for_project(
+        prod_env, _ = await get_environments_for_project(
             dbt_platform_url=dbt_platform_url,
             account_id=settings.dbt_account_id,
             project_id=project_id,
