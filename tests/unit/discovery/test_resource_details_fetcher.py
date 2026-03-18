@@ -108,7 +108,7 @@ async def test_fetch_details_with_name_builds_unique_ids(
         }
     }
 
-    async def execute_side_effect(query, variables):
+    async def execute_side_effect(query, variables, config_override=None):
         if query == ResourceDetailsFetcher.GET_PACKAGES_QUERY:
             if variables["resource"] == "macro":
                 return macro_packages_response
@@ -180,7 +180,7 @@ async def test_fetch_details_name_raises_when_no_packages(
         "data": {"environment": {"applied": {"packages": []}}},
     }
 
-    async def execute_side_effect(query, variables):
+    async def execute_side_effect(query, variables, config_override=None):
         if query == ResourceDetailsFetcher.GET_PACKAGES_QUERY:
             return no_packages_response
         raise AssertionError("Details query should not be executed when no packages")

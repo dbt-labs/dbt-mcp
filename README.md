@@ -26,7 +26,9 @@ The dbt MCP server architecture allows for your agent to connect to a variety of
 
 Tools for executing and generating SQL on dbt Platform infrastructure.
 - `execute_sql`: Executes SQL on dbt Platform infrastructure with Semantic Layer support.
+- `execute_sql_for_project`: Executes SQL for a specific project (multi-project).
 - `text_to_sql`: Generates SQL from natural language using project context.
+- `text_to_sql_for_project`: Generates SQL from natural language for a specific project (multi-project).
 
 ### Semantic Layer
 
@@ -87,7 +89,9 @@ To learn more about the dbt Administrative API, click [here](https://docs.getdbt
 - `get_project_details`: Gets project information for a specific dbt project.
 - `list_job_run_artifacts`: Lists available artifacts from a job run.
 - `list_jobs`: Lists jobs in a dbt Platform account; option to filter by project or environment.
+- `list_jobs_for_project`: Lists jobs filtered by a specific project (multi-project).
 - `list_jobs_runs`: Lists job runs; option to filter by job, status, or order by field.
+- `list_jobs_runs_for_project`: Lists job runs filtered by a specific project (multi-project).
 - `list_projects`: Lists all projects in the dbt Platform account.
 - `retry_job_run`: Retries a failed job run.
 - `trigger_job_run`: Triggers a job run; option to override git branch, schema, or other settings.

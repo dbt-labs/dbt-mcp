@@ -297,6 +297,60 @@ async def get_job_run_error(
     return error_result
 
 
+@dbt_mcp_tool(
+    name="list_jobs_for_project",
+    description=get_prompt("admin_api/list_jobs_for_project"),
+    title="List Jobs for Project",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+)
+async def list_jobs_for_project(
+    context: AdminToolContext,
+    project_id: int,
+    limit: int | None = None,
+    offset: int | None = None,
+) -> list[dict[str, Any]]:
+    """List jobs for a specific project."""
+    admin_api_config = await context.admin_api_config_provider.get_config()
+    params: dict[str, Any] = {"project_id": project_id}
+    if limit:
+        params["limit"] = limit
+    if offset:
+        params["offset"] = offset
+    return await context.admin_client.list_jobs(admin_api_config.account_id, **params)
+
+
+@dbt_mcp_tool(
+    name="list_jobs_runs_for_project",
+    description=get_prompt("admin_api/list_jobs_runs_for_project"),
+    title="List Job Runs for Project",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+)
+async def list_jobs_runs_for_project(
+    context: AdminToolContext,
+    project_id: int,
+    job_id: int | None = None,
+    status: JobRunStatus | None = None,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    """List job runs for a specific project."""
+    admin_api_config = await context.admin_api_config_provider.get_config()
+    params: dict[str, Any] = {"project_id": project_id}
+    if job_id:
+        params["job_definition_id"] = job_id
+    if status:
+        status_id = STATUS_MAP[status]
+        params["status"] = status_id
+    if limit:
+        params["limit"] = limit
+    return await context.admin_client.list_jobs_runs(
+        admin_api_config.account_id, **params
+    )
+
+
 ADMIN_TOOLS = [
     list_projects,
     list_jobs,
@@ -310,6 +364,8 @@ ADMIN_TOOLS = [
     list_job_run_artifacts,
     get_job_run_artifact,
     get_job_run_error,
+    list_jobs_for_project,
+    list_jobs_runs_for_project,
 ]
 
 

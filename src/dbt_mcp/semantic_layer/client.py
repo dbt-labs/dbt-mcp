@@ -118,7 +118,10 @@ class SemanticLayerFetcher:
         self.entities_cache: dict[str, list[EntityToolResponse]] = {}
         self.dimensions_cache: dict[str, list[DimensionToolResponse]] = {}
 
-    async def list_metrics(self, search: str | None = None) -> list[MetricToolResponse]:
+    async def list_metrics(
+        self,
+        search: str | None = None,
+    ) -> list[MetricToolResponse]:
         metrics_result = await submit_request(
             await self.config_provider.get_config(),
             {"query": GRAPHQL_QUERIES["metrics"], "variables": {"search": search}},
@@ -135,7 +138,8 @@ class SemanticLayerFetcher:
         ]
 
     async def list_saved_queries(
-        self, search: str | None = None
+        self,
+        search: str | None = None,
     ) -> list[SavedQueryToolResponse]:
         """Fetch all saved queries from the Semantic Layer API."""
         saved_queries_result = await submit_request(
@@ -168,7 +172,9 @@ class SemanticLayerFetcher:
         ]
 
     async def get_dimensions(
-        self, metrics: list[str], search: str | None = None
+        self,
+        metrics: list[str],
+        search: str | None = None,
     ) -> list[DimensionToolResponse]:
         metrics_key = ",".join(sorted(metrics))
         if metrics_key not in self.dimensions_cache:
@@ -199,7 +205,9 @@ class SemanticLayerFetcher:
         return self.dimensions_cache[metrics_key]
 
     async def get_entities(
-        self, metrics: list[str], search: str | None = None
+        self,
+        metrics: list[str],
+        search: str | None = None,
     ) -> list[EntityToolResponse]:
         metrics_key = ",".join(sorted(metrics))
         if metrics_key not in self.entities_cache:
