@@ -9,7 +9,8 @@ from dbt_mcp.config.headers import (
     SemanticLayerHeadersProvider,
     TokenProvider,
 )
-from dbt_mcp.config.settings import CredentialsProvider
+from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
+from dbt_mcp.oauth.dbt_platform import DbtPlatformEnvironment
 from dbt_mcp.project.environment_resolver import get_environments_for_project
 
 
@@ -46,6 +47,37 @@ class ProxiedToolConfig:
     headers_provider: ProxiedToolHeadersProvider
 
 
+async def _resolve_project_environments(
+    credentials_provider: CredentialsProvider,
+    project_id: int,
+) -> tuple[
+    DbtMcpSettings,
+    TokenProvider,
+    DbtPlatformEnvironment,
+    DbtPlatformEnvironment | None,
+]:
+    settings, token_provider = await credentials_provider.get_credentials()
+    assert settings.actual_host and settings.dbt_account_id
+    dbt_platform_url = (
+        f"https://{settings.actual_host_prefix}.{settings.actual_host}"
+        if settings.actual_host_prefix
+        else f"https://{settings.actual_host}"
+    )
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {token_provider.get_token()}",
+    }
+    prod_env, dev_env = await get_environments_for_project(
+        dbt_platform_url=dbt_platform_url,
+        account_id=settings.dbt_account_id,
+        project_id=project_id,
+        headers=headers,
+    )
+    if not prod_env:
+        raise ValueError(f"No production environment found for project {project_id}")
+    return settings, token_provider, prod_env, dev_env
+
+
 class ConfigProvider[ConfigType](ABC):
     @abstractmethod
     async def get_config(self) -> ConfigType: ...
@@ -56,30 +88,10 @@ class DefaultSemanticLayerConfigProvider(ConfigProvider[SemanticLayerConfig]):
         self.credentials_provider = credentials_provider
 
     async def get_config_for_project(self, project_id: int) -> SemanticLayerConfig:
-        (
-            settings,
-            token_provider,
-        ) = await self.credentials_provider.get_credentials()
-        assert settings.actual_host and settings.dbt_account_id
-        dbt_platform_url = (
-            f"https://{settings.actual_host_prefix}.{settings.actual_host}"
-            if settings.actual_host_prefix
-            else f"https://{settings.actual_host}"
+        settings, token_provider, prod_env, _ = await _resolve_project_environments(
+            self.credentials_provider, project_id
         )
-        headers = {
-            "Accept": "application/json",
-            "Authorization": f"Bearer {token_provider.get_token()}",
-        }
-        prod_env, _ = await get_environments_for_project(
-            dbt_platform_url=dbt_platform_url,
-            account_id=settings.dbt_account_id,
-            project_id=project_id,
-            headers=headers,
-        )
-        if not prod_env:
-            raise ValueError(
-                f"No production environment found for project {project_id}"
-            )
+        assert settings.actual_host
         host = settings.actual_host
         host_prefix = settings.actual_host_prefix
         is_local = host.startswith("localhost")

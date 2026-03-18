@@ -4,7 +4,10 @@ from dataclasses import dataclass
 from dbtsl.api.shared.query_params import GroupByParam
 from mcp.server.fastmcp import FastMCP
 
-from dbt_mcp.config.config_providers import DefaultSemanticLayerConfigProvider
+from dbt_mcp.config.config_providers import (
+    DefaultSemanticLayerConfigProvider,
+    SemanticLayerConfig,
+)
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.semantic_layer.client import (
     SemanticLayerClientProvider,
@@ -30,7 +33,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MultiProjectSemanticLayerToolContext:
     semantic_layer_config_provider: DefaultSemanticLayerConfigProvider
-    semantic_layer_fetcher: SemanticLayerFetcher
+    _client_provider: SemanticLayerClientProvider
 
     def __init__(
         self,
@@ -38,8 +41,13 @@ class MultiProjectSemanticLayerToolContext:
         client_provider: SemanticLayerClientProvider,
     ):
         self.semantic_layer_config_provider = config_provider
-        self.semantic_layer_fetcher = SemanticLayerFetcher(
-            config_provider=config_provider, client_provider=client_provider
+        self._client_provider = client_provider
+
+    def fetcher_for_config(self, config: SemanticLayerConfig) -> SemanticLayerFetcher:
+        return SemanticLayerFetcher(
+            config_provider=self.semantic_layer_config_provider,
+            client_provider=self._client_provider,
+            config=config,
         )
 
 
@@ -60,9 +68,8 @@ async def list_metrics(
     config = await context.semantic_layer_config_provider.get_config_for_project(
         project_id
     )
-    return await context.semantic_layer_fetcher.list_metrics(
-        search=search, config_override=config
-    )
+    fetcher = context.fetcher_for_config(config)
+    return await fetcher.list_metrics(search=search)
 
 
 @generic_dbt_mcp_tool(
@@ -82,9 +89,8 @@ async def list_saved_queries(
     config = await context.semantic_layer_config_provider.get_config_for_project(
         project_id
     )
-    return await context.semantic_layer_fetcher.list_saved_queries(
-        search=search, config_override=config
-    )
+    fetcher = context.fetcher_for_config(config)
+    return await fetcher.list_saved_queries(search=search)
 
 
 @generic_dbt_mcp_tool(
@@ -105,9 +111,8 @@ async def get_dimensions(
     config = await context.semantic_layer_config_provider.get_config_for_project(
         project_id
     )
-    return await context.semantic_layer_fetcher.get_dimensions(
-        metrics=metrics, search=search, config_override=config
-    )
+    fetcher = context.fetcher_for_config(config)
+    return await fetcher.get_dimensions(metrics=metrics, search=search)
 
 
 @generic_dbt_mcp_tool(
@@ -128,9 +133,8 @@ async def get_entities(
     config = await context.semantic_layer_config_provider.get_config_for_project(
         project_id
     )
-    return await context.semantic_layer_fetcher.get_entities(
-        metrics=metrics, search=search, config_override=config
-    )
+    fetcher = context.fetcher_for_config(config)
+    return await fetcher.get_entities(metrics=metrics, search=search)
 
 
 @generic_dbt_mcp_tool(
@@ -154,13 +158,13 @@ async def query_metrics(
     config = await context.semantic_layer_config_provider.get_config_for_project(
         project_id
     )
-    result = await context.semantic_layer_fetcher.query_metrics(
+    fetcher = context.fetcher_for_config(config)
+    result = await fetcher.query_metrics(
         metrics=metrics,
         group_by=group_by,
         order_by=order_by,
         where=where,
         limit=limit,
-        config_override=config,
     )
     if isinstance(result, QueryMetricsSuccess):
         return result.result
@@ -189,13 +193,13 @@ async def get_metrics_compiled_sql(
     config = await context.semantic_layer_config_provider.get_config_for_project(
         project_id
     )
-    result = await context.semantic_layer_fetcher.get_metrics_compiled_sql(
+    fetcher = context.fetcher_for_config(config)
+    result = await fetcher.get_metrics_compiled_sql(
         metrics=metrics,
         group_by=group_by,
         order_by=order_by,
         where=where,
         limit=limit,
-        config_override=config,
     )
     if isinstance(result, GetMetricsCompiledSqlSuccess):
         return result.sql
