@@ -6,11 +6,13 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ContentBlock
 
-from dbt_mcp.config.config_providers import ProxiedToolConfig
+from dbt_mcp.config.config_providers import (
+    ProxiedToolConfig,
+    _resolve_project_environments,
+)
 from dbt_mcp.config.headers import ProxiedToolHeadersProvider
 from dbt_mcp.config.settings import CredentialsProvider
 from dbt_mcp.errors import RemoteToolError
-from dbt_mcp.project.environment_resolver import get_environments_for_project
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.proxy.tools import ProxiedToolsManager
 from dbt_mcp.tools.definitions import dbt_mcp_tool
@@ -31,17 +33,10 @@ async def _get_proxied_tool_config_for_project(
     project_id: int,
 ) -> ProxiedToolConfig:
     """Resolve a ProxiedToolConfig for a specific project by fetching its environments."""
-    settings, token_provider = await context.credentials_provider.get_credentials()
-    assert settings.actual_host and settings.dbt_account_id
-
-    auth_headers = {"Authorization": f"Bearer {token_provider.get_token()}"}
-    dbt_platform_url = f"https://{settings.actual_host}"
-    prod_env, dev_env = await get_environments_for_project(
-        dbt_platform_url=dbt_platform_url,
-        account_id=settings.dbt_account_id,
-        project_id=project_id,
-        headers=auth_headers,
+    settings, token_provider, prod_env, dev_env = await _resolve_project_environments(
+        context.credentials_provider, project_id
     )
+    assert settings.actual_host
 
     is_local = settings.actual_host.startswith("localhost")
     path = "/v1/mcp/" if is_local else "/api/ai/v1/mcp/"
@@ -52,7 +47,7 @@ async def _get_proxied_tool_config_for_project(
     return ProxiedToolConfig(
         user_id=settings.dbt_user_id,
         dev_environment_id=dev_env.id if dev_env else None,
-        prod_environment_id=prod_env.id if prod_env else None,
+        prod_environment_id=prod_env.id,
         url=url,
         headers_provider=ProxiedToolHeadersProvider(token_provider=token_provider),
     )
