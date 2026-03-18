@@ -120,11 +120,11 @@ async def test_register_admin_api_tools_all_tools(mock_register_tools, mock_fast
         disabled_toolsets=set(),
     )
 
-    # Should call register_tools with 14 tool definitions (12 original + 2 for_project)
+    # Should call register_tools with 12 tool definitions (multiproject tools registered separately)
     mock_register_tools.assert_called_once()
     args, kwargs = mock_register_tools.call_args
     tool_definitions = kwargs["tool_definitions"]
-    assert len(tool_definitions) == 14
+    assert len(tool_definitions) == 12
 
 
 @patch("dbt_mcp.dbt_admin.tools.register_tools")
@@ -143,13 +143,13 @@ async def test_register_admin_api_tools_with_disabled_tools(
         disabled_toolsets=set(),
     )
 
-    # Should still call register_tools with all 14 tool definitions
+    # Should still call register_tools with all 12 tool definitions (multiproject tools registered separately)
     # The exclude_tools parameter is passed to register_tools to handle filtering
     mock_register_tools.assert_called_once()
     args, kwargs = mock_register_tools.call_args
     tool_definitions = kwargs["tool_definitions"]
     disabled_tools = kwargs["disabled_tools"]
-    assert len(tool_definitions) == 14
+    assert len(tool_definitions) == 12
     assert disabled_tools == set(disable_tools)
 
 
