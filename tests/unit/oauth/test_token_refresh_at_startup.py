@@ -131,36 +131,17 @@ class TestTryRefreshToken:
         ctx = _create_mock_context(expires_at=int(time.time()) - 3600)  # Expired
         mock_context_manager = MagicMock()
 
-        # Mock the OAuth2Session and its refresh_token method
-        mock_token_response = {
-            "access_token": "new_access_token",
-            "refresh_token": "new_refresh_token",
-            "expires_in": 3600,
-            "scope": "user_access offline_access",
-            "token_type": "Bearer",
-            "expires_at": int(time.time()) + 3600,
-        }
-
-        with (
-            patch("dbt_mcp.config.settings.OAuth2Session") as mock_oauth_session_class,
-            patch(
-                "dbt_mcp.config.settings.dbt_platform_context_from_token_response"
-            ) as mock_from_token,
-        ):
-            mock_oauth_session = MagicMock()
-            mock_oauth_session.refresh_token.return_value = mock_token_response
-            mock_oauth_session_class.return_value = mock_oauth_session
-
+        with patch("dbt_mcp.config.settings.refresh_oauth_token") as mock_refresh:
             # Create a new context that would be returned after refresh
             new_ctx = _create_mock_context(expires_at=int(time.time()) + 3600)
-            mock_from_token.return_value = new_ctx
+            mock_refresh.return_value = new_ctx
 
             result = _try_refresh_token(
                 ctx, "https://cloud.getdbt.com", mock_context_manager
             )
 
             assert result is not None
-            mock_oauth_session.refresh_token.assert_called_once()
+            mock_refresh.assert_called_once()
             mock_context_manager.write_context_to_file.assert_called_once()
 
     def test_refresh_fails_gracefully(self):
@@ -168,10 +149,8 @@ class TestTryRefreshToken:
         ctx = _create_mock_context(expires_at=int(time.time()) - 3600)
         mock_context_manager = MagicMock()
 
-        with patch("dbt_mcp.config.settings.OAuth2Session") as mock_oauth_session_class:
-            mock_oauth_session = MagicMock()
-            mock_oauth_session.refresh_token.side_effect = Exception("Network error")
-            mock_oauth_session_class.return_value = mock_oauth_session
+        with patch("dbt_mcp.config.settings.refresh_oauth_token") as mock_refresh:
+            mock_refresh.side_effect = Exception("Network error")
 
             result = _try_refresh_token(
                 ctx, "https://cloud.getdbt.com", mock_context_manager
