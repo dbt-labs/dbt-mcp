@@ -36,7 +36,7 @@ async def _get_proxied_tool_config_for_project(
 
     auth_headers = {"Authorization": f"Bearer {token_provider.get_token()}"}
     dbt_platform_url = f"https://{settings.actual_host}"
-    prod_env, dev_env = get_environments_for_project(
+    prod_env, dev_env = await get_environments_for_project(
         dbt_platform_url=dbt_platform_url,
         account_id=settings.dbt_account_id,
         project_id=project_id,
