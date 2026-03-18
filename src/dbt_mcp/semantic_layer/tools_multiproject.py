@@ -4,12 +4,7 @@ from dataclasses import dataclass
 from dbtsl.api.shared.query_params import GroupByParam
 from mcp.server.fastmcp import FastMCP
 
-from dbt_mcp.config.config_providers import (
-    DefaultSemanticLayerConfigProvider,
-    SemanticLayerConfig,
-)
-from dbt_mcp.config.headers import SemanticLayerHeadersProvider
-from dbt_mcp.project.environment_resolver import get_environments_for_project
+from dbt_mcp.config.config_providers import DefaultSemanticLayerConfigProvider
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.semantic_layer.client import (
     SemanticLayerClientProvider,
@@ -30,50 +25,6 @@ from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
-
-
-async def _resolve_sl_config_for_project(
-    config_provider: DefaultSemanticLayerConfigProvider,
-    project_id: int,
-) -> SemanticLayerConfig:
-    (
-        settings,
-        token_provider,
-    ) = await config_provider.credentials_provider.get_credentials()
-    assert settings.actual_host and settings.dbt_account_id
-    dbt_platform_url = (
-        f"https://{settings.actual_host_prefix}.{settings.actual_host}"
-        if settings.actual_host_prefix
-        else f"https://{settings.actual_host}"
-    )
-    headers = {
-        "Accept": "application/json",
-        "Authorization": f"Bearer {token_provider.get_token()}",
-    }
-    prod_env, _ = get_environments_for_project(
-        dbt_platform_url=dbt_platform_url,
-        account_id=settings.dbt_account_id,
-        project_id=project_id,
-        headers=headers,
-    )
-    if not prod_env:
-        raise ValueError(f"No production environment found for project {project_id}")
-    host = settings.actual_host
-    host_prefix = settings.actual_host_prefix
-    is_local = host.startswith("localhost")
-    if is_local:
-        sl_host = host
-    elif host_prefix:
-        sl_host = f"{host_prefix}.semantic-layer.{host}"
-    else:
-        sl_host = f"semantic-layer.{host}"
-    return SemanticLayerConfig(
-        url=f"http://{sl_host}" if is_local else f"https://{sl_host}/api/graphql",
-        host=sl_host,
-        prod_environment_id=prod_env.id,
-        token_provider=token_provider,
-        headers_provider=SemanticLayerHeadersProvider(token_provider=token_provider),
-    )
 
 
 @dataclass
@@ -106,8 +57,8 @@ async def list_metrics(
     project_id: int,
     search: str | None = None,
 ) -> list[MetricToolResponse]:
-    config = await _resolve_sl_config_for_project(
-        context.semantic_layer_config_provider, project_id
+    config = await context.semantic_layer_config_provider.get_config_for_project(
+        project_id
     )
     return await context.semantic_layer_fetcher.list_metrics(
         search=search, config_override=config
@@ -128,8 +79,8 @@ async def list_saved_queries(
     project_id: int,
     search: str | None = None,
 ) -> list[SavedQueryToolResponse]:
-    config = await _resolve_sl_config_for_project(
-        context.semantic_layer_config_provider, project_id
+    config = await context.semantic_layer_config_provider.get_config_for_project(
+        project_id
     )
     return await context.semantic_layer_fetcher.list_saved_queries(
         search=search, config_override=config
@@ -151,8 +102,8 @@ async def get_dimensions(
     metrics: list[str],
     search: str | None = None,
 ) -> list[DimensionToolResponse]:
-    config = await _resolve_sl_config_for_project(
-        context.semantic_layer_config_provider, project_id
+    config = await context.semantic_layer_config_provider.get_config_for_project(
+        project_id
     )
     return await context.semantic_layer_fetcher.get_dimensions(
         metrics=metrics, search=search, config_override=config
@@ -174,8 +125,8 @@ async def get_entities(
     metrics: list[str],
     search: str | None = None,
 ) -> list[EntityToolResponse]:
-    config = await _resolve_sl_config_for_project(
-        context.semantic_layer_config_provider, project_id
+    config = await context.semantic_layer_config_provider.get_config_for_project(
+        project_id
     )
     return await context.semantic_layer_fetcher.get_entities(
         metrics=metrics, search=search, config_override=config
@@ -200,8 +151,8 @@ async def query_metrics(
     where: str | None = None,
     limit: int | None = None,
 ) -> str:
-    config = await _resolve_sl_config_for_project(
-        context.semantic_layer_config_provider, project_id
+    config = await context.semantic_layer_config_provider.get_config_for_project(
+        project_id
     )
     result = await context.semantic_layer_fetcher.query_metrics(
         metrics=metrics,
@@ -235,8 +186,8 @@ async def get_metrics_compiled_sql(
     where: str | None = None,
     limit: int | None = None,
 ) -> str:
-    config = await _resolve_sl_config_for_project(
-        context.semantic_layer_config_provider, project_id
+    config = await context.semantic_layer_config_provider.get_config_for_project(
+        project_id
     )
     result = await context.semantic_layer_fetcher.get_metrics_compiled_sql(
         metrics=metrics,
