@@ -9,7 +9,8 @@ from dbt_mcp.config.headers import (
     SemanticLayerHeadersProvider,
     TokenProvider,
 )
-from dbt_mcp.config.settings import CredentialsProvider
+from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
+from dbt_mcp.oauth.dbt_platform import DbtPlatformEnvironment
 from dbt_mcp.project.environment_resolver import get_environments_for_project
 
 
@@ -46,6 +47,37 @@ class ProxiedToolConfig:
     headers_provider: ProxiedToolHeadersProvider
 
 
+async def _resolve_project_environments(
+    credentials_provider: CredentialsProvider,
+    project_id: int,
+) -> tuple[
+    DbtMcpSettings,
+    TokenProvider,
+    DbtPlatformEnvironment,
+    DbtPlatformEnvironment | None,
+]:
+    settings, token_provider = await credentials_provider.get_credentials()
+    assert settings.actual_host and settings.dbt_account_id
+    dbt_platform_url = (
+        f"https://{settings.actual_host_prefix}.{settings.actual_host}"
+        if settings.actual_host_prefix
+        else f"https://{settings.actual_host}"
+    )
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {token_provider.get_token()}",
+    }
+    prod_env, dev_env = await get_environments_for_project(
+        dbt_platform_url=dbt_platform_url,
+        account_id=settings.dbt_account_id,
+        project_id=project_id,
+        headers=headers,
+    )
+    if not prod_env:
+        raise ValueError(f"No production environment found for project {project_id}")
+    return settings, token_provider, prod_env, dev_env
+
+
 class ConfigProvider[ConfigType](ABC):
     @abstractmethod
     async def get_config(self) -> ConfigType: ...
@@ -55,6 +87,14 @@ class ConfigProvider[ConfigType](ABC):
             f"{type(self).__name__} does not support multi-project configuration. "
             "Use a provider with get_config_for_project() support."
         )
+
+
+class ProjectSemanticLayerConfigProvider(ConfigProvider[SemanticLayerConfig]):
+    def __init__(self, config: SemanticLayerConfig):
+        self._config = config
+
+    async def get_config(self) -> SemanticLayerConfig:
+        return self._config
 
 
 class DefaultSemanticLayerConfigProvider(ConfigProvider[SemanticLayerConfig]):
@@ -186,6 +226,30 @@ class DefaultProxiedToolConfigProvider(ConfigProvider[ProxiedToolConfig]):
             user_id=settings.dbt_user_id,
             dev_environment_id=settings.dbt_dev_env_id,
             prod_environment_id=settings.actual_prod_environment_id,
+            url=url,
+            headers_provider=ProxiedToolHeadersProvider(token_provider=token_provider),
+        )
+
+    async def get_config_for_project(self, project_id: int) -> ProxiedToolConfig:
+        (
+            settings,
+            token_provider,
+            prod_env,
+            dev_env,
+        ) = await _resolve_project_environments(self.credentials_provider, project_id)
+        assert settings.actual_host
+        is_local = settings.actual_host.startswith("localhost")
+        path = "/v1/mcp/" if is_local else "/api/ai/v1/mcp/"
+        scheme = "http://" if is_local else "https://"
+        prefix = (
+            f"{settings.actual_host_prefix}." if settings.actual_host_prefix else ""
+        )
+        url = f"{scheme}{prefix}{settings.actual_host}{path}"
+
+        return ProxiedToolConfig(
+            user_id=settings.dbt_user_id,
+            dev_environment_id=dev_env.id if dev_env else None,
+            prod_environment_id=prod_env.id,
             url=url,
             headers_provider=ProxiedToolHeadersProvider(token_provider=token_provider),
         )

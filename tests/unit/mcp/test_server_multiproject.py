@@ -33,19 +33,19 @@ async def test_server_b_registers_multiproject_semantic_layer_tools():
 
 
 async def test_server_b_registers_sql_for_project_tools():
-    """Server B registers text_to_sql and execute_sql (same names, with project_id param)."""
+    """Server B registers text_to_sql_for_project and execute_sql_for_project."""
     dbt_mcp = await create_dbt_mcp_multiproject(mock_config)
     tool_names = {tool.name for tool in await dbt_mcp.list_tools()}
-    assert "text_to_sql" in tool_names
-    assert "execute_sql" in tool_names
+    assert "text_to_sql_for_project" in tool_names
+    assert "execute_sql_for_project" in tool_names
 
 
 async def test_server_b_registers_admin_for_project_tools():
-    """Server B registers list_jobs and list_jobs_runs (same names, with project_id param)."""
+    """Server B registers list_jobs_for_project and list_jobs_runs_for_project."""
     dbt_mcp = await create_dbt_mcp_multiproject(mock_config)
     tool_names = {tool.name for tool in await dbt_mcp.list_tools()}
-    assert "list_jobs" in tool_names
-    assert "list_jobs_runs" in tool_names
+    assert "list_jobs_for_project" in tool_names
+    assert "list_jobs_runs_for_project" in tool_names
 
 
 async def test_server_b_registers_discovery_tools():
@@ -195,8 +195,8 @@ async def test_server_b_skips_sql_when_no_proxied_tool_config():
     dbt_mcp = await create_dbt_mcp_multiproject(config_no_proxied)
     tool_names = {tool.name for tool in await dbt_mcp.list_tools()}
 
-    assert "text_to_sql" not in tool_names
-    assert "execute_sql" not in tool_names
+    assert "text_to_sql_for_project" not in tool_names
+    assert "execute_sql_for_project" not in tool_names
 
 
 async def test_server_b_registers_product_docs_tools():
@@ -245,7 +245,7 @@ async def test_server_b_skips_admin_when_no_config():
     dbt_mcp = await create_dbt_mcp_multiproject(config_no_admin)
     tool_names = {tool.name for tool in await dbt_mcp.list_tools()}
 
-    assert "list_jobs" not in tool_names
-    assert "list_jobs_runs" not in tool_names
+    assert "list_jobs_for_project" not in tool_names
+    assert "list_jobs_runs_for_project" not in tool_names
     # When admin is None, list_projects is also not present
     assert "list_projects" not in tool_names

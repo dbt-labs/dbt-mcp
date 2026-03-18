@@ -58,7 +58,7 @@ async def _resolve_discovery_config_for_project(
         "Accept": "application/json",
         "Authorization": f"Bearer {token_provider.get_token()}",
     }
-    prod_env, dev_env = get_environments_for_project(
+    prod_env, dev_env = await get_environments_for_project(
         dbt_platform_url=dbt_platform_url,
         account_id=settings.dbt_account_id,
         project_id=project_id,
@@ -582,7 +582,9 @@ def register_multiproject_discovery_tools(
     disabled_toolsets: set[Toolset],
 ) -> None:
     def bind_context() -> MultiProjectDiscoveryToolContext:
-        return MultiProjectDiscoveryToolContext(config_provider=discovery_config_provider)
+        return MultiProjectDiscoveryToolContext(
+            config_provider=discovery_config_provider
+        )
 
     register_tools(
         dbt_mcp,

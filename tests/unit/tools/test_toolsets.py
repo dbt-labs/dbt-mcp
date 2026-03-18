@@ -5,12 +5,11 @@ from dbt_mcp.config.config import (
     TOOLSET_TO_ENABLE_ATTR,
     load_config,
 )
-from dbt_mcp.dbt_admin.tools import MULTIPROJECT_ADMIN_API_TOOLS
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo
 from dbt_mcp.mcp.server import create_dbt_mcp
 from dbt_mcp.semantic_layer.tools_multiproject import MULTIPROJECT_SEMANTIC_LAYER_TOOLS
-from dbt_mcp.sql.tools import MULTIPROJECT_SQL_TOOLS
+from dbt_mcp.sql.tools import SQL_FOR_PROJECT_TOOLS
 from dbt_mcp.tools.toolsets import Toolset, proxied_tools, toolsets
 
 
@@ -61,11 +60,7 @@ async def test_toolsets_match_server_tools(env_setup):
         # Manually adding proxied tools and multiproject-only tools here because
         # they are not registered on the default server in this unit test.
         # Multiproject tools are registered on Server B only.
-        multiproject_tools = (
-            MULTIPROJECT_SEMANTIC_LAYER_TOOLS
-            + MULTIPROJECT_SQL_TOOLS
-            + MULTIPROJECT_ADMIN_API_TOOLS
-        )
+        multiproject_tools = MULTIPROJECT_SEMANTIC_LAYER_TOOLS + SQL_FOR_PROJECT_TOOLS
         server_tool_names = (
             {tool.name for tool in server_tools}
             | {p.value for p in proxied_tools}
