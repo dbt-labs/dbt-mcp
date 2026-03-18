@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: Migrate HTTP client from requests to httpx.AsyncClient for project and environment resolvers
+time: 2026-03-17T12:35:44.636156-05:00

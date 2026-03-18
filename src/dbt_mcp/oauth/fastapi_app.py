@@ -2,7 +2,7 @@ import logging
 from typing import cast
 from urllib.parse import quote
 
-import requests
+import httpx
 from authlib.integrations.requests_client import OAuth2Session
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
@@ -56,22 +56,22 @@ class NoCacheStaticFiles(StaticFiles):
         await super().__call__(scope, receive, send_wrapper)
 
 
-def _get_all_accounts(
+async def _get_all_accounts(
     *,
     dbt_platform_url: str,
     headers: dict[str, str],
 ) -> list[DbtPlatformAccount]:
-    accounts_response = requests.get(
-        url=f"{dbt_platform_url}/api/v3/accounts/",
-        headers=headers,
-    )
-    accounts_response.raise_for_status()
-    return [
-        DbtPlatformAccount(**account) for account in accounts_response.json()["data"]
-    ]
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            url=f"{dbt_platform_url}/api/v3/accounts/",
+            headers=headers,
+        )
+        response.raise_for_status()
+        data = response.json()
+    return [DbtPlatformAccount(**account) for account in data["data"]]
 
 
-def _get_all_projects_for_account(
+async def _get_all_projects_for_account(
     *,
     dbt_platform_url: str,
     account: DbtPlatformAccount,
@@ -81,23 +81,25 @@ def _get_all_projects_for_account(
     """Fetch all projects for an account using offset/page_size pagination."""
     offset = 0
     projects: list[DbtPlatformProject] = []
-    while True:
-        projects_response = requests.get(
-            f"{dbt_platform_url}/api/v3/accounts/{account.id}/projects/?state=1&offset={offset}&limit={page_size}",
-            headers=headers,
-        )
-        projects_response.raise_for_status()
-        page = projects_response.json()["data"]
-        projects.extend(
-            DbtPlatformProject(**project, account_name=account.name) for project in page
-        )
-        if len(page) < page_size:
-            break
-        offset += page_size
+    async with httpx.AsyncClient() as client:
+        while True:
+            response = await client.get(
+                f"{dbt_platform_url}/api/v3/accounts/{account.id}/projects/?state=1&offset={offset}&limit={page_size}",
+                headers=headers,
+            )
+            response.raise_for_status()
+            page = response.json()["data"]
+            projects.extend(
+                DbtPlatformProject(**project, account_name=account.name)
+                for project in page
+            )
+            if len(page) < page_size:
+                break
+            offset += page_size
     return projects
 
 
-def _get_all_environments_for_project(
+async def _get_all_environments_for_project(
     *,
     dbt_platform_url: str,
     account_id: int,
@@ -108,19 +110,20 @@ def _get_all_environments_for_project(
     """Fetch all environments for a project using offset/page_size pagination."""
     offset = 0
     environments: list[DbtPlatformEnvironmentResponse] = []
-    while True:
-        environments_response = requests.get(
-            f"{dbt_platform_url}/api/v3/accounts/{account_id}/projects/{project_id}/environments/?state=1&offset={offset}&limit={page_size}",
-            headers=headers,
-        )
-        environments_response.raise_for_status()
-        page = environments_response.json()["data"]
-        environments.extend(
-            DbtPlatformEnvironmentResponse(**environment) for environment in page
-        )
-        if len(page) < page_size:
-            break
-        offset += page_size
+    async with httpx.AsyncClient() as client:
+        while True:
+            response = await client.get(
+                f"{dbt_platform_url}/api/v3/accounts/{account_id}/projects/{project_id}/environments/?state=1&offset={offset}&limit={page_size}",
+                headers=headers,
+            )
+            response.raise_for_status()
+            page = response.json()["data"]
+            environments.extend(
+                DbtPlatformEnvironmentResponse(**environment) for environment in page
+            )
+            if len(page) < page_size:
+                break
+            offset += page_size
     return environments
 
 
@@ -195,7 +198,7 @@ def create_app(
         return {"ok": True}
 
     @app.get("/projects")
-    def projects() -> list[DbtPlatformProject]:
+    async def projects() -> list[DbtPlatformProject]:
         if app.state.decoded_access_token is None:
             raise RuntimeError("Access token missing; OAuth flow not completed")
         access_token = app.state.decoded_access_token.access_token_response.access_token
@@ -203,14 +206,14 @@ def create_app(
             "Accept": "application/json",
             "Authorization": f"Bearer {access_token}",
         }
-        accounts = _get_all_accounts(
+        accounts = await _get_all_accounts(
             dbt_platform_url=dbt_platform_url,
             headers=headers,
         )
         projects: list[DbtPlatformProject] = []
         for account in [a for a in accounts if a.state == 1 and not a.locked]:
             projects.extend(
-                _get_all_projects_for_account(
+                await _get_all_projects_for_account(
                     dbt_platform_url=dbt_platform_url,
                     account=account,
                     headers=headers,
@@ -224,7 +227,7 @@ def create_app(
         return dbt_platform_context_manager.read_context() or DbtPlatformContext()
 
     @app.post("/environments")
-    def get_deployment_environments(
+    async def get_deployment_environments(
         request: GetEnvironmentsRequest,
     ) -> list[DbtPlatformEnvironmentResponse]:
         """Get all deployment environments for a project, excluding development environments."""
@@ -236,7 +239,7 @@ def create_app(
             "Accept": "application/json",
             "Authorization": f"Bearer {access_token}",
         }
-        environments = _get_all_environments_for_project(
+        environments = await _get_all_environments_for_project(
             dbt_platform_url=dbt_platform_url,
             account_id=request.account_id,
             project_id=request.project_id,
@@ -251,7 +254,7 @@ def create_app(
         ]
 
     @app.post("/selected_project")
-    def set_selected_project(
+    async def set_selected_project(
         selected_project_request: SelectedProjectRequest,
     ) -> DbtPlatformContext:
         logger.info("Selected project received")
@@ -262,7 +265,7 @@ def create_app(
             "Accept": "application/json",
             "Authorization": f"Bearer {access_token}",
         }
-        accounts = _get_all_accounts(
+        accounts = await _get_all_accounts(
             dbt_platform_url=dbt_platform_url,
             headers=headers,
         )
@@ -271,7 +274,7 @@ def create_app(
         )
         if account is None:
             raise ValueError(f"Account {selected_project_request.account_id} not found")
-        environments = _get_all_environments_for_project(
+        environments = await _get_all_environments_for_project(
             dbt_platform_url=dbt_platform_url,
             account_id=selected_project_request.account_id,
             project_id=selected_project_request.project_id,
