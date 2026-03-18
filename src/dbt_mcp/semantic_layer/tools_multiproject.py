@@ -6,7 +6,7 @@ from mcp.server.fastmcp import FastMCP
 
 from dbt_mcp.config.config_providers import (
     DefaultSemanticLayerConfigProvider,
-    SemanticLayerConfig,
+    ProjectSemanticLayerConfigProvider,
 )
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.semantic_layer.client import (
@@ -43,11 +43,12 @@ class MultiProjectSemanticLayerToolContext:
         self.semantic_layer_config_provider = config_provider
         self._client_provider = client_provider
 
-    def fetcher_for_config(self, config: SemanticLayerConfig) -> SemanticLayerFetcher:
+    def fetcher_for_config(
+        self, scoped_provider: ProjectSemanticLayerConfigProvider
+    ) -> SemanticLayerFetcher:
         return SemanticLayerFetcher(
-            config_provider=self.semantic_layer_config_provider,
+            config_provider=scoped_provider,
             client_provider=self._client_provider,
-            config=config,
         )
 
 
@@ -68,7 +69,8 @@ async def list_metrics(
     config = await context.semantic_layer_config_provider.get_config_for_project(
         project_id
     )
-    fetcher = context.fetcher_for_config(config)
+    scoped_provider = ProjectSemanticLayerConfigProvider(config)
+    fetcher = context.fetcher_for_config(scoped_provider)
     return await fetcher.list_metrics(search=search)
 
 
@@ -89,7 +91,8 @@ async def list_saved_queries(
     config = await context.semantic_layer_config_provider.get_config_for_project(
         project_id
     )
-    fetcher = context.fetcher_for_config(config)
+    scoped_provider = ProjectSemanticLayerConfigProvider(config)
+    fetcher = context.fetcher_for_config(scoped_provider)
     return await fetcher.list_saved_queries(search=search)
 
 
@@ -111,7 +114,8 @@ async def get_dimensions(
     config = await context.semantic_layer_config_provider.get_config_for_project(
         project_id
     )
-    fetcher = context.fetcher_for_config(config)
+    scoped_provider = ProjectSemanticLayerConfigProvider(config)
+    fetcher = context.fetcher_for_config(scoped_provider)
     return await fetcher.get_dimensions(metrics=metrics, search=search)
 
 
@@ -133,7 +137,8 @@ async def get_entities(
     config = await context.semantic_layer_config_provider.get_config_for_project(
         project_id
     )
-    fetcher = context.fetcher_for_config(config)
+    scoped_provider = ProjectSemanticLayerConfigProvider(config)
+    fetcher = context.fetcher_for_config(scoped_provider)
     return await fetcher.get_entities(metrics=metrics, search=search)
 
 
@@ -158,7 +163,8 @@ async def query_metrics(
     config = await context.semantic_layer_config_provider.get_config_for_project(
         project_id
     )
-    fetcher = context.fetcher_for_config(config)
+    scoped_provider = ProjectSemanticLayerConfigProvider(config)
+    fetcher = context.fetcher_for_config(scoped_provider)
     result = await fetcher.query_metrics(
         metrics=metrics,
         group_by=group_by,
@@ -193,7 +199,8 @@ async def get_metrics_compiled_sql(
     config = await context.semantic_layer_config_provider.get_config_for_project(
         project_id
     )
-    fetcher = context.fetcher_for_config(config)
+    scoped_provider = ProjectSemanticLayerConfigProvider(config)
+    fetcher = context.fetcher_for_config(scoped_provider)
     result = await fetcher.get_metrics_compiled_sql(
         metrics=metrics,
         group_by=group_by,
