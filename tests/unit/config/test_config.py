@@ -8,7 +8,11 @@ from dbt_mcp.config.config import (
     DbtMcpSettings,
     load_config,
 )
-from dbt_mcp.config.settings import DEFAULT_DBT_CLI_TIMEOUT
+from dbt_mcp.config.settings import (
+    DEFAULT_DBT_CLI_TIMEOUT,
+    HostPrefixResult,
+    parse_host_prefix,
+)
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.tools.tool_names import ToolName
 
@@ -216,6 +220,48 @@ class TestDbtMcpSettings:
             assert (
                 settings.actual_prod_environment_id == 123
             )  # DBT_PROD_ENV_ID takes precedence
+
+    def test_parse_host_prefix_detects_mismatch(self):
+        result = parse_host_prefix("xy999.us1.dbt.com", "ab123")
+        assert result == HostPrefixResult(
+            base_host="us1.dbt.com",
+            prefix_embedded=False,
+            mismatched_prefix="xy999",
+        )
+
+    def test_parse_host_prefix_returns_no_mismatch_when_prefix_matches(self):
+        result = parse_host_prefix("ab123.us1.dbt.com", "ab123")
+        assert result == HostPrefixResult(
+            base_host="us1.dbt.com",
+            prefix_embedded=True,
+            mismatched_prefix=None,
+        )
+
+    def test_parse_host_prefix_returns_no_mismatch_for_short_host(self):
+        result = parse_host_prefix("us1.dbt.com", "ab123")
+        assert result == HostPrefixResult(
+            base_host="us1.dbt.com",
+            prefix_embedded=False,
+            mismatched_prefix=None,
+        )
+
+    def test_base_host_mismatch_logs_warning_and_returns_host_unchanged(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        """base_host logs a warning and returns the host unchanged on prefix mismatch."""
+        settings = DbtMcpSettings.model_construct(
+            dbt_host="xy999.us1.dbt.com",
+            host_prefix="ab123",
+            multicell_account_prefix=None,
+        )
+
+        with caplog.at_level(logging.WARNING, logger="dbt_mcp.config.settings"):
+            result = settings.base_host
+
+        assert result == "xy999.us1.dbt.com"
+        assert "appears to contain a different account prefix" in caplog.text
+        assert "'xy999'" in caplog.text
+        assert "'ab123'" in caplog.text
 
     def test_auto_disable_platform_features_logging(self):
         with patch.dict(os.environ, {}, clear=True):

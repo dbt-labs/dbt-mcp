@@ -61,9 +61,7 @@ class DefaultSemanticLayerConfigProvider(ConfigProvider[SemanticLayerConfig]):
         if is_local:
             host = settings.actual_host
         elif settings.actual_host_prefix:
-            host = (
-                f"{settings.actual_host_prefix}.semantic-layer.{settings.actual_host}"
-            )
+            host = f"{settings.actual_host_prefix}.semantic-layer.{settings.base_host}"
         else:
             host = f"semantic-layer.{settings.actual_host}"
         assert host is not None
@@ -87,7 +85,7 @@ class DefaultDiscoveryConfigProvider(ConfigProvider[DiscoveryConfig]):
         settings, token_provider = await self.credentials_provider.get_credentials()
         assert settings.actual_host and settings.actual_prod_environment_id
         if settings.actual_host_prefix:
-            url = f"https://{settings.actual_host_prefix}.metadata.{settings.actual_host}/graphql"
+            url = f"https://{settings.actual_host_prefix}.metadata.{settings.base_host}/graphql"
         else:
             url = f"https://metadata.{settings.actual_host}/graphql"
 
@@ -106,7 +104,7 @@ class DefaultAdminApiConfigProvider(ConfigProvider[AdminApiConfig]):
         settings, token_provider = await self.credentials_provider.get_credentials()
         assert settings.actual_host and settings.dbt_account_id
         if settings.actual_host_prefix:
-            url = f"https://{settings.actual_host_prefix}.{settings.actual_host}"
+            url = f"https://{settings.actual_host_prefix}.{settings.base_host}"
         else:
             url = f"https://{settings.actual_host}"
 
@@ -131,7 +129,7 @@ class DefaultProxiedToolConfigProvider(ConfigProvider[ProxiedToolConfig]):
         host_prefix = (
             f"{settings.actual_host_prefix}." if settings.actual_host_prefix else ""
         )
-        url = f"{scheme}{host_prefix}{settings.actual_host}{path}"
+        url = f"{scheme}{host_prefix}{settings.base_host}{path}"
 
         return ProxiedToolConfig(
             user_id=settings.dbt_user_id,
