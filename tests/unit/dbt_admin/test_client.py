@@ -546,3 +546,108 @@ async def test_get_job_run_artifact_request_exception(client):
     with patch("httpx.AsyncClient", return_value=mock_client):
         with pytest.raises(ArtifactRetrievalError):
             await client.get_job_run_artifact(12345, 100, "nonexistent.json")
+
+
+async def test_list_projects(client):
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "data": [
+            {
+                "id": 1,
+                "name": "My Project",
+                "description": "A test project",
+                "dbt_project_subdirectory": "dbt/",
+                "semantic_layer_config_id": 42,
+                "type": 0,
+                "environments": [
+                    {
+                        "id": 10,
+                        "name": "Production",
+                        "type": "deployment",
+                        "deployment_type": "production",
+                    },
+                    {
+                        "id": 11,
+                        "name": "Staging",
+                        "type": "deployment",
+                        "deployment_type": "staging",
+                    },
+                    {
+                        "id": 12,
+                        "name": "Generic",
+                        "type": "deployment",
+                        "deployment_type": None,
+                    },
+                    {
+                        "id": 13,
+                        "name": "Dev",
+                        "type": "development",
+                        "deployment_type": None,
+                    },
+                ],
+                "repository": {"full_name": "my-org/my-repo"},
+            }
+        ]
+    }
+    mock_response.raise_for_status.return_value = None
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.list_projects(12345)
+
+    assert len(result) == 1
+    p = result[0]
+    assert p["id"] == 1
+    assert p["name"] == "My Project"
+    assert p["description"] == "A test project"
+    assert p["dbt_project_subdirectory"] == "dbt/"
+    assert p["has_semantic_layer"] is True
+    assert p["type"] == 0
+    assert p["environments"] == [
+        {"id": 10, "name": "Production", "type": "production"},
+        {"id": 11, "name": "Staging", "type": "staging"},
+        {"id": 12, "name": "Generic", "type": "generic"},
+        {"id": 13, "name": "Dev", "type": "development"},
+    ]
+    assert p["repository_full_name"] == "my-org/my-repo"
+
+    headers = await client.get_headers()
+    mock_client.request.assert_called_once_with(
+        "GET",
+        "https://cloud.getdbt.com/api/v3/accounts/12345/projects/",
+        headers=headers,
+        params={
+            "state": 1,
+            "include_related": "['environments','repository']",
+        },
+    )
+
+
+async def test_list_projects_no_semantic_layer(client):
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "data": [
+            {
+                "id": 2,
+                "name": "Bare Project",
+                "description": None,
+                "dbt_project_subdirectory": None,
+                "semantic_layer_config_id": None,
+                "type": 1,
+                "environments": [],
+                "repository": None,
+            }
+        ]
+    }
+    mock_response.raise_for_status.return_value = None
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.list_projects(12345)
+
+    p = result[0]
+    assert p["has_semantic_layer"] is False
+    assert p["environments"] == []
+    assert p["repository_full_name"] is None
