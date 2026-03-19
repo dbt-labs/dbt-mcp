@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import time
 import uuid
 from collections.abc import AsyncIterator, Callable, Sequence
@@ -15,18 +16,19 @@ from dbt_mcp.config.config import Config
 from dbt_mcp.dbt_admin.tools import register_admin_api_tools
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.dbt_codegen.tools import register_dbt_codegen_tools
-from dbt_mcp.product_docs.tools import register_product_docs_tools
 from dbt_mcp.discovery.tools import register_discovery_tools
-from dbt_mcp.mcp_server_metadata.tools import register_mcp_server_tools
 from dbt_mcp.lsp.providers.local_lsp_client_provider import LocalLSPClientProvider
 from dbt_mcp.lsp.providers.local_lsp_connection_provider import (
     LocalLSPConnectionProvider,
 )
 from dbt_mcp.lsp.providers.lsp_connection_provider import LSPConnectionProviderProtocol
 from dbt_mcp.lsp.tools import register_lsp_tools
+from dbt_mcp.mcp_server_metadata.tools import register_mcp_server_tools
+from dbt_mcp.product_docs.tools import register_product_docs_tools
 from dbt_mcp.proxy.tools import ProxiedToolsManager, register_proxied_tools
 from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
 from dbt_mcp.semantic_layer.tools import register_sl_tools
+from dbt_mcp.semantic_layer.tools_multiproject import register_multiproject_sl_tools
 from dbt_mcp.tracking.tracking import DefaultUsageTracker, ToolCalledEvent, UsageTracker
 
 logger = logging.getLogger(__name__)
@@ -101,6 +103,14 @@ class DbtMCP(FastMCP):
         return result
 
 
+def _multi_project_enabled() -> bool:
+    return os.environ.get("DBT_MCP_MULTI_PROJECT_ENABLED", "").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+
+
 @asynccontextmanager
 async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
     if not isinstance(server, DbtMCP):
@@ -110,7 +120,7 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
         # register proxied tools inside the app lifespan to ensure the StreamableHTTP client (specific
         # to dbt Platform connection) lives on the same event loop as the running server
         # this avoids anyio cancel scope violations (see issue #498)
-        if server.config.proxied_tool_config_provider:
+        if server.config.proxied_tool_config_provider and not _multi_project_enabled():
             logger.info("Registering proxied tools")
             await register_proxied_tools(
                 dbt_mcp=server,
@@ -149,6 +159,29 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
             logger.exception("Error shutting down MCP server")
 
 
+async def register_multi_project_dbt_mcp(dbt_mcp: DbtMCP, config: Config) -> None:
+    disabled_tools = set(config.disable_tools)
+    enabled_tools = (
+        set(config.enable_tools) if config.enable_tools is not None else None
+    )
+    enabled_toolsets = config.enabled_toolsets
+    disabled_toolsets = config.disabled_toolsets
+
+    logger.info("Registering semantic layer tools for multi-project")
+    if config.semantic_layer_config_provider:
+        register_multiproject_sl_tools(
+            dbt_mcp=dbt_mcp,
+            config_provider=config.semantic_layer_config_provider,
+            client_provider=DefaultSemanticLayerClientProvider(
+                config_provider=config.semantic_layer_config_provider,
+            ),
+            disabled_tools=disabled_tools,
+            enabled_tools=enabled_tools,
+            enabled_toolsets=enabled_toolsets,
+            disabled_toolsets=disabled_toolsets,
+        )
+
+
 async def create_dbt_mcp(config: Config) -> DbtMCP:
     dbt_mcp = DbtMCP(
         config=config,
@@ -160,6 +193,20 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
         lifespan=app_lifespan,
     )
 
+    multi_project_enabled = os.environ.get(
+        "DBT_MCP_MULTI_PROJECT_ENABLED", ""
+    ).lower() in ("true", "1", "yes")
+
+    if multi_project_enabled:
+        logger.info("DBT_MCP_MULTI_PROJECT_ENABLED=true -> Multi-project mode")
+        await register_multi_project_dbt_mcp(dbt_mcp, config)
+    else:
+        logger.info("Multi-project mode disabled -> Env-var mode")
+        await register_dbt_mcp_tools(dbt_mcp, config)
+    return dbt_mcp
+
+
+async def register_dbt_mcp_tools(dbt_mcp: DbtMCP, config: Config) -> None:
     disabled_tools = set(config.disable_tools)
     enabled_tools = (
         set(config.enable_tools) if config.enable_tools is not None else None
@@ -263,5 +310,3 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
             enabled_toolsets=enabled_toolsets,
             disabled_toolsets=disabled_toolsets,
         )
-
-    return dbt_mcp
