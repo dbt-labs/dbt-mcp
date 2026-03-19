@@ -193,9 +193,7 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
         lifespan=app_lifespan,
     )
 
-    multi_project_enabled = os.environ.get(
-        "DBT_MCP_MULTI_PROJECT_ENABLED", ""
-    ).lower() in ("true", "1", "yes")
+    multi_project_enabled = _multi_project_enabled()
 
     if multi_project_enabled:
         logger.info("DBT_MCP_MULTI_PROJECT_ENABLED=true -> Multi-project mode")

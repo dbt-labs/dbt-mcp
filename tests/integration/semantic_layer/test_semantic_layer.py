@@ -1,4 +1,5 @@
 import io
+from dataclasses import replace
 
 import pyarrow as pa
 import pyarrow.csv
@@ -6,11 +7,12 @@ import pytest
 from dbtsl.api.shared.query_params import GroupByParam, GroupByType
 
 from dbt_mcp.config.config import load_config
+from dbt_mcp.errors import GraphQLError
 from dbt_mcp.semantic_layer.client import (
     DefaultSemanticLayerClientProvider,
     SemanticLayerFetcher,
 )
-from dbt_mcp.semantic_layer.types import OrderByParam
+from dbt_mcp.semantic_layer.types import OrderByParam, QueryMetricsError
 
 config = load_config()
 
@@ -31,6 +33,33 @@ async def test_semantic_layer_list_metrics(
 ):
     metrics = await semantic_layer_fetcher.list_metrics()
     assert len(metrics) > 0
+
+
+async def test_semantic_layer_sdk_respects_fetcher_config_environment_id():
+    """SDK query must use the fetcher's semantic layer config, not default get_config().
+
+    Regression guard for multi-project mode: GraphQL already passes environmentId from
+    fetcher._config; dbtsl calls must use the same resolved config.
+    """
+    assert config.semantic_layer_config_provider is not None
+    provider = config.semantic_layer_config_provider
+    default_cfg = await provider.get_config()
+    invalid_cfg = replace(default_cfg, prod_environment_id=9_999_999_999)
+
+    fetcher = SemanticLayerFetcher(
+        config_provider=provider,
+        client_provider=DefaultSemanticLayerClientProvider(config_provider=provider),
+        config=invalid_cfg,
+    )
+
+    with pytest.raises(GraphQLError):
+        await fetcher.list_metrics()
+
+    result = await fetcher.query_metrics(metrics=["revenue"])
+    assert isinstance(result, QueryMetricsError), (
+        "query_metrics must not silently use the default environment when the fetcher "
+        "is scoped to a different (invalid) semantic layer config"
+    )
 
 
 async def test_semantic_layer_list_dimensions(

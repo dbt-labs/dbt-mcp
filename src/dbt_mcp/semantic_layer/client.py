@@ -91,19 +91,25 @@ class SemanticLayerClientProtocol(Protocol):
 
 
 class SemanticLayerClientProvider(Protocol):
-    async def get_client(self) -> SemanticLayerClientProtocol: ...
+    async def get_client(
+        self, *, config: SemanticLayerConfig | None = None
+    ) -> SemanticLayerClientProtocol: ...
 
 
 class DefaultSemanticLayerClientProvider:
     def __init__(self, config_provider: ConfigProvider[SemanticLayerConfig]):
         self.config_provider = config_provider
 
-    async def get_client(self) -> SemanticLayerClientProtocol:
-        config = await self.config_provider.get_config()
+    async def get_client(
+        self, *, config: SemanticLayerConfig | None = None
+    ) -> SemanticLayerClientProtocol:
+        resolved = (
+            config if config is not None else await self.config_provider.get_config()
+        )
         return SyncSemanticLayerClient(
-            environment_id=config.prod_environment_id,
-            auth_token=config.token_provider.get_token(),
-            host=config.host,
+            environment_id=resolved.prod_environment_id,
+            auth_token=resolved.token_provider.get_token(),
+            host=resolved.host,
         )
 
 
@@ -328,7 +334,9 @@ class SemanticLayerFetcher:
             GetMetricsCompiledSqlResult with either the compiled SQL or an error
         """
         try:
-            sl_client = await self.client_provider.get_client()
+            sl_client = await self.client_provider.get_client(
+                config=await self._resolve_config(),
+            )
             with sl_client.session():
                 parsed_order_by: list[OrderBySpec] = self._get_order_bys(
                     order_by=order_by, metrics=metrics, group_by=group_by
@@ -359,7 +367,9 @@ class SemanticLayerFetcher:
     ) -> QueryMetricsResult:
         try:
             query_error: Exception | None = None
-            sl_client = await self.client_provider.get_client()
+            sl_client = await self.client_provider.get_client(
+                config=await self._resolve_config(),
+            )
             with sl_client.session():
                 # Catching any exception within the session
                 # to ensure it is closed properly
