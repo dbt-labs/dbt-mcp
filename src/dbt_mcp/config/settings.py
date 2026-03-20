@@ -116,6 +116,7 @@ class DbtMcpSettings(BaseSettings):
     enable_mcp_server_metadata: bool = Field(
         False, alias="DBT_MCP_ENABLE_MCP_SERVER_METADATA"
     )
+    enable_code_mode: bool = Field(False, alias="DBT_MCP_ENABLE_CODE_MODE")
 
     # Tracking settings
     do_not_track: str | None = Field(None, alias="DO_NOT_TRACK")
@@ -149,6 +150,7 @@ class DbtMcpSettings(BaseSettings):
             f"enable_discovery={self.enable_discovery}, "
             f"enable_lsp={self.enable_lsp}, "
             f"enable_product_docs={self.enable_product_docs}, "
+            f"enable_code_mode={self.enable_code_mode}, "
             f"enable_sql={self.enable_sql}, "
             # everything else
             f"dbt_prod_env_id={self.dbt_prod_env_id}, "

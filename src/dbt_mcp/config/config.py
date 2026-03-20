@@ -73,6 +73,7 @@ class Config:
     enable_tools: list[ToolName] | None
     disabled_toolsets: set[Toolset]
     enabled_toolsets: set[Toolset]
+    enable_code_mode: bool
     proxied_tool_config_provider: DefaultProxiedToolConfigProvider | None
     dbt_cli_config: DbtCliConfig | None
     dbt_codegen_config: DbtCodegenConfig | None
@@ -166,6 +167,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         enable_tools=settings.enable_tools,
         disabled_toolsets=disabled_toolsets,
         enabled_toolsets=enabled_toolsets,
+        enable_code_mode=settings.enable_code_mode,
         proxied_tool_config_provider=proxied_tool_config_provider,
         dbt_cli_config=dbt_cli_config,
         dbt_codegen_config=dbt_codegen_config,

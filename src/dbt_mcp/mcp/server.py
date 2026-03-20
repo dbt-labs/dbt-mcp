@@ -11,6 +11,10 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.lowlevel.server import LifespanResultT
 from mcp.types import ContentBlock, TextContent
 
+from dbt_mcp.code_mode.tools import (
+    CODE_MODE_TOOL_NAMES,
+    register_code_mode_tools,
+)
 from dbt_mcp.config.config import Config
 from dbt_mcp.dbt_admin.tools import register_admin_api_tools
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
@@ -54,6 +58,24 @@ class DbtMCP(FastMCP):
         self._lsp_connection_task: (
             asyncio.Task[LSPConnectionProviderProtocol] | None
         ) = None
+
+    async def list_tools(self) -> Any:
+        """When code mode is enabled, expose only codemode_search and codemode_execute."""
+        result = await super().list_tools()
+        if not getattr(self.config, "enable_code_mode", False):
+            return result
+        tools = getattr(result, "tools", result)
+        if not isinstance(tools, list):
+            tools = list(tools) if hasattr(tools, "__iter__") else []
+        filtered = [t for t in tools if getattr(t, "name", "") in CODE_MODE_TOOL_NAMES]
+        if hasattr(result, "tools") and hasattr(result, "model_copy"):
+            return result.model_copy(update={"tools": filtered})
+        if hasattr(result, "tools") and hasattr(result, "copy"):
+            return result.copy(update={"tools": filtered})
+        if hasattr(result, "tools"):
+            setattr(result, "tools", filtered)
+            return result
+        return filtered
 
     async def call_tool(
         self, name: str, arguments: dict[str, Any]
@@ -263,5 +285,9 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
             enabled_toolsets=enabled_toolsets,
             disabled_toolsets=disabled_toolsets,
         )
+
+    if config.enable_code_mode:
+        logger.info("Registering code mode tools (codemode_search, codemode_execute)")
+        register_code_mode_tools(dbt_mcp)
 
     return dbt_mcp

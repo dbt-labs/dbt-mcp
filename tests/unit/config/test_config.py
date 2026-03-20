@@ -326,6 +326,19 @@ class TestLoadConfig:
         assert config.discovery_config_provider is None
         assert config.semantic_layer_config_provider is None
 
+    def test_enable_code_mode_from_env(self):
+        env_vars = {
+            "DBT_TOKEN": "test_token",
+            "DBT_MCP_ENABLE_CODE_MODE": "true",
+        }
+        config = self._load_config_with_env(env_vars)
+        assert config.enable_code_mode is True
+
+    def test_enable_code_mode_default_false(self):
+        env_vars = {"DBT_TOKEN": "test_token"}
+        config = self._load_config_with_env(env_vars)
+        assert config.enable_code_mode is False
+
     def test_invalid_environment_variable_types(self):
         # Test invalid integer types
         env_vars = {

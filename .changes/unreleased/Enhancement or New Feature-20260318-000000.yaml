@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Add optional Code Mode (DBT_MCP_ENABLE_CODE_MODE) to expose only codemode_search and codemode_execute tools, reducing token usage. Inspired by Cloudflare's Code Mode pattern.
+time: 2026-03-18T00:00:00.000000-00:00

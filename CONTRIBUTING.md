@@ -56,14 +56,18 @@ To test in a client like Cursor or Claude, use a configuration file like this:
         "--directory",
         "<path-to-this-directory>/dbt-mcp",
         "run",
-        "dbt-mcp",
         "--env-file",
-        "<path-to-this-directory>/dbt-mcp/.env"
+        "<path-to-this-directory>/dbt-mcp/.env",
+        "dbt-mcp"
       ]
     }
   }
 }
 ```
+
+`uv run` loads `--env-file` **before** the command. Alternatively, `dbt-mcp --env-file /path/to.env` is supported: the entry point loads that file into the process environment before reading settings.
+
+**Avoid** `uv run dbt-mcp --env-file ...` unless you rely on `dbt-mcp` loading the file (older docs used this order; it now works because `main()` parses `--env-file`).
 
 Or, if you would like to test with Oauth, use a configuration like this:
 
