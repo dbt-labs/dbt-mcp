@@ -13,6 +13,7 @@ from mcp.types import ContentBlock, TextContent
 
 from dbt_mcp.config.config import Config
 from dbt_mcp.dbt_admin.tools import register_admin_api_tools
+from dbt_mcp.dbt_cli.auth_check import WarehouseAuthChecker
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.dbt_codegen.tools import register_dbt_codegen_tools
 from dbt_mcp.product_docs.tools import register_product_docs_tools
@@ -51,6 +52,7 @@ class DbtMCP(FastMCP):
         self.usage_tracker = usage_tracker
         self.config = config
         self.lsp_connection_provider = lsp_connection_provider
+        self.warehouse_auth_checker: WarehouseAuthChecker | None = None
         self._lsp_connection_task: (
             asyncio.Task[LSPConnectionProviderProtocol] | None
         ) = None
@@ -128,6 +130,11 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
         # eager start and initialize the LSP connection
         if server.lsp_connection_provider:
             asyncio.create_task(server.lsp_connection_provider.get_connection())
+
+        # eager warehouse auth check via dbt debug
+        if server.warehouse_auth_checker:
+            asyncio.create_task(server.warehouse_auth_checker.run_auth_check())
+
         yield None
     except Exception as e:
         logger.error(f"Error in MCP server: {e}")
@@ -214,6 +221,7 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
 
     if config.dbt_cli_config:
         logger.info("Registering dbt cli tools")
+        dbt_mcp.warehouse_auth_checker = WarehouseAuthChecker(config.dbt_cli_config)
         register_dbt_cli_tools(
             dbt_mcp,
             config=config.dbt_cli_config,
@@ -221,6 +229,7 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
             enabled_tools=enabled_tools,
             enabled_toolsets=enabled_toolsets,
             disabled_toolsets=disabled_toolsets,
+            auth_checker=dbt_mcp.warehouse_auth_checker,
         )
 
     if config.dbt_codegen_config:
