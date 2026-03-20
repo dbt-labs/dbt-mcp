@@ -9,8 +9,10 @@ from mcp.types import TextContent
 
 from dbt_mcp.code_mode.tools import (
     CODE_MODE_TOOL_NAMES,
+    _dispatch_search_query,
     register_code_mode_tools,
 )
+from dbt_mcp.code_mode.spec import ToolSpec
 from dbt_mcp.config.config import load_config
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo
@@ -27,6 +29,111 @@ def test_register_code_mode_tools_adds_two_tools() -> None:
     assert mock_mcp.add_tool.call_count == 2
     names = {call.kwargs["name"] for call in mock_mcp.add_tool.call_args_list}
     assert names == CODE_MODE_TOOL_NAMES
+
+
+class TestDispatchSearchQuery:
+    @pytest.fixture()
+    def spec(self) -> ToolSpec:
+        tools = {
+            "get_all_models": SimpleNamespace(
+                name="get_all_models",
+                description="Retrieves name and description of all models.",
+                parameters={
+                    "properties": {
+                        "environment_id": {"type": "integer"},
+                    },
+                    "required": ["environment_id"],
+                },
+            ),
+            "build": SimpleNamespace(
+                name="build",
+                description="Executes models, tests, snapshots, and seeds.",
+                parameters={"properties": {"select": {"type": "string"}}},
+            ),
+        }
+        s = ToolSpec()
+        s.build_from_internal_tools(tools)
+        return s
+
+    def test_categories_query(self, spec: ToolSpec) -> None:
+        result = _dispatch_search_query(spec, "categories")
+        assert isinstance(result, list)
+        cat_names = {c["category"] for c in result}
+        assert "discovery" in cat_names
+
+    def test_tools_query(self, spec: ToolSpec) -> None:
+        result = _dispatch_search_query(spec, "tools")
+        names = {t["name"] for t in result}
+        assert "get_all_models" in names
+        assert "build" in names
+
+    def test_tools_category_query(self, spec: ToolSpec) -> None:
+        result = _dispatch_search_query(spec, "tools:dbt_cli")
+        names = {t["name"] for t in result}
+        assert names == {"build"}
+
+    def test_detail_query(self, spec: ToolSpec) -> None:
+        result = _dispatch_search_query(spec, "detail:get_all_models")
+        assert result["name"] == "get_all_models"
+        assert any(p["name"] == "environment_id" for p in result["params"])
+
+    def test_detail_unknown_tool(self, spec: ToolSpec) -> None:
+        result = _dispatch_search_query(spec, "detail:nonexistent")
+        assert "error" in result
+
+    def test_guide_query(self, spec: ToolSpec) -> None:
+        result = _dispatch_search_query(spec, "guide:get_all_models")
+        assert isinstance(result, str)
+
+    def test_guide_unknown_tool(self, spec: ToolSpec) -> None:
+        result = _dispatch_search_query(spec, "guide:nonexistent")
+        assert "error" in result
+
+    def test_unknown_query_format(self, spec: ToolSpec) -> None:
+        result = _dispatch_search_query(spec, "foobar")
+        assert "error" in result
+
+
+@pytest.mark.asyncio
+async def test_codemode_search_returns_categories() -> None:
+    mock_mcp = MagicMock()
+    mock_mcp._tool_manager = SimpleNamespace(
+        _tools={
+            "get_all_models": SimpleNamespace(
+                name="get_all_models",
+                description="Retrieves name and description of all models.",
+                parameters={"properties": {"environment_id": {"type": "integer"}}, "required": ["environment_id"]},
+            ),
+        }
+    )
+    register_code_mode_tools(mock_mcp)
+    handlers = {c.kwargs["name"]: c.args[0] for c in mock_mcp.add_tool.call_args_list}
+
+    result = await handlers["codemode_search"](query="categories")
+    payload = json.loads(result[0].text)
+    assert isinstance(payload, list)
+    assert any(c["category"] == "discovery" for c in payload)
+
+
+@pytest.mark.asyncio
+async def test_codemode_search_returns_tool_detail() -> None:
+    mock_mcp = MagicMock()
+    mock_mcp._tool_manager = SimpleNamespace(
+        _tools={
+            "get_all_models": SimpleNamespace(
+                name="get_all_models",
+                description="Retrieves name and description of all models.",
+                parameters={"properties": {"environment_id": {"type": "integer"}}, "required": ["environment_id"]},
+            ),
+        }
+    )
+    register_code_mode_tools(mock_mcp)
+    handlers = {c.kwargs["name"]: c.args[0] for c in mock_mcp.add_tool.call_args_list}
+
+    result = await handlers["codemode_search"](query="detail:get_all_models")
+    payload = json.loads(result[0].text)
+    assert payload["name"] == "get_all_models"
+    assert any(p["name"] == "environment_id" for p in payload["params"])
 
 
 @pytest.mark.asyncio
@@ -62,7 +169,7 @@ async def test_codemode_execute_blocks_recursive_codemode_calls() -> None:
     handlers = {c.kwargs["name"]: c.args[0] for c in mock_mcp.add_tool.call_args_list}
 
     result = await handlers["codemode_execute"](
-        code='return await dbt.codemode_search(code="return catalog")'
+        code='return await dbt.codemode_search(query="categories")'
     )
     payload = json.loads(result[0].text)
     assert "cannot call other code mode tools" in payload["error"]

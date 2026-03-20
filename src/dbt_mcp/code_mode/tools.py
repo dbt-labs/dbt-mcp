@@ -8,23 +8,30 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ContentBlock, TextContent
 
-from dbt_mcp.code_mode.catalog import build_catalog_from_tools
-from dbt_mcp.code_mode.executor import execute_code, run_search_code
+from dbt_mcp.code_mode.executor import execute_code
+from dbt_mcp.code_mode.spec import ToolSpec
 
 logger = logging.getLogger(__name__)
 
 CODE_MODE_TOOL_NAMES = frozenset({"codemode_search", "codemode_execute"})
 
-CODEMODE_SEARCH_DESCRIPTION = """Search or filter the dbt MCP tool catalog without loading full schemas.
+CODEMODE_SEARCH_DESCRIPTION = """Discover dbt MCP tools progressively. Use the `query` parameter to control what is returned.
 
-You receive a variable `catalog`: a list of objects with keys:
-- name: tool name (e.g. "list_models", "query_metrics")
-- description: short description
-- param_names: list of parameter names for the tool
+**Query modes** (pass one of these as the `query` string):
 
-Write Python code that uses `catalog` and returns a value (e.g. filter to tools
-whose name or description matches a topic). Example:
-  return [t for t in catalog if "model" in t["name"] or "model" in t["description"]]
+1. `"categories"` — list all tool categories with tool names (cheapest, start here)
+2. `"tools"` — list all tools with one-line summaries
+3. `"tools:<category>"` — list tools in a specific category (e.g. "tools:discovery")
+4. `"detail:<tool_name>"` — get full parameter schema for a tool (e.g. "detail:get_lineage")
+5. `"guide:<tool_name>"` — get the rich usage guide with examples (e.g. "guide:get_lineage")
+
+**Recommended workflow:**
+1. Start with `"categories"` to see what's available
+2. Use `"tools:<category>"` to find the right tool
+3. Use `"detail:<tool_name>"` to get exact parameter names and types before calling
+4. Optionally use `"guide:<tool_name>"` for complex tools that need usage examples
+
+This progressive approach loads only the information you need, saving tokens.
 """
 
 CODEMODE_EXECUTE_DESCRIPTION = """Execute Python code that calls dbt MCP tools via the `dbt` proxy.
@@ -36,6 +43,8 @@ You receive a variable `dbt`. Call tools as async methods with keyword arguments
 Chain multiple calls and return a value. Example:
   models = await dbt.get_mart_models()
   return [m["name"] for m in models[:5]]
+
+Use codemode_search first to discover tool names and parameters before executing.
 """
 
 
@@ -64,6 +73,43 @@ def _normalize_content_blocks(content: Sequence[ContentBlock]) -> Any:
     return normalized
 
 
+def _build_spec(server: FastMCP) -> ToolSpec:
+    """Build the ToolSpec from the server's registered tools."""
+    spec = ToolSpec()
+    tool_manager = getattr(server, "_tool_manager", None)
+    if tool_manager is None:
+        return spec
+    tools = getattr(tool_manager, "_tools", {})
+    filtered = {n: t for n, t in tools.items() if n not in CODE_MODE_TOOL_NAMES}
+    spec.build_from_internal_tools(filtered)
+    return spec
+
+
+def _dispatch_search_query(spec: ToolSpec, query: str) -> Any:
+    """Route a codemode_search query string to the appropriate spec method."""
+    q = query.strip()
+    if q == "categories":
+        return spec.list_categories()
+    if q == "tools":
+        return spec.list_tools()
+    if q.startswith("tools:"):
+        category = q[len("tools:") :].strip()
+        return spec.list_tools(category=category)
+    if q.startswith("detail:"):
+        tool_name = q[len("detail:") :].strip()
+        detail = spec.get_tool_detail(tool_name)
+        if detail is None:
+            return {"error": f"Unknown tool: {tool_name}"}
+        return detail
+    if q.startswith("guide:"):
+        tool_name = q[len("guide:") :].strip()
+        guide = spec.get_tool_guide(tool_name)
+        if guide is None:
+            return {"error": f"No guide available for: {tool_name}"}
+        return guide
+    return {"error": f"Unknown query format: {q!r}. Use categories, tools, tools:<cat>, detail:<name>, or guide:<name>."}
+
+
 def register_code_mode_tools(dbt_mcp: FastMCP) -> None:
     """Register codemode_search and codemode_execute on the server.
 
@@ -72,20 +118,15 @@ def register_code_mode_tools(dbt_mcp: FastMCP) -> None:
     """
 
     def _make_search_handler(server: FastMCP) -> Any:
-        async def codemode_search(code: str) -> list[TextContent]:
-            tools_dict = getattr(server, "_tool_manager", None)
-            if tools_dict is None:
-                return _result_to_content({"error": "tool manager not available"})
-            tools = getattr(tools_dict, "_tools", {})
-            tool_list = [
-                t for name, t in tools.items() if name not in CODE_MODE_TOOL_NAMES
-            ]
-            catalog = build_catalog_from_tools(tool_list)
+        spec: ToolSpec | None = None
+
+        async def codemode_search(query: str) -> list[TextContent]:
+            nonlocal spec
+            if spec is None:
+                spec = _build_spec(server)
             try:
-                result = run_search_code(code, catalog)
+                result = _dispatch_search_query(spec, query)
                 return _result_to_content(result)
-            except ValueError as e:
-                return _result_to_content({"error": str(e)})
             except Exception as e:
                 logger.exception("Code mode search failed")
                 return _result_to_content({"error": str(e)})
