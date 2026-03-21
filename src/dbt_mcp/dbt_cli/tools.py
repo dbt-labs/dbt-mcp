@@ -8,7 +8,7 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from dbt_mcp.config.config import DbtCliConfig
-from dbt_mcp.dbt_cli.binary_type import get_color_disable_flag
+from dbt_mcp.dbt_cli.binary_type import BinaryType, get_color_disable_flag
 from dbt_mcp.dbt_cli.models.lineage_types import ModelLineage
 from dbt_mcp.dbt_cli.models.manifest import Manifest
 from dbt_mcp.prompts.prompts import get_prompt
@@ -119,8 +119,23 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             sample=sample,
         )
 
-    def compile() -> str:
+    # dbt Core and Cloud CLI support --select for targeted compile
+    def _compile_with_selector(
+        selector: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/selectors")
+        ),
+    ) -> str:
+        return _run_dbt_command(["compile"], selector, is_selectable=True)
+
+    # Fusion only supports full-project compile
+    def _compile_no_selector() -> str:
         return _run_dbt_command(["compile"])
+
+    compile_fn = (
+        _compile_with_selector
+        if config.binary_type != BinaryType.FUSION
+        else _compile_no_selector
+    )
 
     def docs() -> str:
         return _run_dbt_command(["docs", "generate"])
@@ -315,7 +330,8 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             ),
         ),
         ToolDefinition(
-            fn=compile,
+            name="compile",
+            fn=compile_fn,
             description=get_prompt("dbt_cli/compile"),
             annotations=create_tool_annotations(
                 title="dbt compile",
