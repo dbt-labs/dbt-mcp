@@ -1,8 +1,11 @@
+import inspect
 import subprocess
 
 import pytest
 from pytest import MonkeyPatch
 
+from dbt_mcp.config.config import DbtCliConfig
+from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from tests.mocks.config import mock_dbt_cli_config
 
@@ -413,3 +416,62 @@ def test_vars_not_added_when_none(monkeypatch: MonkeyPatch, mock_process, mock_f
     assert mock_calls
     args_list = mock_calls[0]
     assert "--vars" not in args_list
+
+
+@pytest.mark.parametrize(
+    "binary_type,expect_selector",
+    [
+        (BinaryType.DBT_CORE, True),
+        (BinaryType.DBT_CLOUD_CLI, True),
+        (BinaryType.FUSION, False),
+    ],
+)
+def test_compile_selector_availability_by_binary_type(
+    monkeypatch: MonkeyPatch,
+    mock_process,
+    mock_fastmcp,
+    binary_type: BinaryType,
+    expect_selector: bool,
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    config = DbtCliConfig(
+        project_dir=mock_dbt_cli_config.project_dir,
+        dbt_path=mock_dbt_cli_config.dbt_path,
+        dbt_cli_timeout=mock_dbt_cli_config.dbt_cli_timeout,
+        binary_type=binary_type,
+    )
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    # compile_fn is registered under its internal __name__; find it via tool_kwargs
+    compile_fn_name = next(
+        (
+            name
+            for name, kw in fastmcp.tool_kwargs.items()
+            if kw.get("name") == "compile"
+        ),
+        None,
+    )
+    assert compile_fn_name is not None, "compile tool was not registered"
+    compile_tool = tools[compile_fn_name]
+
+    has_selector = "selector" in inspect.signature(compile_tool).parameters
+    assert has_selector == expect_selector
+
+    if expect_selector:
+        compile_tool(selector="my_model")
+        assert "--select" in mock_calls[0]
+        assert "my_model" in mock_calls[0]
