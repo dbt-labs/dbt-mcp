@@ -519,8 +519,8 @@ export default function App() {
         <header className="app-header">
           <h1>dbt MCP Server — Authentication</h1>
           <p>
-            The dbt MCP server in your editor needs to authenticate with dbt
-            Cloud via OAuth. This may have been configured by your team.
+            The dbt MCP server needs to authenticate with dbt
+            Platform via OAuth. This may have been configured by your team.
           </p>
         </header>
 
@@ -727,8 +727,8 @@ export default function App() {
             <div className="completion-card">
               <h2>All Set!</h2>
               <p>
-                The dbt MCP server is authenticated and configured. You can
-                close this window and return to your editor.
+                The dbt MCP server is authenticated and configured with your
+                dbt Platform account. This window can now be closed.
               </p>
             </div>
           </section>
