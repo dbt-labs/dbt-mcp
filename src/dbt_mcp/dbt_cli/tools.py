@@ -319,7 +319,6 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             ),
         ),
         ToolDefinition(
-            name="compile",
             fn=compile,
             description=get_prompt("dbt_cli/compile"),
             annotations=create_tool_annotations(
