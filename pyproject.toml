@@ -58,6 +58,9 @@ dev = [
   "types-authlib>=1.6.4.20250920",
 ]
 
+[tool.uv.sources]
+mcp = { git = "https://github.com/dbt-labs/mcp-python-sdk.git", branch = "dbt-labs/patched" }
+
 [project.urls]
 Documentation = "https://docs.getdbt.com/docs/dbt-ai/about-mcp"
 Issues = "https://github.com/dbt-labs/dbt-mcp/issues"
