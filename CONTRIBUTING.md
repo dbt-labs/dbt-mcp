@@ -27,9 +27,28 @@ cd dbt-mcp
 
 6. Run `task client` to chat with dbt MCP in your terminal.
 
+## LLM-Assisted Contributions
+
+We welcome contributions made with the help of AI coding assistants and LLMs. If you use LLMs, use them responsibly.
+
+In practice, this means:
+
+- **Review what was generated.** Don't submit code you haven't read and understood. LLMs can produce plausible-looking but incorrect logic, especially around edge cases.
+- **Verify accuracy.** Check that generated code, logic, tool descriptions, and prompts are correct — inaccurate descriptions directly affect how AI assistants use these tools, and subtle logic errors may not be caught by tests alone.
+- **Run the checks.** LLM-generated code must still pass `task check` and `task test:unit` before submitting a PR.
+
+The bar for contribution quality is the same regardless of how the code was written.
+
 ## Style
 
-Refer to `./cursor/rules` for standards and stylistic guidelines.
+- Import modules at the top of Python files. Only import in the middle of code when strictly necessary, and document why.
+- Never add unused parameters to a function, even with a default value.
+- Only use default arguments when there is a reason to do so.
+- Avoid `while True`. While-loops should have a termination condition in the `while` statement, not just in the loop body.
+- Always use `*` in function parameter lists when there are adjacent parameters with the same type.
+- Avoid putting code in `__init__.py` files.
+- Always include type annotations for function inputs and outputs.
+- Always prefer Pydantic models or dataclasses to dictionaries.
 
 ## Testing
 
@@ -40,6 +59,8 @@ This repo has automated tests which can be run with `task test:unit`.
 ### Integration Testing
 
 The integration tests exercise system interactions greater than just the unit tests. They require a dbt Platform environment that is setup with semantic layer, developer license, and PAT. These tests can be run with `task test:integration`.
+
+Integration tests must issue real HTTP requests against configured services — do not monkeypatch or stub network calls inside `tests/integration`. Build clients through the standard config providers so they pull credentials and endpoints from the environment. If request observations are needed, subclass the client to record metadata while still calling the real implementation. Use unit tests for mocking.
 
 For dbt Labs employees, a staging environment has been set up. Credentials for this environment can be found by searching for `dbt MCP Integration Test Credentials` in 1Password.
 
