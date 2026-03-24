@@ -529,7 +529,7 @@ export default function App() {
             <div className="section-header">
               <h2>Authentication Error</h2>
               <p>
-                The dbt MCP server could not authenticate with dbt Cloud
+                The dbt MCP server could not authenticate with dbt Platform
               </p>
             </div>
 
