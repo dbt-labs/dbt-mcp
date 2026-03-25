@@ -1,3 +1,4 @@
+import inspect
 import subprocess
 
 import pytest
@@ -413,3 +414,34 @@ def test_vars_not_added_when_none(monkeypatch: MonkeyPatch, mock_process, mock_f
     assert mock_calls
     args_list = mock_calls[0]
     assert "--vars" not in args_list
+
+
+def test_compile_supports_selector(
+    monkeypatch: MonkeyPatch,
+    mock_process,
+    mock_fastmcp,
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    compile_tool = tools["compile"]
+
+    assert "selector" in inspect.signature(compile_tool).parameters
+
+    compile_tool(selector="my_model")
+    assert "--select" in mock_calls[0]
+    assert "my_model" in mock_calls[0]

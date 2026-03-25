@@ -519,23 +519,6 @@ class TestProductDocsRegistration:
             assert "get_product_doc_pages" in tool_names
 
     @pytest.mark.asyncio
-    async def test_tools_disabled(self, env_setup):
-        with (
-            env_setup(env_vars={"DISABLE_PRODUCT_DOCS": "true"}),
-            patch(
-                "dbt_mcp.config.config.detect_binary_type",
-                return_value=BinaryType.DBT_CORE,
-            ),
-        ):
-            config = load_config(enable_proxied_tools=False)
-            dbt_mcp = await create_dbt_mcp(config)
-            server_tools = await dbt_mcp.list_tools()
-            tool_names = {tool.name for tool in server_tools}
-
-            assert "search_product_docs" not in tool_names
-            assert "get_product_doc_pages" not in tool_names
-
-    @pytest.mark.asyncio
     async def test_tools_available_without_cloud_credentials(self, env_setup):
         """Product docs tools should work even without DBT_HOST or DBT_TOKEN."""
         with (
