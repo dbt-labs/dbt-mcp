@@ -6,7 +6,6 @@ from mcp.server.fastmcp import FastMCP
 
 from dbt_mcp.config.config_providers import (
     DefaultSemanticLayerConfigProvider,
-    SemanticLayerConfig,
 )
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.semantic_layer.client import (
@@ -43,7 +42,10 @@ class MultiProjectSemanticLayerToolContext:
         self.semantic_layer_config_provider = config_provider
         self._client_provider = client_provider
 
-    def fetcher_for_config(self, config: SemanticLayerConfig) -> SemanticLayerFetcher:
+    async def get_fetcher(self, project_id: int) -> SemanticLayerFetcher:
+        config = await self.semantic_layer_config_provider.get_config_for_project(
+            project_id
+        )
         return SemanticLayerFetcher(
             config_provider=self.semantic_layer_config_provider,
             client_provider=self._client_provider,
@@ -65,10 +67,7 @@ async def list_metrics(
     project_id: int,
     search: str | None = None,
 ) -> list[MetricToolResponse]:
-    config = await context.semantic_layer_config_provider.get_config_for_project(
-        project_id
-    )
-    fetcher = context.fetcher_for_config(config)
+    fetcher = await context.get_fetcher(project_id)
     return await fetcher.list_metrics(search=search)
 
 
@@ -86,10 +85,7 @@ async def list_saved_queries(
     project_id: int,
     search: str | None = None,
 ) -> list[SavedQueryToolResponse]:
-    config = await context.semantic_layer_config_provider.get_config_for_project(
-        project_id
-    )
-    fetcher = context.fetcher_for_config(config)
+    fetcher = await context.get_fetcher(project_id)
     return await fetcher.list_saved_queries(search=search)
 
 
@@ -108,10 +104,7 @@ async def get_dimensions(
     metrics: list[str],
     search: str | None = None,
 ) -> list[DimensionToolResponse]:
-    config = await context.semantic_layer_config_provider.get_config_for_project(
-        project_id
-    )
-    fetcher = context.fetcher_for_config(config)
+    fetcher = await context.get_fetcher(project_id)
     return await fetcher.get_dimensions(metrics=metrics, search=search)
 
 
@@ -130,10 +123,7 @@ async def get_entities(
     metrics: list[str],
     search: str | None = None,
 ) -> list[EntityToolResponse]:
-    config = await context.semantic_layer_config_provider.get_config_for_project(
-        project_id
-    )
-    fetcher = context.fetcher_for_config(config)
+    fetcher = await context.get_fetcher(project_id)
     return await fetcher.get_entities(metrics=metrics, search=search)
 
 
@@ -155,10 +145,7 @@ async def query_metrics(
     where: str | None = None,
     limit: int | None = None,
 ) -> str:
-    config = await context.semantic_layer_config_provider.get_config_for_project(
-        project_id
-    )
-    fetcher = context.fetcher_for_config(config)
+    fetcher = await context.get_fetcher(project_id)
     result = await fetcher.query_metrics(
         metrics=metrics,
         group_by=group_by,
@@ -190,10 +177,7 @@ async def get_metrics_compiled_sql(
     where: str | None = None,
     limit: int | None = None,
 ) -> str:
-    config = await context.semantic_layer_config_provider.get_config_for_project(
-        project_id
-    )
-    fetcher = context.fetcher_for_config(config)
+    fetcher = await context.get_fetcher(project_id)
     result = await fetcher.get_metrics_compiled_sql(
         metrics=metrics,
         group_by=group_by,
