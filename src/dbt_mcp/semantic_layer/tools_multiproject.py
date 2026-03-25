@@ -55,7 +55,6 @@ class MultiProjectSemanticLayerToolContext:
 
 @dbt_mcp_tool(
     description=get_prompt("semantic_layer/list_metrics"),
-    name="list_metrics",
     title="List Metrics",
     read_only_hint=True,
     destructive_hint=False,
@@ -72,7 +71,6 @@ async def list_metrics(
 
 @dbt_mcp_tool(
     description=get_prompt("semantic_layer/list_saved_queries"),
-    name="list_saved_queries",
     title="List Saved Queries",
     read_only_hint=True,
     destructive_hint=False,
@@ -89,7 +87,6 @@ async def list_saved_queries(
 
 @dbt_mcp_tool(
     description=get_prompt("semantic_layer/get_dimensions"),
-    name="get_dimensions",
     title="Get Dimensions",
     read_only_hint=True,
     destructive_hint=False,
@@ -107,7 +104,6 @@ async def get_dimensions(
 
 @dbt_mcp_tool(
     description=get_prompt("semantic_layer/get_entities"),
-    name="get_entities",
     title="Get Entities",
     read_only_hint=True,
     destructive_hint=False,
@@ -125,7 +121,6 @@ async def get_entities(
 
 @dbt_mcp_tool(
     description=get_prompt("semantic_layer/query_metrics"),
-    name="query_metrics",
     title="Query Metrics",
     read_only_hint=True,
     destructive_hint=False,
@@ -156,7 +151,6 @@ async def query_metrics(
 
 @dbt_mcp_tool(
     description=get_prompt("semantic_layer/get_metrics_compiled_sql"),
-    name="get_metrics_compiled_sql",
     title="Compile SQL",
     read_only_hint=True,
     destructive_hint=False,
