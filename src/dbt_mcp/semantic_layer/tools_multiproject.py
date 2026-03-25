@@ -21,7 +21,7 @@ from dbt_mcp.semantic_layer.types import (
     QueryMetricsSuccess,
     SavedQueryToolResponse,
 )
-from dbt_mcp.tools.definitions import GenericToolDefinition, generic_dbt_mcp_tool
+from dbt_mcp.tools.definitions import GenericToolDefinition, dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
@@ -53,9 +53,8 @@ class MultiProjectSemanticLayerToolContext:
         )
 
 
-@generic_dbt_mcp_tool(
+@dbt_mcp_tool(
     description=get_prompt("semantic_layer/list_metrics"),
-    name_enum=ToolName,
     name="list_metrics",
     title="List Metrics",
     read_only_hint=True,
@@ -71,9 +70,8 @@ async def list_metrics(
     return await fetcher.list_metrics(search=search)
 
 
-@generic_dbt_mcp_tool(
+@dbt_mcp_tool(
     description=get_prompt("semantic_layer/list_saved_queries"),
-    name_enum=ToolName,
     name="list_saved_queries",
     title="List Saved Queries",
     read_only_hint=True,
@@ -89,9 +87,8 @@ async def list_saved_queries(
     return await fetcher.list_saved_queries(search=search)
 
 
-@generic_dbt_mcp_tool(
+@dbt_mcp_tool(
     description=get_prompt("semantic_layer/get_dimensions"),
-    name_enum=ToolName,
     name="get_dimensions",
     title="Get Dimensions",
     read_only_hint=True,
@@ -108,9 +105,8 @@ async def get_dimensions(
     return await fetcher.get_dimensions(metrics=metrics, search=search)
 
 
-@generic_dbt_mcp_tool(
+@dbt_mcp_tool(
     description=get_prompt("semantic_layer/get_entities"),
-    name_enum=ToolName,
     name="get_entities",
     title="Get Entities",
     read_only_hint=True,
@@ -127,9 +123,8 @@ async def get_entities(
     return await fetcher.get_entities(metrics=metrics, search=search)
 
 
-@generic_dbt_mcp_tool(
+@dbt_mcp_tool(
     description=get_prompt("semantic_layer/query_metrics"),
-    name_enum=ToolName,
     name="query_metrics",
     title="Query Metrics",
     read_only_hint=True,
@@ -159,9 +154,8 @@ async def query_metrics(
         return result.error
 
 
-@generic_dbt_mcp_tool(
+@dbt_mcp_tool(
     description=get_prompt("semantic_layer/get_metrics_compiled_sql"),
-    name_enum=ToolName,
     name="get_metrics_compiled_sql",
     title="Compile SQL",
     read_only_hint=True,
