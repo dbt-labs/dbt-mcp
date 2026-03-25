@@ -119,8 +119,12 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             sample=sample,
         )
 
-    def compile() -> str:
-        return _run_dbt_command(["compile"])
+    def compile(
+        selector: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/selectors")
+        ),
+    ) -> str:
+        return _run_dbt_command(["compile"], selector, is_selectable=True)
 
     def docs() -> str:
         return _run_dbt_command(["docs", "generate"])
