@@ -8,6 +8,7 @@ import pyarrow as pa
 import pytest
 from dbtsl.error import RetryTimeoutError
 
+from dbt_mcp.config.config_providers import SemanticLayerConfig
 from dbt_mcp.errors.semantic_layer import SemanticLayerQueryTimeoutError
 from dbt_mcp.semantic_layer.client import DEFAULT_RESULT_FORMATTER, SemanticLayerFetcher
 from dbt_mcp.semantic_layer.types import QueryMetricsError
@@ -438,3 +439,69 @@ class TestQueryMetricsCompiledTimeout:
 
         assert isinstance(result, QueryMetricsError)
         assert result.error is not None
+
+
+@pytest.mark.asyncio
+async def test_query_metrics_sdk_client_uses_fetcher_config_override(
+    mock_config_provider, mock_client_provider
+):
+    token_p = MagicMock()
+    token_p.get_token.return_value = "tok"
+    headers_p = MagicMock()
+    headers_p.get_headers.return_value = {}
+    override = SemanticLayerConfig(
+        url="https://example.com/graphql",
+        host="example.com",
+        prod_environment_id=777,
+        token_provider=token_p,
+        headers_provider=headers_p,
+    )
+    mock_sl_client = MagicMock()
+    session_ctx = MagicMock()
+    mock_sl_client.session.return_value = session_ctx
+    session_ctx.__enter__ = MagicMock(return_value=mock_sl_client)
+    session_ctx.__exit__ = MagicMock(return_value=False)
+    mock_sl_client.query.return_value = pa.table({"a": [1]})
+    mock_client_provider.get_client.return_value = mock_sl_client
+
+    fetcher = SemanticLayerFetcher(
+        config_provider=mock_config_provider,
+        client_provider=mock_client_provider,
+        config=override,
+    )
+    await fetcher.query_metrics(metrics=["revenue"])
+
+    mock_client_provider.get_client.assert_awaited_once_with(config=override)
+
+
+@pytest.mark.asyncio
+async def test_get_metrics_compiled_sql_sdk_client_uses_fetcher_config_override(
+    mock_config_provider, mock_client_provider
+):
+    token_p = MagicMock()
+    token_p.get_token.return_value = "tok"
+    headers_p = MagicMock()
+    headers_p.get_headers.return_value = {}
+    override = SemanticLayerConfig(
+        url="https://example.com/graphql",
+        host="example.com",
+        prod_environment_id=888,
+        token_provider=token_p,
+        headers_provider=headers_p,
+    )
+    mock_sl_client = MagicMock()
+    session_ctx = MagicMock()
+    mock_sl_client.session.return_value = session_ctx
+    session_ctx.__enter__ = MagicMock(return_value=mock_sl_client)
+    session_ctx.__exit__ = MagicMock(return_value=False)
+    mock_sl_client.compile_sql.return_value = "select 1"
+    mock_client_provider.get_client.return_value = mock_sl_client
+
+    fetcher = SemanticLayerFetcher(
+        config_provider=mock_config_provider,
+        client_provider=mock_client_provider,
+        config=override,
+    )
+    await fetcher.get_metrics_compiled_sql(metrics=["revenue"])
+
+    mock_client_provider.get_client.assert_awaited_once_with(config=override)
