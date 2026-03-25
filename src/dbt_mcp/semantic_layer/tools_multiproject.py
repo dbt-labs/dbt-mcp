@@ -1,4 +1,3 @@
-import logging
 from dataclasses import dataclass
 
 from dbtsl.api.shared.query_params import GroupByParam
@@ -25,8 +24,6 @@ from dbt_mcp.tools.definitions import GenericToolDefinition, dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass

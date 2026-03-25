@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import os
 import time
 import uuid
 from collections.abc import AsyncIterator, Callable, Sequence
@@ -103,14 +102,6 @@ class DbtMCP(FastMCP):
         return result
 
 
-def _multi_project_enabled() -> bool:
-    return os.environ.get("DBT_MCP_MULTI_PROJECT_ENABLED", "").lower() in (
-        "true",
-        "1",
-        "yes",
-    )
-
-
 @asynccontextmanager
 async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
     if not isinstance(server, DbtMCP):
@@ -120,7 +111,10 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
         # register proxied tools inside the app lifespan to ensure the StreamableHTTP client (specific
         # to dbt Platform connection) lives on the same event loop as the running server
         # this avoids anyio cancel scope violations (see issue #498)
-        if server.config.proxied_tool_config_provider and not _multi_project_enabled():
+        if (
+            server.config.proxied_tool_config_provider
+            and not server.config.multi_project_enabled
+        ):
             logger.info("Registering proxied tools")
             await register_proxied_tools(
                 dbt_mcp=server,
@@ -193,9 +187,7 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
         lifespan=app_lifespan,
     )
 
-    multi_project_enabled = _multi_project_enabled()
-
-    if multi_project_enabled:
+    if config.multi_project_enabled:
         logger.info("DBT_MCP_MULTI_PROJECT_ENABLED=true -> Multi-project mode")
         await register_multi_project_dbt_mcp(dbt_mcp, config)
     else:

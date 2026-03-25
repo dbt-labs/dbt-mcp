@@ -9,8 +9,8 @@ from dbt_mcp.config.config_providers import (
 )
 from dbt_mcp.config.settings import (
     CredentialsProvider,
-    DbtMcpSettings,
     DbtMcpLogSettings,
+    DbtMcpSettings,
 )
 from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo, dbt_lsp_binary_info
@@ -81,6 +81,7 @@ class Config:
     admin_api_config_provider: DefaultAdminApiConfigProvider | None
     credentials_provider: CredentialsProvider
     lsp_config: LspConfig | None
+    multi_project_enabled: bool = False
 
 
 def load_config(enable_proxied_tools: bool = True) -> Config:
@@ -174,4 +175,5 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         admin_api_config_provider=admin_api_config_provider,
         credentials_provider=credentials_provider,
         lsp_config=lsp_config,
+        multi_project_enabled=settings.multi_project_enabled,
     )
