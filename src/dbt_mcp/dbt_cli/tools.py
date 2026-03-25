@@ -208,7 +208,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         _run_dbt_command(["parse"])  # Ensure manifest is generated
         cwd_path = config.project_dir if os.path.isabs(config.project_dir) else None
         manifest_path = os.path.join(cwd_path or ".", "target", "manifest.json")
-        with open(manifest_path) as f:
+        with open(manifest_path, encoding="utf-8") as f:
             manifest_data = json.load(f)
         return Manifest(**manifest_data)
 
