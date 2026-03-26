@@ -110,6 +110,7 @@ async def test_fetch_performance_with_name_resolution(
     resource_details_fetcher.fetch_details.assert_called_once_with(
         resource_type=AppliedResourceType.MODEL,
         name="stg_orders",
+        config_override=None,
     )
 
     # Verify result contains correct data
