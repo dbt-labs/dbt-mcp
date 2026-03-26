@@ -519,8 +519,8 @@ export default function App() {
         <header className="app-header">
           <h1>dbt MCP Server — Authentication</h1>
           <p>
-            The dbt MCP server needs to authenticate with dbt
-            Platform via OAuth. This may have been configured by your team.
+            The dbt MCP server needs to authenticate with dbt Platform via
+            OAuth.
           </p>
         </header>
 
