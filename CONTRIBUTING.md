@@ -36,6 +36,7 @@ In practice, this means:
 - **Review what was generated.** Don't submit code you haven't read and understood. LLMs can produce plausible-looking but incorrect logic, especially around edge cases.
 - **Verify accuracy.** Check that generated code, logic, tool descriptions, and prompts are correct — inaccurate descriptions directly affect how AI assistants use these tools, and subtle logic errors may not be caught by tests alone.
 - **Run the checks.** LLM-generated code must still pass `task check` and `task test:unit` before submitting a PR.
+- **Show your work.** For non-trivial changes, include evidence of testing in your PR description (e.g., screenshots, logs, or a description of what you ran and observed). The burden of validation is on the author, not the reviewer.
 
 The bar for contribution quality is the same regardless of how the code was written.
 
@@ -58,9 +59,14 @@ This repo has automated tests which can be run with `task test:unit`.
 
 ### Integration Testing
 
-The integration tests exercise system interactions greater than just the unit tests. They require a dbt Platform environment that is setup with semantic layer, developer license, and PAT. These tests can be run with `task test:integration`.
+The integration tests exercise system interactions greater than just the unit tests. They require a dbt Platform environment that is set up with semantic layer, developer license, and PAT. These tests can be run with `task test:integration`.
 
-Integration tests must issue real HTTP requests against configured services — do not monkeypatch or stub network calls inside `tests/integration`. Build clients through the standard config providers so they pull credentials and endpoints from the environment. If request observations are needed, subclass the client to record metadata while still calling the real implementation. Use unit tests for mocking.
+Integration tests must:
+
+- Issue real HTTP requests against configured services — do not monkeypatch or stub network calls inside `tests/integration`.
+- Build clients through the standard config providers so they pull credentials and endpoints from the environment.
+- If request observations are needed, subclass the client to record metadata while still calling the real implementation.
+- Use unit tests for mocking.
 
 For dbt Labs employees, a staging environment has been set up. Credentials for this environment can be found by searching for `dbt MCP Integration Test Credentials` in 1Password.
 
