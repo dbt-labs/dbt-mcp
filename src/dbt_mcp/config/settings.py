@@ -20,8 +20,8 @@ from dbt_mcp.config.headers import (
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
 from dbt_mcp.oauth.dbt_platform import DbtPlatformContext
 from dbt_mcp.oauth.expiry import STARTUP_EXPIRY_BUFFER_SECONDS
-from dbt_mcp.oauth.refresh import refresh_oauth_token
 from dbt_mcp.oauth.login import login
+from dbt_mcp.oauth.refresh import refresh_oauth_token
 from dbt_mcp.oauth.token_provider import (
     OAuthTokenProvider,
     StaticTokenProvider,
@@ -122,6 +122,9 @@ class DbtMcpSettings(BaseSettings):
     send_anonymous_usage_data: str | None = Field(
         None, alias="DBT_SEND_ANONYMOUS_USAGE_STATS"
     )
+
+    # Multi-project settings
+    multi_project_enabled: bool = Field(False, alias="DBT_MCP_MULTI_PROJECT_ENABLED")
 
     def __repr__(self):
         """Custom repr to bring most important settings to front. Redact sensitive info."""
