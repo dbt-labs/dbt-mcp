@@ -52,7 +52,7 @@ Tools can have associated UIs via the `meta` field:
 
 ## Style
 
-- See `.cursor/rules/python.mdc` for Python conventions
+- See `CONTRIBUTING.md` for Python conventions
 - Import at top of file, type annotations on all functions
 - Prefer Pydantic models or dataclasses over dicts
 - Use `*` in param lists when adjacent params share a type
