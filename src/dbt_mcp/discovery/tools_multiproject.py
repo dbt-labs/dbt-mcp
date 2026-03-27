@@ -7,7 +7,7 @@ from pydantic import Field
 from dbt_mcp.config.config_providers import (
     ConfigProvider,
     DiscoveryConfig,
-    _resolve_project_environments,
+    resolve_project_environments,
 )
 from dbt_mcp.config.settings import CredentialsProvider
 from dbt_mcp.config.headers import DiscoveryHeadersProvider
@@ -45,7 +45,7 @@ async def _resolve_discovery_config_for_project(
     project_id: int,
 ) -> DiscoveryConfig:
     """Resolve a DiscoveryConfig for the given project by fetching its environments."""
-    settings, token_provider, prod_env, dev_env = await _resolve_project_environments(
+    settings, token_provider, prod_env, dev_env = await resolve_project_environments(
         context.credentials_provider, project_id
     )
     assert settings.actual_host

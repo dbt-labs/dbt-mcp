@@ -47,7 +47,7 @@ class ProxiedToolConfig:
     headers_provider: ProxiedToolHeadersProvider
 
 
-async def _resolve_project_environments(
+async def resolve_project_environments(
     credentials_provider: CredentialsProvider,
     project_id: int,
 ) -> tuple[
@@ -88,7 +88,7 @@ class DefaultSemanticLayerConfigProvider(ConfigProvider[SemanticLayerConfig]):
         self.credentials_provider = credentials_provider
 
     async def get_config_for_project(self, project_id: int) -> SemanticLayerConfig:
-        settings, token_provider, prod_env, _ = await _resolve_project_environments(
+        settings, token_provider, prod_env, _ = await resolve_project_environments(
             self.credentials_provider, project_id
         )
         assert settings.actual_host
