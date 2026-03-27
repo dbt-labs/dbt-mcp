@@ -4,11 +4,8 @@ from typing import Any
 import pytest
 
 from dbt_mcp.config.config_providers import (
-    ConfigProvider,
-    DefaultDiscoveryConfigProvider,
     DiscoveryConfig,
 )
-from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
 from dbt_mcp.discovery.client import (
     MetadataAPIClient,
     ModelsFetcher,
@@ -17,8 +14,8 @@ from dbt_mcp.discovery.client import (
 
 
 class CountingMetadataAPIClient(MetadataAPIClient):
-    def __init__(self, config_provider: ConfigProvider[DiscoveryConfig]) -> None:
-        super().__init__(config_provider)
+    def __init__(self) -> None:
+        super().__init__()
         self.request_calls = 0
         self.request_payloads: list[dict] = []
 
@@ -38,10 +35,7 @@ class CountingMetadataAPIClient(MetadataAPIClient):
 
 @pytest.fixture
 def api_client() -> CountingMetadataAPIClient:
-    settings = DbtMcpSettings()  # type: ignore
-    credentials_provider = CredentialsProvider(settings)
-    config_provider = DefaultDiscoveryConfigProvider(credentials_provider)
-    return CountingMetadataAPIClient(config_provider)
+    return CountingMetadataAPIClient()
 
 
 async def test_models_fetcher_paginates_without_has_next_page(

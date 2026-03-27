@@ -6,7 +6,7 @@ from typing import Any, ClassVar, Literal, TypedDict
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
-from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
+from dbt_mcp.config.config_providers import DiscoveryConfig
 from dbt_mcp.discovery.graphql import load_query
 from dbt_mcp.errors import InvalidParameterError, ToolCallError
 from dbt_mcp.errors.common import NotFoundError
@@ -354,9 +354,6 @@ class GraphQLQueries:
 
 
 class MetadataAPIClient:
-    def __init__(self, config_provider: ConfigProvider[DiscoveryConfig]):
-        self.config_provider = config_provider
-
     async def execute_query(
         self,
         query: str,

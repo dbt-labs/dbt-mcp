@@ -1,7 +1,5 @@
 import pytest
 
-from dbt_mcp.config.config_providers import DefaultDiscoveryConfigProvider
-from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
 from dbt_mcp.config.config_providers import DiscoveryConfig
 from dbt_mcp.discovery.client import (
     AppliedResourceType,
@@ -14,12 +12,7 @@ from dbt_mcp.discovery.client import (
 
 @pytest.fixture
 def resource_details_fetcher() -> ResourceDetailsFetcher:
-    settings = DbtMcpSettings()  # type: ignore
-    credentials_provider = CredentialsProvider(settings)
-    config_provider = DefaultDiscoveryConfigProvider(credentials_provider)
-    return ResourceDetailsFetcher(
-        api_client=MetadataAPIClient(config_provider=config_provider)
-    )
+    return ResourceDetailsFetcher(api_client=MetadataAPIClient())
 
 
 async def test_resource_details_fetcher_accepts_unique_id_for_model(

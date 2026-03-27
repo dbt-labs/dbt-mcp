@@ -47,8 +47,8 @@ def config_provider() -> ConfigProvider[DiscoveryConfig]:
 
 
 @pytest.fixture
-def api_client(config_provider: ConfigProvider[DiscoveryConfig]) -> MetadataAPIClient:
-    return MetadataAPIClient(config_provider)
+def api_client() -> MetadataAPIClient:
+    return MetadataAPIClient()
 
 
 @pytest.fixture

@@ -46,7 +46,7 @@ class DiscoveryToolContext:
 
     def __init__(self, config_provider: ConfigProvider[DiscoveryConfig]):
         self.config_provider = config_provider
-        api_client = MetadataAPIClient(config_provider=config_provider)
+        api_client = MetadataAPIClient()
         self.models_fetcher = ModelsFetcher(
             api_client=api_client,
             paginator=PaginatedResourceFetcher(

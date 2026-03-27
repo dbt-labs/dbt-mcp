@@ -87,7 +87,7 @@ class MultiProjectDiscoveryToolContext:
         credentials_provider: CredentialsProvider,
     ):
         self.credentials_provider = credentials_provider
-        api_client = MetadataAPIClient(config_provider=config_provider)
+        api_client = MetadataAPIClient()
         self.models_fetcher = ModelsFetcher(
             api_client=api_client,
             paginator=PaginatedResourceFetcher(
