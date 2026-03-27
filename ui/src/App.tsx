@@ -187,6 +187,10 @@ function CustomDropdown<T,>({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  // Array may retain stale null entries when filteredOptions shrinks after a
+  // search — React sets each ref to null on unmount, so optional-chaining
+  // guards on all accesses keep this safe.
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -196,6 +200,7 @@ function CustomDropdown<T,>({
         !dropdownRef.current.contains(event.target as Node)
       ) {
         setIsOpen(false);
+        setSearchQuery("");
       }
     }
 
@@ -203,36 +208,6 @@ function CustomDropdown<T,>({
       document.addEventListener("mousedown", handleClickOutside);
       return () => {
         document.removeEventListener("mousedown", handleClickOutside);
-      };
-    }
-  }, [isOpen]);
-
-  // Handle keyboard navigation on the trigger button (open/close/escape)
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (!isOpen) {
-        if (
-          event.key === "Enter" ||
-          event.key === " " ||
-          event.key === "ArrowDown"
-        ) {
-          event.preventDefault();
-          setIsOpen(true);
-        }
-        return;
-      }
-
-      if (event.key === "Escape") {
-        setIsOpen(false);
-        setSearchQuery("");
-        triggerRef.current?.focus();
-      }
-    }
-
-    if (triggerRef.current?.contains(document.activeElement)) {
-      document.addEventListener("keydown", handleKeyDown);
-      return () => {
-        document.removeEventListener("keydown", handleKeyDown);
       };
     }
   }, [isOpen]);
@@ -249,8 +224,55 @@ function CustomDropdown<T,>({
 
   const selectedOption = options.find((o) => getOptionId(o) === value);
 
+  const handleTriggerKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      setIsOpen(true);
+    } else if (e.key === "Escape") {
+      setIsOpen(false);
+      setSearchQuery("");
+    }
+  };
+
   const handleToggle = () => {
+    if (isOpen) setSearchQuery("");
     setIsOpen(!isOpen);
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      optionRefs.current[0]?.focus();
+    } else if (e.key === "Escape") {
+      setIsOpen(false);
+      setSearchQuery("");
+      triggerRef.current?.focus();
+    }
+  };
+
+  const handleOptionKeyDown = (
+    e: React.KeyboardEvent<HTMLButtonElement>,
+    index: number,
+    option: T
+  ) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      optionRefs.current[index + 1]?.focus();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (index === 0) {
+        searchRef.current?.focus();
+      } else {
+        optionRefs.current[index - 1]?.focus();
+      }
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      handleOptionSelect(option);
+    } else if (e.key === "Escape") {
+      setIsOpen(false);
+      setSearchQuery("");
+      triggerRef.current?.focus();
+    }
   };
 
   const handleOptionSelect = (option: T) => {
@@ -270,6 +292,7 @@ function CustomDropdown<T,>({
           !selectedOption ? "placeholder" : ""
         }`}
         onClick={handleToggle}
+        onKeyDown={handleTriggerKeyDown}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-labelledby={`${id}-label`}
@@ -299,17 +322,20 @@ function CustomDropdown<T,>({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onClick={(e) => e.stopPropagation()}
+              onKeyDown={handleSearchKeyDown}
               aria-label="Search"
             />
           </div>
-          {filteredOptions.map((option) => (
+          {filteredOptions.map((option, index) => (
             <button
               key={getOptionId(option)}
+              ref={(el) => { optionRefs.current[index] = el; }}
               type="button"
               className={`dropdown-option ${
                 getOptionId(option) === value ? "selected" : ""
               }`}
               onClick={() => handleOptionSelect(option)}
+              onKeyDown={(e) => handleOptionKeyDown(e, index, option)}
               role="option"
               aria-selected={getOptionId(option) === value}
             >

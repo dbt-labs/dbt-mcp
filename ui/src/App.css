@@ -193,9 +193,6 @@ section {
 .custom-dropdown {
   position: relative;
   width: 100%;
-  z-index: 999999;
-  /* Ensure proper stacking context */
-  isolation: isolate;
 }
 
 .dropdown-trigger {
