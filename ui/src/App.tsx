@@ -517,15 +517,20 @@ export default function App() {
       </div>
       <div className="app-content">
         <header className="app-header">
-          <h1>dbt Platform Setup</h1>
-          <p>Configure your dbt Platform connection</p>
+          <h1>dbt MCP Server — Authentication</h1>
+          <p>
+            The dbt MCP server needs to authenticate with dbt Platform via
+            OAuth.
+          </p>
         </header>
 
         {oauthResult.status === "error" && (
           <section className="error-section">
             <div className="section-header">
               <h2>Authentication Error</h2>
-              <p>There was a problem during authentication</p>
+              <p>
+                The dbt MCP server could not authenticate with dbt Platform
+              </p>
             </div>
 
             <div className="error-details">
@@ -722,8 +727,8 @@ export default function App() {
             <div className="completion-card">
               <h2>All Set!</h2>
               <p>
-                Your dbt Platform setup has finished. This window can now be
-                closed.
+                The dbt MCP server is authenticated and configured with your
+                dbt Platform account. This window can now be closed.
               </p>
             </div>
           </section>
