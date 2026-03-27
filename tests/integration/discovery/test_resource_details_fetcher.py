@@ -2,6 +2,7 @@ import pytest
 
 from dbt_mcp.config.config_providers import DefaultDiscoveryConfigProvider
 from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
+from dbt_mcp.config.config_providers import DiscoveryConfig
 from dbt_mcp.discovery.client import (
     AppliedResourceType,
     MetadataAPIClient,
@@ -24,12 +25,14 @@ def resource_details_fetcher() -> ResourceDetailsFetcher:
 async def test_resource_details_fetcher_accepts_unique_id_for_model(
     models_fetcher: ModelsFetcher,
     resource_details_fetcher: ResourceDetailsFetcher,
+    discovery_config: DiscoveryConfig,
 ) -> None:
-    models = await models_fetcher.fetch_models()
+    models = await models_fetcher.fetch_models(config=discovery_config)
     assert len(models) > 0
     model = models[0]
     result = await resource_details_fetcher.fetch_details(
-        resource_type=AppliedResourceType.MODEL,
+        AppliedResourceType.MODEL,
+        discovery_config,
         unique_id=model["uniqueId"],
         name=None,
     )
@@ -41,12 +44,14 @@ async def test_resource_details_fetcher_accepts_unique_id_for_model(
 async def test_resource_details_fetcher_accepts_name_for_model(
     models_fetcher: ModelsFetcher,
     resource_details_fetcher: ResourceDetailsFetcher,
+    discovery_config: DiscoveryConfig,
 ) -> None:
-    models = await models_fetcher.fetch_models()
+    models = await models_fetcher.fetch_models(config=discovery_config)
     assert len(models) > 0
     model = models[0]
     result = await resource_details_fetcher.fetch_details(
-        resource_type=AppliedResourceType.MODEL,
+        AppliedResourceType.MODEL,
+        discovery_config,
         unique_id=None,
         name=model["name"],
     )
@@ -58,13 +63,15 @@ async def test_resource_details_fetcher_accepts_name_for_model(
 async def test_resource_details_fetcher_accepts_unique_id_for_source(
     sources_fetcher: SourcesFetcher,
     resource_details_fetcher: ResourceDetailsFetcher,
+    discovery_config: DiscoveryConfig,
 ) -> None:
-    sources = await sources_fetcher.fetch_sources()
+    sources = await sources_fetcher.fetch_sources(config=discovery_config)
     assert len(sources) > 0
     source = sources[0]
     unique_id = source["uniqueId"]
     result = await resource_details_fetcher.fetch_details(
-        resource_type=AppliedResourceType.SOURCE,
+        AppliedResourceType.SOURCE,
+        discovery_config,
         unique_id=unique_id,
         name=None,
     )
@@ -80,13 +87,15 @@ async def test_resource_details_fetcher_accepts_unique_id_for_source(
 async def test_resource_details_fetcher_accepts_name_for_source(
     sources_fetcher: SourcesFetcher,
     resource_details_fetcher: ResourceDetailsFetcher,
+    discovery_config: DiscoveryConfig,
 ) -> None:
-    sources = await sources_fetcher.fetch_sources()
+    sources = await sources_fetcher.fetch_sources(config=discovery_config)
     assert len(sources) > 0
     source = sources[0]
     name = source["name"]
     result = await resource_details_fetcher.fetch_details(
-        resource_type=AppliedResourceType.SOURCE,
+        AppliedResourceType.SOURCE,
+        discovery_config,
         unique_id=None,
         name=name,
     )
@@ -97,9 +106,11 @@ async def test_resource_details_fetcher_accepts_name_for_source(
 
 async def test_resource_details_fetcher_non_existent_unique_id(
     resource_details_fetcher: ResourceDetailsFetcher,
+    discovery_config: DiscoveryConfig,
 ) -> None:
     result = await resource_details_fetcher.fetch_details(
-        resource_type=AppliedResourceType.MODEL,
+        AppliedResourceType.MODEL,
+        discovery_config,
         unique_id="model.nonexistent.resource",
         name=None,
     )

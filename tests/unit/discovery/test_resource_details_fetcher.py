@@ -2,6 +2,7 @@ from unittest.mock import Mock, call, patch
 
 import pytest
 
+from dbt_mcp.config.config_providers import DiscoveryConfig
 from dbt_mcp.discovery.client import (
     AppliedResourceType,
     ResourceDetailsFetcher,
@@ -16,19 +17,24 @@ def resource_details_fetcher(mock_api_client):
 
 async def test_fetch_details_requires_identifier(
     resource_details_fetcher: ResourceDetailsFetcher,
+    unit_discovery_config: DiscoveryConfig,
 ):
     with pytest.raises(
         InvalidParameterError, match="Either name or unique_id must be provided"
     ):
-        await resource_details_fetcher.fetch_details(AppliedResourceType.MODEL)
+        await resource_details_fetcher.fetch_details(
+            AppliedResourceType.MODEL, unit_discovery_config
+        )
 
 
 async def test_fetch_details_validates_name_unique_id_match(
     resource_details_fetcher: ResourceDetailsFetcher,
+    unit_discovery_config: DiscoveryConfig,
 ):
     with pytest.raises(InvalidParameterError, match="Name and unique_id do not match"):
         await resource_details_fetcher.fetch_details(
             AppliedResourceType.MODEL,
+            unit_discovery_config,
             name="orders",
             unique_id="model.pkg.customers",
         )
@@ -39,6 +45,7 @@ async def test_fetch_details_with_unique_id(
     mock_raise_gql_error: Mock,
     resource_details_fetcher: ResourceDetailsFetcher,
     mock_api_client: Mock,
+    unit_discovery_config: DiscoveryConfig,
 ):
     details_response = {
         "data": {
@@ -63,6 +70,7 @@ async def test_fetch_details_with_unique_id(
 
     result = await resource_details_fetcher.fetch_details(
         AppliedResourceType.MODEL,
+        unit_discovery_config,
         unique_id=" Model.Jaffle.Orders ",
     )
 
@@ -88,6 +96,7 @@ async def test_fetch_details_with_name_builds_unique_ids(
     mock_raise_gql_error: Mock,
     resource_details_fetcher: ResourceDetailsFetcher,
     mock_api_client: Mock,
+    unit_discovery_config: DiscoveryConfig,
 ):
     macro_packages_response = {
         "data": {"environment": {"applied": {"packages": ["core_macros"]}}}
@@ -108,7 +117,7 @@ async def test_fetch_details_with_name_builds_unique_ids(
         }
     }
 
-    async def execute_side_effect(query, variables, config_override=None):
+    async def execute_side_effect(query, variables, *, config):
         if query == ResourceDetailsFetcher.GET_PACKAGES_QUERY:
             if variables["resource"] == "macro":
                 return macro_packages_response
@@ -129,6 +138,7 @@ async def test_fetch_details_with_name_builds_unique_ids(
 
     result = await resource_details_fetcher.fetch_details(
         AppliedResourceType.MACRO,
+        unit_discovery_config,
         name=" My_Macro ",
     )
 
@@ -152,6 +162,7 @@ async def test_fetch_details_returns_empty_when_no_edges(
     mock_raise_gql_error: Mock,
     resource_details_fetcher: ResourceDetailsFetcher,
     mock_api_client: Mock,
+    unit_discovery_config: DiscoveryConfig,
 ):
     empty_response: dict[str, dict[str, dict[str, dict[str, dict[str, list]]]]] = {
         "data": {
@@ -162,6 +173,7 @@ async def test_fetch_details_returns_empty_when_no_edges(
 
     result = await resource_details_fetcher.fetch_details(
         AppliedResourceType.SOURCE,
+        unit_discovery_config,
         unique_id="source.jaffle.raw_customers",
     )
 
@@ -175,12 +187,13 @@ async def test_fetch_details_name_raises_when_no_packages(
     mock_raise_gql_error: Mock,
     resource_details_fetcher: ResourceDetailsFetcher,
     mock_api_client: Mock,
+    unit_discovery_config: DiscoveryConfig,
 ):
     no_packages_response: dict[str, dict[str, dict[str, dict[str, list]]]] = {
         "data": {"environment": {"applied": {"packages": []}}},
     }
 
-    async def execute_side_effect(query, variables, config_override=None):
+    async def execute_side_effect(query, variables, *, config):
         if query == ResourceDetailsFetcher.GET_PACKAGES_QUERY:
             return no_packages_response
         raise AssertionError("Details query should not be executed when no packages")
@@ -190,6 +203,7 @@ async def test_fetch_details_name_raises_when_no_packages(
     with pytest.raises(InvalidParameterError, match="No packages found for project"):
         await resource_details_fetcher.fetch_details(
             AppliedResourceType.MACRO,
+            unit_discovery_config,
             name="orders",
         )
 

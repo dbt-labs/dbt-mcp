@@ -12,7 +12,9 @@ def lineage_fetcher(mock_api_client):
     return LineageFetcher(api_client=mock_api_client)
 
 
-async def test_fetch_lineage_returns_connected_nodes(lineage_fetcher, mock_api_client):
+async def test_fetch_lineage_returns_connected_nodes(
+    lineage_fetcher, mock_api_client, unit_discovery_config
+):
     """Test that fetch_lineage returns only nodes connected to the target."""
     mock_api_client.execute_query.return_value = {
         "data": {
@@ -58,7 +60,7 @@ async def test_fetch_lineage_returns_connected_nodes(lineage_fetcher, mock_api_c
     }
 
     result = await lineage_fetcher.fetch_lineage(
-        unique_id="model.test.customers", depth=5
+        unique_id="model.test.customers", depth=5, config=unit_discovery_config
     )
 
     # Should return only the 3 connected nodes
@@ -71,7 +73,9 @@ async def test_fetch_lineage_returns_connected_nodes(lineage_fetcher, mock_api_c
     }
 
 
-async def test_fetch_lineage_with_type_filter(lineage_fetcher, mock_api_client):
+async def test_fetch_lineage_with_type_filter(
+    lineage_fetcher, mock_api_client, unit_discovery_config
+):
     """Test that type filter is passed to the API."""
     mock_api_client.execute_query.return_value = {
         "data": {"environment": {"applied": {"lineage": []}}}
@@ -81,6 +85,7 @@ async def test_fetch_lineage_with_type_filter(lineage_fetcher, mock_api_client):
         unique_id="model.test.customers",
         depth=5,
         types=[LineageResourceType.MODEL, LineageResourceType.SOURCE],
+        config=unit_discovery_config,
     )
 
     call_args = mock_api_client.execute_query.call_args
@@ -88,7 +93,9 @@ async def test_fetch_lineage_with_type_filter(lineage_fetcher, mock_api_client):
     assert set(variables["types"]) == {"Model", "Source"}
 
 
-async def test_fetch_lineage_target_not_found(lineage_fetcher, mock_api_client):
+async def test_fetch_lineage_target_not_found(
+    lineage_fetcher, mock_api_client, unit_discovery_config
+):
     """Test that empty list is returned when target is not in the graph."""
     mock_api_client.execute_query.return_value = {
         "data": {
@@ -108,26 +115,30 @@ async def test_fetch_lineage_target_not_found(lineage_fetcher, mock_api_client):
     }
 
     result = await lineage_fetcher.fetch_lineage(
-        unique_id="model.test.nonexistent", depth=5
+        unique_id="model.test.nonexistent", depth=5, config=unit_discovery_config
     )
 
     assert result == []
 
 
-async def test_fetch_lineage_empty_response(lineage_fetcher, mock_api_client):
+async def test_fetch_lineage_empty_response(
+    lineage_fetcher, mock_api_client, unit_discovery_config
+):
     """Test handling of empty API response."""
     mock_api_client.execute_query.return_value = {
         "data": {"environment": {"applied": {"lineage": []}}}
     }
 
     result = await lineage_fetcher.fetch_lineage(
-        unique_id="model.test.customers", depth=5
+        unique_id="model.test.customers", depth=5, config=unit_discovery_config
     )
 
     assert result == []
 
 
-async def test_fetch_lineage_filters_out_macros(lineage_fetcher, mock_api_client):
+async def test_fetch_lineage_filters_out_macros(
+    lineage_fetcher, mock_api_client, unit_discovery_config
+):
     """Test that macro nodes are filtered out from the lineage results."""
     mock_api_client.execute_query.return_value = {
         "data": {
@@ -159,7 +170,7 @@ async def test_fetch_lineage_filters_out_macros(lineage_fetcher, mock_api_client
     }
 
     result = await lineage_fetcher.fetch_lineage(
-        unique_id="model.test.customers", depth=5
+        unique_id="model.test.customers", depth=5, config=unit_discovery_config
     )
 
     # Should only return the model, macros should be filtered out
@@ -167,7 +178,9 @@ async def test_fetch_lineage_filters_out_macros(lineage_fetcher, mock_api_client
     assert result[0]["uniqueId"] == "model.test.customers"
 
 
-async def test_fetch_lineage_depth_limits_traversal(lineage_fetcher, mock_api_client):
+async def test_fetch_lineage_depth_limits_traversal(
+    lineage_fetcher, mock_api_client, unit_discovery_config
+):
     """Test that depth parameter limits how far the BFS traverses."""
     # Create a chain: source -> model1 -> model2 -> model3 -> model4
     mock_api_client.execute_query.return_value = {
@@ -213,7 +226,9 @@ async def test_fetch_lineage_depth_limits_traversal(lineage_fetcher, mock_api_cl
 
     # With depth=2, starting from model2, should include model1, model2, model3
     # (1 step upstream to model1, 1 step downstream to model3)
-    result = await lineage_fetcher.fetch_lineage(unique_id="model.test.model2", depth=2)
+    result = await lineage_fetcher.fetch_lineage(
+        unique_id="model.test.model2", depth=2, config=unit_discovery_config
+    )
 
     unique_ids = {node["uniqueId"] for node in result}
     # Depth 2 from model2: model2 (start), model1 (depth 1), source.raw (depth 2),
@@ -223,7 +238,9 @@ async def test_fetch_lineage_depth_limits_traversal(lineage_fetcher, mock_api_cl
     assert "model.test.model3" in unique_ids
 
 
-async def test_fetch_lineage_depth_zero_is_infinite(lineage_fetcher, mock_api_client):
+async def test_fetch_lineage_depth_zero_is_infinite(
+    lineage_fetcher, mock_api_client, unit_discovery_config
+):
     """Test that depth=0 is treated as infinite depth."""
     mock_api_client.execute_query.return_value = {
         "data": {
@@ -252,21 +269,25 @@ async def test_fetch_lineage_depth_zero_is_infinite(lineage_fetcher, mock_api_cl
     }
 
     # Depth 0 should return all connected nodes regardless of distance
-    result = await lineage_fetcher.fetch_lineage(unique_id="model.test.model1", depth=0)
+    result = await lineage_fetcher.fetch_lineage(
+        unique_id="model.test.model1", depth=0, config=unit_discovery_config
+    )
     unique_ids = {node["uniqueId"] for node in result}
     assert unique_ids == {"model.test.model1", "model.test.model2", "model.test.model3"}
 
 
 async def test_fetch_lineage_negative_depth_raises_error(
-    lineage_fetcher, mock_api_client
+    lineage_fetcher, mock_api_client, unit_discovery_config
 ):
     """Test that negative depth raises a ToolCallError."""
     with pytest.raises(ToolCallError, match="Depth must be greater than or equal to 0"):
-        await lineage_fetcher.fetch_lineage(unique_id="model.test.customers", depth=-1)
+        await lineage_fetcher.fetch_lineage(
+            unique_id="model.test.customers", depth=-1, config=unit_discovery_config
+        )
 
 
 async def test_fetch_lineage_depth_one_returns_immediate_neighbors(
-    lineage_fetcher, mock_api_client
+    lineage_fetcher, mock_api_client, unit_discovery_config
 ):
     """Test that depth=1 returns target and its immediate neighbors."""
     mock_api_client.execute_query.return_value = {
@@ -299,7 +320,7 @@ async def test_fetch_lineage_depth_one_returns_immediate_neighbors(
     }
 
     result = await lineage_fetcher.fetch_lineage(
-        unique_id="model.test.staging", depth=1
+        unique_id="model.test.staging", depth=1, config=unit_discovery_config
     )
 
     unique_ids = {node["uniqueId"] for node in result}
@@ -312,7 +333,7 @@ async def test_fetch_lineage_depth_one_returns_immediate_neighbors(
 
 
 async def test_fetch_lineage_filters_nodes_without_resource_type(
-    lineage_fetcher, mock_api_client
+    lineage_fetcher, mock_api_client, unit_discovery_config
 ):
     """Test that nodes without a resourceType are filtered out."""
     mock_api_client.execute_query.return_value = {
@@ -345,7 +366,7 @@ async def test_fetch_lineage_filters_nodes_without_resource_type(
     }
 
     result = await lineage_fetcher.fetch_lineage(
-        unique_id="model.test.customers", depth=5
+        unique_id="model.test.customers", depth=5, config=unit_discovery_config
     )
 
     # Should only return the model with valid resourceType
@@ -354,7 +375,7 @@ async def test_fetch_lineage_filters_nodes_without_resource_type(
 
 
 async def test_fetch_lineage_depth_excludes_nodes_beyond_limit(
-    lineage_fetcher, mock_api_client
+    lineage_fetcher, mock_api_client, unit_discovery_config
 ):
     """Test that nodes beyond the depth limit are explicitly excluded.
 
@@ -410,7 +431,9 @@ async def test_fetch_lineage_depth_excludes_nodes_beyond_limit(
         }
     }
 
-    result = await lineage_fetcher.fetch_lineage(unique_id="model.test.int", depth=1)
+    result = await lineage_fetcher.fetch_lineage(
+        unique_id="model.test.int", depth=1, config=unit_discovery_config
+    )
 
     unique_ids = {node["uniqueId"] for node in result}
 
@@ -427,7 +450,7 @@ async def test_fetch_lineage_depth_excludes_nodes_beyond_limit(
 
 
 async def test_fetch_lineage_depth_processes_all_queued_items_at_valid_depths(
-    lineage_fetcher, mock_api_client
+    lineage_fetcher, mock_api_client, unit_discovery_config
 ):
     """Test that BFS processes all items in queue at valid depths.
 
@@ -482,7 +505,9 @@ async def test_fetch_lineage_depth_processes_all_queued_items_at_valid_depths(
         }
     }
 
-    result = await lineage_fetcher.fetch_lineage(unique_id="model.test.target", depth=1)
+    result = await lineage_fetcher.fetch_lineage(
+        unique_id="model.test.target", depth=1, config=unit_discovery_config
+    )
 
     unique_ids = {node["uniqueId"] for node in result}
 
@@ -498,7 +523,7 @@ async def test_fetch_lineage_depth_processes_all_queued_items_at_valid_depths(
 
 
 async def test_fetch_lineage_depth_boundary_includes_nodes_at_exact_depth(
-    lineage_fetcher, mock_api_client
+    lineage_fetcher, mock_api_client, unit_discovery_config
 ):
     """Test that nodes at exactly the depth limit ARE included in results.
 
@@ -553,7 +578,9 @@ async def test_fetch_lineage_depth_boundary_includes_nodes_at_exact_depth(
         }
     }
 
-    result = await lineage_fetcher.fetch_lineage(unique_id="model.test.c", depth=2)
+    result = await lineage_fetcher.fetch_lineage(
+        unique_id="model.test.c", depth=2, config=unit_discovery_config
+    )
 
     unique_ids = {node["uniqueId"] for node in result}
 
@@ -568,7 +595,7 @@ async def test_fetch_lineage_depth_boundary_includes_nodes_at_exact_depth(
 
 
 async def test_fetch_lineage_large_depth_returns_all_connected(
-    lineage_fetcher, mock_api_client
+    lineage_fetcher, mock_api_client, unit_discovery_config
 ):
     """Test that a large depth value returns all connected nodes."""
     mock_api_client.execute_query.return_value = {
@@ -600,7 +627,9 @@ async def test_fetch_lineage_large_depth_returns_all_connected(
         }
     }
 
-    result = await lineage_fetcher.fetch_lineage(unique_id="model.test.b", depth=100)
+    result = await lineage_fetcher.fetch_lineage(
+        unique_id="model.test.b", depth=100, config=unit_discovery_config
+    )
 
     unique_ids = {node["uniqueId"] for node in result}
 

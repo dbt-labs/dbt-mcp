@@ -9,8 +9,8 @@ from dbt_mcp.config.config_providers import (
     DiscoveryConfig,
     resolve_project_environments,
 )
-from dbt_mcp.config.settings import CredentialsProvider
 from dbt_mcp.config.headers import DiscoveryHeadersProvider
+from dbt_mcp.config.settings import CredentialsProvider
 from dbt_mcp.discovery.client import (
     AppliedResourceType,
     ExposuresFetcher,
@@ -160,7 +160,7 @@ async def get_mart_models(
     config = await _resolve_discovery_config_for_project(context, project_id)
     mart_models = await context.models_fetcher.fetch_models(
         model_filter={"modelingLayer": "marts"},
-        config_override=config,
+        config=config,
     )
     return [m for m in mart_models if m["name"] != "metricflow_time_spine"]
 
@@ -177,7 +177,7 @@ async def get_all_models(
     project_id: int = PROJECT_ID_FIELD,
 ) -> list[dict]:
     config = await _resolve_discovery_config_for_project(context, project_id)
-    return await context.models_fetcher.fetch_models(config_override=config)
+    return await context.models_fetcher.fetch_models(config=config)
 
 
 @dbt_mcp_tool(
@@ -198,7 +198,7 @@ async def get_model_details(
         resource_type=AppliedResourceType.MODEL,
         unique_id=unique_id,
         name=name,
-        config_override=config,
+        config=config,
     )
 
 
@@ -217,7 +217,7 @@ async def get_model_parents(
 ) -> list[dict]:
     config = await _resolve_discovery_config_for_project(context, project_id)
     return await context.models_fetcher.fetch_model_parents(
-        name, unique_id, config_override=config
+        name, unique_id, config=config
     )
 
 
@@ -236,7 +236,7 @@ async def get_model_children(
 ) -> list[dict]:
     config = await _resolve_discovery_config_for_project(context, project_id)
     return await context.models_fetcher.fetch_model_children(
-        name, unique_id, config_override=config
+        name, unique_id, config=config
     )
 
 
@@ -255,7 +255,7 @@ async def get_model_health(
 ) -> list[dict]:
     config = await _resolve_discovery_config_for_project(context, project_id)
     return await context.models_fetcher.fetch_model_health(
-        name, unique_id, config_override=config
+        name, unique_id, config=config
     )
 
 
@@ -291,7 +291,7 @@ async def get_model_performance(
         unique_id=unique_id,
         num_runs=num_runs,
         include_tests=include_tests,
-        config_override=config,
+        config=config,
     )
 
 
@@ -311,7 +311,7 @@ async def get_lineage(
 ) -> list[dict]:
     config = await _resolve_discovery_config_for_project(context, project_id)
     return await context.lineage_fetcher.fetch_lineage(
-        unique_id=unique_id, types=types, depth=depth, config_override=config
+        unique_id=unique_id, types=types, depth=depth, config=config
     )
 
 
@@ -327,7 +327,7 @@ async def get_exposures(
     project_id: int = PROJECT_ID_FIELD,
 ) -> list[dict]:
     config = await _resolve_discovery_config_for_project(context, project_id)
-    return await context.exposures_fetcher.fetch_exposures(config_override=config)
+    return await context.exposures_fetcher.fetch_exposures(config=config)
 
 
 @dbt_mcp_tool(
@@ -348,7 +348,7 @@ async def get_exposure_details(
         resource_type=AppliedResourceType.EXPOSURE,
         unique_id=unique_id,
         name=name,
-        config_override=config,
+        config=config,
     )
 
 
@@ -367,7 +367,7 @@ async def get_all_sources(
 ) -> list[dict]:
     config = await _resolve_discovery_config_for_project(context, project_id)
     return await context.sources_fetcher.fetch_sources(
-        source_names, unique_ids, config_override=config
+        source_names, unique_ids, config=config
     )
 
 
@@ -389,7 +389,7 @@ async def get_source_details(
         resource_type=AppliedResourceType.SOURCE,
         unique_id=unique_id,
         name=name,
-        config_override=config,
+        config=config,
     )
 
 
@@ -425,7 +425,7 @@ async def get_all_macros(
         package_names=package_names,
         return_package_names_only=return_package_names_only,
         include_default_dbt_packages=include_default_dbt_packages,
-        config_override=config,
+        config=config,
     )
 
 
@@ -447,7 +447,7 @@ async def get_macro_details(
         resource_type=AppliedResourceType.MACRO,
         unique_id=unique_id,
         name=name,
-        config_override=config,
+        config=config,
     )
 
 
@@ -469,7 +469,7 @@ async def get_seed_details(
         resource_type=AppliedResourceType.SEED,
         unique_id=unique_id,
         name=name,
-        config_override=config,
+        config=config,
     )
 
 
@@ -491,7 +491,7 @@ async def get_semantic_model_details(
         resource_type=AppliedResourceType.SEMANTIC_MODEL,
         unique_id=unique_id,
         name=name,
-        config_override=config,
+        config=config,
     )
 
 
@@ -513,7 +513,7 @@ async def get_snapshot_details(
         resource_type=AppliedResourceType.SNAPSHOT,
         unique_id=unique_id,
         name=name,
-        config_override=config,
+        config=config,
     )
 
 
@@ -535,7 +535,7 @@ async def get_test_details(
         resource_type=AppliedResourceType.TEST,
         unique_id=unique_id,
         name=name,
-        config_override=config,
+        config=config,
     )
 
 

@@ -26,15 +26,14 @@ class CountingMetadataAPIClient(MetadataAPIClient):
         self,
         query: str,
         variables: dict[str, Any],
-        config_override: DiscoveryConfig | None = None,
+        *,
+        config: DiscoveryConfig,
     ) -> dict[str, Any]:
         self.request_calls += 1
         self.request_payloads.append(
             copy.deepcopy({"query": query, "variables": variables})
         )
-        return await super().execute_query(
-            query, variables, config_override=config_override
-        )
+        return await super().execute_query(query, variables, config=config)
 
 
 @pytest.fixture
@@ -47,6 +46,7 @@ def api_client() -> CountingMetadataAPIClient:
 
 async def test_models_fetcher_paginates_without_has_next_page(
     api_client: CountingMetadataAPIClient,
+    discovery_config: DiscoveryConfig,
 ):
     paginator = PaginatedResourceFetcher(
         api_client,
@@ -57,7 +57,7 @@ async def test_models_fetcher_paginates_without_has_next_page(
     )
     models_fetcher = ModelsFetcher(api_client, paginator=paginator)
 
-    results = await models_fetcher.fetch_models()
+    results = await models_fetcher.fetch_models(config=discovery_config)
 
     assert isinstance(results, list)
     assert api_client.request_calls == len(api_client.request_payloads) > 0
@@ -76,6 +76,7 @@ async def test_models_fetcher_paginates_without_has_next_page(
 
 async def test_models_fetcher_paginates_until_has_next_false(
     api_client: CountingMetadataAPIClient,
+    discovery_config: DiscoveryConfig,
 ):
     paginator = PaginatedResourceFetcher(
         api_client,
@@ -86,7 +87,7 @@ async def test_models_fetcher_paginates_until_has_next_false(
     )
     models_fetcher = ModelsFetcher(api_client, paginator=paginator)
 
-    results = await models_fetcher.fetch_models()
+    results = await models_fetcher.fetch_models(config=discovery_config)
 
     assert isinstance(results, list)
     assert api_client.request_calls == len(api_client.request_payloads) > 0

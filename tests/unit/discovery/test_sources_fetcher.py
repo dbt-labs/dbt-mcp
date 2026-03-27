@@ -23,7 +23,9 @@ def sources_fetcher(mock_api_client):
     return SourcesFetcher(api_client=mock_api_client, paginator=paginator)
 
 
-async def test_fetch_sources_single_page(sources_fetcher, mock_api_client):
+async def test_fetch_sources_single_page(
+    sources_fetcher, mock_api_client, unit_discovery_config
+):
     mock_response = {
         "data": {
             "environment": {
@@ -70,7 +72,7 @@ async def test_fetch_sources_single_page(sources_fetcher, mock_api_client):
     mock_api_client.execute_query.return_value = mock_response
 
     # Execute the fetch
-    result = await sources_fetcher.fetch_sources()
+    result = await sources_fetcher.fetch_sources(config=unit_discovery_config)
 
     # Verify the API was called correctly
     mock_api_client.execute_query.assert_called_once()
@@ -119,7 +121,11 @@ async def test_fetch_sources_single_page(sources_fetcher, mock_api_client):
     ],
 )
 async def test_fetch_sources_with_filters(
-    sources_fetcher, mock_api_client, filter_params, expected_filter
+    sources_fetcher,
+    mock_api_client,
+    unit_discovery_config,
+    filter_params,
+    expected_filter,
 ):
     """Test that various filter parameters are correctly converted to GraphQL filter format."""
     mock_response = {
@@ -153,7 +159,9 @@ async def test_fetch_sources_with_filters(
     mock_api_client.execute_query.return_value = mock_response
 
     # Execute with filters
-    result = await sources_fetcher.fetch_sources(**filter_params)
+    result = await sources_fetcher.fetch_sources(
+        **filter_params, config=unit_discovery_config
+    )
 
     # Verify the filter was passed correctly to the GraphQL query
     call_args = mock_api_client.execute_query.call_args
@@ -165,7 +173,9 @@ async def test_fetch_sources_with_filters(
     assert len(result) == 1
 
 
-async def test_fetch_sources_empty_response(sources_fetcher, mock_api_client):
+async def test_fetch_sources_empty_response(
+    sources_fetcher, mock_api_client, unit_discovery_config
+):
     mock_response = {
         "data": {
             "environment": {
@@ -181,12 +191,14 @@ async def test_fetch_sources_empty_response(sources_fetcher, mock_api_client):
 
     mock_api_client.execute_query.return_value = mock_response
 
-    result = await sources_fetcher.fetch_sources()
+    result = await sources_fetcher.fetch_sources(config=unit_discovery_config)
 
     assert result == []
 
 
-async def test_fetch_sources_pagination(sources_fetcher, mock_api_client):
+async def test_fetch_sources_pagination(
+    sources_fetcher, mock_api_client, unit_discovery_config
+):
     # First page response
     first_page_response = {
         "data": {
@@ -254,7 +266,7 @@ async def test_fetch_sources_pagination(sources_fetcher, mock_api_client):
         second_page_response,
     ]
 
-    result = await sources_fetcher.fetch_sources()
+    result = await sources_fetcher.fetch_sources(config=unit_discovery_config)
 
     # Should have called twice due to pagination
     assert mock_api_client.execute_query.call_count == 2
@@ -277,7 +289,7 @@ async def test_fetch_sources_pagination(sources_fetcher, mock_api_client):
 
 @patch("dbt_mcp.discovery.client.raise_gql_error")
 async def test_fetch_sources_graphql_error_handling(
-    mock_raise_gql_error, sources_fetcher, mock_api_client
+    mock_raise_gql_error, sources_fetcher, mock_api_client, unit_discovery_config
 ):
     mock_response = {
         "data": {
@@ -299,12 +311,7 @@ async def test_fetch_sources_graphql_error_handling(
 
     # Verify that fetch_sources raises GraphQLError
     with pytest.raises(GraphQLError, match="Test GraphQL error"):
-        await sources_fetcher.fetch_sources()
+        await sources_fetcher.fetch_sources(config=unit_discovery_config)
 
     # Verify that error handling function was called
     mock_raise_gql_error.assert_called_with(mock_response)
-
-
-async def test_get_environment_id(sources_fetcher):
-    environment_id = await sources_fetcher.get_environment_id()
-    assert environment_id == 123

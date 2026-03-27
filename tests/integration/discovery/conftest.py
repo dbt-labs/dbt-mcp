@@ -21,6 +21,13 @@ from dbt_mcp.discovery.client import (
 
 
 @pytest.fixture
+async def discovery_config(
+    config_provider: ConfigProvider[DiscoveryConfig],
+) -> DiscoveryConfig:
+    return await config_provider.get_config()
+
+
+@pytest.fixture
 def config_provider() -> ConfigProvider[DiscoveryConfig]:
     # Set up environment variables needed by DbtMcpSettings
     host = os.getenv("DBT_HOST")

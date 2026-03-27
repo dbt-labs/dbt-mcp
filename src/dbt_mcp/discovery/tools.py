@@ -45,6 +45,7 @@ class DiscoveryToolContext:
     model_performance_fetcher: ModelPerformanceFetcher
 
     def __init__(self, config_provider: ConfigProvider[DiscoveryConfig]):
+        self.config_provider = config_provider
         api_client = MetadataAPIClient(config_provider=config_provider)
         self.models_fetcher = ModelsFetcher(
             api_client=api_client,
@@ -114,8 +115,10 @@ class DiscoveryToolContext:
 async def get_mart_models(
     context: DiscoveryToolContext,
 ) -> list[dict]:
+    config = await context.config_provider.get_config()
     mart_models = await context.models_fetcher.fetch_models(
-        model_filter={"modelingLayer": "marts"}
+        model_filter={"modelingLayer": "marts"},
+        config=config,
     )
     return [m for m in mart_models if m["name"] != "metricflow_time_spine"]
 
@@ -130,7 +133,8 @@ async def get_mart_models(
 async def get_all_models(
     context: DiscoveryToolContext,
 ) -> list[dict]:
-    return await context.models_fetcher.fetch_models()
+    config = await context.config_provider.get_config()
+    return await context.models_fetcher.fetch_models(config=config)
 
 
 @dbt_mcp_tool(
@@ -145,10 +149,12 @@ async def get_model_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.MODEL,
         unique_id=unique_id,
         name=name,
+        config=config,
     )
 
 
@@ -164,7 +170,10 @@ async def get_model_parents(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    return await context.models_fetcher.fetch_model_parents(name, unique_id)
+    config = await context.config_provider.get_config()
+    return await context.models_fetcher.fetch_model_parents(
+        name, unique_id, config=config
+    )
 
 
 @dbt_mcp_tool(
@@ -179,7 +188,10 @@ async def get_model_children(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    return await context.models_fetcher.fetch_model_children(name, unique_id)
+    config = await context.config_provider.get_config()
+    return await context.models_fetcher.fetch_model_children(
+        name, unique_id, config=config
+    )
 
 
 @dbt_mcp_tool(
@@ -194,7 +206,10 @@ async def get_model_health(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    return await context.models_fetcher.fetch_model_health(name, unique_id)
+    config = await context.config_provider.get_config()
+    return await context.models_fetcher.fetch_model_health(
+        name, unique_id, config=config
+    )
 
 
 @dbt_mcp_tool(
@@ -223,14 +238,14 @@ async def get_model_performance(
     ),
 ) -> list[dict]:
     """Get model execution performance metrics from historical runs."""
-    results = await context.model_performance_fetcher.fetch_performance(
+    config = await context.config_provider.get_config()
+    return await context.model_performance_fetcher.fetch_performance(
+        config=config,
         name=name,
         unique_id=unique_id,
         num_runs=num_runs,
         include_tests=include_tests,
     )
-
-    return results
 
 
 @dbt_mcp_tool(
@@ -246,8 +261,9 @@ async def get_lineage(
     types: list[LineageResourceType] | None = TYPES_FIELD,
     depth: int = DEPTH_FIELD,
 ) -> list[dict]:
+    config = await context.config_provider.get_config()
     return await context.lineage_fetcher.fetch_lineage(
-        unique_id=unique_id, types=types, depth=depth
+        unique_id=unique_id, types=types, depth=depth, config=config
     )
 
 
@@ -261,7 +277,8 @@ async def get_lineage(
 async def get_exposures(
     context: DiscoveryToolContext,
 ) -> list[dict]:
-    return await context.exposures_fetcher.fetch_exposures()
+    config = await context.config_provider.get_config()
+    return await context.exposures_fetcher.fetch_exposures(config=config)
 
 
 @dbt_mcp_tool(
@@ -276,10 +293,12 @@ async def get_exposure_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.EXPOSURE,
         unique_id=unique_id,
         name=name,
+        config=config,
     )
 
 
@@ -295,7 +314,10 @@ async def get_all_sources(
     source_names: list[str] | None = None,
     unique_ids: list[str] | None = None,
 ) -> list[dict]:
-    return await context.sources_fetcher.fetch_sources(source_names, unique_ids)
+    config = await context.config_provider.get_config()
+    return await context.sources_fetcher.fetch_sources(
+        source_names, unique_ids, config=config
+    )
 
 
 @dbt_mcp_tool(
@@ -310,10 +332,12 @@ async def get_source_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SOURCE,
         unique_id=unique_id,
         name=name,
+        config=config,
     )
 
 
@@ -343,10 +367,12 @@ async def get_all_macros(
         "are maintained by dbt Labs.",
     ),
 ) -> list[dict] | list[str]:
+    config = await context.config_provider.get_config()
     return await context.macros_fetcher.fetch_macros(
         package_names=package_names,
         return_package_names_only=return_package_names_only,
         include_default_dbt_packages=include_default_dbt_packages,
+        config=config,
     )
 
 
@@ -362,10 +388,12 @@ async def get_macro_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.MACRO,
         unique_id=unique_id,
         name=name,
+        config=config,
     )
 
 
@@ -381,10 +409,12 @@ async def get_seed_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SEED,
         unique_id=unique_id,
         name=name,
+        config=config,
     )
 
 
@@ -400,10 +430,12 @@ async def get_semantic_model_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SEMANTIC_MODEL,
         unique_id=unique_id,
         name=name,
+        config=config,
     )
 
 
@@ -419,10 +451,12 @@ async def get_snapshot_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SNAPSHOT,
         unique_id=unique_id,
         name=name,
+        config=config,
     )
 
 
@@ -438,10 +472,12 @@ async def get_test_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.TEST,
         unique_id=unique_id,
         name=name,
+        config=config,
     )
 
 
