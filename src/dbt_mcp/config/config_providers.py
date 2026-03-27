@@ -83,7 +83,14 @@ class ConfigProvider[ConfigType](ABC):
     async def get_config(self) -> ConfigType: ...
 
 
-class DefaultSemanticLayerConfigProvider(ConfigProvider[SemanticLayerConfig]):
+class MultiprojectConfigProvider[ConfigType](ConfigProvider[ConfigType]):
+    @abstractmethod
+    async def get_config_for_project(self, project_id: int) -> ConfigType: ...
+
+
+class DefaultSemanticLayerConfigProvider(
+    MultiprojectConfigProvider[SemanticLayerConfig]
+):
     def __init__(self, credentials_provider: CredentialsProvider):
         self.credentials_provider = credentials_provider
 
