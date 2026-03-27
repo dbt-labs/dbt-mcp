@@ -159,24 +159,34 @@ function useOAuthResult(): OAuthResult {
   };
 }
 
-type CustomDropdownProps = {
+type CustomDropdownProps<T> = {
   value: number | null;
   onChange: (value: string) => void;
-  options: Project[];
+  options: T[];
   placeholder: string;
   id: string;
+  getOptionId: (option: T) => number;
+  getPrimary: (option: T) => string;
+  getSecondary: (option: T) => string;
+  getSearchText: (option: T) => string;
 };
 
-function CustomDropdown({
+function CustomDropdown<T,>({
   value,
   onChange,
   options,
   placeholder,
   id,
-}: CustomDropdownProps) {
+  getOptionId,
+  getPrimary,
+  getSecondary,
+  getSearchText,
+}: CustomDropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -197,7 +207,7 @@ function CustomDropdown({
     }
   }, [isOpen]);
 
-  // Handle keyboard navigation
+  // Handle keyboard navigation on the trigger button (open/close/escape)
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (!isOpen) {
@@ -214,6 +224,7 @@ function CustomDropdown({
 
       if (event.key === "Escape") {
         setIsOpen(false);
+        setSearchQuery("");
         triggerRef.current?.focus();
       }
     }
@@ -226,15 +237,26 @@ function CustomDropdown({
     }
   }, [isOpen]);
 
-  const selectedProject = options.find((p) => p.id === value);
+  // Auto-focus search input when dropdown opens
+  useEffect(() => {
+    if (isOpen) searchRef.current?.focus();
+  }, [isOpen]);
+
+  const query = searchQuery.trim().toLowerCase();
+  const filteredOptions = query
+    ? options.filter((o) => getSearchText(o).toLowerCase().includes(query))
+    : options;
+
+  const selectedOption = options.find((o) => getOptionId(o) === value);
 
   const handleToggle = () => {
     setIsOpen(!isOpen);
   };
 
-  const handleOptionSelect = (project: Project) => {
-    onChange(project.id.toString());
+  const handleOptionSelect = (option: T) => {
+    onChange(getOptionId(option).toString());
     setIsOpen(false);
+    setSearchQuery("");
     triggerRef.current?.focus();
   };
 
@@ -245,19 +267,17 @@ function CustomDropdown({
         id={id}
         type="button"
         className={`dropdown-trigger ${isOpen ? "open" : ""} ${
-          !selectedProject ? "placeholder" : ""
+          !selectedOption ? "placeholder" : ""
         }`}
         onClick={handleToggle}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-labelledby={`${id}-label`}
       >
-        {selectedProject ? (
+        {selectedOption ? (
           <>
-            <div className="option-primary">{selectedProject.name}</div>
-            <div className="option-secondary">
-              {selectedProject.account_name}
-            </div>
+            <div className="option-primary">{getPrimary(selectedOption)}</div>
+            <div className="option-secondary">{getSecondary(selectedOption)}</div>
           </>
         ) : (
           placeholder
@@ -266,26 +286,40 @@ function CustomDropdown({
 
       {isOpen && (
         <div
-          ref={dropdownRef}
           className="dropdown-options"
           role="listbox"
           aria-labelledby={`${id}-label`}
         >
-          {options.map((project) => (
+          <div className="dropdown-search-wrapper">
+            <input
+              ref={searchRef}
+              type="text"
+              className="dropdown-search"
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              aria-label="Search"
+            />
+          </div>
+          {filteredOptions.map((option) => (
             <button
-              key={`${project.account_id}-${project.id}`}
+              key={getOptionId(option)}
               type="button"
               className={`dropdown-option ${
-                project.id === value ? "selected" : ""
+                getOptionId(option) === value ? "selected" : ""
               }`}
-              onClick={() => handleOptionSelect(project)}
+              onClick={() => handleOptionSelect(option)}
               role="option"
-              aria-selected={project.id === value}
+              aria-selected={getOptionId(option) === value}
             >
-              <div className="option-primary">{project.name}</div>
-              <div className="option-secondary">{project.account_name}</div>
+              <div className="option-primary">{getPrimary(option)}</div>
+              <div className="option-secondary">{getSecondary(option)}</div>
             </button>
           ))}
+          {filteredOptions.length === 0 && (
+            <div className="dropdown-no-results">No results found</div>
+          )}
         </div>
       )}
     </div>
@@ -473,8 +507,8 @@ export default function App() {
     }
   };
 
-  const onSelectEnvironment = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const envId = Number(e.target.value);
+  const onSelectEnvironment = (envIdStr: string) => {
+    const envId = Number(envIdStr);
     setSelectedEnvironmentId(Number.isNaN(envId) ? null : envId);
   };
 
@@ -597,6 +631,10 @@ export default function App() {
                     onChange={onSelectProject}
                     options={projects}
                     placeholder="Choose a project"
+                    getOptionId={(p) => p.id}
+                    getPrimary={(p) => p.name}
+                    getSecondary={(p) => p.account_name}
+                    getSearchText={(p) => `${p.name} ${p.account_name}`}
                   />
                 </div>
               )}
@@ -627,18 +665,23 @@ export default function App() {
                     >
                       Deployment Environment
                     </label>
-                    <select
+                    <CustomDropdown
                       id="environment-select"
-                      className="environment-select"
-                      value={selectedEnvironmentId ?? ""}
+                      value={selectedEnvironmentId}
                       onChange={onSelectEnvironment}
-                    >
-                      {environments.map((env) => (
-                        <option key={env.id} value={env.id}>
-                          {env.name} ({env.deployment_type ? `${env.deployment_type} - ${env.id}` : env.id})
-                        </option>
-                      ))}
-                    </select>
+                      options={environments}
+                      placeholder="Choose an environment"
+                      getOptionId={(e) => e.id}
+                      getPrimary={(e) => e.name}
+                      getSecondary={(e) =>
+                        e.deployment_type
+                          ? `${e.deployment_type} · ${e.id}`
+                          : String(e.id)
+                      }
+                      getSearchText={(e) =>
+                        `${e.name} ${e.deployment_type ?? ""}`
+                      }
+                    />
                   </div>
                 )}
 
