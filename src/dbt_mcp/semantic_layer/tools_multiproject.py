@@ -1,11 +1,10 @@
 from dataclasses import dataclass
+from typing import Protocol
 
 from dbtsl.api.shared.query_params import GroupByParam
 from mcp.server.fastmcp import FastMCP
 
-from dbt_mcp.config.config_providers import (
-    DefaultSemanticLayerConfigProvider,
-)
+from dbt_mcp.config.config_providers import SemanticLayerConfig
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.semantic_layer.client import (
     SemanticLayerClientProvider,
@@ -26,14 +25,28 @@ from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 
 
+class MultiprojectSemanticLayerConfigProvider(Protocol):
+    """Protocol for config providers that support per-project config resolution.
+
+    Any object implementing this protocol can be used as the config provider for
+    MultiProjectSemanticLayerToolContext, including both the CLI-facing
+    DefaultSemanticLayerConfigProvider and server-side implementations that resolve
+    environments via internal APIs.
+    """
+
+    async def get_config(self) -> SemanticLayerConfig: ...
+
+    async def get_config_for_project(self, project_id: int) -> SemanticLayerConfig: ...
+
+
 @dataclass
 class MultiProjectSemanticLayerToolContext:
-    semantic_layer_config_provider: DefaultSemanticLayerConfigProvider
+    semantic_layer_config_provider: MultiprojectSemanticLayerConfigProvider
     _client_provider: SemanticLayerClientProvider
 
     def __init__(
         self,
-        config_provider: DefaultSemanticLayerConfigProvider,
+        config_provider: MultiprojectSemanticLayerConfigProvider,
         client_provider: SemanticLayerClientProvider,
     ):
         self.semantic_layer_config_provider = config_provider
@@ -44,7 +57,7 @@ class MultiProjectSemanticLayerToolContext:
             project_id
         )
         return SemanticLayerFetcher(
-            config_provider=self.semantic_layer_config_provider,
+            config_provider=self.semantic_layer_config_provider,  # type: ignore[arg-type]
             client_provider=self._client_provider,
             config=config,
         )
@@ -188,7 +201,7 @@ MULTIPROJECT_SEMANTIC_LAYER_TOOLS: list[GenericToolDefinition[ToolName]] = [
 
 def register_multiproject_sl_tools(
     dbt_mcp: FastMCP,
-    config_provider: DefaultSemanticLayerConfigProvider,
+    config_provider: MultiprojectSemanticLayerConfigProvider,
     client_provider: SemanticLayerClientProvider,
     *,
     disabled_tools: set[ToolName],
