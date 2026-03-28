@@ -1,4 +1,10 @@
-Node selection string passed to dbt's `--select` flag (like `my_model`, `tag:nightly`, `path:models/staging`). This does NOT accept named selectors from `selectors.yml` — those are passed via `--selector`, which is not yet supported.
+Node selection string passed to dbt's `--select` flag (like `my_model`, `tag:nightly`, `path:models/staging`).
+
+**IMPORTANT — `--select` vs `--selector`:**
+- This parameter maps to dbt's `--select` flag and accepts **inline node selection syntax only**.
+- It does **NOT** accept named selectors from `selectors.yml`. Those are referenced via dbt's `--selector` flag, which is **not supported** by this tool.
+- If the user references a named selector (e.g. "run the `github` selector" or "use the selector defined in `selectors.yml`"), do **not** pass that name directly to this parameter. Instead, ask the user to provide the equivalent inline selection syntax (like `tag:github`, `path:models/github`, `fqn:*github*`), or look up the `selectors.yml` definition to translate it yourself.
+
 
 A selection should be used when we need to select specific nodes or are asking to do actions on specific nodes. A node can be a model, a test, a seed or a snapshot. It is strongly preferred to provide a selection, especially on large projects. Always provide a selection initially.
 
