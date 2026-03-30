@@ -130,3 +130,8 @@ Dependencies are pinned to specific versions and are not updated automatically. 
 ## Contributing
 
 Read `CONTRIBUTING.md` for instructions on how to get involved!
+
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/dbt-labs-dbt-mcp).
+
