@@ -29,11 +29,8 @@ def _make_page(
     }
 
 
-def _build_paginator(
-    mock_api_client, *, page_size: int, max_limit: int
-) -> PaginatedResourceFetcher:
+def _build_paginator(*, page_size: int, max_limit: int) -> PaginatedResourceFetcher:
     return PaginatedResourceFetcher(
-        mock_api_client,
         edges_path=("data", "environment", "applied", "models", "edges"),
         page_info_path=("data", "environment", "applied", "models", "pageInfo"),
         page_size=page_size,
@@ -45,9 +42,9 @@ def _build_paginator(
 async def test_fetch_paginated_stops_at_max_limit(
     mock_api_client, unit_discovery_config
 ):
-    paginator = _build_paginator(mock_api_client, page_size=1, max_limit=2)
+    paginator = _build_paginator(page_size=1, max_limit=2)
 
-    mock_api_client.execute_query.side_effect = [
+    mock_api_client.side_effect = [
         _make_page([{"id": 1}], has_next=True, end_cursor="cursor-1"),
         _make_page([{"id": 2}], has_next=True, end_cursor="cursor-2"),
         _make_page([{"id": 3}], has_next=False, end_cursor="cursor-3"),
@@ -58,16 +55,16 @@ async def test_fetch_paginated_stops_at_max_limit(
     )
 
     assert [node["id"] for node in result] == [1, 2]
-    assert mock_api_client.execute_query.await_count == 2
+    assert mock_api_client.await_count == 2
 
 
 @pytest.mark.asyncio
 async def test_fetch_paginated_stops_when_cursor_repeats(
     mock_api_client, unit_discovery_config
 ):
-    paginator = _build_paginator(mock_api_client, page_size=1, max_limit=5)
+    paginator = _build_paginator(page_size=1, max_limit=5)
 
-    mock_api_client.execute_query.side_effect = [
+    mock_api_client.side_effect = [
         _make_page([{"id": 1}], has_next=True, end_cursor="cursor-repeat"),
         _make_page([{"id": 2}], has_next=True, end_cursor="cursor-repeat"),
         _make_page([{"id": 3}], has_next=True, end_cursor="cursor-final"),
@@ -78,16 +75,16 @@ async def test_fetch_paginated_stops_when_cursor_repeats(
     )
 
     assert [node["id"] for node in result] == [1, 2]
-    assert mock_api_client.execute_query.await_count == 2
+    assert mock_api_client.await_count == 2
 
 
 @pytest.mark.asyncio
 async def test_fetch_paginated_handles_partial_final_page(
     mock_api_client, unit_discovery_config
 ):
-    paginator = _build_paginator(mock_api_client, page_size=2, max_limit=10)
+    paginator = _build_paginator(page_size=2, max_limit=10)
 
-    mock_api_client.execute_query.side_effect = [
+    mock_api_client.side_effect = [
         _make_page([{"id": 1}, {"id": 2}], has_next=True, end_cursor="cursor-1"),
         _make_page([{"id": 3}], has_next=False, end_cursor="cursor-2"),
     ]
@@ -97,25 +94,23 @@ async def test_fetch_paginated_handles_partial_final_page(
     )
 
     assert [node["id"] for node in result] == [1, 2, 3]
-    assert mock_api_client.execute_query.await_count == 2
+    assert mock_api_client.await_count == 2
 
-    first_call_variables = mock_api_client.execute_query.await_args_list[0][0][1]
-    second_call_variables = mock_api_client.execute_query.await_args_list[1][0][1]
+    first_call_variables = mock_api_client.await_args_list[0][0][1]
+    second_call_variables = mock_api_client.await_args_list[1][0][1]
     assert "after" not in first_call_variables
     assert second_call_variables["after"] == "cursor-1"
 
 
 @pytest.mark.asyncio
 async def test_fetch_paginated_empty_edges(mock_api_client, unit_discovery_config):
-    paginator = _build_paginator(mock_api_client, page_size=5, max_limit=10)
+    paginator = _build_paginator(page_size=5, max_limit=10)
 
-    mock_api_client.execute_query.return_value = _make_page(
-        [], has_next=False, end_cursor=None
-    )
+    mock_api_client.return_value = _make_page([], has_next=False, end_cursor=None)
 
     result = await paginator.fetch_paginated(
         "GetModels", variables={}, config=unit_discovery_config
     )
 
     assert result == []
-    mock_api_client.execute_query.assert_awaited_once()
+    mock_api_client.assert_awaited_once()

@@ -353,25 +353,23 @@ class GraphQLQueries:
     GET_FULL_LINEAGE = load_query("get_full_lineage.gql")
 
 
-class MetadataAPIClient:
-    async def execute_query(
-        self,
-        query: str,
-        variables: dict,
-        *,
-        config: DiscoveryConfig,
-    ) -> dict:
-        url = config.url
-        headers = config.headers_provider.get_headers()
+async def execute_query(
+    query: str,
+    variables: dict,
+    *,
+    config: DiscoveryConfig,
+) -> dict:
+    url = config.url
+    headers = config.headers_provider.get_headers()
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                url=url,
-                json={"query": query, "variables": variables},
-                headers=headers,
-            )
-            response.raise_for_status()
-            return response.json()
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            url=url,
+            json={"query": query, "variables": variables},
+            headers=headers,
+        )
+        response.raise_for_status()
+        return response.json()
 
 
 class PageInfo(BaseModel):
@@ -384,14 +382,12 @@ class PageInfo(BaseModel):
 class PaginatedResourceFetcher:
     def __init__(
         self,
-        api_client: MetadataAPIClient,
         *,
         edges_path: tuple[str, ...],
         page_info_path: tuple[str, ...],
         page_size: int = DEFAULT_PAGE_SIZE,
         max_node_query_limit: int = DEFAULT_MAX_NODE_QUERY_LIMIT,
     ):
-        self.api_client = api_client
         self._edges_path = edges_path
         self._page_info_path = page_info_path
         self._page_size = page_size
@@ -449,9 +445,7 @@ class PaginatedResourceFetcher:
             request_variables["first"] = min(self._page_size, remaining_capacity)
             if current_cursor is not None:
                 request_variables["after"] = current_cursor
-            result = await self.api_client.execute_query(
-                query, request_variables, config=config
-            )
+            result = await execute_query(query, request_variables, config=config)
             page_edges = self._parse_edges(result)
             collected.extend(page_edges)
             page_info_data = self._extract_path(result, self._page_info_path)
@@ -481,10 +475,8 @@ class MacroFilter(TypedDict, total=False):
 class ModelsFetcher:
     def __init__(
         self,
-        api_client: MetadataAPIClient,
         paginator: PaginatedResourceFetcher,
     ):
-        self.api_client = api_client
         self._paginator = paginator
 
     def _get_model_filters(
@@ -527,7 +519,7 @@ class ModelsFetcher:
             "modelsFilter": model_filters,
             "first": 1,
         }
-        result = await self.api_client.execute_query(
+        result = await execute_query(
             GraphQLQueries.GET_MODEL_PARENTS, variables, config=config
         )
         raise_gql_error(result)
@@ -549,7 +541,7 @@ class ModelsFetcher:
             "modelsFilter": model_filters,
             "first": 1,
         }
-        result = await self.api_client.execute_query(
+        result = await execute_query(
             GraphQLQueries.GET_MODEL_CHILDREN,
             variables,
             config=config,
@@ -573,7 +565,7 @@ class ModelsFetcher:
             "modelsFilter": model_filters,
             "first": 1,
         }
-        result = await self.api_client.execute_query(
+        result = await execute_query(
             GraphQLQueries.GET_MODEL_HEALTH, variables, config=config
         )
         raise_gql_error(result)
@@ -586,10 +578,8 @@ class ModelsFetcher:
 class ExposuresFetcher:
     def __init__(
         self,
-        api_client: MetadataAPIClient,
         paginator: PaginatedResourceFetcher,
     ):
-        self.api_client = api_client
         self._paginator = paginator
 
     async def fetch_exposures(self, *, config: DiscoveryConfig) -> list[dict]:
@@ -603,10 +593,8 @@ class ExposuresFetcher:
 class SourcesFetcher:
     def __init__(
         self,
-        api_client: MetadataAPIClient,
         paginator: PaginatedResourceFetcher,
     ):
-        self.api_client = api_client
         self._paginator = paginator
 
     async def fetch_sources(
@@ -632,10 +620,8 @@ class SourcesFetcher:
 class MacrosFetcher:
     def __init__(
         self,
-        api_client: MetadataAPIClient,
         paginator: PaginatedResourceFetcher,
     ):
-        self.api_client = api_client
         self._paginator = paginator
 
     async def fetch_macros(
@@ -746,12 +732,6 @@ class ResourceDetailsFetcher:
         AppliedResourceType.SEMANTIC_MODEL: "SemanticModel",
     }
 
-    def __init__(
-        self,
-        api_client: MetadataAPIClient,
-    ):
-        self.api_client = api_client
-
     async def fetch_details(
         self,
         resource_type: AppliedResourceType,
@@ -775,12 +755,12 @@ class ResourceDetailsFetcher:
         if not normalized_unique_id:
             assert normalized_name is not None, "Name must be provided"
             packages_result = await asyncio.gather(
-                self.api_client.execute_query(
+                execute_query(
                     self.GET_PACKAGES_QUERY,
                     variables={"resource": "macro", "environmentId": environment_id},
                     config=config,
                 ),
-                self.api_client.execute_query(
+                execute_query(
                     self.GET_PACKAGES_QUERY,
                     variables={"resource": "model", "environmentId": environment_id},
                     config=config,
@@ -811,9 +791,7 @@ class ResourceDetailsFetcher:
             },
             "first": len(unique_ids),
         }
-        get_details_result = await self.api_client.execute_query(
-            query, variables, config=config
-        )
+        get_details_result = await execute_query(query, variables, config=config)
         raise_gql_error(get_details_result)
         edges = get_details_result["data"]["environment"]["applied"]["resources"][
             "edges"
@@ -825,9 +803,6 @@ class ResourceDetailsFetcher:
 
 class LineageFetcher:
     """Fetcher for lineage data. Returns nodes connected to the target."""
-
-    def __init__(self, api_client: MetadataAPIClient):
-        self.api_client = api_client
 
     async def fetch_lineage(
         self,
@@ -859,7 +834,7 @@ class LineageFetcher:
             # uniqueId removed - not used by GraphQL
         }
 
-        result = await self.api_client.execute_query(
+        result = await execute_query(
             GraphQLQueries.GET_FULL_LINEAGE, variables, config=config
         )
         raise_gql_error(result)
@@ -940,10 +915,8 @@ class ModelPerformanceFetcher:
 
     def __init__(
         self,
-        api_client: MetadataAPIClient,
         resource_details_fetcher: ResourceDetailsFetcher,
     ):
-        self.api_client = api_client
         self._resource_details_fetcher = resource_details_fetcher
 
     async def fetch_performance(
@@ -1002,7 +975,7 @@ class ModelPerformanceFetcher:
             "lastRunCount": num_runs,
         }
 
-        result = await self.api_client.execute_query(
+        result = await execute_query(
             self.GET_MODEL_PERFORMANCE_QUERY,
             variables,
             config=config,

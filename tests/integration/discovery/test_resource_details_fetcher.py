@@ -3,7 +3,6 @@ import pytest
 from dbt_mcp.config.config_providers import DiscoveryConfig
 from dbt_mcp.discovery.client import (
     AppliedResourceType,
-    MetadataAPIClient,
     ModelsFetcher,
     ResourceDetailsFetcher,
     SourcesFetcher,
@@ -12,7 +11,7 @@ from dbt_mcp.discovery.client import (
 
 @pytest.fixture
 def resource_details_fetcher() -> ResourceDetailsFetcher:
-    return ResourceDetailsFetcher(api_client=MetadataAPIClient())
+    return ResourceDetailsFetcher()
 
 
 async def test_resource_details_fetcher_accepts_unique_id_for_model(

@@ -1,5 +1,4 @@
 import logging
-from dataclasses import dataclass
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -13,16 +12,8 @@ from dbt_mcp.config.headers import DiscoveryHeadersProvider
 from dbt_mcp.config.settings import CredentialsProvider
 from dbt_mcp.discovery.client import (
     AppliedResourceType,
-    ExposuresFetcher,
-    LineageFetcher,
-    MacrosFetcher,
-    MetadataAPIClient,
-    ModelPerformanceFetcher,
-    ModelsFetcher,
-    PaginatedResourceFetcher,
-    ResourceDetailsFetcher,
-    SourcesFetcher,
 )
+from dbt_mcp.discovery.tools import DiscoveryToolContext
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.fields import (
@@ -41,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 async def _resolve_discovery_config_for_project(
-    context: "MultiProjectDiscoveryToolContext",
+    context: DiscoveryToolContext,
     project_id: int,
 ) -> DiscoveryConfig:
     """Resolve a DiscoveryConfig for the given project by fetching its environments."""
@@ -70,82 +61,6 @@ PROJECT_ID_FIELD = Field(
 )
 
 
-@dataclass
-class MultiProjectDiscoveryToolContext:
-    credentials_provider: CredentialsProvider
-    models_fetcher: ModelsFetcher
-    exposures_fetcher: ExposuresFetcher
-    sources_fetcher: SourcesFetcher
-    macros_fetcher: MacrosFetcher
-    resource_details_fetcher: ResourceDetailsFetcher
-    lineage_fetcher: LineageFetcher
-    model_performance_fetcher: ModelPerformanceFetcher
-
-    def __init__(
-        self,
-        config_provider: ConfigProvider[DiscoveryConfig],
-        credentials_provider: CredentialsProvider,
-    ):
-        self.credentials_provider = credentials_provider
-        api_client = MetadataAPIClient()
-        self.models_fetcher = ModelsFetcher(
-            api_client=api_client,
-            paginator=PaginatedResourceFetcher(
-                api_client=api_client,
-                edges_path=("data", "environment", "applied", "models", "edges"),
-                page_info_path=("data", "environment", "applied", "models", "pageInfo"),
-            ),
-        )
-        self.exposures_fetcher = ExposuresFetcher(
-            api_client=api_client,
-            paginator=PaginatedResourceFetcher(
-                api_client=api_client,
-                edges_path=("data", "environment", "definition", "exposures", "edges"),
-                page_info_path=(
-                    "data",
-                    "environment",
-                    "definition",
-                    "exposures",
-                    "pageInfo",
-                ),
-            ),
-        )
-        self.sources_fetcher = SourcesFetcher(
-            api_client=api_client,
-            paginator=PaginatedResourceFetcher(
-                api_client,
-                edges_path=("data", "environment", "applied", "sources", "edges"),
-                page_info_path=(
-                    "data",
-                    "environment",
-                    "applied",
-                    "sources",
-                    "pageInfo",
-                ),
-            ),
-        )
-        self.macros_fetcher = MacrosFetcher(
-            api_client=api_client,
-            paginator=PaginatedResourceFetcher(
-                api_client,
-                edges_path=("data", "environment", "applied", "resources", "edges"),
-                page_info_path=(
-                    "data",
-                    "environment",
-                    "applied",
-                    "resources",
-                    "pageInfo",
-                ),
-            ),
-        )
-        self.resource_details_fetcher = ResourceDetailsFetcher(api_client=api_client)
-        self.lineage_fetcher = LineageFetcher(api_client=api_client)
-        self.model_performance_fetcher = ModelPerformanceFetcher(
-            api_client=api_client,
-            resource_details_fetcher=self.resource_details_fetcher,
-        )
-
-
 @dbt_mcp_tool(
     description=get_prompt("discovery/get_mart_models"),
     title="Get Mart Models",
@@ -154,7 +69,7 @@ class MultiProjectDiscoveryToolContext:
     idempotent_hint=True,
 )
 async def get_mart_models(
-    context: MultiProjectDiscoveryToolContext,
+    context: DiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
 ) -> list[dict]:
     config = await _resolve_discovery_config_for_project(context, project_id)
@@ -173,7 +88,7 @@ async def get_mart_models(
     idempotent_hint=True,
 )
 async def get_all_models(
-    context: MultiProjectDiscoveryToolContext,
+    context: DiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
 ) -> list[dict]:
     config = await _resolve_discovery_config_for_project(context, project_id)
@@ -188,7 +103,7 @@ async def get_all_models(
     idempotent_hint=True,
 )
 async def get_model_details(
-    context: MultiProjectDiscoveryToolContext,
+    context: DiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
@@ -210,7 +125,7 @@ async def get_model_details(
     idempotent_hint=True,
 )
 async def get_model_parents(
-    context: MultiProjectDiscoveryToolContext,
+    context: DiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
@@ -229,7 +144,7 @@ async def get_model_parents(
     idempotent_hint=True,
 )
 async def get_model_children(
-    context: MultiProjectDiscoveryToolContext,
+    context: DiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
@@ -248,7 +163,7 @@ async def get_model_children(
     idempotent_hint=True,
 )
 async def get_model_health(
-    context: MultiProjectDiscoveryToolContext,
+    context: DiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
@@ -267,7 +182,7 @@ async def get_model_health(
     idempotent_hint=True,
 )
 async def get_model_performance(
-    context: MultiProjectDiscoveryToolContext,
+    context: DiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
@@ -303,7 +218,7 @@ async def get_model_performance(
     idempotent_hint=True,
 )
 async def get_lineage(
-    context: MultiProjectDiscoveryToolContext,
+    context: DiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     unique_id: str = UNIQUE_ID_REQUIRED_FIELD,
     types: list[LineageResourceType] | None = TYPES_FIELD,
@@ -323,7 +238,7 @@ async def get_lineage(
     idempotent_hint=True,
 )
 async def get_exposures(
-    context: MultiProjectDiscoveryToolContext,
+    context: DiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
 ) -> list[dict]:
     config = await _resolve_discovery_config_for_project(context, project_id)
@@ -338,7 +253,7 @@ async def get_exposures(
     idempotent_hint=True,
 )
 async def get_exposure_details(
-    context: MultiProjectDiscoveryToolContext,
+    context: DiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
@@ -360,7 +275,7 @@ async def get_exposure_details(
     idempotent_hint=True,
 )
 async def get_all_sources(
-    context: MultiProjectDiscoveryToolContext,
+    context: DiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     source_names: list[str] | None = None,
     unique_ids: list[str] | None = None,
@@ -379,7 +294,7 @@ async def get_all_sources(
     idempotent_hint=True,
 )
 async def get_source_details(
-    context: MultiProjectDiscoveryToolContext,
+    context: DiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
@@ -401,7 +316,7 @@ async def get_source_details(
     idempotent_hint=True,
 )
 async def get_all_macros(
-    context: MultiProjectDiscoveryToolContext,
+    context: DiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     package_names: list[str] | None = Field(
         default=None,
@@ -437,7 +352,7 @@ async def get_all_macros(
     idempotent_hint=True,
 )
 async def get_macro_details(
-    context: MultiProjectDiscoveryToolContext,
+    context: DiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
@@ -459,7 +374,7 @@ async def get_macro_details(
     idempotent_hint=True,
 )
 async def get_seed_details(
-    context: MultiProjectDiscoveryToolContext,
+    context: DiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
@@ -481,7 +396,7 @@ async def get_seed_details(
     idempotent_hint=True,
 )
 async def get_semantic_model_details(
-    context: MultiProjectDiscoveryToolContext,
+    context: DiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
@@ -503,7 +418,7 @@ async def get_semantic_model_details(
     idempotent_hint=True,
 )
 async def get_snapshot_details(
-    context: MultiProjectDiscoveryToolContext,
+    context: DiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
@@ -525,7 +440,7 @@ async def get_snapshot_details(
     idempotent_hint=True,
 )
 async def get_test_details(
-    context: MultiProjectDiscoveryToolContext,
+    context: DiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
@@ -563,18 +478,18 @@ MULTIPROJECT_DISCOVERY_TOOLS = [
 
 def register_multiproject_discovery_tools(
     dbt_mcp: FastMCP,
-    discovery_config_provider: ConfigProvider[DiscoveryConfig],
     credentials_provider: CredentialsProvider,
+    discovery_config_provider: ConfigProvider[DiscoveryConfig],
     *,
     disabled_tools: set[ToolName],
     enabled_tools: set[ToolName] | None,
     enabled_toolsets: set[Toolset],
     disabled_toolsets: set[Toolset],
 ) -> None:
-    def bind_context() -> MultiProjectDiscoveryToolContext:
-        return MultiProjectDiscoveryToolContext(
-            config_provider=discovery_config_provider,
+    def bind_context() -> DiscoveryToolContext:
+        return DiscoveryToolContext(
             credentials_provider=credentials_provider,
+            config_provider=discovery_config_provider,
         )
 
     register_tools(

@@ -9,15 +9,14 @@ from dbt_mcp.discovery.client import (
 
 
 @pytest.fixture
-def macros_fetcher(mock_api_client):
+def macros_fetcher():
     paginator = PaginatedResourceFetcher(
-        mock_api_client,
         edges_path=("data", "environment", "applied", "resources", "edges"),
         page_info_path=("data", "environment", "applied", "resources", "pageInfo"),
         page_size=DEFAULT_PAGE_SIZE,
         max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
     )
-    return MacrosFetcher(api_client=mock_api_client, paginator=paginator)
+    return MacrosFetcher(paginator=paginator)
 
 
 async def test_fetch_macros_single_page(
@@ -53,12 +52,12 @@ async def test_fetch_macros_single_page(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     result = await macros_fetcher.fetch_macros(config=unit_discovery_config)
 
-    mock_api_client.execute_query.assert_called_once()
-    call_args = mock_api_client.execute_query.call_args
+    mock_api_client.assert_called_once()
+    call_args = mock_api_client.call_args
 
     query = call_args[0][0]
     assert "GetMacros" in query
@@ -127,7 +126,7 @@ async def test_fetch_macros_excludes_dbt_builtin_by_default(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     result = await macros_fetcher.fetch_macros(config=unit_discovery_config)
 
@@ -190,7 +189,7 @@ async def test_fetch_macros_return_package_names_only(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     result = await macros_fetcher.fetch_macros(
         return_package_names_only=True, config=unit_discovery_config
@@ -234,7 +233,7 @@ async def test_fetch_macros_filters_by_package_names(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     result = await macros_fetcher.fetch_macros(
         package_names=["my_project"], config=unit_discovery_config
@@ -272,7 +271,7 @@ async def test_fetch_macros_package_filter_case_insensitive(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     result = await macros_fetcher.fetch_macros(
         package_names=["my_project"], config=unit_discovery_config
@@ -298,7 +297,7 @@ async def test_fetch_macros_empty_response(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     result = await macros_fetcher.fetch_macros(config=unit_discovery_config)
 
@@ -347,7 +346,7 @@ async def test_fetch_macros_includes_default_dbt_packages_when_flag_set(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     result = await macros_fetcher.fetch_macros(
         include_default_dbt_packages=True, config=unit_discovery_config
@@ -402,7 +401,7 @@ async def test_fetch_macros_return_package_names_only_with_include_default(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     result = await macros_fetcher.fetch_macros(
         return_package_names_only=True,

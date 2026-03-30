@@ -256,6 +256,7 @@ async def register_dbt_mcp_tools(dbt_mcp: DbtMCP, config: Config) -> None:
         register_discovery_tools(
             dbt_mcp,
             config.discovery_config_provider,
+            credentials_provider=config.credentials_provider,
             disabled_tools=disabled_tools,
             enabled_tools=enabled_tools,
             enabled_toolsets=enabled_toolsets,

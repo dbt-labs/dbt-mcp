@@ -11,8 +11,8 @@ from dbt_mcp.errors import InvalidParameterError
 
 
 @pytest.fixture
-def resource_details_fetcher(mock_api_client):
-    return ResourceDetailsFetcher(api_client=mock_api_client)
+def resource_details_fetcher():
+    return ResourceDetailsFetcher()
 
 
 async def test_fetch_details_requires_identifier(
@@ -66,7 +66,7 @@ async def test_fetch_details_with_unique_id(
             }
         }
     }
-    mock_api_client.execute_query.return_value = details_response
+    mock_api_client.return_value = details_response
 
     result = await resource_details_fetcher.fetch_details(
         AppliedResourceType.MODEL,
@@ -82,8 +82,8 @@ async def test_fetch_details_with_unique_id(
         }
     ]
 
-    mock_api_client.execute_query.assert_called_once()
-    query, variables = mock_api_client.execute_query.call_args[0]
+    mock_api_client.assert_called_once()
+    query, variables = mock_api_client.call_args[0]
     assert query == ResourceDetailsFetcher.GQL_QUERIES[AppliedResourceType.MODEL]
     assert variables["filter"]["uniqueIds"] == ["model.jaffle.orders"]
     assert variables["filter"]["types"] == ["Model"]
@@ -134,7 +134,7 @@ async def test_fetch_details_with_name_builds_unique_ids(
             return details_response
         raise AssertionError(f"Unexpected query: {query}")
 
-    mock_api_client.execute_query.side_effect = execute_side_effect
+    mock_api_client.side_effect = execute_side_effect
 
     result = await resource_details_fetcher.fetch_details(
         AppliedResourceType.MACRO,
@@ -143,9 +143,9 @@ async def test_fetch_details_with_name_builds_unique_ids(
     )
 
     assert result == [details_node]
-    assert mock_api_client.execute_query.call_count == 3
-    macro_call = mock_api_client.execute_query.call_args_list[0]
-    model_call = mock_api_client.execute_query.call_args_list[1]
+    assert mock_api_client.call_count == 3
+    macro_call = mock_api_client.call_args_list[0]
+    model_call = mock_api_client.call_args_list[1]
     assert macro_call.kwargs["variables"]["resource"] == "macro"
     assert model_call.kwargs["variables"]["resource"] == "model"
     mock_raise_gql_error.assert_has_calls(
@@ -169,7 +169,7 @@ async def test_fetch_details_returns_empty_when_no_edges(
             "environment": {"applied": {"resources": {"edges": []}}},
         }
     }
-    mock_api_client.execute_query.return_value = empty_response
+    mock_api_client.return_value = empty_response
 
     result = await resource_details_fetcher.fetch_details(
         AppliedResourceType.SOURCE,
@@ -178,7 +178,7 @@ async def test_fetch_details_returns_empty_when_no_edges(
     )
 
     assert result == []
-    mock_api_client.execute_query.assert_called_once()
+    mock_api_client.assert_called_once()
     mock_raise_gql_error.assert_called_once_with(empty_response)
 
 
@@ -198,7 +198,7 @@ async def test_fetch_details_name_raises_when_no_packages(
             return no_packages_response
         raise AssertionError("Details query should not be executed when no packages")
 
-    mock_api_client.execute_query.side_effect = execute_side_effect
+    mock_api_client.side_effect = execute_side_effect
 
     with pytest.raises(InvalidParameterError, match="No packages found for project"):
         await resource_details_fetcher.fetch_details(
@@ -207,7 +207,7 @@ async def test_fetch_details_name_raises_when_no_packages(
             name="orders",
         )
 
-    assert mock_api_client.execute_query.call_count == 2
+    assert mock_api_client.call_count == 2
     mock_raise_gql_error.assert_has_calls(
         [call(no_packages_response), call(no_packages_response)]
     )

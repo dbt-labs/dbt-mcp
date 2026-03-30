@@ -5,12 +5,12 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
+from dbt_mcp.config.settings import CredentialsProvider
 from dbt_mcp.discovery.client import (
     AppliedResourceType,
     ExposuresFetcher,
     LineageFetcher,
     MacrosFetcher,
-    MetadataAPIClient,
     ModelPerformanceFetcher,
     ModelsFetcher,
     PaginatedResourceFetcher,
@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class DiscoveryToolContext:
+    credentials_provider: CredentialsProvider
     models_fetcher: ModelsFetcher
     exposures_fetcher: ExposuresFetcher
     sources_fetcher: SourcesFetcher
@@ -44,21 +45,21 @@ class DiscoveryToolContext:
     lineage_fetcher: LineageFetcher
     model_performance_fetcher: ModelPerformanceFetcher
 
-    def __init__(self, config_provider: ConfigProvider[DiscoveryConfig]):
+    def __init__(
+        self,
+        config_provider: ConfigProvider[DiscoveryConfig],
+        credentials_provider: CredentialsProvider,
+    ):
+        self.credentials_provider = credentials_provider
         self.config_provider = config_provider
-        api_client = MetadataAPIClient()
         self.models_fetcher = ModelsFetcher(
-            api_client=api_client,
             paginator=PaginatedResourceFetcher(
-                api_client=api_client,
                 edges_path=("data", "environment", "applied", "models", "edges"),
                 page_info_path=("data", "environment", "applied", "models", "pageInfo"),
             ),
         )
         self.exposures_fetcher = ExposuresFetcher(
-            api_client=api_client,
             paginator=PaginatedResourceFetcher(
-                api_client=api_client,
                 edges_path=("data", "environment", "definition", "exposures", "edges"),
                 page_info_path=(
                     "data",
@@ -70,9 +71,7 @@ class DiscoveryToolContext:
             ),
         )
         self.sources_fetcher = SourcesFetcher(
-            api_client=api_client,
             paginator=PaginatedResourceFetcher(
-                api_client,
                 edges_path=("data", "environment", "applied", "sources", "edges"),
                 page_info_path=(
                     "data",
@@ -84,9 +83,7 @@ class DiscoveryToolContext:
             ),
         )
         self.macros_fetcher = MacrosFetcher(
-            api_client=api_client,
             paginator=PaginatedResourceFetcher(
-                api_client,
                 edges_path=("data", "environment", "applied", "resources", "edges"),
                 page_info_path=(
                     "data",
@@ -97,10 +94,9 @@ class DiscoveryToolContext:
                 ),
             ),
         )
-        self.resource_details_fetcher = ResourceDetailsFetcher(api_client=api_client)
-        self.lineage_fetcher = LineageFetcher(api_client=api_client)
+        self.resource_details_fetcher = ResourceDetailsFetcher()
+        self.lineage_fetcher = LineageFetcher()
         self.model_performance_fetcher = ModelPerformanceFetcher(
-            api_client=api_client,
             resource_details_fetcher=self.resource_details_fetcher,
         )
 
@@ -506,6 +502,7 @@ DISCOVERY_TOOLS = [
 def register_discovery_tools(
     dbt_mcp: FastMCP,
     discovery_config_provider: ConfigProvider[DiscoveryConfig],
+    credentials_provider: CredentialsProvider,
     *,
     disabled_tools: set[ToolName],
     enabled_tools: set[ToolName] | None,
@@ -513,7 +510,10 @@ def register_discovery_tools(
     disabled_toolsets: set[Toolset],
 ) -> None:
     def bind_context() -> DiscoveryToolContext:
-        return DiscoveryToolContext(config_provider=discovery_config_provider)
+        return DiscoveryToolContext(
+            config_provider=discovery_config_provider,
+            credentials_provider=credentials_provider,
+        )
 
     register_tools(
         dbt_mcp,

@@ -12,15 +12,14 @@ from dbt_mcp.errors import GraphQLError
 
 
 @pytest.fixture
-def sources_fetcher(mock_api_client):
+def sources_fetcher():
     paginator = PaginatedResourceFetcher(
-        mock_api_client,
         edges_path=("data", "environment", "applied", "sources", "edges"),
         page_info_path=("data", "environment", "applied", "sources", "pageInfo"),
         page_size=DEFAULT_PAGE_SIZE,
         max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
     )
-    return SourcesFetcher(api_client=mock_api_client, paginator=paginator)
+    return SourcesFetcher(paginator=paginator)
 
 
 async def test_fetch_sources_single_page(
@@ -69,14 +68,14 @@ async def test_fetch_sources_single_page(
     }
 
     # Set up the mock to return our response
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     # Execute the fetch
     result = await sources_fetcher.fetch_sources(config=unit_discovery_config)
 
     # Verify the API was called correctly
-    mock_api_client.execute_query.assert_called_once()
-    call_args = mock_api_client.execute_query.call_args
+    mock_api_client.assert_called_once()
+    call_args = mock_api_client.call_args
 
     # Check that the GraphQL query contains expected elements
     query = call_args[0][0]
@@ -156,7 +155,7 @@ async def test_fetch_sources_with_filters(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     # Execute with filters
     result = await sources_fetcher.fetch_sources(
@@ -164,7 +163,7 @@ async def test_fetch_sources_with_filters(
     )
 
     # Verify the filter was passed correctly to the GraphQL query
-    call_args = mock_api_client.execute_query.call_args
+    call_args = mock_api_client.call_args
     variables = call_args[0][1]
     assert variables["sourcesFilter"] == expected_filter
 
@@ -189,7 +188,7 @@ async def test_fetch_sources_empty_response(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     result = await sources_fetcher.fetch_sources(config=unit_discovery_config)
 
@@ -261,7 +260,7 @@ async def test_fetch_sources_pagination(
     }
 
     # Set up mock to return different responses for each call
-    mock_api_client.execute_query.side_effect = [
+    mock_api_client.side_effect = [
         first_page_response,
         second_page_response,
     ]
@@ -269,11 +268,11 @@ async def test_fetch_sources_pagination(
     result = await sources_fetcher.fetch_sources(config=unit_discovery_config)
 
     # Should have called twice due to pagination
-    assert mock_api_client.execute_query.call_count == 2
+    assert mock_api_client.call_count == 2
 
     # Check that the second call includes the cursor from the first response
-    first_call_args = mock_api_client.execute_query.call_args_list[0]
-    second_call_args = mock_api_client.execute_query.call_args_list[1]
+    first_call_args = mock_api_client.call_args_list[0]
+    second_call_args = mock_api_client.call_args_list[1]
 
     # First call should have empty after cursor
     assert "after" not in first_call_args[0][1]
@@ -307,7 +306,7 @@ async def test_fetch_sources_graphql_error_handling(
     # Configure the mock to raise GraphQLError when called
     mock_raise_gql_error.side_effect = GraphQLError("Test GraphQL error")
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     # Verify that fetch_sources raises GraphQLError
     with pytest.raises(GraphQLError, match="Test GraphQL error"):

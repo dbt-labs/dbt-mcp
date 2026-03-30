@@ -1,6 +1,7 @@
 import pytest
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
+from dbt_mcp.config.settings import CredentialsProvider
 from dbt_mcp.discovery.client import (
     DEFAULT_PAGE_SIZE,
     DBT_BUILTIN_PACKAGES,
@@ -231,6 +232,7 @@ async def test_fetch_sources_with_filter(
 @pytest.mark.asyncio
 async def test_get_all_sources_tool(
     config_provider: ConfigProvider[DiscoveryConfig],
+    credentials_provider: CredentialsProvider,
 ) -> None:
     """Test the get_all_sources tool function integration."""
 
@@ -250,7 +252,10 @@ async def test_get_all_sources_tool(
 
     # Execute the tool function
     result = await get_all_sources_tool.fn(
-        context=DiscoveryToolContext(config_provider=config_provider)
+        context=DiscoveryToolContext(
+            config_provider=config_provider,
+            credentials_provider=credentials_provider,
+        )
     )
 
     # Validate the result
@@ -328,6 +333,7 @@ async def test_fetch_macros_with_package_filter(
 @pytest.mark.asyncio
 async def test_get_all_macros_tool(
     config_provider: ConfigProvider[DiscoveryConfig],
+    credentials_provider: CredentialsProvider,
 ) -> None:
     """Test the get_all_macros tool function integration."""
 
@@ -347,7 +353,10 @@ async def test_get_all_macros_tool(
 
     # Execute the tool function
     result = await get_all_macros_tool.fn(
-        context=DiscoveryToolContext(config_provider=config_provider),
+        context=DiscoveryToolContext(
+            config_provider=config_provider,
+            credentials_provider=credentials_provider,
+        ),
         package_names=None,
         return_package_names_only=False,
         include_default_dbt_packages=False,

@@ -16,10 +16,9 @@ def resource_details_fetcher():
 
 
 @pytest.fixture
-def model_performance_fetcher(mock_api_client, resource_details_fetcher):
+def model_performance_fetcher(resource_details_fetcher):
     """Create ModelPerformanceFetcher with mocked dependencies."""
     return ModelPerformanceFetcher(
-        api_client=mock_api_client,
         resource_details_fetcher=resource_details_fetcher,
     )
 
@@ -46,7 +45,7 @@ async def test_fetch_performance_with_unique_id(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     result = await model_performance_fetcher.fetch_performance(
         unit_discovery_config,
@@ -55,8 +54,8 @@ async def test_fetch_performance_with_unique_id(
     )
 
     # Verify API was called correctly
-    mock_api_client.execute_query.assert_called_once()
-    call_args = mock_api_client.execute_query.call_args
+    mock_api_client.assert_called_once()
+    call_args = mock_api_client.call_args
 
     # Check query and variables
     query = call_args[0][0]
@@ -88,7 +87,7 @@ async def test_fetch_performance_with_name_resolution(
     ]
 
     # Mock performance query
-    mock_api_client.execute_query.return_value = {
+    mock_api_client.return_value = {
         "data": {
             "environment": {
                 "applied": {
@@ -160,7 +159,7 @@ async def test_fetch_performance_multiple_runs(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     result = await model_performance_fetcher.fetch_performance(
         unit_discovery_config,
@@ -169,7 +168,7 @@ async def test_fetch_performance_multiple_runs(
     )
 
     # Verify variables
-    call_args = mock_api_client.execute_query.call_args
+    call_args = mock_api_client.call_args
     variables = call_args[0][1]
     assert variables["lastRunCount"] == 3
 
@@ -230,7 +229,7 @@ async def test_fetch_performance_no_runs_returns_empty(
     """Test that models with no historical runs return empty list."""
     mock_response = {"data": {"environment": {"applied": {"modelHistoricalRuns": []}}}}
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     result = await model_performance_fetcher.fetch_performance(
         unit_discovery_config,
@@ -286,7 +285,7 @@ async def test_fetch_performance_include_tests(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     result = await model_performance_fetcher.fetch_performance(
         unit_discovery_config,
