@@ -1,7 +1,7 @@
 import time
 from unittest.mock import MagicMock, patch
 
-from dbt_mcp.config.settings import (
+from dbt_mcp.config.credentials import (
     _is_context_complete,
     _is_token_valid,
     _try_refresh_token,
@@ -131,7 +131,7 @@ class TestTryRefreshToken:
         ctx = _create_mock_context(expires_at=int(time.time()) - 3600)  # Expired
         mock_context_manager = MagicMock()
 
-        with patch("dbt_mcp.config.settings.refresh_oauth_token") as mock_refresh:
+        with patch("dbt_mcp.config.credentials.refresh_oauth_token") as mock_refresh:
             # Create a new context that would be returned after refresh
             new_ctx = _create_mock_context(expires_at=int(time.time()) + 3600)
             mock_refresh.return_value = new_ctx
@@ -149,7 +149,7 @@ class TestTryRefreshToken:
         ctx = _create_mock_context(expires_at=int(time.time()) - 3600)
         mock_context_manager = MagicMock()
 
-        with patch("dbt_mcp.config.settings.refresh_oauth_token") as mock_refresh:
+        with patch("dbt_mcp.config.credentials.refresh_oauth_token") as mock_refresh:
             mock_refresh.side_effect = Exception("Network error")
 
             result = _try_refresh_token(

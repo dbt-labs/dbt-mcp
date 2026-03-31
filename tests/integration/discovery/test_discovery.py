@@ -1,7 +1,7 @@
 import pytest
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
-from dbt_mcp.config.settings import CredentialsProvider
+from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.discovery.client import (
     DEFAULT_PAGE_SIZE,
     DBT_BUILTIN_PACKAGES,

@@ -5,7 +5,7 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
-from dbt_mcp.config.settings import CredentialsProvider
+from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.discovery.client import (
     AppliedResourceType,
     ExposuresFetcher,
