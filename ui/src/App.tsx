@@ -467,7 +467,17 @@ export default function App() {
         setEnvironmentsError(await res.text());
       }
     } catch (err) {
-      setEnvironmentsError(String(err));
+      if (isAbortError(err)) {
+        setEnvironmentsError(
+          "The request took too long or was cancelled. Check your connection and try again."
+        );
+      } else if (isNetworkError(err)) {
+        setEnvironmentsError(
+          "Could not reach the setup server. Open this page from the MCP OAuth flow (not only a standalone Vite dev URL), or check your network and try again."
+        );
+      } else {
+        setEnvironmentsError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setLoadingEnvironments(false);
     }
