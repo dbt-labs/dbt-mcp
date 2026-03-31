@@ -4,9 +4,9 @@ import pytest
 
 from dbt_mcp.config.config_providers import (
     ConfigProvider,
-    DefaultDiscoveryConfigProvider,
     DiscoveryConfig,
 )
+from dbt_mcp.config.config_providers.discovery import DefaultDiscoveryConfigProvider
 from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
 from dbt_mcp.discovery.client import (
     DEFAULT_MAX_NODE_QUERY_LIMIT,

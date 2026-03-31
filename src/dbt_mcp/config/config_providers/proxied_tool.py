@@ -1,18 +1,7 @@
-from dataclasses import dataclass
-
 from dbt_mcp.config.headers import ProxiedToolHeadersProvider
 from dbt_mcp.config.settings import CredentialsProvider
 
-from .base import ConfigProvider
-
-
-@dataclass
-class ProxiedToolConfig:
-    user_id: int | None
-    dev_environment_id: int | None
-    prod_environment_id: int | None
-    url: str
-    headers_provider: ProxiedToolHeadersProvider
+from .base import ConfigProvider, ProxiedToolConfig
 
 
 class DefaultProxiedToolConfigProvider(ConfigProvider[ProxiedToolConfig]):

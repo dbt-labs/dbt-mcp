@@ -1,16 +1,7 @@
-from dataclasses import dataclass
-
-from dbt_mcp.config.headers import DiscoveryHeadersProvider, HeadersProvider
+from dbt_mcp.config.headers import DiscoveryHeadersProvider
 from dbt_mcp.config.settings import CredentialsProvider
 
-from .base import ConfigProvider
-
-
-@dataclass
-class DiscoveryConfig:
-    url: str
-    headers_provider: HeadersProvider
-    environment_id: int
+from .base import ConfigProvider, DiscoveryConfig
 
 
 class DefaultDiscoveryConfigProvider(ConfigProvider[DiscoveryConfig]):

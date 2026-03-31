@@ -6,8 +6,8 @@ from pydantic import Field
 from dbt_mcp.config.config_providers import (
     ConfigProvider,
     DiscoveryConfig,
-    resolve_project_environments,
 )
+from dbt_mcp.config.config_providers.semantic_layer import resolve_project_environments
 from dbt_mcp.config.headers import DiscoveryHeadersProvider
 from dbt_mcp.config.settings import CredentialsProvider
 from dbt_mcp.discovery.client import (

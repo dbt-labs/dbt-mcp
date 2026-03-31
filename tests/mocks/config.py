@@ -6,13 +6,17 @@ from dbt_mcp.config.config import (
 )
 from dbt_mcp.config.config_providers import (
     AdminApiConfig,
-    DefaultAdminApiConfigProvider,
-    DefaultDiscoveryConfigProvider,
-    DefaultProxiedToolConfigProvider,
-    DefaultSemanticLayerConfigProvider,
     DiscoveryConfig,
     ProxiedToolConfig,
     SemanticLayerConfig,
+)
+from dbt_mcp.config.config_providers.admin_api import DefaultAdminApiConfigProvider
+from dbt_mcp.config.config_providers.discovery import DefaultDiscoveryConfigProvider
+from dbt_mcp.config.config_providers.proxied_tool import (
+    DefaultProxiedToolConfigProvider,
+)
+from dbt_mcp.config.config_providers.semantic_layer import (
+    DefaultSemanticLayerConfigProvider,
 )
 from dbt_mcp.config.headers import (
     AdminApiHeadersProvider,

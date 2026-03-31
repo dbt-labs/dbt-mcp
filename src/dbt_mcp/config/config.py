@@ -1,10 +1,12 @@
 import os
 from dataclasses import dataclass
 
-from dbt_mcp.config.config_providers import (
-    DefaultAdminApiConfigProvider,
-    DefaultDiscoveryConfigProvider,
+from dbt_mcp.config.config_providers.admin_api import DefaultAdminApiConfigProvider
+from dbt_mcp.config.config_providers.discovery import DefaultDiscoveryConfigProvider
+from dbt_mcp.config.config_providers.proxied_tool import (
     DefaultProxiedToolConfigProvider,
+)
+from dbt_mcp.config.config_providers.semantic_layer import (
     DefaultSemanticLayerConfigProvider,
 )
 from dbt_mcp.config.settings import (

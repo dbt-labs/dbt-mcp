@@ -1,17 +1,7 @@
-from dataclasses import dataclass
-
-from dbt_mcp.config.headers import AdminApiHeadersProvider, HeadersProvider
+from dbt_mcp.config.headers import AdminApiHeadersProvider
 from dbt_mcp.config.settings import CredentialsProvider
 
-from .base import ConfigProvider
-
-
-@dataclass
-class AdminApiConfig:
-    url: str
-    headers_provider: HeadersProvider
-    account_id: int
-    prod_environment_id: int | None = None
+from .base import AdminApiConfig, ConfigProvider
 
 
 class DefaultAdminApiConfigProvider(ConfigProvider[AdminApiConfig]):

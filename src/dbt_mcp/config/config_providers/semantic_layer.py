@@ -1,7 +1,4 @@
-from dataclasses import dataclass
-
 from dbt_mcp.config.headers import (
-    HeadersProvider,
     SemanticLayerHeadersProvider,
     TokenProvider,
 )
@@ -9,16 +6,7 @@ from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
 from dbt_mcp.oauth.dbt_platform import DbtPlatformEnvironment
 from dbt_mcp.project.environment_resolver import get_environments_for_project
 
-from .base import ConfigProvider
-
-
-@dataclass
-class SemanticLayerConfig:
-    url: str
-    host: str
-    prod_environment_id: int
-    token_provider: TokenProvider
-    headers_provider: HeadersProvider
+from .base import ConfigProvider, SemanticLayerConfig
 
 
 async def resolve_project_environments(
