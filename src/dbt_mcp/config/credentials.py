@@ -3,11 +3,11 @@ import socket
 import time
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from filelock import FileLock
 
 from dbt_mcp.config.headers import TokenProvider
+from dbt_mcp.config.settings import DbtMcpSettings
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
 from dbt_mcp.oauth.dbt_platform import DbtPlatformContext
 from dbt_mcp.oauth.expiry import STARTUP_EXPIRY_BUFFER_SECONDS
@@ -17,9 +17,6 @@ from dbt_mcp.oauth.token_provider import (
     OAuthTokenProvider,
     StaticTokenProvider,
 )
-
-if TYPE_CHECKING:
-    from dbt_mcp.config.settings import DbtMcpSettings
 
 logger = logging.getLogger(__name__)
 
