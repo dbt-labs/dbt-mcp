@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: Split config_providers module into a package with separate files per provider type
+time: 2026-03-31T15:01:54.723481-05:00

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from dbtsl.api.shared.query_params import GroupByParam
 from mcp.server.fastmcp import FastMCP
 
-from dbt_mcp.config.config_providers import (
+from dbt_mcp.config.config_providers.semantic_layer import (
     DefaultSemanticLayerConfigProvider,
 )
 from dbt_mcp.prompts.prompts import get_prompt
