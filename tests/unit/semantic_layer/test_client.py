@@ -327,9 +327,8 @@ def mock_client_provider():
 
 
 @pytest.fixture
-def fetcher(mock_config_provider, mock_client_provider):
+def fetcher(mock_client_provider):
     return SemanticLayerFetcher(
-        config_provider=mock_config_provider,
         client_provider=mock_client_provider,
     )
 
@@ -374,7 +373,9 @@ async def test_get_dimensions_includes_metadata(
         }
     }
 
-    result = await fetcher.get_dimensions(metrics=["revenue"])
+    result = await fetcher.get_dimensions(
+        config=mock_config_provider.get_config.return_value, metrics=["revenue"]
+    )
 
     assert len(result) == 3
     assert result[0].metadata == {"display_name": "Order Date"}
@@ -395,16 +396,29 @@ class TestQueryMetricsCompiledTimeout:
         return client
 
     @pytest.fixture
-    def compiled_fetcher(self, mock_config_provider, mock_sl_client):
+    def mock_config(self):
+        token_p = MagicMock()
+        token_p.get_token.return_value = "tok"
+        headers_p = MagicMock()
+        headers_p.get_headers.return_value = {}
+        return SemanticLayerConfig(
+            url="https://test-host/api/graphql",
+            host="test-host",
+            prod_environment_id=123,
+            token_provider=token_p,
+            headers_provider=headers_p,
+        )
+
+    @pytest.fixture
+    def compiled_fetcher(self, mock_sl_client):
         client_provider = AsyncMock()
         client_provider.get_client.return_value = mock_sl_client
         return SemanticLayerFetcher(
-            config_provider=mock_config_provider,
             client_provider=client_provider,
         )
 
     async def test_compiled_timeout_raises_client_error(
-        self, compiled_fetcher, mock_sl_client
+        self, compiled_fetcher, mock_sl_client, mock_config
     ):
         """COMPILED status timeout should raise SemanticLayerQueryTimeoutError."""
         mock_sl_client.query.side_effect = RetryTimeoutError(
@@ -412,30 +426,36 @@ class TestQueryMetricsCompiledTimeout:
         )
 
         with pytest.raises(SemanticLayerQueryTimeoutError) as exc_info:
-            await compiled_fetcher.query_metrics(metrics=["revenue"])
+            await compiled_fetcher.query_metrics(
+                config=mock_config, metrics=["revenue"]
+            )
 
         assert "COMPILED" in str(exc_info.value)
 
     async def test_running_timeout_returns_error_result(
-        self, compiled_fetcher, mock_sl_client
+        self, compiled_fetcher, mock_sl_client, mock_config
     ):
         """RUNNING status timeout should return QueryMetricsError, not raise."""
         mock_sl_client.query.side_effect = RetryTimeoutError(
             timeout_s=60, status="RUNNING"
         )
 
-        result = await compiled_fetcher.query_metrics(metrics=["revenue"])
+        result = await compiled_fetcher.query_metrics(
+            config=mock_config, metrics=["revenue"]
+        )
 
         assert isinstance(result, QueryMetricsError)
         assert result.error is not None
 
     async def test_none_status_timeout_returns_error_result(
-        self, compiled_fetcher, mock_sl_client
+        self, compiled_fetcher, mock_sl_client, mock_config
     ):
         """None status timeout should return QueryMetricsError, not raise."""
         mock_sl_client.query.side_effect = RetryTimeoutError(timeout_s=60)
 
-        result = await compiled_fetcher.query_metrics(metrics=["revenue"])
+        result = await compiled_fetcher.query_metrics(
+            config=mock_config, metrics=["revenue"]
+        )
 
         assert isinstance(result, QueryMetricsError)
         assert result.error is not None
@@ -443,7 +463,7 @@ class TestQueryMetricsCompiledTimeout:
 
 @pytest.mark.asyncio
 async def test_query_metrics_sdk_client_uses_fetcher_config_override(
-    mock_config_provider, mock_client_provider
+    mock_client_provider,
 ):
     token_p = MagicMock()
     token_p.get_token.return_value = "tok"
@@ -465,18 +485,16 @@ async def test_query_metrics_sdk_client_uses_fetcher_config_override(
     mock_client_provider.get_client.return_value = mock_sl_client
 
     fetcher = SemanticLayerFetcher(
-        config_provider=mock_config_provider,
         client_provider=mock_client_provider,
-        config=override,
     )
-    await fetcher.query_metrics(metrics=["revenue"])
+    await fetcher.query_metrics(config=override, metrics=["revenue"])
 
     mock_client_provider.get_client.assert_awaited_once_with(config=override)
 
 
 @pytest.mark.asyncio
 async def test_get_metrics_compiled_sql_sdk_client_uses_fetcher_config_override(
-    mock_config_provider, mock_client_provider
+    mock_client_provider,
 ):
     token_p = MagicMock()
     token_p.get_token.return_value = "tok"
@@ -498,10 +516,8 @@ async def test_get_metrics_compiled_sql_sdk_client_uses_fetcher_config_override(
     mock_client_provider.get_client.return_value = mock_sl_client
 
     fetcher = SemanticLayerFetcher(
-        config_provider=mock_config_provider,
         client_provider=mock_client_provider,
-        config=override,
     )
-    await fetcher.get_metrics_compiled_sql(metrics=["revenue"])
+    await fetcher.get_metrics_compiled_sql(config=override, metrics=["revenue"])
 
     mock_client_provider.get_client.assert_awaited_once_with(config=override)

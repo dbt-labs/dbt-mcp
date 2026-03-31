@@ -113,13 +113,12 @@ async def expect_query_metrics_tool_call(
         assert args_dict.get("limit", None) is None
 
     assert config.semantic_layer_config_provider is not None
+    semantic_layer_config = await config.semantic_layer_config_provider.get_config()
     semantic_layer_fetcher = SemanticLayerFetcher(
-        config_provider=config.semantic_layer_config_provider,
-        client_provider=DefaultSemanticLayerClientProvider(
-            config_provider=config.semantic_layer_config_provider,
-        ),
+        client_provider=DefaultSemanticLayerClientProvider(),
     )
     tool_response = await semantic_layer_fetcher.query_metrics(
+        config=semantic_layer_config,
         metrics=args_dict["metrics"],
         group_by=[
             GroupByParam(name=g["name"], type=g["type"], grain=g.get("grain"))
