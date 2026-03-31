@@ -1,12 +1,9 @@
 import asyncio
-import logging
 import os
 
 from dbt_mcp.config.config import load_config
 from dbt_mcp.config.transport import validate_transport
 from dbt_mcp.mcp.server import create_dbt_mcp
-
-logger = logging.getLogger(__name__)
 
 
 def main() -> None:

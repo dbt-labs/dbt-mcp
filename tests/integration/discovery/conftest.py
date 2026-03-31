@@ -13,11 +13,17 @@ from dbt_mcp.discovery.client import (
     DEFAULT_PAGE_SIZE,
     ExposuresFetcher,
     MacrosFetcher,
-    MetadataAPIClient,
     ModelsFetcher,
     PaginatedResourceFetcher,
     SourcesFetcher,
 )
+
+
+@pytest.fixture
+async def discovery_config(
+    config_provider: ConfigProvider[DiscoveryConfig],
+) -> DiscoveryConfig:
+    return await config_provider.get_config()
 
 
 @pytest.fixture
@@ -40,26 +46,25 @@ def config_provider() -> ConfigProvider[DiscoveryConfig]:
 
 
 @pytest.fixture
-def api_client(config_provider: ConfigProvider[DiscoveryConfig]) -> MetadataAPIClient:
-    return MetadataAPIClient(config_provider)
+def credentials_provider() -> CredentialsProvider:
+    settings = DbtMcpSettings()  # type: ignore
+    return CredentialsProvider(settings)
 
 
 @pytest.fixture
-def models_fetcher(api_client: MetadataAPIClient) -> ModelsFetcher:
+def models_fetcher() -> ModelsFetcher:
     paginator = PaginatedResourceFetcher(
-        api_client,
         edges_path=("data", "environment", "applied", "models", "edges"),
         page_info_path=("data", "environment", "applied", "models", "pageInfo"),
         page_size=DEFAULT_PAGE_SIZE,
         max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
     )
-    return ModelsFetcher(api_client, paginator=paginator)
+    return ModelsFetcher(paginator=paginator)
 
 
 @pytest.fixture
-def exposures_fetcher(api_client: MetadataAPIClient) -> ExposuresFetcher:
+def exposures_fetcher() -> ExposuresFetcher:
     paginator = PaginatedResourceFetcher(
-        api_client,
         edges_path=("data", "environment", "definition", "exposures", "edges"),
         page_info_path=(
             "data",
@@ -71,28 +76,26 @@ def exposures_fetcher(api_client: MetadataAPIClient) -> ExposuresFetcher:
         page_size=DEFAULT_PAGE_SIZE,
         max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
     )
-    return ExposuresFetcher(api_client, paginator=paginator)
+    return ExposuresFetcher(paginator=paginator)
 
 
 @pytest.fixture
-def sources_fetcher(api_client: MetadataAPIClient) -> SourcesFetcher:
+def sources_fetcher() -> SourcesFetcher:
     paginator = PaginatedResourceFetcher(
-        api_client,
         edges_path=("data", "environment", "applied", "sources", "edges"),
         page_info_path=("data", "environment", "applied", "sources", "pageInfo"),
         page_size=DEFAULT_PAGE_SIZE,
         max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
     )
-    return SourcesFetcher(api_client, paginator=paginator)
+    return SourcesFetcher(paginator=paginator)
 
 
 @pytest.fixture
-def macros_fetcher(api_client: MetadataAPIClient) -> MacrosFetcher:
+def macros_fetcher() -> MacrosFetcher:
     paginator = PaginatedResourceFetcher(
-        api_client,
         edges_path=("data", "environment", "applied", "resources", "edges"),
         page_info_path=("data", "environment", "applied", "resources", "pageInfo"),
         page_size=DEFAULT_PAGE_SIZE,
         max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
     )
-    return MacrosFetcher(api_client, paginator=paginator)
+    return MacrosFetcher(paginator=paginator)

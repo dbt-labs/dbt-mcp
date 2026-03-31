@@ -16,6 +16,7 @@ from dbt_mcp.dbt_admin.tools import register_admin_api_tools
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.dbt_codegen.tools import register_dbt_codegen_tools
 from dbt_mcp.discovery.tools import register_discovery_tools
+from dbt_mcp.discovery.tools_multiproject import register_multiproject_discovery_tools
 from dbt_mcp.lsp.providers.local_lsp_client_provider import LocalLSPClientProvider
 from dbt_mcp.lsp.providers.local_lsp_connection_provider import (
     LocalLSPConnectionProvider,
@@ -175,6 +176,18 @@ async def register_multi_project_dbt_mcp(dbt_mcp: DbtMCP, config: Config) -> Non
             disabled_toolsets=disabled_toolsets,
         )
 
+    logger.info("Registering discovery tools for multi-project")
+    if config.discovery_config_provider:
+        register_multiproject_discovery_tools(
+            dbt_mcp=dbt_mcp,
+            discovery_config_provider=config.discovery_config_provider,
+            credentials_provider=config.credentials_provider,
+            disabled_tools=disabled_tools,
+            enabled_tools=enabled_tools,
+            enabled_toolsets=enabled_toolsets,
+            disabled_toolsets=disabled_toolsets,
+        )
+
 
 async def create_dbt_mcp(config: Config) -> DbtMCP:
     dbt_mcp = DbtMCP(
@@ -243,6 +256,7 @@ async def register_dbt_mcp_tools(dbt_mcp: DbtMCP, config: Config) -> None:
         register_discovery_tools(
             dbt_mcp,
             config.discovery_config_provider,
+            credentials_provider=config.credentials_provider,
             disabled_tools=disabled_tools,
             enabled_tools=enabled_tools,
             enabled_toolsets=enabled_toolsets,
