@@ -2,7 +2,8 @@ from dbt_mcp.config.headers import (
     SemanticLayerHeadersProvider,
     TokenProvider,
 )
-from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
+from dbt_mcp.config.credentials import CredentialsProvider
+from dbt_mcp.config.settings import DbtMcpSettings
 from dbt_mcp.oauth.dbt_platform import DbtPlatformEnvironment
 from dbt_mcp.project.environment_resolver import get_environments_for_project
 

@@ -9,8 +9,8 @@ from dbt_mcp.config.config_providers.proxied_tool import (
 from dbt_mcp.config.config_providers.semantic_layer import (
     DefaultSemanticLayerConfigProvider,
 )
+from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.config.settings import (
-    CredentialsProvider,
     DbtMcpLogSettings,
     DbtMcpSettings,
 )

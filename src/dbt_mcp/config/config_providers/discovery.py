@@ -1,5 +1,5 @@
 from dbt_mcp.config.headers import DiscoveryHeadersProvider
-from dbt_mcp.config.settings import CredentialsProvider
+from dbt_mcp.config.credentials import CredentialsProvider
 
 from .base import ConfigProvider, DiscoveryConfig
 
