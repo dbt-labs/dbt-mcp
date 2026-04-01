@@ -9,7 +9,6 @@ from dbt_mcp.config.config_providers import (
     MultiProjectConfigProvider,
     MultiProjectDiscoveryConfigProvider,
 )
-from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.discovery.client import (
     AppliedResourceType,
     ExposuresFetcher,
@@ -53,10 +52,8 @@ class MultiProjectDiscoveryToolContext:
         self,
         *,
         config_provider: MultiProjectConfigProvider[DiscoveryConfig],
-        credentials_provider: CredentialsProvider,
     ):
         self.config_provider = config_provider
-        self.credentials_provider = credentials_provider
         self.models_fetcher = ModelsFetcher(
             paginator=PaginatedResourceFetcher(
                 edges_path=("data", "environment", "applied", "models", "edges"),
@@ -532,7 +529,6 @@ MULTIPROJECT_DISCOVERY_TOOLS = [
 def register_multiproject_discovery_tools(
     dbt_mcp: FastMCP,
     config_provider: MultiProjectDiscoveryConfigProvider,
-    credentials_provider: CredentialsProvider,
     *,
     disabled_tools: set[ToolName],
     enabled_tools: set[ToolName] | None,
@@ -542,7 +538,6 @@ def register_multiproject_discovery_tools(
     def bind_context() -> MultiProjectDiscoveryToolContext:
         return MultiProjectDiscoveryToolContext(
             config_provider=config_provider,
-            credentials_provider=credentials_provider,
         )
 
     register_tools(
