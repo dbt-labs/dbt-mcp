@@ -178,14 +178,14 @@ async def register_multi_project_dbt_mcp(dbt_mcp: DbtMCP, config: Config) -> Non
         )
 
     logger.info("Registering discovery tools for multi-project")
-    if config.multi_project_config_provider:
+    if config.multi_project_discovery_config_provider:
         if not config.admin_api_config_provider:
             raise ConfigurationError(
                 "Admin API config provider is required for multi-project discovery"
             )
         register_multiproject_discovery_tools(
             dbt_mcp=dbt_mcp,
-            config_provider=config.multi_project_config_provider,
+            config_provider=config.multi_project_discovery_config_provider,
             credentials_provider=config.credentials_provider,
             disabled_tools=disabled_tools,
             enabled_tools=enabled_tools,
