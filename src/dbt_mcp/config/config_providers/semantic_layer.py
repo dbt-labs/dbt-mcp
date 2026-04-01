@@ -1,7 +1,7 @@
+from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.config.headers import (
     SemanticLayerHeadersProvider,
 )
-from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.errors import NotFoundError
 

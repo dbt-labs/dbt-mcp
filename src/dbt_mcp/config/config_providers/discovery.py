@@ -1,5 +1,5 @@
-from dbt_mcp.config.headers import DiscoveryHeadersProvider
 from dbt_mcp.config.credentials import CredentialsProvider
+from dbt_mcp.config.headers import DiscoveryHeadersProvider
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.errors import NotFoundError
 
@@ -39,7 +39,7 @@ class MultiProjectDiscoveryConfigProvider(MultiProjectConfigProvider[DiscoveryCo
 
     async def get_config(self, project_id: int) -> DiscoveryConfig:
         settings, token_provider = await self.credentials_provider.get_credentials()
-        assert settings.actual_host
+        assert settings.actual_host and settings.actual_prod_environment_id
         if settings.actual_host_prefix:
             url = f"https://{settings.actual_host_prefix}.metadata.{settings.base_host}/graphql"
         else:

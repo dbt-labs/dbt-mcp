@@ -7,7 +7,9 @@ from dbt_mcp.config.config_providers import (
     MultiProjectConfigProvider,
     SemanticLayerConfig,
 )
-from dbt_mcp.config.config_providers.semantic_layer import MultiProjectSemanticLayerConfigProvider
+from dbt_mcp.config.config_providers.semantic_layer import (
+    MultiProjectSemanticLayerConfigProvider,
+)
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.semantic_layer.client import (
     SemanticLayerClientProvider,

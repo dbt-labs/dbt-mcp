@@ -2,12 +2,12 @@ import os
 from dataclasses import dataclass
 
 from dbt_mcp.config.config_providers.admin_api import DefaultAdminApiConfigProvider
-from dbt_mcp.config.config_providers.discovery import DefaultDiscoveryConfigProvider
+from dbt_mcp.config.config_providers.discovery import (
+    DefaultDiscoveryConfigProvider,
+    MultiProjectDiscoveryConfigProvider,
+)
 from dbt_mcp.config.config_providers.proxied_tool import (
     DefaultProxiedToolConfigProvider,
-)
-from dbt_mcp.config.config_providers.discovery import (
-    MultiProjectDiscoveryConfigProvider,
 )
 from dbt_mcp.config.config_providers.semantic_layer import (
     DefaultSemanticLayerConfigProvider,
@@ -128,7 +128,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         )
 
     admin_api_config_provider = None
-    multi_project_config_provider = None
+    multi_project_discovery_config_provider = None
     multi_project_semantic_layer_config_provider = None
     if settings.actual_host:
         admin_api_config_provider = DefaultAdminApiConfigProvider(
@@ -136,10 +136,12 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         )
         admin_client = DbtAdminAPIClient(admin_api_config_provider)
         if settings.dbt_account_id:
-            multi_project_config_provider = MultiProjectDiscoveryConfigProvider(
-                account_id=settings.dbt_account_id,
-                credentials_provider=credentials_provider,
-                admin_client=admin_client,
+            multi_project_discovery_config_provider = (
+                MultiProjectDiscoveryConfigProvider(
+                    account_id=settings.dbt_account_id,
+                    credentials_provider=credentials_provider,
+                    admin_client=admin_client,
+                )
             )
             multi_project_semantic_layer_config_provider = (
                 MultiProjectSemanticLayerConfigProvider(
@@ -197,7 +199,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         proxied_tool_config_provider=proxied_tool_config_provider,
         dbt_cli_config=dbt_cli_config,
         dbt_codegen_config=dbt_codegen_config,
-        multi_project_discovery_config_provider=multi_project_config_provider,
+        multi_project_discovery_config_provider=multi_project_discovery_config_provider,
         discovery_config_provider=discovery_config_provider,
         multi_project_semantic_layer_config_provider=multi_project_semantic_layer_config_provider,
         semantic_layer_config_provider=semantic_layer_config_provider,
