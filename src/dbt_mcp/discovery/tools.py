@@ -5,7 +5,6 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
-from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.discovery.client import (
     AppliedResourceType,
     ExposuresFetcher,
@@ -36,7 +35,6 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class DiscoveryToolContext:
-    credentials_provider: CredentialsProvider
     models_fetcher: ModelsFetcher
     exposures_fetcher: ExposuresFetcher
     sources_fetcher: SourcesFetcher
@@ -48,9 +46,7 @@ class DiscoveryToolContext:
     def __init__(
         self,
         config_provider: ConfigProvider[DiscoveryConfig],
-        credentials_provider: CredentialsProvider,
     ):
-        self.credentials_provider = credentials_provider
         self.config_provider = config_provider
         self.models_fetcher = ModelsFetcher(
             paginator=PaginatedResourceFetcher(
@@ -111,10 +107,9 @@ class DiscoveryToolContext:
 async def get_mart_models(
     context: DiscoveryToolContext,
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     mart_models = await context.models_fetcher.fetch_models(
         model_filter={"modelingLayer": "marts"},
-        config=config,
+        config=await context.config_provider.get_config(),
     )
     return [m for m in mart_models if m["name"] != "metricflow_time_spine"]
 
@@ -168,7 +163,7 @@ async def get_model_parents(
 ) -> list[dict]:
     config = await context.config_provider.get_config()
     return await context.models_fetcher.fetch_model_parents(
-        name, unique_id, config=config
+        model_name=name, unique_id=unique_id, config=config
     )
 
 
@@ -502,7 +497,6 @@ DISCOVERY_TOOLS = [
 def register_discovery_tools(
     dbt_mcp: FastMCP,
     discovery_config_provider: ConfigProvider[DiscoveryConfig],
-    credentials_provider: CredentialsProvider,
     *,
     disabled_tools: set[ToolName],
     enabled_tools: set[ToolName] | None,
@@ -510,10 +504,7 @@ def register_discovery_tools(
     disabled_toolsets: set[Toolset],
 ) -> None:
     def bind_context() -> DiscoveryToolContext:
-        return DiscoveryToolContext(
-            config_provider=discovery_config_provider,
-            credentials_provider=credentials_provider,
-        )
+        return DiscoveryToolContext(config_provider=discovery_config_provider)
 
     register_tools(
         dbt_mcp,

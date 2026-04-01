@@ -9,6 +9,12 @@ from fastapi.staticfiles import StaticFiles
 from starlette.types import Receive, Scope, Send
 from uvicorn import Server
 
+from dbt_mcp.config.config_providers import (
+    AdminApiConfig,
+    StaticConfigProvider,
+)
+from dbt_mcp.config.headers import AdminApiHeadersProvider
+from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
 from dbt_mcp.oauth.dbt_platform import (
     DbtPlatformContext,
@@ -21,10 +27,7 @@ from dbt_mcp.oauth.dbt_platform import (
 from dbt_mcp.oauth.token import (
     DecodedAccessToken,
 )
-from dbt_mcp.project.environment_resolver import (
-    _get_all_environments_for_project,
-    resolve_environments,
-)
+from dbt_mcp.oauth.token_provider import StaticTokenProvider
 from dbt_mcp.project.project_resolver import (
     get_all_accounts,
     get_all_projects_for_account,
@@ -169,15 +172,20 @@ def create_app(
         if app.state.decoded_access_token is None:
             raise RuntimeError("Access token missing; OAuth flow not completed")
         access_token = app.state.decoded_access_token.access_token_response.access_token
-        headers = {
-            "Accept": "application/json",
-            "Authorization": f"Bearer {access_token}",
-        }
-        environments = await _get_all_environments_for_project(
-            dbt_platform_url=dbt_platform_url,
-            account_id=request.account_id,
-            project_id=request.project_id,
-            headers=headers,
+        admin_client = DbtAdminAPIClient(
+            StaticConfigProvider(
+                config=AdminApiConfig(
+                    url=dbt_platform_url,
+                    headers_provider=AdminApiHeadersProvider(
+                        token_provider=StaticTokenProvider(access_token)
+                    ),
+                    account_id=request.account_id,
+                    prod_environment_id=None,
+                )
+            )
+        )
+        environments = await admin_client.fetch_project_environment_responses(
+            request.project_id,
             page_size=100,
         )
         # Filter out development environments since this is for selecting production
@@ -208,15 +216,25 @@ def create_app(
         )
         if account is None:
             raise ValueError(f"Account {selected_project_request.account_id} not found")
-        environments = await _get_all_environments_for_project(
-            dbt_platform_url=dbt_platform_url,
-            account_id=selected_project_request.account_id,
-            project_id=selected_project_request.project_id,
-            headers=headers,
+
+        admin_client = DbtAdminAPIClient(
+            StaticConfigProvider(
+                config=AdminApiConfig(
+                    url=dbt_platform_url,
+                    headers_provider=AdminApiHeadersProvider(
+                        token_provider=StaticTokenProvider(access_token)
+                    ),
+                    account_id=selected_project_request.account_id,
+                    prod_environment_id=selected_project_request.prod_environment_id,
+                )
+            )
+        )
+        environments = await admin_client.fetch_project_environment_responses(
+            selected_project_request.project_id,
             page_size=100,
         )
 
-        prod_environment, dev_environment = resolve_environments(
+        prod_environment, dev_environment = DbtAdminAPIClient.resolve_environments(
             environments,
             prod_environment_id=selected_project_request.prod_environment_id,
         )

@@ -3,6 +3,12 @@
 from dbt_mcp.errors.base import ToolCallError
 
 
+class ConfigurationError(ToolCallError):
+    """Exception raised when there is an error in the configuration."""
+
+    pass
+
+
 class InvalidParameterError(ToolCallError):
     """Exception raised when invalid or missing parameters are provided.
 
