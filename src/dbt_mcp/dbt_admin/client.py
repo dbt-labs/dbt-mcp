@@ -39,7 +39,13 @@ class DbtAdminAPIClient:
 
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.request(method, url, headers=headers, **kwargs)
+                response = await client.request(
+                    method,
+                    url,
+                    headers=headers,
+                    follow_redirects=True,
+                    **kwargs,
+                )
                 response.raise_for_status()
                 return response.json()
         except httpx.HTTPError as e:
