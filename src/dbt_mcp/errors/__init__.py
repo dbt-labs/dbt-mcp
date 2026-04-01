@@ -5,7 +5,11 @@ from dbt_mcp.errors.admin_api import (
 )
 from dbt_mcp.errors.base import ToolCallError
 from dbt_mcp.errors.cli import BinaryExecutionError, CLIToolCallError
-from dbt_mcp.errors.common import InvalidParameterError, NotFoundError
+from dbt_mcp.errors.common import (
+    ConfigurationError,
+    InvalidParameterError,
+    NotFoundError,
+)
 from dbt_mcp.errors.discovery import DiscoveryToolCallError, GraphQLError
 from dbt_mcp.errors.semantic_layer import (
     SemanticLayerQueryTimeoutError,
@@ -30,6 +34,7 @@ ServerToolCallError = (
     | AdminAPIToolCallError
     | AdminAPIError
     | ArtifactRetrievalError
+    | ConfigurationError
 )
 
 __all__ = [
@@ -38,6 +43,7 @@ __all__ = [
     "ArtifactRetrievalError",
     "BinaryExecutionError",
     "CLIToolCallError",
+    "ConfigurationError",
     "ClientToolCallError",
     "DiscoveryToolCallError",
     "GraphQLError",

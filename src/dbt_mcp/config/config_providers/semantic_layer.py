@@ -1,16 +1,18 @@
 from dbt_mcp.config.headers import (
+    AdminApiHeadersProvider,
     SemanticLayerHeadersProvider,
     TokenProvider,
 )
 from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.config.settings import DbtMcpSettings
+from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.oauth.dbt_platform import DbtPlatformEnvironment
-from dbt_mcp.project.environment_resolver import get_environments_for_project
 
-from .base import ConfigProvider, SemanticLayerConfig
+from .admin_api import AdminApiConfig
+from .base import ConfigProvider, SemanticLayerConfig, StaticConfigProvider
 
 
-async def resolve_project_environments(
+async def _resolve_project_environments(
     credentials_provider: CredentialsProvider,
     project_id: int,
 ) -> tuple[
@@ -26,16 +28,20 @@ async def resolve_project_environments(
         if settings.actual_host_prefix
         else f"https://{settings.actual_host}"
     )
-    headers = {
-        "Accept": "application/json",
-        "Authorization": f"Bearer {token_provider.get_token()}",
-    }
-    prod_env, dev_env = await get_environments_for_project(
-        dbt_platform_url=dbt_platform_url,
-        account_id=settings.dbt_account_id,
-        project_id=project_id,
-        headers=headers,
-    )
+    prod_env, dev_env = await (
+        DbtAdminAPIClient(
+            StaticConfigProvider(
+                config=AdminApiConfig(
+                    url=dbt_platform_url,
+                    account_id=settings.dbt_account_id,
+                    headers_provider=AdminApiHeadersProvider(
+                        token_provider=token_provider
+                    ),
+                    prod_environment_id=settings.actual_prod_environment_id,
+                )
+            )
+        )
+    ).get_environments_for_project(project_id)
     if not prod_env:
         raise ValueError(f"No production environment found for project {project_id}")
     return settings, token_provider, prod_env, dev_env
@@ -46,7 +52,7 @@ class DefaultSemanticLayerConfigProvider(ConfigProvider[SemanticLayerConfig]):
         self.credentials_provider = credentials_provider
 
     async def get_config_for_project(self, project_id: int) -> SemanticLayerConfig:
-        settings, token_provider, prod_env, _ = await resolve_project_environments(
+        settings, token_provider, prod_env, _ = await _resolve_project_environments(
             self.credentials_provider, project_id
         )
         assert settings.actual_host
