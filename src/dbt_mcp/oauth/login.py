@@ -10,6 +10,7 @@ from uvicorn import Config, Server
 from dbt_mcp.oauth.client_id import OAUTH_CLIENT_ID
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
 from dbt_mcp.oauth.dbt_platform import DbtPlatformContext
+from dbt_mcp.oauth.fastapi_app import create_app
 from dbt_mcp.oauth.logging import disable_server_logs
 
 logger = logging.getLogger(__name__)
@@ -52,9 +53,6 @@ async def login(
         if not packaged_dist.is_dir():
             raise FileNotFoundError(f"{packaged_dist} not found in packaged resources")
         static_dir = str(packaged_dist)
-
-        # Create FastAPI app and Uvicorn server (local import avoids circular imports)
-        from dbt_mcp.oauth.fastapi_app import create_app
 
         app = create_app(
             oauth_client=client,
