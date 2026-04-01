@@ -65,7 +65,7 @@ function sleep(ms: number) {
 async function fetchWithRetry(
   input: RequestInfo | URL,
   init?: RequestInit,
-  options?: FetchRetryOptions
+  options?: FetchRetryOptions,
 ): Promise<Response> {
   const {
     attempts = 3,
@@ -299,7 +299,7 @@ export default function App() {
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(
-    null
+    null,
   );
   const [dbtPlatformContext, setDbtPlatformContext] =
     useState<DbtPlatformContext | null>(null);
@@ -308,7 +308,7 @@ export default function App() {
   const [environments, setEnvironments] = useState<Environment[]>([]);
   const [loadingEnvironments, setLoadingEnvironments] = useState(false);
   const [environmentsError, setEnvironmentsError] = useState<string | null>(
-    null
+    null,
   );
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<
     number | null
@@ -328,7 +328,7 @@ export default function App() {
         const response = await fetchWithRetry(
           "/projects",
           { signal: abortController.signal },
-          { attempts: 3, delayMs: 400 }
+          { attempts: 3, delayMs: 400 },
         );
 
         if (!response.ok) {
@@ -373,7 +373,7 @@ export default function App() {
         const res = await fetchWithRetry(
           "/dbt_platform_context",
           { signal: abortController.signal },
-          { attempts: 2, delayMs: 400 }
+          { attempts: 2, delayMs: 400 },
         );
         if (!res.ok || cancelled) return; // if no config yet or server error, skip silently
         const data: DbtPlatformContext = await res.json();
@@ -402,7 +402,7 @@ export default function App() {
       const res = await fetchWithRetry(
         "/shutdown",
         { method: "POST" },
-        { attempts: 3, delayMs: 400 }
+        { attempts: 3, delayMs: 400 },
       );
       const text = await res.text();
       if (res.ok) {
@@ -414,7 +414,7 @@ export default function App() {
     } catch (err) {
       if (isNetworkError(err)) {
         setResponseText(
-          "Something went wrong when setting up the authentication. Please close this window and try again."
+          "Something went wrong when setting up the authentication. Please close this window and try again.",
         );
       } else {
         setResponseText(String(err));
@@ -447,7 +447,7 @@ export default function App() {
             project_id: project.id,
           }),
         },
-        { attempts: 3, delayMs: 400 }
+        { attempts: 3, delayMs: 400 },
       );
       if (res.ok) {
         const data: Environment[] = await res.json();
@@ -456,7 +456,7 @@ export default function App() {
         const prodEnv = data.find(
           (env) =>
             env.deployment_type &&
-            env.deployment_type.toLowerCase() === "production"
+            env.deployment_type.toLowerCase() === "production",
         );
         if (prodEnv) {
           setSelectedEnvironmentId(prodEnv.id);
@@ -467,17 +467,7 @@ export default function App() {
         setEnvironmentsError(await res.text());
       }
     } catch (err) {
-      if (isAbortError(err)) {
-        setEnvironmentsError(
-          "The request took too long or was cancelled. Check your connection and try again."
-        );
-      } else if (isNetworkError(err)) {
-        setEnvironmentsError(
-          "Could not reach the setup server. Open this page from the MCP OAuth flow (not only a standalone Vite dev URL), or check your network and try again."
-        );
-      } else {
-        setEnvironmentsError(err instanceof Error ? err.message : String(err));
-      }
+      setEnvironmentsError(String(err));
     } finally {
       setLoadingEnvironments(false);
     }
@@ -504,7 +494,7 @@ export default function App() {
             prod_environment_id: selectedEnvironmentId,
           }),
         },
-        { attempts: 3, delayMs: 400 }
+        { attempts: 3, delayMs: 400 },
       );
       if (res.ok) {
         const data = await res.json();
@@ -538,9 +528,7 @@ export default function App() {
           <section className="error-section">
             <div className="section-header">
               <h2>Authentication Error</h2>
-              <p>
-                The dbt MCP server could not authenticate with dbt Platform
-              </p>
+              <p>The dbt MCP server could not authenticate with dbt Platform</p>
             </div>
 
             <div className="error-details">
@@ -645,7 +633,11 @@ export default function App() {
                     >
                       {environments.map((env) => (
                         <option key={env.id} value={env.id}>
-                          {env.name} ({env.deployment_type ? `${env.deployment_type} - ${env.id}` : env.id})
+                          {env.name} (
+                          {env.deployment_type
+                            ? `${env.deployment_type} - ${env.id}`
+                            : env.id}
+                          )
                         </option>
                       ))}
                     </select>
@@ -669,7 +661,10 @@ export default function App() {
                 environments.length > 0 &&
                 selectedEnvironmentId !== null &&
                 !dbtPlatformContext && (
-                  <div className="button-container" style={{ marginTop: "1rem" }}>
+                  <div
+                    className="button-container"
+                    style={{ marginTop: "1rem" }}
+                  >
                     <button
                       onClick={onConfirmSelection}
                       className="primary-button"
@@ -737,8 +732,8 @@ export default function App() {
             <div className="completion-card">
               <h2>All Set!</h2>
               <p>
-                The dbt MCP server is authenticated and configured with your
-                dbt Platform account. This window can now be closed.
+                The dbt MCP server is authenticated and configured with your dbt
+                Platform account. This window can now be closed.
               </p>
             </div>
           </section>
