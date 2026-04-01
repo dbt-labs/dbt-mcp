@@ -184,7 +184,6 @@ async def register_multi_project_dbt_mcp(dbt_mcp: DbtMCP, config: Config) -> Non
         register_multiproject_discovery_tools(
             dbt_mcp=dbt_mcp,
             config_provider=config.multi_project_discovery_config_provider,
-            credentials_provider=config.credentials_provider,
             disabled_tools=disabled_tools,
             enabled_tools=enabled_tools,
             enabled_toolsets=enabled_toolsets,

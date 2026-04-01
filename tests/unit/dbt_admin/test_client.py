@@ -96,7 +96,10 @@ async def test_make_request_success(client):
     assert result == {"data": "test"}
     headers = await client.get_headers()
     mock_client.request.assert_called_once_with(
-        "GET", "https://cloud.getdbt.com/test/endpoint", headers=headers
+        "GET",
+        "https://cloud.getdbt.com/test/endpoint",
+        headers=headers,
+        follow_redirects=True,
     )
 
 
@@ -159,6 +162,7 @@ async def test_list_jobs(client):
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/jobs/",
         headers=headers,
+        follow_redirects=True,
         params={
             "project_id": 1,
             "limit": 10,
@@ -213,6 +217,7 @@ async def test_get_job_details(client):
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/jobs/1/",
         headers=headers,
+        follow_redirects=True,
         params={"include_related": "['most_recent_run','most_recent_completed_run']"},
     )
 
@@ -235,6 +240,7 @@ async def test_trigger_job_run(client):
         "POST",
         "https://cloud.getdbt.com/api/v2/accounts/12345/jobs/1/run/",
         headers=headers,
+        follow_redirects=True,
         json={
             "cause": "Manual trigger",
             "git_branch": "main",
@@ -333,6 +339,7 @@ async def test_list_jobs_runs(client):
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/",
         headers=headers,
+        follow_redirects=True,
         params={
             "job_definition_id": 1,
             "status": "success",
@@ -407,6 +414,7 @@ async def test_get_job_run_details(client):
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/",
         headers=headers,
+        follow_redirects=True,
         params={"include_related": "['run_steps']"},
     )
 
@@ -427,6 +435,7 @@ async def test_cancel_job_run(client):
         "POST",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/cancel/",
         headers=headers,
+        follow_redirects=True,
     )
 
 
@@ -446,6 +455,7 @@ async def test_retry_job_run(client):
         "POST",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/retry/",
         headers=headers,
+        follow_redirects=True,
     )
 
 
@@ -476,6 +486,7 @@ async def test_list_job_run_artifacts(client):
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/artifacts/",
         headers=headers,
+        follow_redirects=True,
     )
 
 
@@ -617,6 +628,7 @@ async def test_list_projects(client):
         "GET",
         "https://cloud.getdbt.com/api/v3/accounts/12345/projects/",
         headers=headers,
+        follow_redirects=True,
         params={
             "state": 1,
             "include_related": "['environments','repository']",
