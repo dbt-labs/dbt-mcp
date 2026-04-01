@@ -1,3 +1,0 @@
-kind: Under the Hood
-body: Extract CredentialsProvider into credentials.py to break circular import
-time: 2026-03-31T16:44:40.792228-05:00
