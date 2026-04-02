@@ -6,9 +6,11 @@ import httpx
 import pytest
 
 from dbt_mcp.config.config import load_config
+from dbt_mcp.config.dbt_project import SemVer, parse_dbt_version_minor
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.mcp.server import create_dbt_mcp
 from dbt_mcp.product_docs.client import (
+    detect_eol_page,
     normalize_doc_url,
     parse_llms_full_txt,
     parse_llms_txt,
@@ -93,6 +95,16 @@ def context(mock_client):
     """Create ProductDocsToolContext with a mocked client."""
     ctx = ProductDocsToolContext.__new__(ProductDocsToolContext)
     ctx.client = mock_client
+    ctx.dbt_version = None
+    return ctx
+
+
+@pytest.fixture
+def versioned_context(mock_client):
+    """Create ProductDocsToolContext with a mocked client and dbt version set."""
+    ctx = ProductDocsToolContext.__new__(ProductDocsToolContext)
+    ctx.client = mock_client
+    ctx.dbt_version = "1.8"
     return ctx
 
 
@@ -498,6 +510,197 @@ class TestSearchFullText:
         client._cache["full_text"] = parse_llms_full_txt(SAMPLE_LLMS_FULL_TXT)
         results = await client.search_full_text(["incremental"])
         assert results[0]["url"].endswith("incremental-models-overview")
+
+
+class TestParseDbtVersionMinor:
+    def test_string_constraint(self):
+        assert parse_dbt_version_minor(">=1.8.0") == SemVer(1, 8, "0")
+
+    def test_list_constraint(self):
+        assert parse_dbt_version_minor([">=1.8.0", "<2.0"]) == SemVer(1, 8, "0")
+
+    def test_bare_version(self):
+        assert parse_dbt_version_minor("1.10") == SemVer(1, 10, "0")
+
+    def test_none(self):
+        assert parse_dbt_version_minor(None) is None
+
+    def test_unparseable(self):
+        assert parse_dbt_version_minor("latest") is None
+
+    def test_patch_version(self):
+        assert parse_dbt_version_minor(">=1.9.3") == SemVer(1, 9, "3")
+
+    def test_exact_version_string(self):
+        assert parse_dbt_version_minor("1.7.0") == SemVer(1, 7, "0")
+
+    def test_future_major_version(self):
+        assert parse_dbt_version_minor(">=2.0.0") == SemVer(2, 0, "0")
+
+    def test_semver_str(self):
+        assert str(SemVer(1, 8, "0")) == "1.8.0"
+
+
+class TestDetectEolPage:
+    def test_older_versions_url(self):
+        url = "https://docs.getdbt.com/docs/dbt-versions/core-upgrade/Older versions/upgrading-to-v1.5.md"
+        assert detect_eol_page(url) is True
+
+    def test_url_encoded_older_versions(self):
+        url = "https://docs.getdbt.com/docs/dbt-versions/core-upgrade/Older%20versions/upgrading-to-v1.3.md"
+        assert detect_eol_page(url) is True
+
+    def test_current_upgrade_url(self):
+        url = "https://docs.getdbt.com/docs/dbt-versions/core-upgrade/upgrading-to-v1.9.md"
+        assert detect_eol_page(url) is False
+
+    def test_regular_docs_url(self):
+        url = "https://docs.getdbt.com/docs/build/models.md"
+        assert detect_eol_page(url) is False
+
+    def test_eol_boundary_version(self):
+        # v1.6 is the last EOL version
+        url = "https://docs.getdbt.com/docs/dbt-versions/core-upgrade/upgrading-to-v1.6.md"
+        assert detect_eol_page(url) is True
+
+    def test_first_supported_version(self):
+        # v1.7 is the first non-EOL version
+        url = "https://docs.getdbt.com/docs/dbt-versions/core-upgrade/upgrading-to-v1.7.md"
+        assert detect_eol_page(url) is False
+
+    def test_older_versions_folder_without_version_in_path(self):
+        # Pages in the folder that don't have an explicit version number use folder detection
+        url = "https://docs.getdbt.com/docs/dbt-versions/core-upgrade/Older versions/some-old-page.md"
+        assert detect_eol_page(url) is True
+
+
+class TestGetDbtVersion:
+    """Tests for the real get_dbt_version implementation.
+
+    The conftest stubs out get_dbt_version to prevent real subprocess calls
+    in integration-style tests. Here we reference the saved real implementation.
+    """
+
+    @pytest.fixture(autouse=True)
+    def real_fn(self):
+        import dbt_mcp.dbt_cli.binary_type as bt_mod
+
+        self._real = bt_mod._real_get_dbt_version  # type: ignore[attr-defined]
+
+    def test_dbt_core_installed_line(self):
+        from unittest.mock import MagicMock, patch
+
+        mock_result = MagicMock()
+        mock_result.stdout = "Core:\n  - installed: 1.8.4\n  - latest:    1.9.0\n"
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result):
+            version = self._real("/usr/bin/dbt", BinaryType.DBT_CORE)
+        assert version == "1.8.4"
+
+    def test_dbt_cloud_cli(self):
+        from unittest.mock import MagicMock, patch
+
+        mock_result = MagicMock()
+        mock_result.stdout = "dbt Cloud CLI - 0.38.23 (fcd1b61abc)\n"
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result):
+            version = self._real("/usr/bin/dbt", BinaryType.DBT_CLOUD_CLI)
+        assert version == "0.38.23"
+
+    def test_fusion_fallback(self):
+        from unittest.mock import MagicMock, patch
+
+        mock_result = MagicMock()
+        mock_result.stdout = "dbt-fusion 1.9.0\n"
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result):
+            version = self._real("/usr/bin/dbt", BinaryType.FUSION)
+        assert version == "1.9.0"
+
+    def test_subprocess_failure_returns_none(self):
+        from unittest.mock import patch
+
+        with patch("subprocess.run", side_effect=OSError("not found")):
+            version = self._real("/no/dbt", BinaryType.DBT_CORE)
+        assert version is None
+
+    def test_empty_output_returns_none(self):
+        from unittest.mock import MagicMock, patch
+
+        mock_result = MagicMock()
+        mock_result.stdout = ""
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result):
+            version = self._real("/usr/bin/dbt", BinaryType.DBT_CORE)
+        assert version is None
+
+
+class TestVersionInSearchResponse:
+    @pytest.mark.asyncio
+    async def test_search_includes_dbt_project_version(
+        self, versioned_context, mock_client
+    ):
+        mock_client.search_index.return_value = [
+            {"title": "Models", "url": "https://docs.getdbt.com/docs/build/models"},
+        ]
+        result = await search_product_docs.fn(versioned_context, "models")
+        assert result.dbt_project_version == "1.8"
+
+    @pytest.mark.asyncio
+    async def test_search_version_none_when_not_set(self, context, mock_client):
+        mock_client.search_index.return_value = [
+            {"title": "Models", "url": "https://docs.getdbt.com/docs/build/models"},
+        ]
+        result = await search_product_docs.fn(context, "models")
+        assert result.dbt_project_version is None
+
+    @pytest.mark.asyncio
+    async def test_search_empty_query_still_has_version(self, versioned_context):
+        result = await search_product_docs.fn(versioned_context, "")
+        assert result.dbt_project_version == "1.8"
+        assert result.error is not None
+
+
+class TestVersionInGetPagesResponse:
+    @pytest.mark.asyncio
+    async def test_get_pages_includes_dbt_project_version(
+        self, versioned_context, mock_client
+    ):
+        mock_client.get_page.return_value = "# Page Content"
+        result = await get_product_doc_pages.fn(
+            versioned_context, ["/docs/build/models"]
+        )
+        assert result.dbt_project_version == "1.8"
+
+    @pytest.mark.asyncio
+    async def test_get_pages_version_none_when_not_set(self, context, mock_client):
+        mock_client.get_page.return_value = "# Page Content"
+        result = await get_product_doc_pages.fn(context, ["/docs/build/models"])
+        assert result.dbt_project_version is None
+
+
+class TestEolPageAnnotation:
+    @pytest.mark.asyncio
+    async def test_fetched_eol_page_has_warning(self, context, mock_client):
+        mock_client.get_page.return_value = "# Upgrading to v1.5\n\nOld content."
+        result = await get_product_doc_pages.fn(
+            context,
+            [
+                "https://docs.getdbt.com/docs/dbt-versions/core-upgrade/Older versions/upgrading-to-v1.5"
+            ],
+        )
+        page = result.pages[0]
+        assert page.version_note is not None
+        assert "end-of-life" in page.version_note
+        assert page.content.startswith(">>> VERSION NOTICE:")
+
+    @pytest.mark.asyncio
+    async def test_fetched_current_page_no_annotation(self, context, mock_client):
+        mock_client.get_page.return_value = "# Models\n\nCurrent content."
+        result = await get_product_doc_pages.fn(context, ["/docs/build/models"])
+        page = result.pages[0]
+        assert page.version_note is None
+        assert not page.content.startswith(">>>")
 
 
 class TestProductDocsRegistration:

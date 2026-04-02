@@ -18,7 +18,16 @@ try:
     def _detect_binary_type_stub(file_path: str):
         return _binary_type.BinaryType.FUSION
 
+    def _get_dbt_version_stub(
+        dbt_path: str, binary_type: "_binary_type.BinaryType"
+    ) -> str | None:
+        return None
+
+    # Save the real implementation so tests can reference it directly.
+    _binary_type._real_get_dbt_version = _binary_type.get_dbt_version  # type: ignore[attr-defined]
+
     _binary_type.detect_binary_type = _detect_binary_type_stub
+    _binary_type.get_dbt_version = _get_dbt_version_stub
 except Exception:
     # If importing the module fails for some reason in certain test environments,
     # don't raise here — the tests will surface the import problem separately.
