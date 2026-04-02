@@ -9,9 +9,11 @@ from dbt_mcp.config.config import load_config
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.mcp.server import create_dbt_mcp
 from dbt_mcp.product_docs.client import (
+    extract_relevant_sections,
     normalize_doc_url,
     parse_llms_full_txt,
     parse_llms_txt,
+    split_markdown_sections,
 )
 from dbt_mcp.product_docs.tools import (
     ProductDocsToolContext,
@@ -389,12 +391,28 @@ class TestGetProductDocPages:
         assert all(p.error is not None for p in result.pages)
 
     @pytest.mark.asyncio
-    async def test_clamped_to_10_pages(self, context, mock_client):
+    async def test_clamped_to_5_pages(self, context, mock_client):
         mock_client.get_page.return_value = "# Content"
         paths = [f"/docs/page-{i}" for i in range(15)]
 
         result = await get_product_doc_pages.fn(context, paths)
-        assert len(result.pages) == 10
+        assert len(result.pages) == 5
+
+    @pytest.mark.asyncio
+    async def test_query_filters_to_relevant_sections(self, context, mock_client):
+        mock_client.get_page.return_value = (
+            "## Incremental models\n\n"
+            "Incremental models are efficient for large tables.\n\n"
+            "## Seeds\n\n"
+            "Seeds are CSV files in your project."
+        )
+        result = await get_product_doc_pages.fn(
+            context, ["/docs/build/incremental-models"], "incremental"
+        )
+        page = result.pages[0]
+        assert page.error is None
+        assert "Incremental" in page.content
+        assert "Seeds" not in page.content
 
     @pytest.mark.asyncio
     async def test_empty_paths_list(self, context, mock_client):
@@ -540,3 +558,63 @@ class TestProductDocsRegistration:
 
             assert "search_product_docs" in tool_names
             assert "get_product_doc_pages" in tool_names
+
+
+class TestSplitMarkdownSections:
+    def test_splits_by_h2(self):
+        content = "intro\n\n## Section A\n\nContent A.\n\n## Section B\n\nContent B."
+        sections = split_markdown_sections(content)
+        assert len(sections) == 3
+        assert sections[0] == ("", "intro\n\n")
+        assert sections[1][0] == "## Section A"
+        assert sections[2][0] == "## Section B"
+
+    def test_no_headers_returns_single(self):
+        content = "Just plain text with no headers."
+        sections = split_markdown_sections(content)
+        assert sections == [("", content)]
+
+    def test_h1_h2_h3_all_split(self):
+        content = "# H1\n\nA\n\n## H2\n\nB\n\n### H3\n\nC"
+        sections = split_markdown_sections(content)
+        assert len(sections) == 3
+        assert sections[0][0] == "# H1"
+        assert sections[1][0] == "## H2"
+        assert sections[2][0] == "### H3"
+
+    def test_no_content_before_first_header(self):
+        content = "## Only Section\n\nBody text."
+        sections = split_markdown_sections(content)
+        assert len(sections) == 1
+        assert sections[0][0] == "## Only Section"
+
+
+class TestExtractRelevantSections:
+    def test_returns_most_relevant_section(self):
+        content = (
+            "## Incremental models\n\nIncremental models are efficient.\n\n"
+            "## Seeds\n\nSeeds are CSV files."
+        )
+        result = extract_relevant_sections(content, "incremental")
+        assert "Incremental models" in result
+        assert "Seeds" not in result
+
+    def test_falls_back_when_no_headers(self):
+        content = "x" * 200
+        result = extract_relevant_sections(content, "something", max_chars=50)
+        assert len(result) <= 200
+
+    def test_falls_back_when_empty_query(self):
+        content = ("## Section\n\nSome content here.") * 10
+        result = extract_relevant_sections(content, "", max_chars=20)
+        assert len(result) <= 100
+
+    def test_respects_max_chars(self):
+        content = "## relevant\n\n" + "relevant word " * 500
+        result = extract_relevant_sections(content, "relevant", max_chars=100)
+        assert len(result) <= 200
+
+    def test_falls_back_when_no_section_scores(self):
+        content = "## Alpha\n\nAlpha content.\n\n## Beta\n\nBeta content."
+        result = extract_relevant_sections(content, "zzznomatch", max_chars=500)
+        assert "Alpha" in result or len(result) <= 500

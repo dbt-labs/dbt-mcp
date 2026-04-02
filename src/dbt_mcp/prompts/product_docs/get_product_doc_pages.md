@@ -1,4 +1,4 @@
-Retrieve the full Markdown content of one or more dbt documentation pages from docs.getdbt.com. Pass a list of URLs or relative paths (e.g. from search_product_docs results). Up to 10 pages can be fetched per call; pages are fetched in parallel for speed.
+Retrieve the Markdown content of one or more dbt documentation pages from docs.getdbt.com. Pass a list of URLs or relative paths (e.g. from search_product_docs results). Up to 5 pages can be fetched per call; pages are fetched in parallel for speed. Pass the optional `query` parameter to retrieve only the most relevant sections of each page rather than the full content — this significantly reduces response size and is recommended when you already know what topic you are looking for.
 
 IMPORTANT — how to present docs content to the user:
 1. Give a direct answer first, then explain. Don't just summarize — be specific about WHERE to find a feature in the UI and HOW it works.
