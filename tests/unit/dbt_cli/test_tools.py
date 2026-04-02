@@ -445,3 +445,66 @@ def test_compile_supports_selection(
     compile_tool(node_selection="my_model")
     assert "--select" in mock_calls[0]
     assert "my_model" in mock_calls[0]
+
+
+@pytest.mark.parametrize("command_name", ["build", "run", "test", "compile", "ls"])
+def test_yml_selector_flag_added_to_command(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, command_name
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    tool = tools[command_name]
+
+    assert "yml_selector" in inspect.signature(tool).parameters
+
+    tool(yml_selector="nightly")
+
+    assert mock_calls
+    args_list = mock_calls[0]
+    assert "--selector" in args_list
+    assert "nightly" in args_list
+    assert "--select" not in args_list
+
+
+def test_yml_selector_not_added_when_none(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    build_tool = tools["build"]
+
+    build_tool()
+
+    assert mock_calls
+    args_list = mock_calls[0]
+    assert "--selector" not in args_list
