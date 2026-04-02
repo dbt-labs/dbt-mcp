@@ -7,13 +7,12 @@ from dbt_mcp.config.config_providers import (
     DefaultProxiedToolConfigProvider,
     DefaultSemanticLayerConfigProvider,
 )
-from dbt_mcp.config.dbt_project import parse_dbt_version_minor
 from dbt_mcp.config.settings import (
     CredentialsProvider,
     DbtMcpSettings,
     DbtMcpLogSettings,
 )
-from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
+from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type, get_dbt_version
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo, dbt_lsp_binary_info
 from dbt_mcp.telemetry.logging import configure_logging
 from dbt_mcp.tools.tool_names import ToolName
@@ -123,9 +122,12 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
             credentials_provider=credentials_provider,
         )
 
-    dbt_cli_config = None
-    if settings.dbt_project_dir and settings.dbt_path:
+    binary_type: BinaryType | None = None
+    if settings.dbt_path:
         binary_type = detect_binary_type(settings.dbt_path)
+
+    dbt_cli_config = None
+    if settings.dbt_project_dir and settings.dbt_path and binary_type is not None:
         dbt_cli_config = DbtCliConfig(
             project_dir=settings.dbt_project_dir,
             dbt_path=settings.dbt_path,
@@ -134,8 +136,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         )
 
     dbt_codegen_config = None
-    if settings.dbt_project_dir and settings.dbt_path:
-        binary_type = detect_binary_type(settings.dbt_path)
+    if settings.dbt_project_dir and settings.dbt_path and binary_type is not None:
         dbt_codegen_config = DbtCodegenConfig(
             project_dir=settings.dbt_project_dir,
             dbt_path=settings.dbt_path,
@@ -164,9 +165,8 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         )
 
     dbt_version: str | None = None
-    project_yml = settings.dbt_project_yml
-    if project_yml and project_yml.require_dbt_version:
-        dbt_version = parse_dbt_version_minor(project_yml.require_dbt_version)
+    if settings.dbt_path and binary_type is not None:
+        dbt_version = get_dbt_version(settings.dbt_path, binary_type)
 
     return Config(
         disable_tools=settings.disable_tools or [],
