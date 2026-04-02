@@ -52,6 +52,7 @@ class TestUsageTracker:
             dbt_user_id=3,
             actual_host="test.dbt.com",
             actual_host_prefix="prefix",
+            account_identifier="ab123",
         )
 
         mock_credentials_provider = MockCredentialsProvider(mock_settings)
@@ -87,6 +88,41 @@ class TestUsageTracker:
         assert tool_called.dbt_cloud_environment_id_prod == "1"
         assert tool_called.dbt_cloud_user_id == "3"
         assert tool_called.local_user_id == "local-user"
+        assert tool_called.ctx.dbt_cloud_account_identifier == "ab123"
+
+    @pytest.mark.asyncio
+    async def test_emit_tool_called_event_account_identifier_none(self):
+        """When account_identifier is None, dbt_cloud_account_identifier defaults to empty string."""
+        mock_settings = DbtMcpSettings.model_construct(
+            do_not_track=None,
+            send_anonymous_usage_data=None,
+            account_identifier=None,
+        )
+
+        tracker = DefaultUsageTracker(
+            credentials_provider=MockCredentialsProvider(mock_settings),
+            session_id=uuid.uuid4(),
+        )
+
+        with (
+            patch("dbt_mcp.tracking.tracking.log_proto") as mock_log_proto,
+            patch(
+                "dbt_mcp.tracking.tracking.DefaultUsageTracker._get_local_user_id",
+                return_value="local-user",
+            ),
+        ):
+            await tracker.emit_tool_called_event(
+                tool_called_event=ToolCalledEvent(
+                    tool_name="list_metrics",
+                    arguments={},
+                    start_time_ms=0,
+                    end_time_ms=1,
+                    error_message=None,
+                ),
+            )
+
+        tool_called = mock_log_proto.call_args.args[0]
+        assert tool_called.ctx.dbt_cloud_account_identifier == ""
 
     @pytest.mark.asyncio
     async def test_get_local_user_id_success(self):

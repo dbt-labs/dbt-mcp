@@ -52,6 +52,14 @@ class DbtAdminAPIClient:
             logger.error(f"API request failed: {e}")
             raise AdminAPIError(f"API request failed: {e}")
 
+    async def get_account(self, account_id: int) -> dict[str, Any]:
+        """Get details for an account."""
+        result = await self._make_request(
+            "GET",
+            f"/api/v2/accounts/{account_id}/",
+        )
+        return result.get("data", {})
+
     @cache
     async def list_jobs(self, account_id: int, **params) -> list[dict[str, Any]]:
         """List jobs for an account."""
