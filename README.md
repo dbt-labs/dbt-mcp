@@ -123,6 +123,68 @@ These tools provide information about the MCP server itself.
 
 Commonly, you will connect the dbt MCP server to an agent product like Claude or Cursor. However, if you are interested in creating your own agent, check out [the examples directory](https://github.com/dbt-labs/dbt-mcp/tree/main/examples) for how to get started.
 
+## OIDC auth gateway for remote deployment
+
+When deploying this server over HTTP, you can protect inbound MCP requests with OIDC token verification.
+This is separate from dbt platform credential configuration (`DBT_TOKEN`, OAuth login flow, PAT/service tokens).
+
+Required environment variables:
+
+- `DBT_MCP_OIDC_ENABLED=true`
+- `DBT_MCP_OIDC_ISSUER_URL=https://your-auth-server.example.com/realms/your-realm`
+- `DBT_MCP_OIDC_RESOURCE_SERVER_URL=https://your-mcp-server.example.com`
+- `DBT_MCP_OIDC_CLIENT_ID=your-client-id`
+- `DBT_MCP_OIDC_REQUIRED_SCOPES=mcp:tools` (optional, defaults to `mcp:tools`)
+
+Optional environment variables:
+
+- `DBT_MCP_OIDC_INTROSPECTION_ENDPOINT=https://your-auth-server.example.com/.../introspect`
+- `DBT_MCP_OIDC_CLIENT_SECRET=your-client-secret` (required when introspection is configured)
+- `DBT_MCP_OIDC_NATIVE_AUTH_ENABLED=true` (enables a local MCP OAuth broker with DCR endpoints)
+- `DBT_MCP_OIDC_AUTH_SERVER_ISSUER_URL=https://your-mcp-server.example.com` (optional override for broker issuer metadata; defaults to resource server origin)
+- `DBT_MCP_OIDC_TOKEN_ISSUER_URL=https://your-auth-server.example.com` (optional override for bearer token JWT issuer verification)
+- `DBT_MCP_OIDC_CALLBACK_URL=https://your-mcp-server.example.com/callback` (optional upstream IdP redirect callback URL)
+
+Verification behavior:
+
+- If `DBT_MCP_OIDC_INTROSPECTION_ENDPOINT` is set, dbt-mcp attempts OAuth introspection first.
+- If introspection is not configured (or unsupported), dbt-mcp verifies JWT access tokens using issuer JWKS (`<issuer>/.well-known/jwks.json`).
+- If `DBT_MCP_OIDC_NATIVE_AUTH_ENABLED=true`, dbt-mcp also exposes MCP OAuth AS endpoints (`/register`, `/authorize`, `/token`) and brokers browser auth through the configured upstream OIDC provider.
+
+OIDC provider note:
+
+- Ensure your OIDC provider app issues JWT access tokens (not opaque tokens).
+- Common local callback URI: `http://localhost:8788/callback`
+
+Local end-to-end test (OAuth code flow + MCP initialize/list_tools):
+
+1. Start dbt-mcp over HTTP:
+`MCP_TRANSPORT=streamable-http FASTMCP_PORT=8788 uv run src/dbt_mcp/main.py`
+2. Acquire an access token from your IdP (for example, via your normal authorization-code flow) with scopes matching `DBT_MCP_OIDC_REQUIRED_SCOPES`.
+3. In another terminal, run this MCP client check:
+
+```python
+import anyio
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+
+MCP_URL = "http://127.0.0.1:8788/mcp"
+ACCESS_TOKEN = "<your-access-token>"
+
+async def main() -> None:
+    async with streamablehttp_client(
+        url=MCP_URL,
+        headers={"Authorization": f"Bearer {ACCESS_TOKEN}"},
+    ) as (read, write, _):
+        async with ClientSession(read, write) as session:
+            init = await session.initialize()
+            tools = await session.list_tools()
+            print("mcp_initialize_ok=true", init.serverInfo)
+            print("mcp_tools_count=", len(tools.tools))
+
+anyio.run(main)
+```
+
 ## Dependencies
 
 Dependencies are pinned to specific versions and are not updated automatically. Only security-related dependency updates are submitted via automated pull requests.

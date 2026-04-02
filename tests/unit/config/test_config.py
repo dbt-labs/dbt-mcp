@@ -42,6 +42,19 @@ class TestDbtMcpSettings:
             "DBT_WARN_ERROR_OPTIONS",
             "DISABLE_TOOLS",
             "DBT_ACCOUNT_ID",
+            "DBT_MCP_OIDC_ENABLED",
+            "DBT_MCP_OIDC_ISSUER_URL",
+            "DBT_MCP_OIDC_RESOURCE_SERVER_URL",
+            "DBT_MCP_OIDC_INTROSPECTION_ENDPOINT",
+            "DBT_MCP_OIDC_CLIENT_ID",
+            "DBT_MCP_OIDC_CLIENT_SECRET",
+            "DBT_MCP_OIDC_REQUIRED_SCOPES",
+            "DBT_MCP_OIDC_NATIVE_AUTH_ENABLED",
+            "DBT_MCP_OIDC_AUTH_SERVER_ISSUER_URL",
+            "DBT_MCP_OIDC_TOKEN_ISSUER_URL",
+            "DBT_MCP_OIDC_CALLBACK_URL",
+            "FASTMCP_HOST",
+            "FASTMCP_PORT",
         ]
         for var in env_vars_to_clear:
             os.environ.pop(var, None)
@@ -63,6 +76,9 @@ class TestDbtMcpSettings:
             assert settings.disable_discovery is False, "disable_discovery"
             assert settings.disable_sql is None, "disable_sql"
             assert settings.disable_tools is None, "disable_tools"
+            assert settings.oidc_enabled is False, "oidc_enabled"
+            assert settings.fastmcp_host == "127.0.0.1", "fastmcp_host"
+            assert settings.fastmcp_port == 8000, "fastmcp_port"
 
     def test_usage_tracking_disabled_by_env_vars(self):
         env_vars = {
@@ -157,6 +173,55 @@ class TestDbtMcpSettings:
             with patch.dict(os.environ, {"DISABLE_TOOLS": input_val}):
                 settings = DbtMcpSettings(_env_file=None)
                 assert settings.disable_tools == expected
+
+    def test_oidc_required_scopes_parsing(self):
+        with patch.dict(
+            os.environ,
+            {
+                "DBT_MCP_OIDC_REQUIRED_SCOPES": "mcp:tools, mcp:resources",
+            },
+        ):
+            settings = DbtMcpSettings(_env_file=None)
+            assert settings.oidc_required_scopes == ["mcp:tools", "mcp:resources"]
+
+    def test_oidc_enabled_requires_required_fields(self):
+        with patch.dict(
+            os.environ,
+            {
+                "DBT_MCP_OIDC_ENABLED": "true",
+            },
+            clear=True,
+        ):
+            with pytest.raises(ValueError) as exc_info:
+                DbtMcpSettings(_env_file=None)
+
+        error_message = str(exc_info.value)
+        assert "OIDC authentication is enabled but missing required environment" in (
+            error_message
+        )
+        assert "DBT_MCP_OIDC_ISSUER_URL" in error_message
+        assert "DBT_MCP_OIDC_RESOURCE_SERVER_URL" in error_message
+        assert "DBT_MCP_OIDC_CLIENT_ID" in error_message
+
+    def test_oidc_introspection_requires_client_secret(self):
+        with patch.dict(
+            os.environ,
+            {
+                "DBT_MCP_OIDC_ENABLED": "true",
+                "DBT_MCP_OIDC_ISSUER_URL": "https://auth.example.com",
+                "DBT_MCP_OIDC_RESOURCE_SERVER_URL": "https://mcp.example.com",
+                "DBT_MCP_OIDC_CLIENT_ID": "mcp-client",
+                "DBT_MCP_OIDC_INTROSPECTION_ENDPOINT": (
+                    "https://auth.example.com/oauth2/introspect"
+                ),
+            },
+            clear=True,
+        ):
+            with pytest.raises(ValueError) as exc_info:
+                DbtMcpSettings(_env_file=None)
+
+        error_message = str(exc_info.value)
+        assert "DBT_MCP_OIDC_CLIENT_SECRET" in error_message
 
     def test_invalid_tool_names_are_skipped_with_warning(self, caplog):
         """Test that invalid tool names are logged as warnings and skipped."""
@@ -286,6 +351,8 @@ class TestLoadConfig:
             "DBT_DEV_ENV_ID",
             "DBT_USER_ID",
             "DBT_TOKEN",
+            "FASTMCP_HOST",
+            "FASTMCP_PORT",
             "DBT_PROJECT_DIR",
             "DBT_PATH",
             "DBT_CLI_TIMEOUT",
@@ -298,6 +365,17 @@ class TestLoadConfig:
             "DBT_WARN_ERROR_OPTIONS",
             "DISABLE_TOOLS",
             "DBT_ACCOUNT_ID",
+            "DBT_MCP_OIDC_ENABLED",
+            "DBT_MCP_OIDC_ISSUER_URL",
+            "DBT_MCP_OIDC_RESOURCE_SERVER_URL",
+            "DBT_MCP_OIDC_INTROSPECTION_ENDPOINT",
+            "DBT_MCP_OIDC_CLIENT_ID",
+            "DBT_MCP_OIDC_CLIENT_SECRET",
+            "DBT_MCP_OIDC_REQUIRED_SCOPES",
+            "DBT_MCP_OIDC_NATIVE_AUTH_ENABLED",
+            "DBT_MCP_OIDC_AUTH_SERVER_ISSUER_URL",
+            "DBT_MCP_OIDC_TOKEN_ISSUER_URL",
+            "DBT_MCP_OIDC_CALLBACK_URL",
         ]
         for var in env_vars_to_clear:
             os.environ.pop(var, None)
@@ -533,3 +611,83 @@ class TestLoadConfig:
         config = self._load_config_with_env(env_vars)
         assert config.discovery_config_provider is not None
         assert config.credentials_provider is not None
+
+    def test_load_config_creates_oidc_auth_config(self):
+        env_vars = {
+            "DBT_MCP_OIDC_ENABLED": "true",
+            "DBT_MCP_OIDC_ISSUER_URL": "https://auth.example.com/realms/master",
+            "DBT_MCP_OIDC_RESOURCE_SERVER_URL": "https://mcp.example.com",
+            "DBT_MCP_OIDC_INTROSPECTION_ENDPOINT": (
+                "https://auth.example.com/realms/master/"
+                "protocol/openid-connect/token/introspect"
+            ),
+            "DBT_MCP_OIDC_CLIENT_ID": "mcp-server",
+            "DBT_MCP_OIDC_CLIENT_SECRET": "test-secret",
+            "DBT_MCP_OIDC_REQUIRED_SCOPES": "mcp:tools,mcp:resources",
+        }
+
+        config = self._load_config_with_env(env_vars)
+        assert config.oidc_auth_config is not None
+        assert (
+            config.oidc_auth_config.issuer_url
+            == env_vars["DBT_MCP_OIDC_ISSUER_URL"]
+        )
+        assert config.oidc_auth_config.resource_server_url == env_vars[
+            "DBT_MCP_OIDC_RESOURCE_SERVER_URL"
+        ]
+        assert config.oidc_auth_config.required_scopes == [
+            "mcp:tools",
+            "mcp:resources",
+        ]
+
+    def test_load_config_uses_default_oidc_scope(self):
+        env_vars = {
+            "DBT_MCP_OIDC_ENABLED": "true",
+            "DBT_MCP_OIDC_ISSUER_URL": "https://auth.example.com/realms/master",
+            "DBT_MCP_OIDC_RESOURCE_SERVER_URL": "https://mcp.example.com",
+            "DBT_MCP_OIDC_CLIENT_ID": "mcp-server",
+        }
+
+        config = self._load_config_with_env(env_vars)
+        assert config.oidc_auth_config is not None
+        assert config.oidc_auth_config.required_scopes == ["mcp:tools"]
+        assert config.oidc_auth_config.introspection_endpoint is None
+
+    def test_load_config_maps_native_oidc_broker_settings(self):
+        env_vars = {
+            "DBT_MCP_OIDC_ENABLED": "true",
+            "DBT_MCP_OIDC_ISSUER_URL": "https://auth.example.com",
+            "DBT_MCP_OIDC_RESOURCE_SERVER_URL": "http://127.0.0.1:8788/mcp",
+            "DBT_MCP_OIDC_CLIENT_ID": "oidc-client-id",
+            "DBT_MCP_OIDC_CLIENT_SECRET": "oidc-client-secret",
+            "DBT_MCP_OIDC_NATIVE_AUTH_ENABLED": "true",
+            "DBT_MCP_OIDC_AUTH_SERVER_ISSUER_URL": "http://127.0.0.1:8788",
+            "DBT_MCP_OIDC_TOKEN_ISSUER_URL": "https://auth.example.com",
+            "DBT_MCP_OIDC_CALLBACK_URL": "http://127.0.0.1:8788/callback",
+        }
+
+        config = self._load_config_with_env(env_vars)
+        assert config.oidc_auth_config is not None
+        assert config.oidc_auth_config.native_auth_enabled is True
+        assert (
+            config.oidc_auth_config.auth_server_issuer_url
+            == env_vars["DBT_MCP_OIDC_AUTH_SERVER_ISSUER_URL"]
+        )
+        assert (
+            config.oidc_auth_config.token_issuer_url
+            == env_vars["DBT_MCP_OIDC_TOKEN_ISSUER_URL"]
+        )
+        assert (
+            config.oidc_auth_config.callback_url
+            == env_vars["DBT_MCP_OIDC_CALLBACK_URL"]
+        )
+
+    def test_load_config_maps_fastmcp_host_and_port(self):
+        env_vars = {
+            "FASTMCP_HOST": "0.0.0.0",
+            "FASTMCP_PORT": "8788",
+        }
+
+        config = self._load_config_with_env(env_vars)
+        assert config.mcp_host == "0.0.0.0"
+        assert config.mcp_port == 8788

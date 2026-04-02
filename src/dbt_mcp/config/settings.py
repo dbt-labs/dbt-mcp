@@ -104,6 +104,35 @@ class DbtMcpSettings(BaseSettings):
     # Multi-project settings
     multi_project_enabled: bool = Field(False, alias="DBT_MCP_MULTI_PROJECT_ENABLED")
 
+    # FastMCP runtime settings
+    fastmcp_host: str = Field("127.0.0.1", alias="FASTMCP_HOST")
+    fastmcp_port: int = Field(8000, alias="FASTMCP_PORT")
+
+    # Remote MCP auth gateway settings (separate from dbt platform OAuth)
+    oidc_enabled: bool = Field(False, alias="DBT_MCP_OIDC_ENABLED")
+    oidc_issuer_url: str | None = Field(None, alias="DBT_MCP_OIDC_ISSUER_URL")
+    oidc_resource_server_url: str | None = Field(
+        None, alias="DBT_MCP_OIDC_RESOURCE_SERVER_URL"
+    )
+    oidc_introspection_endpoint: str | None = Field(
+        None, alias="DBT_MCP_OIDC_INTROSPECTION_ENDPOINT"
+    )
+    oidc_client_id: str | None = Field(None, alias="DBT_MCP_OIDC_CLIENT_ID")
+    oidc_client_secret: str | None = Field(None, alias="DBT_MCP_OIDC_CLIENT_SECRET")
+    oidc_required_scopes: Annotated[list[str] | None, NoDecode] = Field(
+        None, alias="DBT_MCP_OIDC_REQUIRED_SCOPES"
+    )
+    oidc_native_auth_enabled: bool = Field(
+        False, alias="DBT_MCP_OIDC_NATIVE_AUTH_ENABLED"
+    )
+    oidc_auth_server_issuer_url: str | None = Field(
+        None, alias="DBT_MCP_OIDC_AUTH_SERVER_ISSUER_URL"
+    )
+    oidc_token_issuer_url: str | None = Field(
+        None, alias="DBT_MCP_OIDC_TOKEN_ISSUER_URL"
+    )
+    oidc_callback_url: str | None = Field(None, alias="DBT_MCP_OIDC_CALLBACK_URL")
+
     def __repr__(self):
         """Custom repr to bring most important settings to front. Redact sensitive info."""
         return (
@@ -137,6 +166,11 @@ class DbtMcpSettings(BaseSettings):
             f"dbt_user_id={self.dbt_user_id}, "
             f"dbt_account_id={self.dbt_account_id}, "
             f"dbt_token={'***redacted***' if self.dbt_token else None}, "
+            f"oidc_enabled={self.oidc_enabled}, "
+            f"oidc_issuer_url={self.oidc_issuer_url}, "
+            f"oidc_native_auth_enabled={self.oidc_native_auth_enabled}, "
+            f"fastmcp_host={self.fastmcp_host}, "
+            f"fastmcp_port={self.fastmcp_port}, "
             f"send_anonymous_usage_data={self.send_anonymous_usage_data})"
         )
 
@@ -285,6 +319,17 @@ class DbtMcpSettings(BaseSettings):
     def parse_enable_tools(cls, env_var: str | None) -> list[ToolName] | None:
         return _parse_tool_list(env_var, "DBT_MCP_ENABLE_TOOLS")
 
+    @field_validator("oidc_required_scopes", mode="before")
+    @classmethod
+    def parse_oidc_required_scopes(
+        cls, env_var: str | list[str] | None
+    ) -> list[str] | None:
+        if env_var is None:
+            return None
+        if isinstance(env_var, list):
+            return [scope.strip() for scope in env_var if scope and scope.strip()]
+        return [scope.strip() for scope in env_var.split(",") if scope.strip()]
+
     @model_validator(mode="after")
     def auto_disable(self) -> "DbtMcpSettings":
         """Auto-disable features based on required settings."""
@@ -327,6 +372,23 @@ class DbtMcpSettings(BaseSettings):
             logger.warning(
                 f"CLI features have been automatically disabled due to misconfigurations:\n    {'\n    '.join(cli_errors)}."
             )
+
+        if self.oidc_enabled:
+            missing_env_vars: list[str] = []
+            if not self.oidc_issuer_url:
+                missing_env_vars.append("DBT_MCP_OIDC_ISSUER_URL")
+            if not self.oidc_resource_server_url:
+                missing_env_vars.append("DBT_MCP_OIDC_RESOURCE_SERVER_URL")
+            if not self.oidc_client_id:
+                missing_env_vars.append("DBT_MCP_OIDC_CLIENT_ID")
+            if self.oidc_introspection_endpoint and not self.oidc_client_secret:
+                missing_env_vars.append("DBT_MCP_OIDC_CLIENT_SECRET")
+
+            if missing_env_vars:
+                raise ValueError(
+                    "OIDC authentication is enabled but missing required environment "
+                    f"variables: {', '.join(missing_env_vars)}"
+                )
         return self
 
 
