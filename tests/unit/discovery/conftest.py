@@ -1,31 +1,29 @@
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from dbt_mcp.discovery.client import MetadataAPIClient
+from dbt_mcp.config.config_providers import DiscoveryConfig
+
+
+@pytest.fixture
+def unit_discovery_config() -> DiscoveryConfig:
+    headers = Mock()
+    headers.get_headers.return_value = {}
+    return DiscoveryConfig(
+        url="https://metadata.example.com/graphql",
+        headers_provider=headers,
+        environment_id=123,
+    )
 
 
 @pytest.fixture
 def mock_api_client():
     """
-    Shared mock MetadataAPIClient for discovery tests.
+    Patches the module-level execute_query in dbt_mcp.discovery.client with an AsyncMock.
 
-    Provides a mock API client with:
-    - A config_provider that returns environment_id = 123
-    - An async get_config() method for compatibility with async tests
-
-    Used by test_sources_fetcher.py and test_exposures_fetcher.py.
+    Tests can use mock_api_client.return_value, mock_api_client.side_effect, etc.
+    to control the return values of the patched execute_query function.
     """
-    mock_client = Mock(spec=MetadataAPIClient)
-    # Add config_provider mock that returns environment_id
-    mock_config_provider = Mock()
-    mock_config = Mock()
-    mock_config.environment_id = 123
-
-    # Make get_config async
-    async def mock_get_config():
-        return mock_config
-
-    mock_config_provider.get_config = mock_get_config
-    mock_client.config_provider = mock_config_provider
-    return mock_client
+    mock_execute_query = AsyncMock()
+    with patch("dbt_mcp.discovery.client.execute_query", mock_execute_query):
+        yield mock_execute_query

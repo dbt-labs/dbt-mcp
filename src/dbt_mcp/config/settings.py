@@ -1,46 +1,20 @@
 import logging
 import shutil
-import socket
-import time
 from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
 from typing import Annotated
 
-from authlib.integrations.requests_client import OAuth2Session
-from filelock import FileLock
 from pydantic import Field, field_validator, model_validator
 from pydantic_core.core_schema import ValidationInfo
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from dbt_mcp.config.dbt_project import DbtProjectYaml
 from dbt_mcp.config.dbt_yaml import try_read_yaml
-from dbt_mcp.config.headers import (
-    TokenProvider,
-)
-from dbt_mcp.oauth.client_id import OAUTH_CLIENT_ID
-from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
-from dbt_mcp.oauth.dbt_platform import (
-    DbtPlatformContext,
-    dbt_platform_context_from_token_response,
-)
-from dbt_mcp.oauth.expiry import STARTUP_EXPIRY_BUFFER_SECONDS
-from dbt_mcp.oauth.login import login
-from dbt_mcp.oauth.token_provider import (
-    OAuthTokenProvider,
-    StaticTokenProvider,
-)
 from dbt_mcp.tools.tool_names import ToolName
 
 logger = logging.getLogger(__name__)
 
-OAUTH_REDIRECT_STARTING_PORT = 6785
 DEFAULT_DBT_CLI_TIMEOUT = 60
-
-
-class AuthenticationMethod(Enum):
-    OAUTH = "oauth"
-    ENV_VAR = "env_var"
 
 
 class DbtMcpLogSettings(BaseSettings):
@@ -126,6 +100,9 @@ class DbtMcpSettings(BaseSettings):
     send_anonymous_usage_data: str | None = Field(
         None, alias="DBT_SEND_ANONYMOUS_USAGE_STATS"
     )
+
+    # Multi-project settings
+    multi_project_enabled: bool = Field(False, alias="DBT_MCP_MULTI_PROJECT_ENABLED")
 
     def __repr__(self):
         """Custom repr to bring most important settings to front. Redact sensitive info."""
@@ -388,131 +365,6 @@ def _parse_tool_list(env_var: str | None, field_name: str) -> list[ToolName] | N
     return tool_names
 
 
-def _find_available_port(*, start_port: int, max_attempts: int = 20) -> int:
-    """
-    Return the first available port on 127.0.0.1 starting at start_port.
-
-    Raises RuntimeError if no port is found within the attempted range.
-    """
-    for candidate_port in range(start_port, start_port + max_attempts):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            try:
-                sock.bind(("127.0.0.1", candidate_port))
-            except OSError:
-                continue
-            return candidate_port
-    raise RuntimeError(
-        "No available port found starting at "
-        f"{start_port} after {max_attempts} attempts."
-    )
-
-
-def get_dbt_profiles_path(dbt_profiles_dir: str | None = None) -> Path:
-    # Respect DBT_PROFILES_DIR if set; otherwise default to ~/.dbt/mcp.yml
-    if dbt_profiles_dir:
-        return Path(dbt_profiles_dir).expanduser()
-    else:
-        return Path.home() / ".dbt"
-
-
-def _is_context_complete(dbt_ctx: DbtPlatformContext | None) -> bool:
-    """Check if the context has all required fields (regardless of token expiry).
-
-    Note: dev_environment is optional since not all projects have a development
-    environment configured. prod_environment is required for semantic layer
-    and other core features.
-    """
-    return bool(
-        dbt_ctx
-        and dbt_ctx.account_id
-        and dbt_ctx.host_prefix
-        and dbt_ctx.prod_environment
-        and dbt_ctx.decoded_access_token
-    )
-
-
-def _is_token_valid(dbt_ctx: DbtPlatformContext) -> bool:
-    """Check if the access token is still valid (not expired)."""
-    if not dbt_ctx.decoded_access_token:
-        return False
-    expires_at = dbt_ctx.decoded_access_token.access_token_response.expires_at
-    return expires_at > time.time() + STARTUP_EXPIRY_BUFFER_SECONDS
-
-
-def _try_refresh_token(
-    dbt_ctx: DbtPlatformContext,
-    dbt_platform_url: str,
-    dbt_platform_context_manager: DbtPlatformContextManager,
-) -> DbtPlatformContext | None:
-    """
-    Attempt to refresh the access token using the refresh token.
-    Returns the updated context if successful, None otherwise.
-    """
-    if not dbt_ctx.decoded_access_token:
-        return None
-
-    refresh_token = dbt_ctx.decoded_access_token.access_token_response.refresh_token
-    if not refresh_token:
-        return None
-
-    try:
-        logger.info("Access token expired, attempting refresh using refresh token")
-        token_url = f"{dbt_platform_url}/oauth/token"
-        oauth_client = OAuth2Session(
-            client_id=OAUTH_CLIENT_ID,
-            token_endpoint=token_url,
-        )
-        token_response = oauth_client.refresh_token(
-            url=token_url,
-            refresh_token=refresh_token,
-        )
-        new_context = dbt_platform_context_from_token_response(
-            token_response, dbt_platform_url
-        )
-        # Merge the new token with the existing context (preserves account/env info)
-        updated_context = dbt_ctx.override(new_context)
-        dbt_platform_context_manager.write_context_to_file(updated_context)
-        logger.info("Successfully refreshed access token at startup")
-        return updated_context
-    except Exception as e:
-        logger.warning(f"Failed to refresh token at startup: {e}")
-        return None
-
-
-async def get_dbt_platform_context(
-    *,
-    dbt_user_dir: Path,
-    dbt_platform_url: str,
-    dbt_platform_context_manager: DbtPlatformContextManager,
-) -> DbtPlatformContext:
-    # Some MCP hosts (Claude Desktop) tend to run multiple MCP servers instances.
-    # We need to lock so that only one can run the oauth flow.
-    with FileLock(dbt_user_dir / "mcp.lock"):
-        dbt_ctx = dbt_platform_context_manager.read_context()
-
-        # If context is complete, check token validity
-        if _is_context_complete(dbt_ctx):
-            assert dbt_ctx is not None  # for type checker
-            # If token is still valid, use context directly
-            if _is_token_valid(dbt_ctx):
-                return dbt_ctx
-            # Token expired, try to refresh
-            refreshed_ctx = _try_refresh_token(
-                dbt_ctx, dbt_platform_url, dbt_platform_context_manager
-            )
-            if refreshed_ctx:
-                return refreshed_ctx
-
-        # Fall back to full OAuth login flow
-        selected_port = _find_available_port(start_port=OAUTH_REDIRECT_STARTING_PORT)
-        return await login(
-            dbt_platform_url=dbt_platform_url,
-            port=selected_port,
-            dbt_platform_context_manager=dbt_platform_context_manager,
-        )
-
-
 @dataclass(frozen=True)
 class HostPrefixResult:
     base_host: str  # Host with first label stripped; matches configured prefix when prefix_embedded=True, or suggested base host on mismatch
@@ -640,90 +492,3 @@ def validate_dbt_cli_settings(settings: DbtMcpSettings) -> list[str]:
                     f"DBT_PATH executable can't be found: {settings.dbt_path}"
                 )
     return errors
-
-
-class CredentialsProvider:
-    def __init__(self, settings: DbtMcpSettings):
-        self.settings = settings
-        self.token_provider: TokenProvider | None = None
-        self.authentication_method: AuthenticationMethod | None = None
-
-    def _log_settings(self) -> None:
-        settings = self.settings.model_dump()
-        if settings.get("dbt_token") is not None:
-            settings["dbt_token"] = "***redacted***"
-        logger.info(f"Settings: {settings}")
-
-    async def get_credentials(self) -> tuple[DbtMcpSettings, TokenProvider]:
-        if self.token_provider is not None:
-            # If token provider is already set, just return the cached values
-            return self.settings, self.token_provider
-        # Load settings from environment variables using pydantic_settings
-        dbt_platform_errors = validate_dbt_platform_settings(self.settings)
-        if dbt_platform_errors:
-            if self.settings.dbt_token:
-                logger.warning(
-                    "DBT_TOKEN is set but will be ignored because platform settings are incomplete. "
-                    "Falling back to OAuth authentication. "
-                    f"Missing/invalid settings: {'; '.join(dbt_platform_errors)}"
-                )
-            dbt_user_dir = get_dbt_profiles_path(
-                dbt_profiles_dir=self.settings.dbt_profiles_dir
-            )
-            config_location = dbt_user_dir / "mcp.yml"
-            actual_host = self.settings.actual_host
-            if not actual_host:
-                raise ValueError("DBT_HOST is a required environment variable")
-            dbt_platform_url = _build_dbt_platform_url(
-                actual_host, self.settings.actual_host_prefix
-            )
-            dbt_platform_context_manager = DbtPlatformContextManager(config_location)
-            dbt_platform_context = await get_dbt_platform_context(
-                dbt_platform_context_manager=dbt_platform_context_manager,
-                dbt_user_dir=dbt_user_dir,
-                dbt_platform_url=dbt_platform_url,
-            )
-
-            # Override settings with settings attained from login or mcp.yml
-            self.settings.dbt_user_id = dbt_platform_context.user_id
-            self.settings.dbt_dev_env_id = (
-                dbt_platform_context.dev_environment.id
-                if dbt_platform_context.dev_environment
-                else None
-            )
-            self.settings.dbt_prod_env_id = (
-                dbt_platform_context.prod_environment.id
-                if dbt_platform_context.prod_environment
-                else None
-            )
-            self.settings.dbt_account_id = dbt_platform_context.account_id
-            self.settings.host_prefix = dbt_platform_context.host_prefix
-            self.settings.dbt_host = self.settings.base_host
-            if not dbt_platform_context.decoded_access_token:
-                raise ValueError("No decoded access token found in OAuth context")
-
-            token_provider = await OAuthTokenProvider.create(
-                access_token_response=dbt_platform_context.decoded_access_token.access_token_response,
-                dbt_platform_url=dbt_platform_url,
-                context_manager=dbt_platform_context_manager,
-            )
-            self.token_provider = token_provider
-
-            # Only validate CLI settings here — platform settings were already
-            # checked at the top of get_credentials() and the OAuth flow has
-            # populated the remaining fields (host, env ids, account id).
-            # dbt_token stays None in the OAuth path since the OAuthTokenProvider
-            # supplies the token instead.
-            cli_errors = validate_dbt_cli_settings(self.settings)
-            if cli_errors:
-                raise ValueError(
-                    "Errors found in configuration:\n\n" + "\n".join(cli_errors)
-                )
-            self.authentication_method = AuthenticationMethod.OAUTH
-            self._log_settings()
-            return self.settings, self.token_provider
-        self.token_provider = StaticTokenProvider(token=self.settings.dbt_token)
-        validate_settings(self.settings)
-        self.authentication_method = AuthenticationMethod.ENV_VAR
-        self._log_settings()
-        return self.settings, self.token_provider

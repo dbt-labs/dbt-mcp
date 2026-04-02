@@ -6,13 +6,17 @@ from dbt_mcp.config.config import (
 )
 from dbt_mcp.config.config_providers import (
     AdminApiConfig,
-    DefaultAdminApiConfigProvider,
-    DefaultDiscoveryConfigProvider,
-    DefaultProxiedToolConfigProvider,
-    DefaultSemanticLayerConfigProvider,
     DiscoveryConfig,
     ProxiedToolConfig,
     SemanticLayerConfig,
+)
+from dbt_mcp.config.config_providers.admin_api import DefaultAdminApiConfigProvider
+from dbt_mcp.config.config_providers.discovery import DefaultDiscoveryConfigProvider
+from dbt_mcp.config.config_providers.proxied_tool import (
+    DefaultProxiedToolConfigProvider,
+)
+from dbt_mcp.config.config_providers.semantic_layer import (
+    DefaultSemanticLayerConfigProvider,
 )
 from dbt_mcp.config.headers import (
     AdminApiHeadersProvider,
@@ -20,7 +24,8 @@ from dbt_mcp.config.headers import (
     ProxiedToolHeadersProvider,
     SemanticLayerHeadersProvider,
 )
-from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
+from dbt_mcp.config.credentials import CredentialsProvider
+from dbt_mcp.config.settings import DbtMcpSettings
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo
 from dbt_mcp.oauth.token_provider import StaticTokenProvider

@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 .mypy_cache/
 .pytest_cache/
+pytest-of-*/
 *.egg-info/
 
 # IDEs

@@ -1,3 +1,0 @@
-kind: Under the Hood
-body: 'Harden OAuth token handling: eagerly start background refresh, validate token expiry in get_token(), and stop setting settings.dbt_token in the OAuth path'
-time: 2026-03-12T11:40:02.758624-05:00

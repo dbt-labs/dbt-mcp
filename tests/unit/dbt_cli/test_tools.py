@@ -1,3 +1,4 @@
+import inspect
 import subprocess
 
 import pytest
@@ -179,8 +180,8 @@ def test_run_command_correctly_formatted(
     )
     run_tool = tools["run"]
 
-    # Run the command with a selector
-    run_tool(selector="my_model")
+    # Run the command with a selection
+    run_tool(node_selection="my_model")
 
     # Verify the command is correctly formatted
     assert mock_calls
@@ -261,8 +262,8 @@ def test_list_command_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
     assert "Timeout: dbt command took too long to complete" in result
     assert "Try using a specific selector to narrow down the results" in result
 
-    # Test with selector - should still timeout
-    result = list_tool(selector="my_model", resource_type=["model"])
+    # Test with selection - should still timeout
+    result = list_tool(node_selection="my_model", resource_type=["model"])
     assert "Timeout: dbt command took too long to complete" in result
     assert "Try using a specific selector to narrow down the results" in result
 
@@ -413,3 +414,34 @@ def test_vars_not_added_when_none(monkeypatch: MonkeyPatch, mock_process, mock_f
     assert mock_calls
     args_list = mock_calls[0]
     assert "--vars" not in args_list
+
+
+def test_compile_supports_selection(
+    monkeypatch: MonkeyPatch,
+    mock_process,
+    mock_fastmcp,
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    compile_tool = tools["compile"]
+
+    assert "node_selection" in inspect.signature(compile_tool).parameters
+
+    compile_tool(node_selection="my_model")
+    assert "--select" in mock_calls[0]
+    assert "my_model" in mock_calls[0]

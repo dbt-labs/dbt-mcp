@@ -11,9 +11,8 @@ from dbt_mcp.discovery.client import (
 
 
 @pytest.fixture
-def exposures_fetcher(mock_api_client):
+def exposures_fetcher():
     paginator = PaginatedResourceFetcher(
-        mock_api_client,
         edges_path=("data", "environment", "definition", "exposures", "edges"),
         page_info_path=(
             "data",
@@ -25,10 +24,12 @@ def exposures_fetcher(mock_api_client):
         page_size=DEFAULT_PAGE_SIZE,
         max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
     )
-    return ExposuresFetcher(api_client=mock_api_client, paginator=paginator)
+    return ExposuresFetcher(paginator=paginator)
 
 
-async def test_fetch_exposures_single_page(exposures_fetcher, mock_api_client):
+async def test_fetch_exposures_single_page(
+    exposures_fetcher, mock_api_client, unit_discovery_config
+):
     mock_response = {
         "data": {
             "environment": {
@@ -61,10 +62,10 @@ async def test_fetch_exposures_single_page(exposures_fetcher, mock_api_client):
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     with patch("dbt_mcp.discovery.client.raise_gql_error"):
-        result = await exposures_fetcher.fetch_exposures()
+        result = await exposures_fetcher.fetch_exposures(config=unit_discovery_config)
 
     assert len(result) == 1
     assert result[0]["name"] == "test_exposure"
@@ -79,13 +80,15 @@ async def test_fetch_exposures_single_page(exposures_fetcher, mock_api_client):
     assert result[0]["description"] == "Test exposure"
     assert result[0]["parents"] == [{"uniqueId": "model.test.parent_model"}]
 
-    mock_api_client.execute_query.assert_called_once()
-    args, kwargs = mock_api_client.execute_query.call_args
+    mock_api_client.assert_called_once()
+    args, kwargs = mock_api_client.call_args
     assert args[1]["environmentId"] == 123
     assert args[1]["first"] == 100
 
 
-async def test_fetch_exposures_multiple_pages(exposures_fetcher, mock_api_client):
+async def test_fetch_exposures_multiple_pages(
+    exposures_fetcher, mock_api_client, unit_discovery_config
+):
     page1_response = {
         "data": {
             "environment": {
@@ -148,10 +151,10 @@ async def test_fetch_exposures_multiple_pages(exposures_fetcher, mock_api_client
         }
     }
 
-    mock_api_client.execute_query.side_effect = [page1_response, page2_response]
+    mock_api_client.side_effect = [page1_response, page2_response]
 
     with patch("dbt_mcp.discovery.client.raise_gql_error"):
-        result = await exposures_fetcher.fetch_exposures()
+        result = await exposures_fetcher.fetch_exposures(config=unit_discovery_config)
 
     assert len(result) == 2
     assert result[0]["name"] == "exposure1"
@@ -159,22 +162,24 @@ async def test_fetch_exposures_multiple_pages(exposures_fetcher, mock_api_client
     assert result[1]["meta"] == {"key": "value"}
     assert result[1]["label"] == "Label 2"
 
-    assert mock_api_client.execute_query.call_count == 2
+    assert mock_api_client.call_count == 2
 
     # Check first call (no cursor)
-    first_call = mock_api_client.execute_query.call_args_list[0]
+    first_call = mock_api_client.call_args_list[0]
     assert first_call[0][1]["environmentId"] == 123
     assert first_call[0][1]["first"] == 100
     assert "after" not in first_call[0][1]
 
     # Check second call (with cursor)
-    second_call = mock_api_client.execute_query.call_args_list[1]
+    second_call = mock_api_client.call_args_list[1]
     assert second_call[0][1]["environmentId"] == 123
     assert second_call[0][1]["first"] == 100
     assert second_call[0][1]["after"] == "cursor123"
 
 
-async def test_fetch_exposures_empty_response(exposures_fetcher, mock_api_client):
+async def test_fetch_exposures_empty_response(
+    exposures_fetcher, mock_api_client, unit_discovery_config
+):
     mock_response = {
         "data": {
             "environment": {
@@ -188,17 +193,17 @@ async def test_fetch_exposures_empty_response(exposures_fetcher, mock_api_client
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     with patch("dbt_mcp.discovery.client.raise_gql_error"):
-        result = await exposures_fetcher.fetch_exposures()
+        result = await exposures_fetcher.fetch_exposures(config=unit_discovery_config)
 
     assert len(result) == 0
     assert isinstance(result, list)
 
 
 async def test_fetch_exposures_handles_malformed_edges(
-    exposures_fetcher, mock_api_client
+    exposures_fetcher, mock_api_client, unit_discovery_config
 ):
     mock_response = {
         "data": {
@@ -248,10 +253,10 @@ async def test_fetch_exposures_handles_malformed_edges(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     with patch("dbt_mcp.discovery.client.raise_gql_error"):
-        result = await exposures_fetcher.fetch_exposures()
+        result = await exposures_fetcher.fetch_exposures(config=unit_discovery_config)
 
     # Should only get the valid exposures (malformed edges should be filtered out)
     assert len(result) == 2

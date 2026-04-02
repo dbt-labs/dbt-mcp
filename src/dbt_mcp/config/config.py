@@ -1,16 +1,18 @@
 import os
 from dataclasses import dataclass
 
-from dbt_mcp.config.config_providers import (
-    DefaultAdminApiConfigProvider,
-    DefaultDiscoveryConfigProvider,
+from dbt_mcp.config.config_providers.admin_api import DefaultAdminApiConfigProvider
+from dbt_mcp.config.config_providers.discovery import DefaultDiscoveryConfigProvider
+from dbt_mcp.config.config_providers.proxied_tool import (
     DefaultProxiedToolConfigProvider,
+)
+from dbt_mcp.config.config_providers.semantic_layer import (
     DefaultSemanticLayerConfigProvider,
 )
+from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.config.settings import (
-    CredentialsProvider,
-    DbtMcpSettings,
     DbtMcpLogSettings,
+    DbtMcpSettings,
 )
 from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type, get_dbt_version
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo, dbt_lsp_binary_info
@@ -82,6 +84,7 @@ class Config:
     credentials_provider: CredentialsProvider
     lsp_config: LspConfig | None
     dbt_version: str | None = None
+    multi_project_enabled: bool = False
 
 
 def load_config(enable_proxied_tools: bool = True) -> Config:
@@ -182,4 +185,5 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         credentials_provider=credentials_provider,
         lsp_config=lsp_config,
         dbt_version=dbt_version,
+        multi_project_enabled=settings.multi_project_enabled,
     )

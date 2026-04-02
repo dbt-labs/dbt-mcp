@@ -9,18 +9,19 @@ from dbt_mcp.discovery.client import (
 
 
 @pytest.fixture
-def macros_fetcher(mock_api_client):
+def macros_fetcher():
     paginator = PaginatedResourceFetcher(
-        mock_api_client,
         edges_path=("data", "environment", "applied", "resources", "edges"),
         page_info_path=("data", "environment", "applied", "resources", "pageInfo"),
         page_size=DEFAULT_PAGE_SIZE,
         max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
     )
-    return MacrosFetcher(api_client=mock_api_client, paginator=paginator)
+    return MacrosFetcher(paginator=paginator)
 
 
-async def test_fetch_macros_single_page(macros_fetcher, mock_api_client):
+async def test_fetch_macros_single_page(
+    macros_fetcher, mock_api_client, unit_discovery_config
+):
     mock_response = {
         "data": {
             "environment": {
@@ -51,12 +52,12 @@ async def test_fetch_macros_single_page(macros_fetcher, mock_api_client):
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
-    result = await macros_fetcher.fetch_macros()
+    result = await macros_fetcher.fetch_macros(config=unit_discovery_config)
 
-    mock_api_client.execute_query.assert_called_once()
-    call_args = mock_api_client.execute_query.call_args
+    mock_api_client.assert_called_once()
+    call_args = mock_api_client.call_args
 
     query = call_args[0][0]
     assert "GetMacros" in query
@@ -76,7 +77,7 @@ async def test_fetch_macros_single_page(macros_fetcher, mock_api_client):
 
 
 async def test_fetch_macros_excludes_dbt_builtin_by_default(
-    macros_fetcher, mock_api_client
+    macros_fetcher, mock_api_client, unit_discovery_config
 ):
     """Test that dbt-labs first-party macros are excluded by default."""
     mock_response = {
@@ -125,9 +126,9 @@ async def test_fetch_macros_excludes_dbt_builtin_by_default(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
-    result = await macros_fetcher.fetch_macros()
+    result = await macros_fetcher.fetch_macros(config=unit_discovery_config)
 
     # Custom macro and dbt_utils should be returned (dbt_utils is NOT filtered)
     # Only dbt core and dbt_postgres (first-party) should be filtered
@@ -138,7 +139,9 @@ async def test_fetch_macros_excludes_dbt_builtin_by_default(
     assert result[1]["packageName"] == "dbt_utils"
 
 
-async def test_fetch_macros_return_package_names_only(macros_fetcher, mock_api_client):
+async def test_fetch_macros_return_package_names_only(
+    macros_fetcher, mock_api_client, unit_discovery_config
+):
     """Test that return_package_names_only returns only unique package names."""
     mock_response = {
         "data": {
@@ -186,15 +189,19 @@ async def test_fetch_macros_return_package_names_only(macros_fetcher, mock_api_c
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
-    result = await macros_fetcher.fetch_macros(return_package_names_only=True)
+    result = await macros_fetcher.fetch_macros(
+        return_package_names_only=True, config=unit_discovery_config
+    )
 
     # Should return sorted unique package names (excluding dbt core)
     assert result == ["dbt_utils", "my_project"]
 
 
-async def test_fetch_macros_filters_by_package_names(macros_fetcher, mock_api_client):
+async def test_fetch_macros_filters_by_package_names(
+    macros_fetcher, mock_api_client, unit_discovery_config
+):
     """Test that macros can be filtered by package names."""
     mock_response = {
         "data": {
@@ -226,9 +233,11 @@ async def test_fetch_macros_filters_by_package_names(macros_fetcher, mock_api_cl
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
-    result = await macros_fetcher.fetch_macros(package_names=["my_project"])
+    result = await macros_fetcher.fetch_macros(
+        package_names=["my_project"], config=unit_discovery_config
+    )
 
     # Only the my_project macro should be returned
     assert len(result) == 1
@@ -237,7 +246,7 @@ async def test_fetch_macros_filters_by_package_names(macros_fetcher, mock_api_cl
 
 
 async def test_fetch_macros_package_filter_case_insensitive(
-    macros_fetcher, mock_api_client
+    macros_fetcher, mock_api_client, unit_discovery_config
 ):
     """Test that package name filtering is case insensitive."""
     mock_response = {
@@ -262,15 +271,19 @@ async def test_fetch_macros_package_filter_case_insensitive(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
-    result = await macros_fetcher.fetch_macros(package_names=["my_project"])
+    result = await macros_fetcher.fetch_macros(
+        package_names=["my_project"], config=unit_discovery_config
+    )
 
     assert len(result) == 1
     assert result[0]["packageName"] == "My_Project"
 
 
-async def test_fetch_macros_empty_response(macros_fetcher, mock_api_client):
+async def test_fetch_macros_empty_response(
+    macros_fetcher, mock_api_client, unit_discovery_config
+):
     mock_response = {
         "data": {
             "environment": {
@@ -284,15 +297,15 @@ async def test_fetch_macros_empty_response(macros_fetcher, mock_api_client):
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
-    result = await macros_fetcher.fetch_macros()
+    result = await macros_fetcher.fetch_macros(config=unit_discovery_config)
 
     assert result == []
 
 
 async def test_fetch_macros_includes_default_dbt_packages_when_flag_set(
-    macros_fetcher, mock_api_client
+    macros_fetcher, mock_api_client, unit_discovery_config
 ):
     """Test that dbt-labs first-party macros are included when include_default_dbt_packages=True."""
     mock_response = {
@@ -333,9 +346,11 @@ async def test_fetch_macros_includes_default_dbt_packages_when_flag_set(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
-    result = await macros_fetcher.fetch_macros(include_default_dbt_packages=True)
+    result = await macros_fetcher.fetch_macros(
+        include_default_dbt_packages=True, config=unit_discovery_config
+    )
 
     # All macros should be returned, including dbt core and dbt_postgres
     assert len(result) == 3
@@ -345,7 +360,7 @@ async def test_fetch_macros_includes_default_dbt_packages_when_flag_set(
 
 
 async def test_fetch_macros_return_package_names_only_with_include_default(
-    macros_fetcher, mock_api_client
+    macros_fetcher, mock_api_client, unit_discovery_config
 ):
     """Test return_package_names_only includes dbt packages when include_default_dbt_packages=True."""
     mock_response = {
@@ -386,11 +401,12 @@ async def test_fetch_macros_return_package_names_only_with_include_default(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     result = await macros_fetcher.fetch_macros(
         return_package_names_only=True,
         include_default_dbt_packages=True,
+        config=unit_discovery_config,
     )
 
     # Should include dbt core package name since include_default_dbt_packages=True

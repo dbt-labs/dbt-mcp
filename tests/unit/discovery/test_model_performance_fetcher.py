@@ -16,16 +16,15 @@ def resource_details_fetcher():
 
 
 @pytest.fixture
-def model_performance_fetcher(mock_api_client, resource_details_fetcher):
+def model_performance_fetcher(resource_details_fetcher):
     """Create ModelPerformanceFetcher with mocked dependencies."""
     return ModelPerformanceFetcher(
-        api_client=mock_api_client,
         resource_details_fetcher=resource_details_fetcher,
     )
 
 
 async def test_fetch_performance_with_unique_id(
-    model_performance_fetcher, mock_api_client
+    model_performance_fetcher, mock_api_client, unit_discovery_config
 ):
     """Test fetching latest run performance using unique_id."""
     mock_response = {
@@ -46,16 +45,17 @@ async def test_fetch_performance_with_unique_id(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     result = await model_performance_fetcher.fetch_performance(
+        unit_discovery_config,
         unique_id="model.analytics.stg_orders",
         num_runs=1,
     )
 
     # Verify API was called correctly
-    mock_api_client.execute_query.assert_called_once()
-    call_args = mock_api_client.execute_query.call_args
+    mock_api_client.assert_called_once()
+    call_args = mock_api_client.call_args
 
     # Check query and variables
     query = call_args[0][0]
@@ -75,7 +75,10 @@ async def test_fetch_performance_with_unique_id(
 
 
 async def test_fetch_performance_with_name_resolution(
-    model_performance_fetcher, mock_api_client, resource_details_fetcher
+    model_performance_fetcher,
+    mock_api_client,
+    resource_details_fetcher,
+    unit_discovery_config,
 ):
     """Test fetching performance using model name (requires resolution)."""
     # Mock name resolution
@@ -84,7 +87,7 @@ async def test_fetch_performance_with_name_resolution(
     ]
 
     # Mock performance query
-    mock_api_client.execute_query.return_value = {
+    mock_api_client.return_value = {
         "data": {
             "environment": {
                 "applied": {
@@ -103,13 +106,16 @@ async def test_fetch_performance_with_name_resolution(
     }
 
     result = await model_performance_fetcher.fetch_performance(
-        name="stg_orders", num_runs=1
+        unit_discovery_config,
+        name="stg_orders",
+        num_runs=1,
     )
 
     # Verify name was resolved via resource_details_fetcher
     resource_details_fetcher.fetch_details.assert_called_once_with(
         resource_type=AppliedResourceType.MODEL,
         name="stg_orders",
+        config=unit_discovery_config,
     )
 
     # Verify result contains correct data
@@ -118,7 +124,7 @@ async def test_fetch_performance_with_name_resolution(
 
 
 async def test_fetch_performance_multiple_runs(
-    model_performance_fetcher, mock_api_client
+    model_performance_fetcher, mock_api_client, unit_discovery_config
 ):
     """Test fetching multiple historical runs."""
     mock_response = {
@@ -153,15 +159,16 @@ async def test_fetch_performance_multiple_runs(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     result = await model_performance_fetcher.fetch_performance(
+        unit_discovery_config,
         unique_id="model.analytics.stg_orders",
         num_runs=3,
     )
 
     # Verify variables
-    call_args = mock_api_client.execute_query.call_args
+    call_args = mock_api_client.call_args
     variables = call_args[0][1]
     assert variables["lastRunCount"] == 3
 
@@ -172,28 +179,34 @@ async def test_fetch_performance_multiple_runs(
     assert result[2]["runId"] == 12343
 
 
-async def test_fetch_performance_no_parameters_raises_error(model_performance_fetcher):
+async def test_fetch_performance_no_parameters_raises_error(
+    model_performance_fetcher, unit_discovery_config
+):
     """Test that missing both name and unique_id raises InvalidParameterError."""
     with pytest.raises(
         InvalidParameterError, match="Either 'name' or 'unique_id' must be provided"
     ):
-        await model_performance_fetcher.fetch_performance(num_runs=1)
+        await model_performance_fetcher.fetch_performance(
+            unit_discovery_config, num_runs=1
+        )
 
 
 async def test_fetch_performance_model_not_found(
-    model_performance_fetcher, resource_details_fetcher
+    model_performance_fetcher, resource_details_fetcher, unit_discovery_config
 ):
     """Test error when model name doesn't resolve to any model."""
     resource_details_fetcher.fetch_details.return_value = []
 
     with pytest.raises(ToolCallError, match="Model not found"):
         await model_performance_fetcher.fetch_performance(
-            name="nonexistent_model", num_runs=1
+            unit_discovery_config,
+            name="nonexistent_model",
+            num_runs=1,
         )
 
 
 async def test_fetch_performance_multiple_name_matches(
-    model_performance_fetcher, resource_details_fetcher
+    model_performance_fetcher, resource_details_fetcher, unit_discovery_config
 ):
     """Ensure ambiguous name lookups raise ToolCallError."""
     resource_details_fetcher.fetch_details.return_value = [
@@ -204,18 +217,22 @@ async def test_fetch_performance_multiple_name_matches(
     with pytest.raises(
         ToolCallError, match="Multiple models found for name 'duplicate'"
     ):
-        await model_performance_fetcher.fetch_performance(name="duplicate")
+        await model_performance_fetcher.fetch_performance(
+            unit_discovery_config,
+            name="duplicate",
+        )
 
 
 async def test_fetch_performance_no_runs_returns_empty(
-    model_performance_fetcher, mock_api_client
+    model_performance_fetcher, mock_api_client, unit_discovery_config
 ):
     """Test that models with no historical runs return empty list."""
     mock_response = {"data": {"environment": {"applied": {"modelHistoricalRuns": []}}}}
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     result = await model_performance_fetcher.fetch_performance(
+        unit_discovery_config,
         unique_id="model.analytics.new_model",
         num_runs=1,
     )
@@ -231,7 +248,11 @@ async def test_fetch_performance_no_runs_returns_empty(
     ],
 )
 async def test_fetch_performance_include_tests(
-    model_performance_fetcher, mock_api_client, include_tests, expect_tests_in_result
+    model_performance_fetcher,
+    mock_api_client,
+    unit_discovery_config,
+    include_tests,
+    expect_tests_in_result,
 ):
     """Test that include_tests parameter controls whether tests are in the response."""
     mock_response = {
@@ -264,9 +285,10 @@ async def test_fetch_performance_include_tests(
         }
     }
 
-    mock_api_client.execute_query.return_value = mock_response
+    mock_api_client.return_value = mock_response
 
     result = await model_performance_fetcher.fetch_performance(
+        unit_discovery_config,
         unique_id="model.analytics.stg_orders",
         num_runs=1,
         include_tests=include_tests,

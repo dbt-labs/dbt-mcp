@@ -1,6 +1,7 @@
 import pytest
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
+from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.discovery.client import (
     DEFAULT_PAGE_SIZE,
     DBT_BUILTIN_PACKAGES,
@@ -15,8 +16,10 @@ from dbt_mcp.tools.tool_names import ToolName
 
 
 @pytest.mark.asyncio
-async def test_fetch_models(models_fetcher: ModelsFetcher):
-    results = await models_fetcher.fetch_models()
+async def test_fetch_models(
+    models_fetcher: ModelsFetcher, discovery_config: DiscoveryConfig
+):
+    results = await models_fetcher.fetch_models(config=discovery_config)
 
     # Basic validation of the response
     assert isinstance(results, list)
@@ -31,42 +34,54 @@ async def test_fetch_models(models_fetcher: ModelsFetcher):
 
 
 @pytest.mark.asyncio
-async def test_fetch_models_with_filter(models_fetcher: ModelsFetcher):
+async def test_fetch_models_with_filter(
+    models_fetcher: ModelsFetcher, discovery_config: DiscoveryConfig
+):
     # model_filter: ModelFilter = {"access": "protected"}
     model_filter: ModelFilter = {"modelingLayer": "marts"}
 
     # Fetch filtered results
-    filtered_results = await models_fetcher.fetch_models(model_filter=model_filter)
+    filtered_results = await models_fetcher.fetch_models(
+        model_filter=model_filter, config=discovery_config
+    )
 
     # Validate filtered results
     assert len(filtered_results) > 0
 
 
 @pytest.mark.asyncio
-async def test_fetch_model_parents(models_fetcher: ModelsFetcher):
-    models = await models_fetcher.fetch_models()
+async def test_fetch_model_parents(
+    models_fetcher: ModelsFetcher, discovery_config: DiscoveryConfig
+):
+    models = await models_fetcher.fetch_models(config=discovery_config)
     model_name = models[0]["name"]
 
     # Fetch filtered results
-    filtered_results = await models_fetcher.fetch_model_parents(model_name)
+    filtered_results = await models_fetcher.fetch_model_parents(
+        model_name, config=discovery_config
+    )
 
     # Validate filtered results
     assert len(filtered_results) > 0
 
 
 @pytest.mark.asyncio
-async def test_fetch_model_parents_with_uniqueId(models_fetcher: ModelsFetcher):
-    models = await models_fetcher.fetch_models()
+async def test_fetch_model_parents_with_uniqueId(
+    models_fetcher: ModelsFetcher, discovery_config: DiscoveryConfig
+):
+    models = await models_fetcher.fetch_models(config=discovery_config)
     model = models[0]
     model_name = model["name"]
     unique_id = model["uniqueId"]
 
     # Fetch by name
-    results_by_name = await models_fetcher.fetch_model_parents(model_name)
+    results_by_name = await models_fetcher.fetch_model_parents(
+        model_name, config=discovery_config
+    )
 
     # Fetch by uniqueId
     results_by_uniqueId = await models_fetcher.fetch_model_parents(
-        model_name, unique_id
+        model_name, unique_id, config=discovery_config
     )
 
     # Validate that both methods return the same result
@@ -77,30 +92,38 @@ async def test_fetch_model_parents_with_uniqueId(models_fetcher: ModelsFetcher):
 
 
 @pytest.mark.asyncio
-async def test_fetch_model_children(models_fetcher: ModelsFetcher):
-    models = await models_fetcher.fetch_models()
+async def test_fetch_model_children(
+    models_fetcher: ModelsFetcher, discovery_config: DiscoveryConfig
+):
+    models = await models_fetcher.fetch_models(config=discovery_config)
     model_name = models[0]["name"]
 
     # Fetch filtered results
-    filtered_results = await models_fetcher.fetch_model_children(model_name)
+    filtered_results = await models_fetcher.fetch_model_children(
+        model_name, config=discovery_config
+    )
 
     # Validate filtered results
     assert isinstance(filtered_results, list)
 
 
 @pytest.mark.asyncio
-async def test_fetch_model_children_with_uniqueId(models_fetcher: ModelsFetcher):
-    models = await models_fetcher.fetch_models()
+async def test_fetch_model_children_with_uniqueId(
+    models_fetcher: ModelsFetcher, discovery_config: DiscoveryConfig
+):
+    models = await models_fetcher.fetch_models(config=discovery_config)
     model = models[0]
     model_name = model["name"]
     unique_id = model["uniqueId"]
 
     # Fetch by name
-    results_by_name = await models_fetcher.fetch_model_children(model_name)
+    results_by_name = await models_fetcher.fetch_model_children(
+        model_name, config=discovery_config
+    )
 
     # Fetch by uniqueId
     results_by_uniqueId = await models_fetcher.fetch_model_children(
-        model_name, unique_id
+        model_name, unique_id, config=discovery_config
     )
 
     # Validate that both methods return the same result
@@ -111,8 +134,10 @@ async def test_fetch_model_children_with_uniqueId(models_fetcher: ModelsFetcher)
 
 
 @pytest.mark.asyncio
-async def test_fetch_exposures(exposures_fetcher: ExposuresFetcher):
-    results = await exposures_fetcher.fetch_exposures()
+async def test_fetch_exposures(
+    exposures_fetcher: ExposuresFetcher, discovery_config: DiscoveryConfig
+):
+    results = await exposures_fetcher.fetch_exposures(config=discovery_config)
 
     # Basic validation of the response
     assert isinstance(results, list)
@@ -127,10 +152,12 @@ async def test_fetch_exposures(exposures_fetcher: ExposuresFetcher):
 
 
 @pytest.mark.asyncio
-async def test_fetch_exposures_pagination(exposures_fetcher: ExposuresFetcher):
+async def test_fetch_exposures_pagination(
+    exposures_fetcher: ExposuresFetcher, discovery_config: DiscoveryConfig
+):
     # Test that pagination works correctly by fetching all exposures
     # This test ensures the pagination logic handles multiple pages properly
-    results = await exposures_fetcher.fetch_exposures()
+    results = await exposures_fetcher.fetch_exposures(config=discovery_config)
 
     # Validate that we get results (assuming the test environment has some exposures)
     assert isinstance(results, list)
@@ -145,9 +172,11 @@ async def test_fetch_exposures_pagination(exposures_fetcher: ExposuresFetcher):
 
 
 @pytest.mark.asyncio
-async def test_fetch_sources(sources_fetcher: SourcesFetcher):
+async def test_fetch_sources(
+    sources_fetcher: SourcesFetcher, discovery_config: DiscoveryConfig
+):
     """Test basic sources fetching functionality."""
-    results = await sources_fetcher.fetch_sources()
+    results = await sources_fetcher.fetch_sources(config=discovery_config)
 
     # Basic validation of the response
     assert isinstance(results, list)
@@ -176,10 +205,12 @@ async def test_fetch_sources(sources_fetcher: SourcesFetcher):
 
 
 @pytest.mark.asyncio
-async def test_fetch_sources_with_filter(sources_fetcher: SourcesFetcher):
+async def test_fetch_sources_with_filter(
+    sources_fetcher: SourcesFetcher, discovery_config: DiscoveryConfig
+):
     """Test sources fetching with filter."""
     # First get all sources to find a valid source name
-    all_sources = await sources_fetcher.fetch_sources()
+    all_sources = await sources_fetcher.fetch_sources(config=discovery_config)
 
     if len(all_sources) > 0:
         # Pick the first source name for filtering
@@ -187,7 +218,7 @@ async def test_fetch_sources_with_filter(sources_fetcher: SourcesFetcher):
 
         # Test filtering by source name
         filtered_results = await sources_fetcher.fetch_sources(
-            source_names=[source_name]
+            source_names=[source_name], config=discovery_config
         )
 
         # Validate filtered results
@@ -201,6 +232,7 @@ async def test_fetch_sources_with_filter(sources_fetcher: SourcesFetcher):
 @pytest.mark.asyncio
 async def test_get_all_sources_tool(
     config_provider: ConfigProvider[DiscoveryConfig],
+    credentials_provider: CredentialsProvider,
 ) -> None:
     """Test the get_all_sources tool function integration."""
 
@@ -220,7 +252,10 @@ async def test_get_all_sources_tool(
 
     # Execute the tool function
     result = await get_all_sources_tool.fn(
-        context=DiscoveryToolContext(config_provider=config_provider)
+        context=DiscoveryToolContext(
+            config_provider=config_provider,
+            credentials_provider=credentials_provider,
+        )
     )
 
     # Validate the result
@@ -237,11 +272,13 @@ async def test_get_all_sources_tool(
 
 
 @pytest.mark.asyncio
-async def test_fetch_macros(macros_fetcher: MacrosFetcher):
+async def test_fetch_macros(
+    macros_fetcher: MacrosFetcher, discovery_config: DiscoveryConfig
+):
     """Test basic macros fetching functionality (excluding dbt-labs first-party macros)."""
     from dbt_mcp.discovery.client import DBT_BUILTIN_PACKAGES
 
-    results = await macros_fetcher.fetch_macros()
+    results = await macros_fetcher.fetch_macros(config=discovery_config)
 
     # Basic validation of the response
     assert isinstance(results, list)
@@ -265,10 +302,12 @@ async def test_fetch_macros(macros_fetcher: MacrosFetcher):
 
 
 @pytest.mark.asyncio
-async def test_fetch_macros_with_package_filter(macros_fetcher: MacrosFetcher):
+async def test_fetch_macros_with_package_filter(
+    macros_fetcher: MacrosFetcher, discovery_config: DiscoveryConfig
+):
     """Test macros fetching with package name filter."""
     # First get all macros to find available packages
-    all_macros = await macros_fetcher.fetch_macros()
+    all_macros = await macros_fetcher.fetch_macros(config=discovery_config)
 
     if len(all_macros) > 0:
         first_macro = all_macros[0]
@@ -279,7 +318,7 @@ async def test_fetch_macros_with_package_filter(macros_fetcher: MacrosFetcher):
 
         # Test filtering by package name
         filtered_results = await macros_fetcher.fetch_macros(
-            package_names=[package_name]
+            package_names=[package_name], config=discovery_config
         )
 
         # Validate filtered results
@@ -294,6 +333,7 @@ async def test_fetch_macros_with_package_filter(macros_fetcher: MacrosFetcher):
 @pytest.mark.asyncio
 async def test_get_all_macros_tool(
     config_provider: ConfigProvider[DiscoveryConfig],
+    credentials_provider: CredentialsProvider,
 ) -> None:
     """Test the get_all_macros tool function integration."""
 
@@ -313,7 +353,10 @@ async def test_get_all_macros_tool(
 
     # Execute the tool function
     result = await get_all_macros_tool.fn(
-        context=DiscoveryToolContext(config_provider=config_provider),
+        context=DiscoveryToolContext(
+            config_provider=config_provider,
+            credentials_provider=credentials_provider,
+        ),
         package_names=None,
         return_package_names_only=False,
         include_default_dbt_packages=False,

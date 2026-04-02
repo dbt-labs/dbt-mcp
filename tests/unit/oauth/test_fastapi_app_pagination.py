@@ -1,12 +1,10 @@
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from dbt_mcp.oauth.dbt_platform import DbtPlatformAccount
-from dbt_mcp.oauth.fastapi_app import (
-    _get_all_environments_for_project,
-    _get_all_projects_for_account,
-)
+from dbt_mcp.project.environment_resolver import _get_all_environments_for_project
+from dbt_mcp.project.project_resolver import get_all_projects_for_account
 
 
 @pytest.fixture
@@ -26,34 +24,48 @@ def account():
     )
 
 
-@patch("dbt_mcp.oauth.fastapi_app.requests.get")
-def test_get_all_projects_for_account_paginates(mock_get: Mock, base_headers, account):
+def create_mock_response(data: dict) -> MagicMock:
+    resp = MagicMock()
+    resp.json.return_value = data
+    resp.raise_for_status.return_value = None
+    return resp
+
+
+def create_mock_httpx_client(responses: list) -> AsyncMock:
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(side_effect=responses)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+    return mock_client
+
+
+async def test_get_all_projects_for_account_paginates(base_headers, account):
     # Two pages: first full page (limit=2), second partial page (1 item) -> stop
-    first_page_resp = Mock()
-    first_page_resp.json.return_value = {
-        "data": [
-            {"id": 101, "name": "Proj A", "account_id": account.id},
-            {"id": 102, "name": "Proj B", "account_id": account.id},
-        ]
-    }
-    first_page_resp.raise_for_status.return_value = None
-
-    second_page_resp = Mock()
-    second_page_resp.json.return_value = {
-        "data": [
-            {"id": 103, "name": "Proj C", "account_id": account.id},
-        ]
-    }
-    second_page_resp.raise_for_status.return_value = None
-
-    mock_get.side_effect = [first_page_resp, second_page_resp]
-
-    result = _get_all_projects_for_account(
-        dbt_platform_url="https://cloud.getdbt.com",
-        account=account,
-        headers=base_headers,
-        page_size=2,
+    first_page_resp = create_mock_response(
+        {
+            "data": [
+                {"id": 101, "name": "Proj A", "account_id": account.id},
+                {"id": 102, "name": "Proj B", "account_id": account.id},
+            ]
+        }
     )
+    second_page_resp = create_mock_response(
+        {
+            "data": [
+                {"id": 103, "name": "Proj C", "account_id": account.id},
+            ]
+        }
+    )
+
+    mock_client = create_mock_httpx_client([first_page_resp, second_page_resp])
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await get_all_projects_for_account(
+            dbt_platform_url="https://cloud.getdbt.com",
+            account=account,
+            headers=base_headers,
+            page_size=2,
+        )
 
     # Should aggregate 3 projects and include account_name field
     assert len(result) == 3
@@ -65,42 +77,38 @@ def test_get_all_projects_for_account_paginates(mock_get: Mock, base_headers, ac
         "https://cloud.getdbt.com/api/v3/accounts/1/projects/?state=1&offset=0&limit=2",
         "https://cloud.getdbt.com/api/v3/accounts/1/projects/?state=1&offset=2&limit=2",
     ]
-    actual_urls = [
-        call.kwargs["url"] if "url" in call.kwargs else call.args[0]
-        for call in mock_get.call_args_list
-    ]
+    actual_urls = [call.args[0] for call in mock_client.get.call_args_list]
     assert actual_urls == expected_urls
 
 
-@patch("dbt_mcp.oauth.fastapi_app.requests.get")
-def test_get_all_environments_for_project_paginates(mock_get: Mock, base_headers):
+async def test_get_all_environments_for_project_paginates(base_headers):
     # Two pages: first full page (limit=2), second partial (1 item)
-    first_page_resp = Mock()
-    first_page_resp.json.return_value = {
-        "data": [
-            {"id": 201, "name": "Dev", "deployment_type": "development"},
-            {"id": 202, "name": "Prod", "deployment_type": "production"},
-        ]
-    }
-    first_page_resp.raise_for_status.return_value = None
-
-    second_page_resp = Mock()
-    second_page_resp.json.return_value = {
-        "data": [
-            {"id": 203, "name": "Staging", "deployment_type": "development"},
-        ]
-    }
-    second_page_resp.raise_for_status.return_value = None
-
-    mock_get.side_effect = [first_page_resp, second_page_resp]
-
-    result = _get_all_environments_for_project(
-        dbt_platform_url="https://cloud.getdbt.com",
-        account_id=1,
-        project_id=9,
-        headers=base_headers,
-        page_size=2,
+    first_page_resp = create_mock_response(
+        {
+            "data": [
+                {"id": 201, "name": "Dev", "deployment_type": "development"},
+                {"id": 202, "name": "Prod", "deployment_type": "production"},
+            ]
+        }
     )
+    second_page_resp = create_mock_response(
+        {
+            "data": [
+                {"id": 203, "name": "Staging", "deployment_type": "development"},
+            ]
+        }
+    )
+
+    mock_client = create_mock_httpx_client([first_page_resp, second_page_resp])
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await _get_all_environments_for_project(
+            dbt_platform_url="https://cloud.getdbt.com",
+            account_id=1,
+            project_id=9,
+            headers=base_headers,
+            page_size=2,
+        )
 
     assert len(result) == 3
     assert {e.id for e in result} == {201, 202, 203}
@@ -109,8 +117,5 @@ def test_get_all_environments_for_project_paginates(mock_get: Mock, base_headers
         "https://cloud.getdbt.com/api/v3/accounts/1/projects/9/environments/?state=1&offset=0&limit=2",
         "https://cloud.getdbt.com/api/v3/accounts/1/projects/9/environments/?state=1&offset=2&limit=2",
     ]
-    actual_urls = [
-        call.kwargs["url"] if "url" in call.kwargs else call.args[0]
-        for call in mock_get.call_args_list
-    ]
+    actual_urls = [call.args[0] for call in mock_client.get.call_args_list]
     assert actual_urls == expected_urls
