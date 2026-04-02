@@ -1,19 +1,25 @@
 import logging
+from dataclasses import dataclass
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from dbt_mcp.config.config_providers import (
-    ConfigProvider,
     DiscoveryConfig,
+    MultiProjectConfigProvider,
+    MultiProjectDiscoveryConfigProvider,
 )
-from dbt_mcp.config.config_providers.semantic_layer import resolve_project_environments
-from dbt_mcp.config.headers import DiscoveryHeadersProvider
-from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.discovery.client import (
     AppliedResourceType,
+    ExposuresFetcher,
+    LineageFetcher,
+    MacrosFetcher,
+    ModelPerformanceFetcher,
+    ModelsFetcher,
+    PaginatedResourceFetcher,
+    ResourceDetailsFetcher,
+    SourcesFetcher,
 )
-from dbt_mcp.discovery.tools import DiscoveryToolContext
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.fields import (
@@ -31,28 +37,70 @@ from dbt_mcp.tools.toolsets import Toolset
 logger = logging.getLogger(__name__)
 
 
-async def _resolve_discovery_config_for_project(
-    context: DiscoveryToolContext,
-    project_id: int,
-) -> DiscoveryConfig:
-    """Resolve a DiscoveryConfig for the given project by fetching its environments."""
-    settings, token_provider, prod_env, dev_env = await resolve_project_environments(
-        context.credentials_provider, project_id
-    )
-    assert settings.actual_host
-    if settings.actual_host_prefix:
-        url = f"https://{settings.actual_host_prefix}.metadata.{settings.actual_host}/graphql"
-    else:
-        url = f"https://metadata.{settings.actual_host}/graphql"
-    environment_id = prod_env.id if prod_env else (dev_env.id if dev_env else None)
-    assert environment_id is not None, (
-        f"No prod or dev environment found for project {project_id}"
-    )
-    return DiscoveryConfig(
-        url=url,
-        headers_provider=DiscoveryHeadersProvider(token_provider=token_provider),
-        environment_id=environment_id,
-    )
+@dataclass
+class MultiProjectDiscoveryToolContext:
+    config_provider: MultiProjectConfigProvider[DiscoveryConfig]
+    models_fetcher: ModelsFetcher
+    exposures_fetcher: ExposuresFetcher
+    sources_fetcher: SourcesFetcher
+    macros_fetcher: MacrosFetcher
+    resource_details_fetcher: ResourceDetailsFetcher
+    lineage_fetcher: LineageFetcher
+    model_performance_fetcher: ModelPerformanceFetcher
+
+    def __init__(
+        self,
+        *,
+        config_provider: MultiProjectConfigProvider[DiscoveryConfig],
+    ):
+        self.config_provider = config_provider
+        self.models_fetcher = ModelsFetcher(
+            paginator=PaginatedResourceFetcher(
+                edges_path=("data", "environment", "applied", "models", "edges"),
+                page_info_path=("data", "environment", "applied", "models", "pageInfo"),
+            ),
+        )
+        self.exposures_fetcher = ExposuresFetcher(
+            paginator=PaginatedResourceFetcher(
+                edges_path=("data", "environment", "definition", "exposures", "edges"),
+                page_info_path=(
+                    "data",
+                    "environment",
+                    "definition",
+                    "exposures",
+                    "pageInfo",
+                ),
+            ),
+        )
+        self.sources_fetcher = SourcesFetcher(
+            paginator=PaginatedResourceFetcher(
+                edges_path=("data", "environment", "applied", "sources", "edges"),
+                page_info_path=(
+                    "data",
+                    "environment",
+                    "applied",
+                    "sources",
+                    "pageInfo",
+                ),
+            ),
+        )
+        self.macros_fetcher = MacrosFetcher(
+            paginator=PaginatedResourceFetcher(
+                edges_path=("data", "environment", "applied", "resources", "edges"),
+                page_info_path=(
+                    "data",
+                    "environment",
+                    "applied",
+                    "resources",
+                    "pageInfo",
+                ),
+            ),
+        )
+        self.resource_details_fetcher = ResourceDetailsFetcher()
+        self.lineage_fetcher = LineageFetcher()
+        self.model_performance_fetcher = ModelPerformanceFetcher(
+            resource_details_fetcher=self.resource_details_fetcher,
+        )
 
 
 PROJECT_ID_FIELD = Field(
@@ -69,10 +117,10 @@ PROJECT_ID_FIELD = Field(
     idempotent_hint=True,
 )
 async def get_mart_models(
-    context: DiscoveryToolContext,
+    context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.config_provider.get_config(project_id=project_id)
     mart_models = await context.models_fetcher.fetch_models(
         model_filter={"modelingLayer": "marts"},
         config=config,
@@ -88,10 +136,10 @@ async def get_mart_models(
     idempotent_hint=True,
 )
 async def get_all_models(
-    context: DiscoveryToolContext,
+    context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.config_provider.get_config(project_id=project_id)
     return await context.models_fetcher.fetch_models(config=config)
 
 
@@ -103,12 +151,12 @@ async def get_all_models(
     idempotent_hint=True,
 )
 async def get_model_details(
-    context: DiscoveryToolContext,
+    context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.config_provider.get_config(project_id=project_id)
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.MODEL,
         unique_id=unique_id,
@@ -125,12 +173,12 @@ async def get_model_details(
     idempotent_hint=True,
 )
 async def get_model_parents(
-    context: DiscoveryToolContext,
+    context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.config_provider.get_config(project_id=project_id)
     return await context.models_fetcher.fetch_model_parents(
         name, unique_id, config=config
     )
@@ -144,14 +192,14 @@ async def get_model_parents(
     idempotent_hint=True,
 )
 async def get_model_children(
-    context: DiscoveryToolContext,
+    context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.config_provider.get_config(project_id=project_id)
     return await context.models_fetcher.fetch_model_children(
-        name, unique_id, config=config
+        model_name=name, unique_id=unique_id, config=config
     )
 
 
@@ -163,14 +211,16 @@ async def get_model_children(
     idempotent_hint=True,
 )
 async def get_model_health(
-    context: DiscoveryToolContext,
+    context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.config_provider.get_config(project_id=project_id)
     return await context.models_fetcher.fetch_model_health(
-        name, unique_id, config=config
+        model_name=name,
+        unique_id=unique_id,
+        config=config,
     )
 
 
@@ -182,7 +232,7 @@ async def get_model_health(
     idempotent_hint=True,
 )
 async def get_model_performance(
-    context: DiscoveryToolContext,
+    context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
@@ -200,7 +250,7 @@ async def get_model_performance(
         "Default is False to reduce response size.",
     ),
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.config_provider.get_config(project_id=project_id)
     return await context.model_performance_fetcher.fetch_performance(
         name=name,
         unique_id=unique_id,
@@ -218,13 +268,13 @@ async def get_model_performance(
     idempotent_hint=True,
 )
 async def get_lineage(
-    context: DiscoveryToolContext,
+    context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     unique_id: str = UNIQUE_ID_REQUIRED_FIELD,
     types: list[LineageResourceType] | None = TYPES_FIELD,
     depth: int = DEPTH_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.config_provider.get_config(project_id=project_id)
     return await context.lineage_fetcher.fetch_lineage(
         unique_id=unique_id, types=types, depth=depth, config=config
     )
@@ -238,10 +288,10 @@ async def get_lineage(
     idempotent_hint=True,
 )
 async def get_exposures(
-    context: DiscoveryToolContext,
+    context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.config_provider.get_config(project_id=project_id)
     return await context.exposures_fetcher.fetch_exposures(config=config)
 
 
@@ -253,12 +303,12 @@ async def get_exposures(
     idempotent_hint=True,
 )
 async def get_exposure_details(
-    context: DiscoveryToolContext,
+    context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.config_provider.get_config(project_id=project_id)
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.EXPOSURE,
         unique_id=unique_id,
@@ -275,12 +325,12 @@ async def get_exposure_details(
     idempotent_hint=True,
 )
 async def get_all_sources(
-    context: DiscoveryToolContext,
+    context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     source_names: list[str] | None = None,
     unique_ids: list[str] | None = None,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.config_provider.get_config(project_id=project_id)
     return await context.sources_fetcher.fetch_sources(
         source_names, unique_ids, config=config
     )
@@ -294,12 +344,12 @@ async def get_all_sources(
     idempotent_hint=True,
 )
 async def get_source_details(
-    context: DiscoveryToolContext,
+    context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.config_provider.get_config(project_id=project_id)
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SOURCE,
         unique_id=unique_id,
@@ -316,7 +366,7 @@ async def get_source_details(
     idempotent_hint=True,
 )
 async def get_all_macros(
-    context: DiscoveryToolContext,
+    context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     package_names: list[str] | None = Field(
         default=None,
@@ -335,7 +385,7 @@ async def get_all_macros(
         "are maintained by dbt Labs.",
     ),
 ) -> list[dict] | list[str]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.config_provider.get_config(project_id=project_id)
     return await context.macros_fetcher.fetch_macros(
         package_names=package_names,
         return_package_names_only=return_package_names_only,
@@ -352,12 +402,12 @@ async def get_all_macros(
     idempotent_hint=True,
 )
 async def get_macro_details(
-    context: DiscoveryToolContext,
+    context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.config_provider.get_config(project_id=project_id)
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.MACRO,
         unique_id=unique_id,
@@ -374,12 +424,12 @@ async def get_macro_details(
     idempotent_hint=True,
 )
 async def get_seed_details(
-    context: DiscoveryToolContext,
+    context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.config_provider.get_config(project_id=project_id)
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SEED,
         unique_id=unique_id,
@@ -396,12 +446,12 @@ async def get_seed_details(
     idempotent_hint=True,
 )
 async def get_semantic_model_details(
-    context: DiscoveryToolContext,
+    context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.config_provider.get_config(project_id=project_id)
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SEMANTIC_MODEL,
         unique_id=unique_id,
@@ -418,12 +468,12 @@ async def get_semantic_model_details(
     idempotent_hint=True,
 )
 async def get_snapshot_details(
-    context: DiscoveryToolContext,
+    context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.config_provider.get_config(project_id=project_id)
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SNAPSHOT,
         unique_id=unique_id,
@@ -440,12 +490,12 @@ async def get_snapshot_details(
     idempotent_hint=True,
 )
 async def get_test_details(
-    context: DiscoveryToolContext,
+    context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    config = await _resolve_discovery_config_for_project(context, project_id)
+    config = await context.config_provider.get_config(project_id=project_id)
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.TEST,
         unique_id=unique_id,
@@ -478,18 +528,16 @@ MULTIPROJECT_DISCOVERY_TOOLS = [
 
 def register_multiproject_discovery_tools(
     dbt_mcp: FastMCP,
-    credentials_provider: CredentialsProvider,
-    discovery_config_provider: ConfigProvider[DiscoveryConfig],
+    config_provider: MultiProjectDiscoveryConfigProvider,
     *,
     disabled_tools: set[ToolName],
     enabled_tools: set[ToolName] | None,
     enabled_toolsets: set[Toolset],
     disabled_toolsets: set[Toolset],
 ) -> None:
-    def bind_context() -> DiscoveryToolContext:
-        return DiscoveryToolContext(
-            credentials_provider=credentials_provider,
-            config_provider=discovery_config_provider,
+    def bind_context() -> MultiProjectDiscoveryToolContext:
+        return MultiProjectDiscoveryToolContext(
+            config_provider=config_provider,
         )
 
     register_tools(

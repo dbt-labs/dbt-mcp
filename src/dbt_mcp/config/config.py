@@ -2,7 +2,10 @@ import os
 from dataclasses import dataclass
 
 from dbt_mcp.config.config_providers.admin_api import DefaultAdminApiConfigProvider
-from dbt_mcp.config.config_providers.discovery import DefaultDiscoveryConfigProvider
+from dbt_mcp.config.config_providers.discovery import (
+    DefaultDiscoveryConfigProvider,
+    MultiProjectDiscoveryConfigProvider,
+)
 from dbt_mcp.config.config_providers.proxied_tool import (
     DefaultProxiedToolConfigProvider,
 )
@@ -14,6 +17,7 @@ from dbt_mcp.config.settings import (
     DbtMcpLogSettings,
     DbtMcpSettings,
 )
+from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo, dbt_lsp_binary_info
 from dbt_mcp.telemetry.logging import configure_logging
@@ -78,6 +82,7 @@ class Config:
     proxied_tool_config_provider: DefaultProxiedToolConfigProvider | None
     dbt_cli_config: DbtCliConfig | None
     dbt_codegen_config: DbtCodegenConfig | None
+    multi_project_discovery_config_provider: MultiProjectDiscoveryConfigProvider | None
     discovery_config_provider: DefaultDiscoveryConfigProvider | None
     semantic_layer_config_provider: DefaultSemanticLayerConfigProvider | None
     admin_api_config_provider: DefaultAdminApiConfigProvider | None
@@ -119,10 +124,17 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         )
 
     admin_api_config_provider = None
+    multi_project_config_provider = None
     if settings.actual_host:
         admin_api_config_provider = DefaultAdminApiConfigProvider(
             credentials_provider=credentials_provider,
         )
+        if settings.dbt_account_id:
+            multi_project_config_provider = MultiProjectDiscoveryConfigProvider(
+                account_id=settings.dbt_account_id,
+                credentials_provider=credentials_provider,
+                admin_client=DbtAdminAPIClient(admin_api_config_provider),
+            )
 
     dbt_cli_config = None
     if settings.dbt_project_dir and settings.dbt_path:
@@ -172,6 +184,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         proxied_tool_config_provider=proxied_tool_config_provider,
         dbt_cli_config=dbt_cli_config,
         dbt_codegen_config=dbt_codegen_config,
+        multi_project_discovery_config_provider=multi_project_config_provider,
         discovery_config_provider=discovery_config_provider,
         semantic_layer_config_provider=semantic_layer_config_provider,
         admin_api_config_provider=admin_api_config_provider,
