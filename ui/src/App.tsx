@@ -191,6 +191,9 @@ function CustomDropdown<T,>({
   // search — React sets each ref to null on unmount, so optional-chaining
   // guards on all accesses keep this safe.
   const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  // Tracks which direction key opened the dropdown so the auto-focus effect
+  // can land on the right element (search for ArrowDown, last option for ArrowUp).
+  const openDirectionRef = useRef<"down" | "up" | null>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -212,10 +215,21 @@ function CustomDropdown<T,>({
     }
   }, [isOpen]);
 
-  // Auto-focus search input when dropdown opens
+  // Auto-focus the correct element when the dropdown opens:
+  // ArrowUp focuses the last option; everything else focuses the search input.
+  // Uses options.length (not filteredOptions.length) because searchQuery is reset
+  // on every close, so the full list is always visible when this runs.
   useEffect(() => {
-    if (isOpen) searchRef.current?.focus();
-  }, [isOpen]);
+    if (isOpen) {
+      if (openDirectionRef.current === "up") {
+        const lastIndex = options.length - 1;
+        (optionRefs.current[lastIndex] ?? searchRef.current)?.focus();
+      } else {
+        searchRef.current?.focus();
+      }
+      openDirectionRef.current = null;
+    }
+  }, [isOpen, options]);
 
   const query = searchQuery.trim().toLowerCase();
   const filteredOptions = query
@@ -225,8 +239,13 @@ function CustomDropdown<T,>({
   const selectedOption = options.find((o) => getOptionId(o) === value);
 
   const handleTriggerKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    if (e.key === "ArrowDown" || e.key === " ") {
       e.preventDefault();
+      openDirectionRef.current = "down";
+      setIsOpen(true);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      openDirectionRef.current = "up";
       setIsOpen(true);
     } else if (e.key === "Escape") {
       setIsOpen(false);
@@ -243,7 +262,8 @@ function CustomDropdown<T,>({
     if (e.key === "ArrowDown") {
       e.preventDefault();
       optionRefs.current[0]?.focus();
-    } else if (e.key === "Escape") {
+    } else if (e.key === "ArrowUp" || e.key === "Escape") {
+      e.preventDefault();
       setIsOpen(false);
       setSearchQuery("");
       triggerRef.current?.focus();
@@ -275,6 +295,13 @@ function CustomDropdown<T,>({
     }
   };
 
+  const handleContainerBlur = (e: React.FocusEvent<HTMLDivElement>) => {
+    if (!dropdownRef.current?.contains(e.relatedTarget as Node)) {
+      setIsOpen(false);
+      setSearchQuery("");
+    }
+  };
+
   const handleOptionSelect = (option: T) => {
     onChange(getOptionId(option).toString());
     setIsOpen(false);
@@ -283,7 +310,7 @@ function CustomDropdown<T,>({
   };
 
   return (
-    <div className="custom-dropdown" ref={dropdownRef}>
+    <div className="custom-dropdown" ref={dropdownRef} onBlur={handleContainerBlur}>
       <button
         ref={triggerRef}
         id={id}
@@ -308,11 +335,7 @@ function CustomDropdown<T,>({
       </button>
 
       {isOpen && (
-        <div
-          className="dropdown-options"
-          role="listbox"
-          aria-labelledby={`${id}-label`}
-        >
+        <div className="dropdown-options">
           <div className="dropdown-search-wrapper">
             <input
               ref={searchRef}
@@ -323,29 +346,31 @@ function CustomDropdown<T,>({
               onChange={(e) => setSearchQuery(e.target.value)}
               onClick={(e) => e.stopPropagation()}
               onKeyDown={handleSearchKeyDown}
-              aria-label="Search"
+              aria-label={`Search ${placeholder}`}
             />
           </div>
-          {filteredOptions.map((option, index) => (
-            <button
-              key={getOptionId(option)}
-              ref={(el) => { optionRefs.current[index] = el; }}
-              type="button"
-              className={`dropdown-option ${
-                getOptionId(option) === value ? "selected" : ""
-              }`}
-              onClick={() => handleOptionSelect(option)}
-              onKeyDown={(e) => handleOptionKeyDown(e, index, option)}
-              role="option"
-              aria-selected={getOptionId(option) === value}
-            >
-              <div className="option-primary">{getPrimary(option)}</div>
-              <div className="option-secondary">{getSecondary(option)}</div>
-            </button>
-          ))}
-          {filteredOptions.length === 0 && (
-            <div className="dropdown-no-results">No results found</div>
-          )}
+          <div role="listbox" aria-labelledby={`${id}-label`}>
+            {filteredOptions.map((option, index) => (
+              <button
+                key={getOptionId(option)}
+                ref={(el) => { optionRefs.current[index] = el; }}
+                type="button"
+                className={`dropdown-option ${
+                  getOptionId(option) === value ? "selected" : ""
+                }`}
+                onClick={() => handleOptionSelect(option)}
+                onKeyDown={(e) => handleOptionKeyDown(e, index, option)}
+                role="option"
+                aria-selected={getOptionId(option) === value}
+              >
+                <div className="option-primary">{getPrimary(option)}</div>
+                <div className="option-secondary">{getSecondary(option)}</div>
+              </button>
+            ))}
+            {filteredOptions.length === 0 && (
+              <div className="dropdown-no-results">No results found</div>
+            )}
+          </div>
         </div>
       )}
     </div>
