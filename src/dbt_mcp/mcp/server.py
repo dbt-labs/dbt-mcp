@@ -10,6 +10,8 @@ from dbtlabs_vortex.producer import shutdown
 from mcp.server.fastmcp import FastMCP
 from mcp.server.lowlevel.server import LifespanResultT
 from mcp.types import ContentBlock, TextContent
+from starlette.requests import Request
+from starlette.responses import Response
 
 from dbt_mcp.config.config import Config
 from dbt_mcp.dbt_admin.tools import register_admin_api_tools
@@ -23,6 +25,7 @@ from dbt_mcp.lsp.providers.local_lsp_connection_provider import (
 )
 from dbt_mcp.lsp.providers.lsp_connection_provider import LSPConnectionProviderProtocol
 from dbt_mcp.lsp.tools import register_lsp_tools
+from dbt_mcp.mcp.oidc_auth import create_oidc_auth_settings
 from dbt_mcp.mcp_server_metadata.tools import register_mcp_server_tools
 from dbt_mcp.product_docs.tools import register_product_docs_tools
 from dbt_mcp.proxy.tools import ProxiedToolsManager, register_proxied_tools
@@ -190,6 +193,15 @@ async def register_multi_project_dbt_mcp(dbt_mcp: DbtMCP, config: Config) -> Non
 
 
 async def create_dbt_mcp(config: Config) -> DbtMCP:
+    auth_settings = None
+    token_verifier = None
+    auth_server_provider = None
+    if config.oidc_auth_config:
+        logger.info("Enabling OIDC authentication for inbound MCP requests")
+        auth_settings, token_verifier, auth_server_provider = create_oidc_auth_settings(
+            config.oidc_auth_config
+        )
+
     dbt_mcp = DbtMCP(
         config=config,
         usage_tracker=DefaultUsageTracker(
@@ -198,7 +210,21 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
         ),
         name="dbt",
         lifespan=app_lifespan,
+        host=config.mcp_host,
+        port=config.mcp_port,
+        auth=auth_settings,
+        auth_server_provider=auth_server_provider,
+        token_verifier=token_verifier,
     )
+    if auth_server_provider:
+        provider = auth_server_provider
+        logger.info(
+            "Enabling native OAuth broker callback route at %s", provider.callback_path
+        )
+
+        @dbt_mcp.custom_route(provider.callback_path, methods=["GET"])
+        async def oidc_native_auth_callback(request: Request) -> Response:
+            return await provider.handle_callback(request)
 
     if config.multi_project_enabled:
         logger.info("DBT_MCP_MULTI_PROJECT_ENABLED=true -> Multi-project mode")

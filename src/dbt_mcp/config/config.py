@@ -70,6 +70,20 @@ class LspConfig:
 
 
 @dataclass
+class OidcAuthConfig:
+    issuer_url: str
+    resource_server_url: str
+    introspection_endpoint: str | None
+    client_id: str
+    client_secret: str | None
+    required_scopes: list[str]
+    native_auth_enabled: bool = False
+    auth_server_issuer_url: str | None = None
+    token_issuer_url: str | None = None
+    callback_url: str | None = None
+
+
+@dataclass
 class Config:
     disable_tools: list[ToolName]
     enable_tools: list[ToolName] | None
@@ -84,6 +98,9 @@ class Config:
     credentials_provider: CredentialsProvider
     lsp_config: LspConfig | None
     multi_project_enabled: bool = False
+    oidc_auth_config: OidcAuthConfig | None = None
+    mcp_host: str = "127.0.0.1"
+    mcp_port: int = 8000
 
 
 def load_config(enable_proxied_tools: bool = True) -> Config:
@@ -164,6 +181,26 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
             lsp_binary_info=lsp_binary_info,
         )
 
+    oidc_auth_config = None
+    if (
+        settings.oidc_enabled
+        and settings.oidc_issuer_url
+        and settings.oidc_resource_server_url
+        and settings.oidc_client_id
+    ):
+        oidc_auth_config = OidcAuthConfig(
+            issuer_url=settings.oidc_issuer_url,
+            resource_server_url=settings.oidc_resource_server_url,
+            introspection_endpoint=settings.oidc_introspection_endpoint,
+            client_id=settings.oidc_client_id,
+            client_secret=settings.oidc_client_secret,
+            required_scopes=settings.oidc_required_scopes or ["mcp:tools"],
+            native_auth_enabled=settings.oidc_native_auth_enabled,
+            auth_server_issuer_url=settings.oidc_auth_server_issuer_url,
+            token_issuer_url=settings.oidc_token_issuer_url,
+            callback_url=settings.oidc_callback_url,
+        )
+
     return Config(
         disable_tools=settings.disable_tools or [],
         enable_tools=settings.enable_tools,
@@ -178,4 +215,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         credentials_provider=credentials_provider,
         lsp_config=lsp_config,
         multi_project_enabled=settings.multi_project_enabled,
+        oidc_auth_config=oidc_auth_config,
+        mcp_host=settings.fastmcp_host,
+        mcp_port=settings.fastmcp_port,
     )
