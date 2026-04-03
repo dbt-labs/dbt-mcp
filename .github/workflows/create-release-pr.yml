@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # actions/checkout@v4
 
-      - uses: ./.github/actions/setup-python
+      - uses: ./.github/actions/setup-python-and-pnpm
 
       - name: Compute next dir for bump
         id: changie-next

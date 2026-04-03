@@ -18,7 +18,7 @@ jobs:
     if: "startsWith(github.event.head_commit.message, 'version:')"
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # actions/checkout@v4
-      - uses: ./.github/actions/setup-python
+      - uses: ./.github/actions/setup-python-and-pnpm
       - name: Get the latest version
         id: changie-latest
         uses: miniscruff/changie-action@6dcc2533cac0495148ed4046c438487e4dceaa23
@@ -50,12 +50,8 @@ jobs:
           fetch-tags: true
 
       - name: setup python
-        uses: ./.github/actions/setup-python
+        uses: ./.github/actions/setup-python-and-pnpm
         id: setup-python
-
-      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
-        with:
-          version: 10
 
       - name: Install go-task
         run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
@@ -121,11 +117,7 @@ jobs:
         uses: ./.github/actions/setup-mcpb          
 
       - name: Setup python
-        uses: ./.github/actions/setup-python
-
-      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
-        with:
-          version: 10
+        uses: ./.github/actions/setup-python-and-pnpm
 
       - name: Install go-task
         run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
