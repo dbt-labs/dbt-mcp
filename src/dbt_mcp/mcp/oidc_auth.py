@@ -388,6 +388,7 @@ class OidcAuthorizationCodeBrokerProvider(
             )
         token = self._parse_oauth_token(response.json())
         resolved_scopes = scopes or refresh_token.scopes or self.default_scopes
+        effective_refresh_token = token.refresh_token or refresh_token.token
 
         self._access_tokens[token.access_token] = AccessToken(
             token=token.access_token,
@@ -396,14 +397,22 @@ class OidcAuthorizationCodeBrokerProvider(
             expires_at=self._compute_expiry(token.expires_in),
             resource=None,
         )
-        if token.refresh_token:
-            self._refresh_tokens[token.refresh_token] = RefreshToken(
-                token=token.refresh_token,
-                client_id=str(client.client_id),
-                scopes=resolved_scopes,
-                expires_at=None,
-            )
+        self._refresh_tokens[effective_refresh_token] = RefreshToken(
+            token=effective_refresh_token,
+            client_id=str(client.client_id),
+            scopes=resolved_scopes,
+            expires_at=None,
+        )
+        if effective_refresh_token != refresh_token.token:
             self._refresh_tokens.pop(refresh_token.token, None)
+        if not token.refresh_token:
+            token = OAuthToken(
+                access_token=token.access_token,
+                token_type=token.token_type,
+                expires_in=token.expires_in,
+                scope=token.scope,
+                refresh_token=effective_refresh_token,
+            )
         return token
 
     async def load_access_token(self, token: str) -> AccessToken | None:

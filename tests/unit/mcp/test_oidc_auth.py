@@ -4,7 +4,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from mcp.server.auth.provider import AuthorizationCode, AuthorizationParams
+from mcp.server.auth.provider import (
+    AuthorizationCode,
+    AuthorizationParams,
+    RefreshToken,
+)
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
 from dbt_mcp.config.config import load_config
@@ -470,6 +474,127 @@ async def test_native_broker_exchange_keeps_mcp_scopes():
     )
 
     assert provider._access_tokens["upstream-access-token"].scopes == ["mcp:tools"]
+
+
+@pytest.mark.asyncio
+async def test_native_broker_refresh_returns_existing_refresh_token_when_upstream_omits_it():
+    fallback_verifier = AsyncMock()
+    fallback_verifier.verify_token = AsyncMock(return_value=None)
+    provider = OidcAuthorizationCodeBrokerProvider(
+        upstream_issuer_url="https://auth.example.com",
+        upstream_client_id="oidc-client-id",
+        upstream_client_secret="oidc-client-secret",
+        callback_url="http://127.0.0.1:8788/callback",
+        default_scopes=["mcp:tools"],
+        fallback_token_verifier=fallback_verifier,
+    )
+    provider._oidc_discovery = {
+        "authorization_endpoint": "https://auth.example.com/oauth2/auth",
+        "token_endpoint": "https://auth.example.com/oauth2/token",
+        "scopes_supported": ["openid", "profile", "email"],
+    }
+    provider._refresh_tokens["existing-refresh-token"] = RefreshToken(
+        token="existing-refresh-token",
+        client_id="codex-client",
+        scopes=["mcp:tools"],
+        expires_at=None,
+    )
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "access_token": "upstream-access-token-2",
+        "token_type": "Bearer",
+        "scope": "openid profile email",
+        "expires_in": 3600,
+    }
+    mock_client = AsyncMock()
+    mock_client.post.return_value = mock_response
+    mock_async_client = AsyncMock()
+    mock_async_client.__aenter__.return_value = mock_client
+    mock_async_client.__aexit__.return_value = False
+
+    with patch(
+        "dbt_mcp.mcp.oidc_auth.httpx.AsyncClient", return_value=mock_async_client
+    ):
+        token = await provider.exchange_refresh_token(
+            OAuthClientInformationFull(
+                client_id="codex-client",
+                redirect_uris=["http://127.0.0.1:56491/callback"],
+            ),
+            RefreshToken(
+                token="existing-refresh-token",
+                client_id="codex-client",
+                scopes=["mcp:tools"],
+                expires_at=None,
+            ),
+            ["mcp:tools"],
+        )
+
+    assert token.refresh_token == "existing-refresh-token"
+    assert "existing-refresh-token" in provider._refresh_tokens
+    assert provider._refresh_tokens["existing-refresh-token"].scopes == ["mcp:tools"]
+
+
+@pytest.mark.asyncio
+async def test_native_broker_refresh_rotates_refresh_token_when_upstream_returns_new_one():
+    fallback_verifier = AsyncMock()
+    fallback_verifier.verify_token = AsyncMock(return_value=None)
+    provider = OidcAuthorizationCodeBrokerProvider(
+        upstream_issuer_url="https://auth.example.com",
+        upstream_client_id="oidc-client-id",
+        upstream_client_secret="oidc-client-secret",
+        callback_url="http://127.0.0.1:8788/callback",
+        default_scopes=["mcp:tools"],
+        fallback_token_verifier=fallback_verifier,
+    )
+    provider._oidc_discovery = {
+        "authorization_endpoint": "https://auth.example.com/oauth2/auth",
+        "token_endpoint": "https://auth.example.com/oauth2/token",
+        "scopes_supported": ["openid", "profile", "email"],
+    }
+    provider._refresh_tokens["old-refresh-token"] = RefreshToken(
+        token="old-refresh-token",
+        client_id="codex-client",
+        scopes=["mcp:tools"],
+        expires_at=None,
+    )
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "access_token": "upstream-access-token-3",
+        "token_type": "Bearer",
+        "scope": "openid profile email",
+        "expires_in": 3600,
+        "refresh_token": "new-refresh-token",
+    }
+    mock_client = AsyncMock()
+    mock_client.post.return_value = mock_response
+    mock_async_client = AsyncMock()
+    mock_async_client.__aenter__.return_value = mock_client
+    mock_async_client.__aexit__.return_value = False
+
+    with patch(
+        "dbt_mcp.mcp.oidc_auth.httpx.AsyncClient", return_value=mock_async_client
+    ):
+        token = await provider.exchange_refresh_token(
+            OAuthClientInformationFull(
+                client_id="codex-client",
+                redirect_uris=["http://127.0.0.1:56491/callback"],
+            ),
+            RefreshToken(
+                token="old-refresh-token",
+                client_id="codex-client",
+                scopes=["mcp:tools"],
+                expires_at=None,
+            ),
+            ["mcp:tools"],
+        )
+
+    assert token.refresh_token == "new-refresh-token"
+    assert "new-refresh-token" in provider._refresh_tokens
+    assert "old-refresh-token" not in provider._refresh_tokens
 
 
 @pytest.mark.asyncio
