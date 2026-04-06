@@ -50,7 +50,6 @@ HUMAN_DESCRIPTIONS: dict[ToolName, str] = {
     ToolName.LIST_PROJECTS: "Lists all projects in the dbt Platform account.",
     ToolName.LIST_JOBS: "Lists jobs in a dbt Platform account; option to filter by project or environment.",
     ToolName.GET_JOB_DETAILS: "Gets job configuration including triggers, schedule, and dbt commands.",
-    ToolName.GET_PROJECT_DETAILS: "Gets project information for a specific dbt project.",
     ToolName.TRIGGER_JOB_RUN: "Triggers a job run; option to override git branch, schema, or other settings.",
     ToolName.LIST_JOBS_RUNS: "Lists job runs; option to filter by job, status, or order by field.",
     ToolName.GET_JOB_RUN_DETAILS: "Gets run details including status, timing, steps, and artifacts.",

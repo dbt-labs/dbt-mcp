@@ -365,7 +365,6 @@ def test_admin_tools_list_contains_all_tools():
         "list_projects",
         "list_jobs",
         "get_job_details",
-        "get_project_details",
         "trigger_job_run",
         "list_jobs_runs",
         "get_job_run_details",
