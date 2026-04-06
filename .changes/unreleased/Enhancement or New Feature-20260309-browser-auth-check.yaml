@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Add eager warehouse auth check for browser-based authentication (e.g., Snowflake externalbrowser)
+time: 2026-03-09T10:00:00.000000-08:00
