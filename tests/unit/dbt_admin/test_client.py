@@ -71,7 +71,7 @@ def create_mock_httpx_client(mock_response):
 
 
 async def test_client_initialization(client):
-    config = await client.get_config()
+    config = await client.config_provider.get_config()
     assert config.account_id == 12345
     assert config.headers_provider.get_headers() == {
         "Authorization": "Bearer test_token"

@@ -54,7 +54,6 @@ async def login(
             raise FileNotFoundError(f"{packaged_dist} not found in packaged resources")
         static_dir = str(packaged_dist)
 
-        # Create FastAPI app and Uvicorn server
         app = create_app(
             oauth_client=client,
             state_to_verifier={state: code_verifier},
