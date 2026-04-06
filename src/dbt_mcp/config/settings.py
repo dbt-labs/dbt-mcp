@@ -77,6 +77,8 @@ class DbtMcpSettings(BaseSettings):
     dbt_token: str | None = Field(None, alias="DBT_TOKEN")
     multicell_account_prefix: str | None = Field(None, alias="MULTICELL_ACCOUNT_PREFIX")
     host_prefix: str | None = Field(None, alias="DBT_HOST_PREFIX")
+    dbt_discovery_url: str | None = Field(None, alias="DBT_DISCOVERY_URL")
+    dbt_disable_ssl_verify: bool = Field(False, alias="DBT_DISABLE_SSL_VERIFY")
     dbt_lsp_path: str | None = Field(None, alias="DBT_LSP_PATH")
 
     # dbt CLI settings

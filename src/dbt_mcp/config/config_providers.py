@@ -26,6 +26,7 @@ class DiscoveryConfig:
     url: str
     headers_provider: HeadersProvider
     environment_id: int
+    ssl_verify: bool = True
 
 
 @dataclass
@@ -86,7 +87,9 @@ class DefaultDiscoveryConfigProvider(ConfigProvider[DiscoveryConfig]):
     async def get_config(self) -> DiscoveryConfig:
         settings, token_provider = await self.credentials_provider.get_credentials()
         assert settings.actual_host and settings.actual_prod_environment_id
-        if settings.actual_host_prefix:
+        if settings.dbt_discovery_url:
+            url = settings.dbt_discovery_url
+        elif settings.actual_host_prefix:
             url = f"https://{settings.actual_host_prefix}.metadata.{settings.actual_host}/graphql"
         else:
             url = f"https://metadata.{settings.actual_host}/graphql"
@@ -95,6 +98,7 @@ class DefaultDiscoveryConfigProvider(ConfigProvider[DiscoveryConfig]):
             url=url,
             headers_provider=DiscoveryHeadersProvider(token_provider=token_provider),
             environment_id=settings.actual_prod_environment_id,
+            ssl_verify=not settings.dbt_disable_ssl_verify,
         )
 
 

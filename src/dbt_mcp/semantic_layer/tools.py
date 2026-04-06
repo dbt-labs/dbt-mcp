@@ -109,6 +109,7 @@ async def get_entities(
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
+    meta={"ui": {"resourceUri": "ui://dbt-mcp/query-data-preview"}},
 )
 async def query_metrics(
     context: SemanticLayerToolContext,

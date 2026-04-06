@@ -11,6 +11,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.lowlevel.server import LifespanResultT
 from mcp.types import ContentBlock, TextContent
 
+from dbt_mcp.apps.register import register_app_resource
 from dbt_mcp.config.config import Config
 from dbt_mcp.dbt_admin.tools import register_admin_api_tools
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
@@ -189,6 +190,7 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
 
     if config.semantic_layer_config_provider:
         logger.info("Registering semantic layer tools")
+        register_app_resource(dbt_mcp, config.apps_config, app_name="query-data-preview")
         register_sl_tools(
             dbt_mcp,
             config_provider=config.semantic_layer_config_provider,
@@ -203,6 +205,7 @@ async def create_dbt_mcp(config: Config) -> DbtMCP:
 
     if config.discovery_config_provider:
         logger.info("Registering discovery tools")
+        register_app_resource(dbt_mcp, config.apps_config, app_name="get-lineage")
         register_discovery_tools(
             dbt_mcp,
             config.discovery_config_provider,

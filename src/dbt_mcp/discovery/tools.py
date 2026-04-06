@@ -261,6 +261,7 @@ class LineageGraph(BaseModel):
     destructive_hint=False,
     idempotent_hint=True,
     structured_output=True,
+    meta={"ui": {"resourceUri": "ui://dbt-mcp/get-lineage"}},
 )
 async def get_lineage(
     context: DiscoveryToolContext,
