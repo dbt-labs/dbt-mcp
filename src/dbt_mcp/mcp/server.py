@@ -164,13 +164,11 @@ async def register_multi_project_dbt_mcp(dbt_mcp: DbtMCP, config: Config) -> Non
     disabled_toolsets = config.disabled_toolsets
 
     logger.info("Registering semantic layer tools for multi-project")
-    if config.semantic_layer_config_provider:
+    if config.multi_project_semantic_layer_config_provider:
         register_multiproject_sl_tools(
             dbt_mcp=dbt_mcp,
-            config_provider=config.semantic_layer_config_provider,
-            client_provider=DefaultSemanticLayerClientProvider(
-                config_provider=config.semantic_layer_config_provider,
-            ),
+            config_provider=config.multi_project_semantic_layer_config_provider,
+            client_provider=DefaultSemanticLayerClientProvider(),
             disabled_tools=disabled_tools,
             enabled_tools=enabled_tools,
             enabled_toolsets=enabled_toolsets,
@@ -246,9 +244,7 @@ async def register_dbt_mcp_tools(dbt_mcp: DbtMCP, config: Config) -> None:
         register_sl_tools(
             dbt_mcp,
             config_provider=config.semantic_layer_config_provider,
-            client_provider=DefaultSemanticLayerClientProvider(
-                config_provider=config.semantic_layer_config_provider,
-            ),
+            client_provider=DefaultSemanticLayerClientProvider(),
             disabled_tools=disabled_tools,
             enabled_tools=enabled_tools,
             enabled_toolsets=enabled_toolsets,

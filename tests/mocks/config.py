@@ -151,6 +151,7 @@ mock_config = Config(
     dbt_codegen_config=mock_dbt_codegen_config,
     multi_project_discovery_config_provider=MockMultiProjectDiscoveryConfigProvider(),
     discovery_config_provider=MockDiscoveryConfigProvider(),
+    multi_project_semantic_layer_config_provider=None,
     semantic_layer_config_provider=MockSemanticLayerConfigProvider(),
     admin_api_config_provider=MockAdminApiConfigProvider(),
     lsp_config=mock_lsp_config,
