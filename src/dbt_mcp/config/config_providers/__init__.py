@@ -7,12 +7,14 @@ from .base import (
     SemanticLayerConfig,
     StaticConfigProvider,
 )
+from .discovery import MultiProjectDiscoveryConfigProvider
 
 __all__ = [
     "AdminApiConfig",
     "ConfigProvider",
     "DiscoveryConfig",
     "MultiProjectConfigProvider",
+    "MultiProjectDiscoveryConfigProvider",
     "ProxiedToolConfig",
     "SemanticLayerConfig",
     "StaticConfigProvider",
