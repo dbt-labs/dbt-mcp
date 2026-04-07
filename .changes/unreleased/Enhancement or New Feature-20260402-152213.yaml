@@ -1,5 +1,0 @@
-kind: Enhancement or New Feature
-body: Reduce get_product_doc_pages page limit from 10 to 5 and add optional query
-  parameter for section-level content extraction, significantly reducing response
-  payload size to prevent IDE freezing
-time: 2026-04-02T15:22:13.261249+01:00
