@@ -1,0 +1,30 @@
+name: HOL Skill Validate
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Validate Skill
+        uses: hashgraph-online/skill-publish@9c187f00d6706cb0c27aef4eb58f1a8869e9d6db
+        with:
+          mode: validate
+          skill-dir: .claude/skills/release-dbt-mcp
+          annotate: "false"
+          preview-upload: "false"
