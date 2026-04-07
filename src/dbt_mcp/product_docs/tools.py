@@ -11,6 +11,7 @@ documentation at docs.getdbt.com in real time:
 import asyncio
 import logging
 from dataclasses import dataclass, field
+from typing import Annotated
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -156,17 +157,22 @@ async def search_product_docs(
 )
 async def get_product_doc_pages(
     context: ProductDocsToolContext,
-    paths: list[str] = Field(
-        description="List of docs.getdbt.com URLs or relative paths to fetch "
-        "(e.g. ['/docs/build/incremental-models', '/docs/build/models']). "
-        "Max 5 pages per call.",
-    ),
-    query: str | None = Field(
-        default=None,
-        description="Optional search query. When provided, only the most relevant "
-        "sections of each page are returned instead of the full content, "
-        "significantly reducing response size.",
-    ),
+    paths: Annotated[
+        list[str],
+        Field(
+            description="List of docs.getdbt.com URLs or relative paths to fetch "
+            "(e.g. ['/docs/build/incremental-models', '/docs/build/models']). "
+            "Max 5 pages per call.",
+        ),
+    ],
+    query: Annotated[
+        str | None,
+        Field(
+            description="Optional search query. When provided, only the most relevant "
+            "sections of each page are returned instead of the full content, "
+            "significantly reducing response size.",
+        ),
+    ] = None,
 ) -> GetProductDocPagesResponse:
     """Fetch the full Markdown content of one or more docs.getdbt.com pages in parallel.
 
