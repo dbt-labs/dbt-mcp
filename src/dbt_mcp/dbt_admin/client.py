@@ -261,16 +261,6 @@ class DbtAdminAPIClient:
             for p in data
         ]
 
-    async def get_project_details(
-        self, account_id: int, project_id: int
-    ) -> dict[str, Any]:
-        """Get details for a specific project."""
-        result = await self._make_request(
-            "GET",
-            f"/api/v3/accounts/{account_id}/projects/{project_id}/",
-        )
-        return result.get("data", {})
-
     async def trigger_job_run(
         self, account_id: int, job_id: int, cause: str, **kwargs: Any
     ) -> dict[str, Any]:
