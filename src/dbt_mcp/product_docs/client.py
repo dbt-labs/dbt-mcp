@@ -271,6 +271,73 @@ def score_index_entry(
     return score
 
 
+_SECTION_HEADER_RE = re.compile(r"^(#{1,3} .+)$", re.MULTILINE)
+
+
+def split_markdown_sections(content: str) -> list[tuple[str, str]]:
+    """Split markdown into ``(header_line, body)`` pairs at H1–H3 boundaries.
+
+    Content before the first header is returned as a pair with an empty header
+    string.  Returns ``[("", content)]`` when no headers are found.
+    """
+    matches = list(_SECTION_HEADER_RE.finditer(content))
+    if not matches:
+        return [("", content)]
+    sections: list[tuple[str, str]] = []
+    if matches[0].start() > 0:
+        sections.append(("", content[: matches[0].start()]))
+    for i, match in enumerate(matches):
+        header = match.group(1)
+        body_start = match.end()
+        body_end = matches[i + 1].start() if i + 1 < len(matches) else len(content)
+        sections.append((header, content[body_start:body_end].strip()))
+    return sections
+
+
+def extract_relevant_sections(
+    content: str, query: str, max_chars: int = MAX_CONTENT_CHARS_PER_PAGE
+) -> str:
+    """Return the sections of *content* most relevant to *query*.
+
+    Splits the markdown at H1–H3 header boundaries, scores each section
+    against the query keywords (reusing :func:`expand_keywords`, with a 5×
+    bonus when a keyword appears in the header itself), and returns the
+    highest-scoring sections joined by ``---`` separators up to *max_chars*.
+
+    Falls back to :func:`truncate_content` when no headers are found, when
+    the query produces no keywords, or when no section scores above zero.
+    """
+    sections = split_markdown_sections(content)
+    if len(sections) <= 1:
+        return truncate_content(content, max_chars, "")
+    keywords = expand_keywords(query)
+    if not keywords:
+        return truncate_content(content, max_chars, "")
+    scored: list[tuple[float, str, str]] = []
+    for header, body in sections:
+        score: float = sum((header + " " + body).lower().count(kw) for kw in keywords)
+        score += sum(5.0 for kw in keywords if kw in header.lower())
+        scored.append((score, header, body))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    parts: list[str] = []
+    remaining = max_chars
+    for score, header, body in scored:
+        if score == 0:
+            break
+        section_text = f"{header}\n\n{body}".strip() if header else body.strip()
+        if not section_text:
+            continue
+        if len(section_text) >= remaining:
+            if remaining > 300:
+                parts.append(section_text[:remaining].rstrip())
+            break
+        parts.append(section_text)
+        remaining -= len(section_text)
+    if not parts:
+        return truncate_content(content, max_chars, "")
+    return "\n\n---\n\n".join(parts)
+
+
 def expand_keywords(query: str) -> list[str]:
     """Extract keywords from *query*, filtering stop words and expanding abbreviations."""
     all_words = query.lower().split()
