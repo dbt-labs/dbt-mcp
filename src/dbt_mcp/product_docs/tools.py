@@ -11,6 +11,7 @@ documentation at docs.getdbt.com in real time:
 import asyncio
 import logging
 from dataclasses import dataclass, field
+from typing import Annotated
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -21,6 +22,7 @@ from dbt_mcp.product_docs.client import (
     ProductDocsClient,
     display_url,
     expand_keywords,
+    extract_relevant_sections,
     normalize_doc_url,
     truncate_content,
 )
@@ -55,7 +57,9 @@ def _dict_to_doc_search_result(entry: dict[str, str]) -> DocSearchResult:
     )
 
 
-async def _fetch_page(client: ProductDocsClient, url: str) -> ProductDocPageResponse:
+async def _fetch_page(
+    client: ProductDocsClient, url: str, query: str | None = None
+) -> ProductDocPageResponse:
     """Fetch a single page, returning a typed response with error handling."""
     try:
         normalized = normalize_doc_url(url)
@@ -76,9 +80,12 @@ async def _fetch_page(client: ProductDocsClient, url: str) -> ProductDocPageResp
             error=f"Failed to fetch page: {normalized} ({e})",
         )
 
-    content = truncate_content(
-        content, MAX_CONTENT_CHARS_PER_PAGE, display_url(normalized)
-    )
+    if query:
+        content = extract_relevant_sections(content, query, MAX_CONTENT_CHARS_PER_PAGE)
+    else:
+        content = truncate_content(
+            content, MAX_CONTENT_CHARS_PER_PAGE, display_url(normalized)
+        )
     return ProductDocPageResponse(url=display_url(normalized), content=content)
 
 
@@ -150,20 +157,32 @@ async def search_product_docs(
 )
 async def get_product_doc_pages(
     context: ProductDocsToolContext,
-    paths: list[str] = Field(
-        description="List of docs.getdbt.com URLs or relative paths to fetch "
-        "(e.g. ['/docs/build/incremental-models', '/docs/build/models']). "
-        "Max 10 pages per call.",
-    ),
+    paths: Annotated[
+        list[str],
+        Field(
+            description="List of docs.getdbt.com URLs or relative paths to fetch "
+            "(e.g. ['/docs/build/incremental-models', '/docs/build/models']). "
+            "Max 5 pages per call.",
+        ),
+    ],
+    query: Annotated[
+        str | None,
+        Field(
+            description="Optional search query. When provided, only the most relevant "
+            "sections of each page are returned instead of the full content, "
+            "significantly reducing response size.",
+        ),
+    ] = None,
 ) -> GetProductDocPagesResponse:
     """Fetch the full Markdown content of one or more docs.getdbt.com pages in parallel.
 
     Args:
         paths: List of docs.getdbt.com URLs or relative paths to fetch.
+        query: Optional query to extract only the most relevant sections from each page.
     """
-    paths = paths[:10]
+    paths = paths[:5]
     results = await asyncio.gather(
-        *[_fetch_page(context.client, path) for path in paths],
+        *[_fetch_page(context.client, path, query) for path in paths],
         return_exceptions=True,
     )
     pages: list[ProductDocPageResponse] = []
