@@ -481,6 +481,62 @@ def test_yml_selector_flag_added_to_command(
     assert "--select" not in args_list
 
 
+def test_suppress_non_error_logs_false_omits_quiet(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    compile_tool = tools["compile"]
+
+    compile_tool(suppress_non_error_logs=False)
+
+    assert mock_calls
+    assert "--quiet" not in mock_calls[0]
+
+
+def test_suppress_non_error_logs_true_adds_quiet(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    compile_tool = tools["compile"]
+
+    compile_tool(suppress_non_error_logs=True)
+
+    assert mock_calls
+    assert "--quiet" in mock_calls[0]
+
+
 def test_yml_selector_not_added_when_none(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
 ):

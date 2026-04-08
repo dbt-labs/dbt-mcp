@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Add suppress_non_error_logs boolean flag in CLI tools
+time: 2026-04-08T12:06:07.657792-07:00

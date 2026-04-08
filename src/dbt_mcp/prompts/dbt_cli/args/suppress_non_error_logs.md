@@ -1,0 +1,1 @@
+If true (default), suppresses non-error log output to reduce token usage. Set to false when you need to inspect the full command output — for example, set to false when using compile to read the generated SQL.

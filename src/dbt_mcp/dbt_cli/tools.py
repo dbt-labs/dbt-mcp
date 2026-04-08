@@ -35,9 +35,10 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         vars: str | None = None,
         sample: str | None = None,
         yml_selector: str | None = None,
+        suppress_non_error_logs: bool = True,
     ) -> str:
         try:
-            # Commands that should always be quiet to reduce output verbosity
+            # Commands that produce verbose output
             verbose_commands = [
                 "build",
                 "compile",
@@ -47,6 +48,13 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
                 "test",
                 "list",
             ]
+
+            if (
+                suppress_non_error_logs
+                and len(command) > 0
+                and command[0] in verbose_commands
+            ):
+                command.append("--quiet")
 
             if is_full_refresh is True:
                 command.append("--full-refresh")
@@ -67,13 +75,6 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             if isinstance(resource_type, Iterable):
                 command.extend(["--resource-type"] + resource_type)
 
-            full_command = command.copy()
-            # Add --quiet flag to specific commands to reduce context window usage
-            if len(full_command) > 0 and full_command[0] in verbose_commands:
-                main_command = full_command[0]
-                command_args = full_command[1:] if len(full_command) > 1 else []
-                full_command = [main_command, "--quiet", *command_args]
-
             # We change the path only if this is an absolute path, otherwise we can have
             # problems with relative paths applied multiple times as DBT_PROJECT_DIR
             # is applied to dbt Core and Fusion as well (but not the dbt Cloud CLI)
@@ -81,7 +82,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
 
             # Add appropriate color disable flag based on binary type
             color_flag = get_color_disable_flag(config.binary_type)
-            args = [config.dbt_path, color_flag, *full_command]
+            args = [config.dbt_path, color_flag, *command]
 
             process = subprocess.Popen(
                 args=args,
@@ -116,6 +117,10 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         sample: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/sample")
         ),
+        suppress_non_error_logs: bool = Field(
+            default=True,
+            description=get_prompt("dbt_cli/args/suppress_non_error_logs"),
+        ),
     ) -> str:
         return _run_dbt_command(
             ["build"],
@@ -125,6 +130,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             vars=vars,
             sample=sample,
             yml_selector=yml_selector,
+            suppress_non_error_logs=suppress_non_error_logs,
         )
 
     def compile(
@@ -134,13 +140,29 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         yml_selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/yml_selector")
         ),
+        suppress_non_error_logs: bool = Field(
+            default=True,
+            description=get_prompt("dbt_cli/args/suppress_non_error_logs"),
+        ),
     ) -> str:
         return _run_dbt_command(
-            ["compile"], node_selection, is_selectable=True, yml_selector=yml_selector
+            ["compile"],
+            node_selection,
+            is_selectable=True,
+            yml_selector=yml_selector,
+            suppress_non_error_logs=suppress_non_error_logs,
         )
 
-    def docs() -> str:
-        return _run_dbt_command(["docs", "generate"])
+    def docs(
+        suppress_non_error_logs: bool = Field(
+            default=True,
+            description=get_prompt("dbt_cli/args/suppress_non_error_logs"),
+        ),
+    ) -> str:
+        return _run_dbt_command(
+            ["docs", "generate"],
+            suppress_non_error_logs=suppress_non_error_logs,
+        )
 
     def ls(
         node_selection: str | None = Field(
@@ -153,6 +175,10 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             default=None,
             description=get_prompt("dbt_cli/args/resource_type"),
         ),
+        suppress_non_error_logs: bool = Field(
+            default=True,
+            description=get_prompt("dbt_cli/args/suppress_non_error_logs"),
+        ),
     ) -> str:
         return _run_dbt_command(
             ["list"],
@@ -160,10 +186,19 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             resource_type=resource_type,
             is_selectable=True,
             yml_selector=yml_selector,
+            suppress_non_error_logs=suppress_non_error_logs,
         )
 
-    def parse() -> str:
-        return _run_dbt_command(["parse"])
+    def parse(
+        suppress_non_error_logs: bool = Field(
+            default=True,
+            description=get_prompt("dbt_cli/args/suppress_non_error_logs"),
+        ),
+    ) -> str:
+        return _run_dbt_command(
+            ["parse"],
+            suppress_non_error_logs=suppress_non_error_logs,
+        )
 
     def run(
         node_selection: str | None = Field(
@@ -181,6 +216,10 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         sample: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/sample")
         ),
+        suppress_non_error_logs: bool = Field(
+            default=True,
+            description=get_prompt("dbt_cli/args/suppress_non_error_logs"),
+        ),
     ) -> str:
         return _run_dbt_command(
             ["run"],
@@ -190,6 +229,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             vars=vars,
             sample=sample,
             yml_selector=yml_selector,
+            suppress_non_error_logs=suppress_non_error_logs,
         )
 
     def test(
@@ -202,6 +242,10 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         vars: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/vars")
         ),
+        suppress_non_error_logs: bool = Field(
+            default=True,
+            description=get_prompt("dbt_cli/args/suppress_non_error_logs"),
+        ),
     ) -> str:
         return _run_dbt_command(
             ["test"],
@@ -209,6 +253,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             is_selectable=True,
             vars=vars,
             yml_selector=yml_selector,
+            suppress_non_error_logs=suppress_non_error_logs,
         )
 
     def show(
