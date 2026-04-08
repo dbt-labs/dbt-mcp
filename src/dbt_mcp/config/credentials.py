@@ -187,8 +187,6 @@ class CredentialsProvider:
         if not self.settings.dbt_account_id or not self.settings.actual_host:
             return
         try:
-            # Imported here to avoid circular import:
-            # credentials → config_providers.admin_api → credentials
             from dbt_mcp.config.config_providers.admin_api import (
                 DefaultAdminApiConfigProvider,
             )
@@ -267,7 +265,6 @@ class CredentialsProvider:
                 context_manager=dbt_platform_context_manager,
             )
             self.token_provider = token_provider
-
             await self._resolve_account_identifier()
 
             # Only validate CLI settings here — platform settings were already
