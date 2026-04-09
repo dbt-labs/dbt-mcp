@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Auto-fetch DBT_HOST_PREFIX from dbt Platform for SL and Discovery API URL construction
+time: 2026-04-08T16:15:29.864297-07:00
