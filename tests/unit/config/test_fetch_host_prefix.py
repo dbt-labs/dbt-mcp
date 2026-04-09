@@ -120,6 +120,7 @@ class TestCredentialsProviderEnvVarPrefixFetch:
             disable_discovery=True,
             disable_admin_api=True,
             disable_sql=True,
+            disable_dbt_cli=True,
         )
 
     @pytest.mark.asyncio
@@ -171,6 +172,28 @@ class TestCredentialsProviderEnvVarPrefixFetch:
             await provider.get_credentials()
 
         mock_fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_fetches_and_applies_prefix_with_clean_base_host(self):
+        """When DBT_HOST is already a clean base host (no embedded prefix), the fetched prefix is
+        applied to host_prefix and dbt_host is left unchanged."""
+        settings = self._make_settings(
+            host="us1.dbt.com", host_prefix=None, account_id=42
+        )
+        provider = CredentialsProvider(settings)
+
+        with (
+            patch(
+                "dbt_mcp.config.credentials._fetch_host_prefix_from_platform",
+                new=AsyncMock(return_value="ab123"),
+            ),
+            patch("dbt_mcp.config.settings.validate_settings"),
+        ):
+            returned_settings, _ = await provider.get_credentials()
+
+        assert returned_settings.host_prefix == "ab123"
+        assert returned_settings.dbt_host == "us1.dbt.com"
+        assert returned_settings.base_host == "us1.dbt.com"
 
     @pytest.mark.asyncio
     async def test_graceful_when_api_returns_none(self):
