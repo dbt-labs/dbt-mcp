@@ -285,6 +285,142 @@ def test_default_result_formatter_with_mixed_types() -> None:
     assert parsed[0]["binary_col"] == base64.b64encode(b"data").decode("utf-8")
 
 
+MOCK_METRICS_RESPONSE = {
+    "data": {
+        "metricsPaginated": {
+            "items": [
+                {
+                    "name": "revenue",
+                    "type": "simple",
+                    "label": "Revenue",
+                    "description": "Total revenue",
+                    "config": None,
+                }
+            ]
+        }
+    }
+}
+
+MOCK_METRICS_WITH_RELATED_RESPONSE = {
+    "data": {
+        "metricsPaginated": {
+            "items": [
+                {
+                    "name": "revenue",
+                    "type": "simple",
+                    "label": "Revenue",
+                    "description": "Total revenue",
+                    "config": None,
+                    "dimensions": [
+                        {
+                            "name": "order_date",
+                            "type": "time",
+                            "description": None,
+                            "label": None,
+                            "queryableGranularities": ["day"],
+                            "queryableTimeGranularities": [],
+                            "config": None,
+                        }
+                    ],
+                    "entities": [
+                        {
+                            "name": "customer",
+                            "type": "primary",
+                            "description": None,
+                        }
+                    ],
+                }
+            ]
+        }
+    }
+}
+
+
+def _make_query_dispatcher():
+    """Return a side_effect function that dispatches mock responses by query content.
+
+    Distinguishes the lightweight metrics query from the full metrics_with_related
+    query by checking for the presence of nested 'dimensions {' in the query string.
+    """
+
+    def dispatch(_, payload):
+        query = payload.get("query", "")
+        if "metricsPaginated" in query:
+            if "dimensions {" in query:
+                return MOCK_METRICS_WITH_RELATED_RESPONSE
+            return MOCK_METRICS_RESPONSE
+        if "dimensionsPaginated" in query:
+            return {"data": {"dimensionsPaginated": {"items": []}}}
+        if "entitiesPaginated" in query:
+            return {"data": {"entitiesPaginated": {"items": []}}}
+        raise AssertionError(f"Unexpected GraphQL query: {query}")
+
+    return dispatch
+
+
+@pytest.mark.asyncio
+@patch("dbt_mcp.semantic_layer.client.submit_request")
+async def test_list_metrics_below_threshold_returns_full_config(
+    mock_submit_request, fetcher, mock_config_provider
+):
+    """When metric count <= threshold, dims and entities are embedded per metric."""
+    mock_submit_request.side_effect = _make_query_dispatcher()
+    config = mock_config_provider.get_config.return_value
+    result = await fetcher.list_metrics(config=config)
+
+    assert len(result.metrics) == 1
+    metric = result.metrics[0]
+    assert metric.dimensions == ["order_date"]
+    assert metric.entities == ["customer"]
+    assert mock_submit_request.call_count == 2
+
+
+@pytest.mark.asyncio
+@patch("dbt_mcp.semantic_layer.client.submit_request")
+async def test_list_metrics_above_threshold_returns_metrics_only(
+    mock_submit_request, mock_client_provider, mock_config_provider
+):
+    """When metric count > threshold, only metrics are returned (no dims/entities)."""
+    many_metrics = [
+        {
+            "name": f"metric_{i}",
+            "type": "simple",
+            "label": None,
+            "description": None,
+            "config": None,
+        }
+        for i in range(3)
+    ]
+    mock_submit_request.return_value = {
+        "data": {"metricsPaginated": {"items": many_metrics}}
+    }
+    config = mock_config_provider.get_config.return_value
+    config.metrics_related_max = 2
+    fetcher = SemanticLayerFetcher(client_provider=mock_client_provider)
+    result = await fetcher.list_metrics(config=config)
+
+    assert len(result.metrics) == 3
+    assert all(m.dimensions is None for m in result.metrics)
+    assert all(m.entities is None for m in result.metrics)
+    assert mock_submit_request.call_count == 1
+
+
+@pytest.mark.asyncio
+@patch("dbt_mcp.semantic_layer.client.submit_request")
+async def test_list_metrics_at_threshold_returns_full_config(
+    mock_submit_request, mock_client_provider, mock_config_provider
+):
+    """When metric count == threshold, dims and entities are embedded per metric."""
+    mock_submit_request.side_effect = _make_query_dispatcher()
+    config = mock_config_provider.get_config.return_value
+    config.metrics_related_max = 1
+    fetcher = SemanticLayerFetcher(client_provider=mock_client_provider)
+    result = await fetcher.list_metrics(config=config)
+
+    assert result.metrics[0].dimensions is not None
+    assert result.metrics[0].entities is not None
+
+
 def test_format_semantic_layer_error_cleans_query_failed_error(fetcher) -> None:
     """Normal QueryFailedError messages should be cleaned up."""
     error = Exception(
@@ -317,6 +453,7 @@ def mock_config_provider():
         token="test-token",
         host="test-host",
         url="https://test-host/api/graphql",
+        metrics_related_max=10,
     )
     return config_provider
 

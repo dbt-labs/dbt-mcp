@@ -35,6 +35,7 @@ from dbt_mcp.semantic_layer.types import (
     QueryMetricsResult,
     QueryMetricsSuccess,
     SavedQueryToolResponse,
+    ListMetricsResponse,
 )
 
 
@@ -114,28 +115,59 @@ class SemanticLayerFetcher:
     ):
         self.client_provider = client_provider
         # TODO: we shouldn't allow these dicts to grow unbounded?
-        self.entities_cache: dict[str, list[EntityToolResponse]] = {}
-        self.dimensions_cache: dict[str, list[DimensionToolResponse]] = {}
+        self.entities_cache: dict[tuple[str, str | None], list[EntityToolResponse]] = {}
+        self.dimensions_cache: dict[
+            tuple[str, str | None], list[DimensionToolResponse]
+        ] = {}
 
     async def list_metrics(
         self,
         config: SemanticLayerConfig,
         search: str | None = None,
-    ) -> list[MetricToolResponse]:
+    ) -> ListMetricsResponse:
         metrics_result = await submit_request(
             config,
             {"query": GRAPHQL_QUERIES["metrics"], "variables": {"search": search}},
         )
-        return [
-            MetricToolResponse(
-                name=m.get("name"),
-                type=m.get("type"),
-                label=m.get("label"),
-                description=m.get("description"),
-                metadata=(m.get("config") or {}).get("meta"),
+        metrics_count = len(metrics_result["data"]["metricsPaginated"]["items"])
+        if metrics_count and metrics_count <= config.metrics_related_max:
+            # Re-fetch with the same search filter using a single query that includes
+            # per-metric dimensions and entities. This avoids the N×2 parallel calls
+            # approach: the nested GQL fields return per-metric data accurately (not
+            # an intersection like dimensionsPaginated with multiple metrics would).
+            full_result = await submit_request(
+                config,
+                {
+                    "query": GRAPHQL_QUERIES["metrics_with_related"],
+                    "variables": {"search": search},
+                },
             )
-            for m in metrics_result["data"]["metricsPaginated"]["items"]
-        ]
+            return ListMetricsResponse(
+                metrics=[
+                    MetricToolResponse(
+                        name=m.get("name"),
+                        type=m.get("type"),
+                        label=m.get("label"),
+                        description=m.get("description"),
+                        metadata=(m.get("config") or {}).get("meta"),
+                        dimensions=[d.get("name") for d in (m.get("dimensions") or [])],
+                        entities=[e.get("name") for e in (m.get("entities") or [])],
+                    )
+                    for m in full_result["data"]["metricsPaginated"]["items"]
+                ]
+            )
+        return ListMetricsResponse(
+            metrics=[
+                MetricToolResponse(
+                    name=m.get("name"),
+                    type=m.get("type"),
+                    label=m.get("label"),
+                    description=m.get("description"),
+                    metadata=(m.get("config") or {}).get("meta"),
+                )
+                for m in metrics_result["data"]["metricsPaginated"]["items"]
+            ]
+        )
 
     async def list_saved_queries(
         self,
@@ -178,7 +210,7 @@ class SemanticLayerFetcher:
         metrics: list[str],
         search: str | None = None,
     ) -> list[DimensionToolResponse]:
-        metrics_key = ",".join(sorted(metrics))
+        metrics_key = (",".join(sorted(metrics)), search)
         if metrics_key not in self.dimensions_cache:
             dimensions_result = await submit_request(
                 config,
@@ -212,7 +244,7 @@ class SemanticLayerFetcher:
         metrics: list[str],
         search: str | None = None,
     ) -> list[EntityToolResponse]:
-        metrics_key = ",".join(sorted(metrics))
+        metrics_key = (",".join(sorted(metrics)), search)
         if metrics_key not in self.entities_cache:
             entities_result = await submit_request(
                 config,

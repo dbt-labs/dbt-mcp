@@ -104,6 +104,11 @@ class DbtMcpSettings(BaseSettings):
     # Multi-project settings
     multi_project_enabled: bool = Field(False, alias="DBT_MCP_MULTI_PROJECT_ENABLED")
 
+    # Semantic layer settings
+    sl_metrics_related_max: int = Field(
+        10, alias="DBT_MCP_SL_METRICS_RELATED_MAX", ge=0
+    )
+
     def __repr__(self):
         """Custom repr to bring most important settings to front. Redact sensitive info."""
         return (

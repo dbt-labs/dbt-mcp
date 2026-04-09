@@ -35,10 +35,10 @@ async def test_semantic_layer_list_metrics(
     semantic_layer_fetcher: SemanticLayerFetcher,
     semantic_layer_config,
 ):
-    metrics = await semantic_layer_fetcher.list_metrics(
+    result = await semantic_layer_fetcher.list_metrics(
         config=semantic_layer_config,
     )
-    assert len(metrics) > 0
+    assert len(result.metrics) > 0
 
 
 async def test_semantic_layer_sdk_respects_fetcher_config_environment_id():
@@ -70,10 +70,10 @@ async def test_semantic_layer_list_dimensions(
     semantic_layer_fetcher: SemanticLayerFetcher,
     semantic_layer_config,
 ):
-    metrics = await semantic_layer_fetcher.list_metrics(config=semantic_layer_config)
+    result = await semantic_layer_fetcher.list_metrics(config=semantic_layer_config)
     dimensions = await semantic_layer_fetcher.get_dimensions(
         config=semantic_layer_config,
-        metrics=[metrics[0].name],
+        metrics=[result.metrics[0].name],
     )
     assert len(dimensions) > 0
     # Verify metadata field exists and has correct type
@@ -190,9 +190,9 @@ async def test_semantic_layer_get_entities(
     semantic_layer_fetcher: SemanticLayerFetcher,
     semantic_layer_config,
 ):
-    metrics = await semantic_layer_fetcher.list_metrics(config=semantic_layer_config)
-    assert len(metrics) > 0
-    metric = metrics[0]
+    result = await semantic_layer_fetcher.list_metrics(config=semantic_layer_config)
+    assert len(result.metrics) > 0
+    metric = result.metrics[0]
     entities = await semantic_layer_fetcher.get_entities(
         config=semantic_layer_config,
         metrics=[metric.name],

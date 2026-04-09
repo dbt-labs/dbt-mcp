@@ -9,8 +9,14 @@ from .base import ConfigProvider, MultiProjectConfigProvider, SemanticLayerConfi
 
 
 class DefaultSemanticLayerConfigProvider(ConfigProvider[SemanticLayerConfig]):
-    def __init__(self, credentials_provider: CredentialsProvider):
+    def __init__(
+        self,
+        credentials_provider: CredentialsProvider,
+        *,
+        metrics_related_max: int = 10,
+    ):
         self.credentials_provider = credentials_provider
+        self.metrics_related_max = metrics_related_max
 
     async def get_config(self) -> SemanticLayerConfig:
         settings, token_provider = await self.credentials_provider.get_credentials()
@@ -32,6 +38,7 @@ class DefaultSemanticLayerConfigProvider(ConfigProvider[SemanticLayerConfig]):
             headers_provider=SemanticLayerHeadersProvider(
                 token_provider=token_provider
             ),
+            metrics_related_max=self.metrics_related_max,
         )
 
 
@@ -42,9 +49,12 @@ class MultiProjectSemanticLayerConfigProvider(
         self,
         credentials_provider: CredentialsProvider,
         admin_client: DbtAdminAPIClient,
+        *,
+        metrics_related_max: int = 10,
     ):
         self.credentials_provider = credentials_provider
         self.admin_client = admin_client
+        self.metrics_related_max = metrics_related_max
 
     async def get_config(self, project_id: int) -> SemanticLayerConfig:
         settings, token_provider = await self.credentials_provider.get_credentials()
@@ -70,4 +80,5 @@ class MultiProjectSemanticLayerConfigProvider(
             headers_provider=SemanticLayerHeadersProvider(
                 token_provider=token_provider
             ),
+            metrics_related_max=self.metrics_related_max,
         )

@@ -63,6 +63,13 @@ class TestDbtMcpSettings:
             assert settings.disable_discovery is False, "disable_discovery"
             assert settings.disable_sql is None, "disable_sql"
             assert settings.disable_tools is None, "disable_tools"
+            assert settings.sl_metrics_related_max == 10
+
+    def test_sl_metrics_related_max_env_var(self):
+        env_vars = {"DBT_MCP_SL_METRICS_RELATED_MAX": "25"}
+        with patch.dict(os.environ, env_vars, clear=True):
+            settings = DbtMcpSettings(_env_file=None)
+            assert settings.sl_metrics_related_max == 25
 
     def test_usage_tracking_disabled_by_env_vars(self):
         env_vars = {
