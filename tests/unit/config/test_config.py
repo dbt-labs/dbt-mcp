@@ -71,6 +71,20 @@ class TestDbtMcpSettings:
             settings = DbtMcpSettings(_env_file=None)
             assert settings.sl_metrics_related_max == 25
 
+    def test_sl_metrics_max_response_chars_default(self):
+        settings = DbtMcpSettings(DBT_HOST=None, _env_file=None)
+        assert settings.sl_metrics_max_response_chars == 16000
+
+    def test_sl_metrics_max_response_chars_from_env(self, monkeypatch):
+        monkeypatch.setenv("DBT_MCP_SL_MAX_RESPONSE_CHARS", "8000")
+        settings = DbtMcpSettings(DBT_HOST=None, _env_file=None)
+        assert settings.sl_metrics_max_response_chars == 8000
+
+    def test_sl_metrics_max_response_chars_zero_allowed(self, monkeypatch):
+        monkeypatch.setenv("DBT_MCP_SL_MAX_RESPONSE_CHARS", "0")
+        settings = DbtMcpSettings(DBT_HOST=None, _env_file=None)
+        assert settings.sl_metrics_max_response_chars == 0
+
     def test_usage_tracking_disabled_by_env_vars(self):
         env_vars = {
             "DO_NOT_TRACK": "true",
