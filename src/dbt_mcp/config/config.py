@@ -146,6 +146,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
                 MultiProjectSemanticLayerConfigProvider(
                     credentials_provider=credentials_provider,
                     admin_client=admin_client,
+                    metrics_related_max=settings.sl_metrics_related_max,
                 )
             )
 
@@ -179,6 +180,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
     if settings.actual_host:
         semantic_layer_config_provider = DefaultSemanticLayerConfigProvider(
             credentials_provider=credentials_provider,
+            metrics_related_max=settings.sl_metrics_related_max,
         )
 
     lsp_config = None

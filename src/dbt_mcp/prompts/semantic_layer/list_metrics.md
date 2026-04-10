@@ -1,12 +1,10 @@
-List all metrics from the dbt Semantic Layer.
+List metrics from the dbt Semantic Layer.
 
-If the user is asking a data-related or business-related question,
-this tool should be used as a first step to get a list of metrics
-that can be used with other tools to answer the question.
+When the number of metrics is below the configured threshold (default: 10), each metric includes the names of its available dimensions and entities. Use get_dimensions or get_entities for full details (types, granularities, descriptions) on specific metrics.
 
-Examples:
-- "What are the top 5 products by revenue?"
-- "How many users did we have last month?"
+When above the threshold, only metrics are returned. Use get_dimensions and get_entities with the specific metrics you need.
+
+If the user is asking a data-related or business-related question, use this tool as a first step.
 
 <parameters>
 search: Optional string used to filter metrics by name using partial matches

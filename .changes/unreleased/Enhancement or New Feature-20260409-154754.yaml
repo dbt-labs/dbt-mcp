@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: 'list_metrics now returns dimensions and entities in the same response when the metric count is at or below a configurable threshold (default: 10, via DBT_MCP_SL_FULL_CONFIG_THRESHOLD), reducing LLM round trips from 3 tool calls to 1 for small-to-medium environments'
+time: 2026-04-09T15:47:54.912663+02:00

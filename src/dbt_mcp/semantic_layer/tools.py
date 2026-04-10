@@ -14,10 +14,10 @@ from dbt_mcp.semantic_layer.types import (
     DimensionToolResponse,
     EntityToolResponse,
     GetMetricsCompiledSqlSuccess,
-    MetricToolResponse,
     OrderByParam,
     QueryMetricsSuccess,
     SavedQueryToolResponse,
+    ListMetricsResponse,
 )
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
@@ -39,7 +39,7 @@ class SemanticLayerToolContext:
     ):
         self.config_provider = config_provider
         self.semantic_layer_fetcher = SemanticLayerFetcher(
-            client_provider=client_provider
+            client_provider=client_provider,
         )
 
 
@@ -53,7 +53,7 @@ class SemanticLayerToolContext:
 async def list_metrics(
     context: SemanticLayerToolContext,
     search: str | None = None,
-) -> list[MetricToolResponse]:
+) -> ListMetricsResponse:
     config = await context.config_provider.get_config()
     return await context.semantic_layer_fetcher.list_metrics(
         config=config, search=search
@@ -195,7 +195,8 @@ def register_sl_tools(
 ) -> None:
     def bind_context() -> SemanticLayerToolContext:
         return SemanticLayerToolContext(
-            config_provider=config_provider, client_provider=client_provider
+            config_provider=config_provider,
+            client_provider=client_provider,
         )
 
     register_tools(
