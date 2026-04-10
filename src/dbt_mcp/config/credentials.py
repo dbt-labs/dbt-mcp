@@ -6,8 +6,10 @@ from pathlib import Path
 
 from filelock import FileLock
 
+from dbt_mcp.config.config_providers.admin_api import DefaultAdminApiConfigProvider
 from dbt_mcp.config.headers import TokenProvider
 from dbt_mcp.config.settings import DbtMcpSettings
+from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
 from dbt_mcp.oauth.dbt_platform import DbtPlatformContext
 from dbt_mcp.oauth.expiry import STARTUP_EXPIRY_BUFFER_SECONDS
@@ -187,11 +189,6 @@ class CredentialsProvider:
         if not self.settings.dbt_account_id or not self.settings.actual_host:
             return
         try:
-            from dbt_mcp.config.config_providers.admin_api import (
-                DefaultAdminApiConfigProvider,
-            )
-            from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
-
             admin_client = DbtAdminAPIClient(DefaultAdminApiConfigProvider(self))
             account_data = await admin_client.get_account(self.settings.dbt_account_id)
             self.account_identifier = account_data.get("identifier")
