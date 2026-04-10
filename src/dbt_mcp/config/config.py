@@ -147,6 +147,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
                 credentials_provider=credentials_provider,
                 admin_client=admin_client,
                 metrics_related_max=settings.sl_metrics_related_max,
+                max_response_chars=settings.sl_metrics_max_response_chars,
             )
         )
 
@@ -181,6 +182,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         semantic_layer_config_provider = DefaultSemanticLayerConfigProvider(
             credentials_provider=credentials_provider,
             metrics_related_max=settings.sl_metrics_related_max,
+            max_response_chars=settings.sl_metrics_max_response_chars,
         )
 
     lsp_config = None
