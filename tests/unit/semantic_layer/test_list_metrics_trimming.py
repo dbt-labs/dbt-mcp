@@ -1,9 +1,10 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
+from dbtsl.models.metric import MetricType
 
 from dbt_mcp.config.config_providers.base import SemanticLayerConfig
-from dbt_mcp.semantic_layer.client import SemanticLayerFetcher
+from dbt_mcp.semantic_layer.tools import _metrics_to_csv
+from dbt_mcp.semantic_layer.types import ListMetricsResponse, MetricToolResponse
 
 
 def test_semantic_layer_config_max_response_chars_default():
@@ -29,141 +30,57 @@ def test_semantic_layer_config_max_response_chars_custom():
     assert config.max_response_chars == 8000
 
 
-def _make_config(
-    max_response_chars: int = 16000, metrics_related_max: int = 2
-) -> SemanticLayerConfig:
-    return SemanticLayerConfig(
-        url="https://example.com/api/graphql",
-        host="example.com",
-        prod_environment_id=1,
-        token_provider=MagicMock(),
-        headers_provider=MagicMock(),
-        metrics_related_max=metrics_related_max,
-        max_response_chars=max_response_chars,
+def _make_response(count: int, description: str | None = None) -> ListMetricsResponse:
+    return ListMetricsResponse(
+        metrics=[
+            MetricToolResponse(
+                name=f"metric_{i}",
+                type=MetricType.SIMPLE,
+                label=f"Metric {i}",
+                description=description,
+                metadata={"key": "value"} if description else None,
+            )
+            for i in range(count)
+        ]
     )
 
 
-def _make_metrics_result(count: int, with_description: bool = True) -> dict:
-    """Build a fake metricsPaginated GraphQL response."""
-    items = [
-        {
-            "name": f"metric_{i}",
-            "type": "SIMPLE",
-            "label": f"Metric {i}",
-            "description": "A " * 500 if with_description else "",  # ~1000 chars each
-            "config": {"meta": {"key": "value"}},
-        }
-        for i in range(count)
-    ]
-    return {"data": {"metricsPaginated": {"items": items}}}
+def test_no_trimming_when_response_fits():
+    """When CSV fits within max_response_chars, description and metadata are kept."""
+    response = _make_response(3, description="short")
+    result = _metrics_to_csv(response, max_response_chars=16000)
+    assert "short" in result
+    assert "description" in result.splitlines()[0]
 
 
-@pytest.mark.asyncio
-async def test_list_metrics_no_trimming_when_small_enough():
-    """When names-only response fits within max_response_chars, keep description and metadata."""
-    config = _make_config(max_response_chars=16000)
-    fetcher = SemanticLayerFetcher(client_provider=MagicMock())
-
-    # 3 metrics > metrics_related_max=2, so names-only path
-    # but small enough to fit in 16000 chars
-    small_metrics = {
-        "data": {
-            "metricsPaginated": {
-                "items": [
-                    {
-                        "name": "m1",
-                        "type": "SIMPLE",
-                        "label": "M1",
-                        "description": "short",
-                        "config": {"meta": {}},
-                    },
-                    {
-                        "name": "m2",
-                        "type": "SIMPLE",
-                        "label": "M2",
-                        "description": "short",
-                        "config": {"meta": {}},
-                    },
-                    {
-                        "name": "m3",
-                        "type": "SIMPLE",
-                        "label": "M3",
-                        "description": "short",
-                        "config": {"meta": {}},
-                    },
-                ]
-            }
-        }
-    }
-
-    with patch(
-        "dbt_mcp.semantic_layer.client.submit_request", new_callable=AsyncMock
-    ) as mock_req:
-        mock_req.return_value = small_metrics
-        result = await fetcher.list_metrics(config)
-
-    assert result.metrics[0].description == "short"
-    assert result.metrics[0].metadata == {}
+def test_trims_when_csv_exceeds_max_chars():
+    """When CSV exceeds max_response_chars, description and metadata are stripped."""
+    response = _make_response(2, description="A " * 500)  # ~1000 chars each
+    result = _metrics_to_csv(response, max_response_chars=100)
+    header = result.splitlines()[0]
+    assert "description" not in header
+    assert "metadata" not in header
+    assert "name" in header
+    assert "metric_0" in result
 
 
-@pytest.mark.asyncio
-async def test_list_metrics_trims_when_response_exceeds_max_chars():
-    """When names-only response exceeds max_response_chars, strip description and metadata."""
-    # Set a very small limit to force trimming
-    config = _make_config(max_response_chars=200, metrics_related_max=1)
-    fetcher = SemanticLayerFetcher(client_provider=MagicMock())
-
-    # 2 metrics > metrics_related_max=1 → names-only path
-    # With long descriptions, response will exceed 200 chars
-    big_metrics = _make_metrics_result(count=2, with_description=True)
-
-    with patch(
-        "dbt_mcp.semantic_layer.client.submit_request", new_callable=AsyncMock
-    ) as mock_req:
-        mock_req.return_value = big_metrics
-        result = await fetcher.list_metrics(config)
-
-    # description and metadata should be stripped
-    assert result.metrics[0].description is None
-    assert result.metrics[0].metadata is None
-    # but name, type, label must be preserved
-    assert result.metrics[0].name == "metric_0"
-    assert result.metrics[0].type == "SIMPLE"
-    assert result.metrics[0].label == "Metric 0"
+def test_trimming_disabled_when_max_is_zero():
+    """max_response_chars=0 disables trimming."""
+    response = _make_response(2, description="A " * 500)
+    result = _metrics_to_csv(response, max_response_chars=0)
+    assert "description" in result.splitlines()[0]
 
 
-@pytest.mark.asyncio
-async def test_list_metrics_trimming_not_applied_in_full_config_path():
-    """The full-config path (count <= metrics_related_max) is never trimmed."""
-    config = _make_config(
-        max_response_chars=10, metrics_related_max=10
-    )  # limit=10 chars, tiny
-    fetcher = SemanticLayerFetcher(client_provider=MagicMock())
+def test_empty_response_returns_empty_string():
+    result = _metrics_to_csv(ListMetricsResponse(metrics=[]))
+    assert result == ""
 
-    one_metric = {
-        "data": {
-            "metricsPaginated": {
-                "items": [
-                    {
-                        "name": "m1",
-                        "type": "SIMPLE",
-                        "label": "M1",
-                        "description": "keep me",
-                        "config": {"meta": {"x": 1}},
-                        "dimensions": [],
-                        "entities": [],
-                    },
-                ]
-            }
-        }
-    }
 
-    with patch(
-        "dbt_mcp.semantic_layer.client.submit_request", new_callable=AsyncMock
-    ) as mock_req:
-        mock_req.return_value = one_metric
-        result = await fetcher.list_metrics(config)
-
-    # Full config path — description must be kept even though max_response_chars=10
-    assert result.metrics[0].description == "keep me"
-    assert result.metrics[0].dimensions == []
+def test_columns_without_data_are_omitted():
+    """Columns with all-None values are not included."""
+    response = _make_response(2, description=None)
+    result = _metrics_to_csv(response)
+    header = result.splitlines()[0]
+    assert "description" not in header
+    assert "metadata" not in header
+    assert "name" in header

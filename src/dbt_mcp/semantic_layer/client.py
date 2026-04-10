@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import dataclasses
 import json
 from collections.abc import Callable
 from contextlib import AbstractContextManager
@@ -157,33 +156,18 @@ class SemanticLayerFetcher:
                     for m in full_result["data"]["metricsPaginated"]["items"]
                 ]
             )
-        names_only_metrics = [
-            MetricToolResponse(
-                name=m.get("name"),
-                type=m.get("type"),
-                label=m.get("label"),
-                description=m.get("description"),
-                metadata=(m.get("config") or {}).get("meta"),
-            )
-            for m in metrics_result["data"]["metricsPaginated"]["items"]
-        ]
-        response = ListMetricsResponse(metrics=names_only_metrics)
-        if (
-            config.max_response_chars > 0
-            and len(json.dumps(dataclasses.asdict(response)))
-            > config.max_response_chars
-        ):
-            response = ListMetricsResponse(
-                metrics=[
-                    MetricToolResponse(
-                        name=m.name,
-                        type=m.type,
-                        label=m.label,
-                    )
-                    for m in names_only_metrics
-                ]
-            )
-        return response
+        return ListMetricsResponse(
+            metrics=[
+                MetricToolResponse(
+                    name=m.get("name"),
+                    type=m.get("type"),
+                    label=m.get("label"),
+                    description=m.get("description"),
+                    metadata=(m.get("config") or {}).get("meta"),
+                )
+                for m in metrics_result["data"]["metricsPaginated"]["items"]
+            ]
+        )
 
     async def list_saved_queries(
         self,
@@ -312,6 +296,12 @@ class SemanticLayerFetcher:
             error=self._format_semantic_layer_error(compile_error)
         )
 
+    def _normalize_where(self, where: str) -> str:
+        """Strip surrounding quotes that LLMs sometimes add to where clause strings."""
+        if len(where) >= 2 and where[0] == '"' and where[-1] == '"':
+            return where[1:-1]
+        return where
+
     # TODO: move this to the SDK
     def _format_query_failed_error(self, query_error: Exception) -> QueryMetricsError:
         if isinstance(query_error, QueryFailedError):
@@ -385,7 +375,7 @@ class SemanticLayerFetcher:
                     metrics=metrics,
                     group_by=group_by,  # type: ignore
                     order_by=parsed_order_by,  # type: ignore
-                    where=[where] if where else None,
+                    where=[self._normalize_where(where)] if where else None,
                     limit=limit,
                     read_cache=True,
                 )
@@ -422,7 +412,7 @@ class SemanticLayerFetcher:
                         metrics=metrics,
                         group_by=group_by,  # type: ignore
                         order_by=parsed_order_by,  # type: ignore
-                        where=[where] if where else None,
+                        where=[self._normalize_where(where)] if where else None,
                         limit=limit,
                     )
                 except RetryTimeoutError as e:
