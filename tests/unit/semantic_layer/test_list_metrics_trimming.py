@@ -1,5 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from dbt_mcp.config.config_providers.base import SemanticLayerConfig
 from dbt_mcp.semantic_layer.client import SemanticLayerFetcher
 
@@ -56,6 +58,7 @@ def _make_metrics_result(count: int, with_description: bool = True) -> dict:
     return {"data": {"metricsPaginated": {"items": items}}}
 
 
+@pytest.mark.asyncio
 async def test_list_metrics_no_trimming_when_small_enough():
     """When names-only response fits within max_response_chars, keep description and metadata."""
     config = _make_config(max_response_chars=16000)
@@ -103,6 +106,7 @@ async def test_list_metrics_no_trimming_when_small_enough():
     assert result.metrics[0].metadata == {}
 
 
+@pytest.mark.asyncio
 async def test_list_metrics_trims_when_response_exceeds_max_chars():
     """When names-only response exceeds max_response_chars, strip description and metadata."""
     # Set a very small limit to force trimming
@@ -128,6 +132,7 @@ async def test_list_metrics_trims_when_response_exceeds_max_chars():
     assert result.metrics[0].label == "Metric 0"
 
 
+@pytest.mark.asyncio
 async def test_list_metrics_trimming_not_applied_in_full_config_path():
     """The full-config path (count <= metrics_related_max) is never trimmed."""
     config = _make_config(

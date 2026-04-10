@@ -169,7 +169,7 @@ class SemanticLayerFetcher:
         ]
         response = ListMetricsResponse(metrics=names_only_metrics)
         if (
-            config.max_response_chars
+            config.max_response_chars > 0
             and len(json.dumps(dataclasses.asdict(response)))
             > config.max_response_chars
         ):
