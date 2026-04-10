@@ -396,6 +396,7 @@ async def test_list_metrics_above_threshold_returns_metrics_only(
     }
     config = mock_config_provider.get_config.return_value
     config.metrics_related_max = 2
+    config.max_response_chars = 0  # disable trimming
     fetcher = SemanticLayerFetcher(client_provider=mock_client_provider)
     result = await fetcher.list_metrics(config=config)
 

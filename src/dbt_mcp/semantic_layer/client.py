@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import dataclasses
 import json
 from collections.abc import Callable
 from contextlib import AbstractContextManager
@@ -156,18 +157,33 @@ class SemanticLayerFetcher:
                     for m in full_result["data"]["metricsPaginated"]["items"]
                 ]
             )
-        return ListMetricsResponse(
-            metrics=[
-                MetricToolResponse(
-                    name=m.get("name"),
-                    type=m.get("type"),
-                    label=m.get("label"),
-                    description=m.get("description"),
-                    metadata=(m.get("config") or {}).get("meta"),
-                )
-                for m in metrics_result["data"]["metricsPaginated"]["items"]
-            ]
-        )
+        names_only_metrics = [
+            MetricToolResponse(
+                name=m.get("name"),
+                type=m.get("type"),
+                label=m.get("label"),
+                description=m.get("description"),
+                metadata=(m.get("config") or {}).get("meta"),
+            )
+            for m in metrics_result["data"]["metricsPaginated"]["items"]
+        ]
+        response = ListMetricsResponse(metrics=names_only_metrics)
+        if (
+            config.max_response_chars
+            and len(json.dumps(dataclasses.asdict(response)))
+            > config.max_response_chars
+        ):
+            response = ListMetricsResponse(
+                metrics=[
+                    MetricToolResponse(
+                        name=m.name,
+                        type=m.type,
+                        label=m.label,
+                    )
+                    for m in names_only_metrics
+                ]
+            )
+        return response
 
     async def list_saved_queries(
         self,
