@@ -8,7 +8,8 @@ and get_entities tools to get information about which metrics, dimensions,
 and entities to use.
 
 When using the `order_by` parameter, you must ensure that the dimension or
-entity also appears in the `group_by` parameter. When fulfilling a lookback
+entity also appears in the `group_by` parameter. For time dimensions, include
+the same `grain` in `order_by` as in `group_by`. When fulfilling a lookback
 query, prefer using order_by and limit instead of using the where parameter.
 A lookback query requires that the `order_by` parameter includes a descending
 order for a time dimension.
@@ -52,7 +53,7 @@ Thinking step-by-step:
 Parameters:
     metrics=["total_sales"]
     group_by=[{"name": "metric_time", "grain": "MONTH", "type": "time_dimension"}]
-    order_by=[{"name": "metric_time", "descending": true}]
+    order_by=[{"name": "metric_time", "grain": "MONTH", "descending": true}]
     limit=1
 </example>
 <example>
@@ -71,12 +72,12 @@ Thinking step-by-step:
 Parameters:
     metrics=["revenue"]
     group_by=[{"name": "customer_name", "type": "dimension"}, {"name": "metric_time", "grain": "QUARTER", "type": "time_dimension"}]
-    order_by=[{"name": "metric_time", "descending": true}, {"name": "revenue", "descending": true}]
+    order_by=[{"name": "metric_time", "grain": "QUARTER", "descending": true}, {"name": "revenue", "descending": true}]
     limit=5
 Follow-up Query (after verifying results):
     metrics=["revenue"]
     group_by=[{"name": "customer_name", "type": "dimension"}, {"name": "metric_time", "grain": "QUARTER", "type": "time_dimension"}]
-    order_by=[{"name": "metric_time", "descending": true}, {"name": "revenue", "descending": true}]
+    order_by=[{"name": "metric_time", "grain": "QUARTER", "descending": true}, {"name": "revenue", "descending": true}]
     limit=null
 </example>
 <example>
@@ -115,13 +116,13 @@ Thinking step-by-step:
 Parameters (initial query):
     metrics=["new_users"]
     group_by=[{"name": "metric_time", "grain": "WEEK", "type": "time_dimension"}]
-    order_by=[{"name": "metric_time", "descending": false}]
+    order_by=[{"name": "metric_time", "grain": "WEEK", "descending": false}]
     where="{{ TimeDimension('metric_time', 'WEEK') }} >= '2023-01-01' AND {{ TimeDimension('metric_time', 'WEEK') }} < '2024-01-01'"
     limit=4
 Follow-up Query (after verifying results):
     metrics=["new_users"]
     group_by=[{"name": "metric_time", "grain": "WEEK", "type": "time_dimension"}]
-    order_by=[{"name": "metric_time", "descending": false}]
+    order_by=[{"name": "metric_time", "grain": "WEEK", "descending": false}]
     where="{{ TimeDimension('metric_time', 'WEEK') }} >= '2023-01-01' AND {{ TimeDimension('metric_time', 'WEEK') }} < '2024-01-01'"
     limit=null
 </example>
@@ -148,7 +149,7 @@ Parameters:
 <parameters>
 metrics: List of metric names (strings) to query for.
 group_by: Optional list of objects with name (string), type ("dimension" or "time_dimension"), and grain (string or null for time dimensions only).
-order_by: Optional list of objects with name (string) and descending (boolean, default false).
+order_by: Optional list of objects with name (string), descending (boolean, default false), and grain (string or null, required for time dimensions to match the grain used in group_by).
 where: Optional SQL WHERE clause (string) to filter results.
 limit: Optional limit (integer) for number of results.
 </parameters>
