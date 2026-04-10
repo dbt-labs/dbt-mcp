@@ -1,5 +1,12 @@
 version: 2
+
+multi-ecosystem-groups:
+  examples:
+    schedule:
+      interval: "monthly"
+
 updates:
+  # Prod manifests 
   - package-ecosystem: "uv"
     directory: "/"
     # Ignore version update PRs - security updates remain active
@@ -15,3 +22,34 @@ updates:
     open-pull-requests-limit: 0
     schedule:
       interval: "weekly"
+
+  # Examples manifests
+  - package-ecosystem: "uv"
+    directory: "/examples"
+    multi-ecosystem-group: "examples"
+    open-pull-requests-limit: 1
+    versioning-strategy: "increase"
+    groups:
+      examples-deps:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directory: "/examples"
+    multi-ecosystem-group: "examples"
+    open-pull-requests-limit: 1
+    versioning-strategy: "increase"
+    groups:
+      examples-deps:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "pip"
+    directory: "/examples"
+    multi-ecosystem-group: "examples"
+    open-pull-requests-limit: 1
+    versioning-strategy: "increase"
+    groups:
+      examples-deps:
+        patterns:
+          - "*"
