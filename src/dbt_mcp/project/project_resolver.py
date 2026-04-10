@@ -12,6 +12,22 @@ from dbt_mcp.oauth.dbt_platform import (
 logger = logging.getLogger(__name__)
 
 
+async def get_account(
+    *,
+    dbt_platform_url: str,
+    account_id: int,
+    headers: dict[str, str],
+) -> DbtPlatformAccount:
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            # Using v2 as this endpoint in v3 was not available in testing
+            url=f"{dbt_platform_url}/api/v2/accounts/{account_id}/",
+            headers=headers,
+        )
+        response.raise_for_status()
+        return DbtPlatformAccount(**response.json()["data"])
+
+
 async def get_all_accounts(
     *,
     dbt_platform_url: str,
