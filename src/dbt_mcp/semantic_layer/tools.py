@@ -1,3 +1,5 @@
+import csv
+import io
 import logging
 from dataclasses import dataclass
 
@@ -14,10 +16,11 @@ from dbt_mcp.semantic_layer.types import (
     DimensionToolResponse,
     EntityToolResponse,
     GetMetricsCompiledSqlSuccess,
+    ListMetricsResponse,
+    MetricToolResponse,
     OrderByParam,
     QueryMetricsSuccess,
     SavedQueryToolResponse,
-    ListMetricsResponse,
 )
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
@@ -25,6 +28,35 @@ from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
+
+
+def _metrics_to_csv(response: ListMetricsResponse) -> str:
+    metrics = response.metrics
+    if not metrics:
+        return ""
+
+    def _has_any(field: str) -> bool:
+        return any(getattr(m, field) is not None for m in metrics)
+
+    columns: list[str] = ["name", "type", "label"]
+    for col in ("description", "metadata", "dimensions", "entities"):
+        if _has_any(col):
+            columns.append(col)
+
+    def _cell(m: MetricToolResponse, col: str) -> str:
+        val = getattr(m, col)
+        if val is None:
+            return ""
+        if isinstance(val, list):
+            return ", ".join(str(v) for v in val)
+        return str(val)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(columns)
+    for m in metrics:
+        writer.writerow([_cell(m, col) for col in columns])
+    return output.getvalue().strip()
 
 
 @dataclass
@@ -53,11 +85,12 @@ class SemanticLayerToolContext:
 async def list_metrics(
     context: SemanticLayerToolContext,
     search: str | None = None,
-) -> ListMetricsResponse:
+) -> str:
     config = await context.config_provider.get_config()
-    return await context.semantic_layer_fetcher.list_metrics(
+    response = await context.semantic_layer_fetcher.list_metrics(
         config=config, search=search
     )
+    return _metrics_to_csv(response)
 
 
 @dbt_mcp_tool(

@@ -15,6 +15,7 @@ from dbt_mcp.semantic_layer.client import (
     SemanticLayerClientProvider,
     SemanticLayerFetcher,
 )
+from dbt_mcp.semantic_layer.tools import _metrics_to_csv
 from dbt_mcp.semantic_layer.types import (
     DimensionToolResponse,
     EntityToolResponse,
@@ -22,7 +23,6 @@ from dbt_mcp.semantic_layer.types import (
     OrderByParam,
     QueryMetricsSuccess,
     SavedQueryToolResponse,
-    ListMetricsResponse,
 )
 from dbt_mcp.tools.definitions import GenericToolDefinition, dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
@@ -55,11 +55,12 @@ async def list_metrics(
     context: MultiProjectSemanticLayerToolContext,
     project_id: int,
     search: str | None = None,
-) -> ListMetricsResponse:
+) -> str:
     config = await context.semantic_layer_config_provider.get_config(project_id)
-    return await SemanticLayerFetcher(
+    response = await SemanticLayerFetcher(
         client_provider=context.client_provider,
     ).list_metrics(config=config, search=search)
+    return _metrics_to_csv(response)
 
 
 @dbt_mcp_tool(
