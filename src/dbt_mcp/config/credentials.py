@@ -147,7 +147,9 @@ async def get_dbt_platform_context(
 ) -> DbtPlatformContext:
     # Some MCP hosts (Claude Desktop) tend to run multiple MCP servers instances.
     # We need to lock so that only one can run the oauth flow.
-    with FileLock(dbt_user_dir / "mcp.lock"):
+    # Resolve the lock file path to handle multi-level symbolic links (see #533).
+    lock_path = (dbt_user_dir / "mcp.lock").resolve()
+    with FileLock(lock_path):
         dbt_ctx = dbt_platform_context_manager.read_context()
 
         # If context is complete, check token validity
