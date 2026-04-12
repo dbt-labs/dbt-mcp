@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+import re
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from datetime import date, datetime, time, timedelta
@@ -37,6 +38,36 @@ from dbt_mcp.semantic_layer.types import (
     SavedQueryToolResponse,
     ListMetricsResponse,
 )
+
+# Patterns that indicate expired dbt Cloud platform credentials rather than
+# local authentication failures.  These are matched case-insensitively against
+# the raw error string returned by the Semantic Layer / data platform.
+_PLATFORM_CREDENTIAL_ERROR_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r"SSO authentication has expired", re.IGNORECASE),
+    re.compile(r"re-connect to Snowflake", re.IGNORECASE),
+    re.compile(r"refresh.snowflake.oauth.credentials", re.IGNORECASE),
+    re.compile(r"authentication token has expired", re.IGNORECASE),
+    re.compile(r"oauth.*token.*expired", re.IGNORECASE),
+    re.compile(r"token.*expired.*re-?authenticate", re.IGNORECASE),
+]
+
+_PLATFORM_CREDENTIAL_HINT = (
+    "\n\n"
+    "Hint: This error indicates that your dbt Cloud development credentials "
+    "have expired. This is a dbt Cloud platform credential issue, not a local "
+    "authentication problem.\n"
+    "To fix this, go to the dbt Cloud UI → Profile → Credentials and refresh "
+    "your development environment credentials for the relevant project.\n"
+    "See: https://docs.getdbt.com/docs/dbt-cloud-environments/develop-in-the-cloud#access-the-cloud-ide"
+)
+
+
+def _is_platform_credential_error(error_message: str) -> bool:
+    """Detect whether an error message indicates expired dbt Cloud platform credentials."""
+    return any(
+        pattern.search(error_message)
+        for pattern in _PLATFORM_CREDENTIAL_ERROR_PATTERNS
+    )
 
 
 def DEFAULT_RESULT_FORMATTER(table: pa.Table) -> str:
@@ -268,7 +299,12 @@ class SemanticLayerFetcher:
         return self.entities_cache[metrics_key]
 
     def _format_semantic_layer_error(self, error: Exception) -> str:
-        """Format semantic layer errors by cleaning up common error message patterns."""
+        """Format semantic layer errors by cleaning up common error message patterns.
+
+        Additionally detects errors caused by expired dbt Cloud platform credentials
+        and appends an actionable hint directing users to refresh their credentials
+        in the dbt Cloud UI rather than re-authenticating locally.
+        """
         error_str = str(error)
         formatted = (
             error_str.replace("QueryFailedError(", "")
@@ -285,7 +321,14 @@ class SemanticLayerFetcher:
             .strip()
         )
         if not formatted:
-            return error_str or f"Semantic layer query failed: {type(error).__name__}"
+            formatted = (
+                error_str or f"Semantic layer query failed: {type(error).__name__}"
+            )
+
+        # Detect platform credential expiry and append an actionable hint
+        if _is_platform_credential_error(error_str):
+            formatted += _PLATFORM_CREDENTIAL_HINT
+
         return formatted
 
     def _format_get_metrics_compiled_sql_error(
