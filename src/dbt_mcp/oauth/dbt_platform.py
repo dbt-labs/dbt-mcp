@@ -49,15 +49,9 @@ class DbtPlatformEnvironment(BaseModel):
     deployment_type: str
 
 
-class GetEnvironmentsRequest(BaseModel):
+class SelectedProjectsRequest(BaseModel):
     account_id: int
-    project_id: int
-
-
-class SelectedProjectRequest(BaseModel):
-    account_id: int
-    project_id: int
-    prod_environment_id: int | None = None
+    project_ids: list[int]
 
 
 def dbt_platform_context_from_token_response(
@@ -82,6 +76,7 @@ class DbtPlatformContext(BaseModel):
     dev_environment: DbtPlatformEnvironment | None = None
     prod_environment: DbtPlatformEnvironment | None = None
     account_id: int | None = None
+    selected_project_ids: list[int] | None = None
 
     @property
     def user_id(self) -> int | None:
@@ -99,4 +94,6 @@ class DbtPlatformContext(BaseModel):
             or self.decoded_access_token,
             host_prefix=other.host_prefix or self.host_prefix,
             account_id=other.account_id or self.account_id,
+            selected_project_ids=other.selected_project_ids
+            or self.selected_project_ids,
         )

@@ -139,6 +139,7 @@ async def get_all_models(
     context: MultiProjectDiscoveryToolContext,
     project_id: int = PROJECT_ID_FIELD,
 ) -> list[dict]:
+    # TODO: push code into fetchers
     config = await context.config_provider.get_config(project_id=project_id)
     return await context.models_fetcher.fetch_models(config=config)
 

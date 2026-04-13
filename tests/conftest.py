@@ -4,6 +4,7 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -107,17 +108,18 @@ def env_setup(tmp_path: Path, monkeypatch):
         if files:
             for rel, content in files.items():
                 helpers.write_file(rel, content)
-        try:
-            yield project_dir, helpers
-        finally:
-            # in case multiple tests are run in the same context
-            helpers.unset_env(*env_vars.keys())
-            # Restore any env vars we cleared at the start
-            for k, v in original_values.items():
-                if v is not None:
-                    os.environ[k] = v
-            shutil.rmtree(project_dir, ignore_errors=True)
-            dbt_path.unlink(missing_ok=True)
+        with patch("dbt_mcp.mcp.server.DbtMCP._is_multi_project", return_value=False):
+            try:
+                yield project_dir, helpers
+            finally:
+                # in case multiple tests are run in the same context
+                helpers.unset_env(*env_vars.keys())
+                # Restore any env vars we cleared at the start
+                for k, v in original_values.items():
+                    if v is not None:
+                        os.environ[k] = v
+                shutil.rmtree(project_dir, ignore_errors=True)
+                dbt_path.unlink(missing_ok=True)
 
     yield _make
 

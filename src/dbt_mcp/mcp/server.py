@@ -9,7 +9,7 @@ from typing import Any
 from dbtlabs_vortex.producer import shutdown
 from mcp.server.fastmcp import FastMCP
 from mcp.server.lowlevel.server import LifespanResultT
-from mcp.types import ContentBlock, TextContent
+from mcp.types import ContentBlock, TextContent, Tool
 
 from dbt_mcp.config.config import Config
 from dbt_mcp.dbt_admin.tools import register_admin_api_tools
@@ -17,8 +17,6 @@ from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.dbt_codegen.tools import register_dbt_codegen_tools
 from dbt_mcp.discovery.tools import register_discovery_tools
 from dbt_mcp.discovery.tools_multiproject import register_multiproject_discovery_tools
-from dbt_mcp.errors.common import ConfigurationError
-from dbt_mcp.lsp.providers.local_lsp_client_provider import LocalLSPClientProvider
 from dbt_mcp.lsp.providers.local_lsp_connection_provider import (
     LocalLSPConnectionProvider,
 )
@@ -39,6 +37,8 @@ class DbtMCP(FastMCP):
     def __init__(
         self,
         config: Config,
+        multi_project_mcp: FastMCP,
+        single_project_mcp: FastMCP,
         usage_tracker: UsageTracker,
         lifespan: (
             Callable[
@@ -53,10 +53,18 @@ class DbtMCP(FastMCP):
         super().__init__(*args, **kwargs, lifespan=lifespan)
         self.usage_tracker = usage_tracker
         self.config = config
+        self.multi_project_mcp = multi_project_mcp
+        self.single_project_mcp = single_project_mcp
         self.lsp_connection_provider = lsp_connection_provider
         self._lsp_connection_task: (
             asyncio.Task[LSPConnectionProviderProtocol] | None
         ) = None
+
+    async def _is_multi_project(self) -> bool:
+        settings, _ = await self.config.credentials_provider.get_credentials()
+        return bool(
+            settings.dbt_project_ids is not None and len(settings.dbt_project_ids) > 0
+        )
 
     async def call_tool(
         self, name: str, arguments: dict[str, Any]
@@ -65,10 +73,10 @@ class DbtMCP(FastMCP):
         result = None
         start_time = int(time.time() * 1000)
         try:
-            result = await super().call_tool(
-                name,
-                arguments,
-            )
+            if await self._is_multi_project():
+                result = await self.multi_project_mcp.call_tool(name, arguments)
+            else:
+                result = await self.single_project_mcp.call_tool(name, arguments)
         except Exception as e:
             end_time = int(time.time() * 1000)
             logger.error(
@@ -103,6 +111,11 @@ class DbtMCP(FastMCP):
         )
         return result
 
+    async def list_tools(self) -> list[Tool]:
+        if await self._is_multi_project():
+            return await self.multi_project_mcp.list_tools()
+        return await self.single_project_mcp.list_tools()
+
 
 @asynccontextmanager
 async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
@@ -115,7 +128,7 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
         # this avoids anyio cancel scope violations (see issue #498)
         if (
             server.config.proxied_tool_config_provider
-            and not server.config.multi_project_enabled
+            and not await server._is_multi_project()
         ):
             logger.info("Registering proxied tools")
             await register_proxied_tools(
@@ -132,8 +145,10 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
             )
 
         # eager start and initialize the LSP connection
-        if server.lsp_connection_provider:
-            asyncio.create_task(server.lsp_connection_provider.get_connection())
+        if server.config.lsp_config:
+            asyncio.create_task(
+                server.config.lsp_config.local_lsp_connection_provider.get_connection()
+            )
         yield None
     except Exception as e:
         logger.error(f"Error in MCP server: {e}")
@@ -145,8 +160,10 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
         except Exception:
             logger.exception("Error closing proxied tools manager")
         try:
-            if server.lsp_connection_provider:
-                await server.lsp_connection_provider.cleanup_connection()
+            if server.config.lsp_config:
+                await (
+                    server.config.lsp_config.local_lsp_connection_provider
+                ).cleanup_connection()
         except Exception:
             logger.exception("Error cleaning up LSP connection")
         try:
@@ -155,7 +172,7 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
             logger.exception("Error shutting down MCP server")
 
 
-async def register_multi_project_dbt_mcp(dbt_mcp: DbtMCP, config: Config) -> None:
+async def register_multi_project_dbt_mcp(dbt_mcp: FastMCP, config: Config) -> None:
     disabled_tools = set(config.disable_tools)
     enabled_tools = (
         set(config.enable_tools) if config.enable_tools is not None else None
@@ -177,10 +194,6 @@ async def register_multi_project_dbt_mcp(dbt_mcp: DbtMCP, config: Config) -> Non
 
     logger.info("Registering discovery tools for multi-project")
     if config.multi_project_discovery_config_provider:
-        if not config.admin_api_config_provider:
-            raise ConfigurationError(
-                "Admin API config provider is required for multi-project discovery"
-            )
         register_multiproject_discovery_tools(
             dbt_mcp=dbt_mcp,
             config_provider=config.multi_project_discovery_config_provider,
@@ -191,27 +204,7 @@ async def register_multi_project_dbt_mcp(dbt_mcp: DbtMCP, config: Config) -> Non
         )
 
 
-async def create_dbt_mcp(config: Config) -> DbtMCP:
-    dbt_mcp = DbtMCP(
-        config=config,
-        usage_tracker=DefaultUsageTracker(
-            credentials_provider=config.credentials_provider,
-            session_id=uuid.uuid4(),
-        ),
-        name="dbt",
-        lifespan=app_lifespan,
-    )
-
-    if config.multi_project_enabled:
-        logger.info("DBT_MCP_MULTI_PROJECT_ENABLED=true -> Multi-project mode")
-        await register_multi_project_dbt_mcp(dbt_mcp, config)
-    else:
-        logger.info("Multi-project mode disabled -> Env-var mode")
-        await register_dbt_mcp_tools(dbt_mcp, config)
-    return dbt_mcp
-
-
-async def register_dbt_mcp_tools(dbt_mcp: DbtMCP, config: Config) -> None:
+async def register_dbt_mcp_tools(dbt_mcp: FastMCP, config: Config) -> None:
     disabled_tools = set(config.disable_tools)
     enabled_tools = (
         set(config.enable_tools) if config.enable_tools is not None else None
@@ -295,21 +288,34 @@ async def register_dbt_mcp_tools(dbt_mcp: DbtMCP, config: Config) -> None:
             disabled_toolsets=disabled_toolsets,
         )
 
-    if config.lsp_config and config.lsp_config.lsp_binary_info:
+    if config.lsp_config:
         logger.info("Registering LSP tools")
-        local_lsp_connection_provider = LocalLSPConnectionProvider(
-            lsp_binary_info=config.lsp_config.lsp_binary_info,
-            project_dir=config.lsp_config.project_dir,
-        )
-        lsp_client_provider = LocalLSPClientProvider(
-            lsp_connection_provider=local_lsp_connection_provider,
-        )
-        dbt_mcp.lsp_connection_provider = local_lsp_connection_provider
         await register_lsp_tools(
             dbt_mcp,
-            lsp_client_provider,
+            config.lsp_config.lsp_client_provider,
             disabled_tools=disabled_tools,
             enabled_tools=enabled_tools,
             enabled_toolsets=enabled_toolsets,
             disabled_toolsets=disabled_toolsets,
         )
+
+
+async def create_dbt_mcp(config: Config) -> FastMCP:
+    multi_project_dbt_mcp = FastMCP()
+    await register_multi_project_dbt_mcp(multi_project_dbt_mcp, config)
+
+    single_project_dbt_mcp = FastMCP()
+    await register_dbt_mcp_tools(single_project_dbt_mcp, config)
+
+    tool_dispatcher = DbtMCP(
+        name="dbt",
+        config=config,
+        usage_tracker=DefaultUsageTracker(
+            credentials_provider=config.credentials_provider,
+            session_id=uuid.uuid4(),
+        ),
+        lifespan=app_lifespan,
+        multi_project_mcp=multi_project_dbt_mcp,
+        single_project_mcp=single_project_dbt_mcp,
+    )
+    return tool_dispatcher

@@ -185,6 +185,7 @@ class CredentialsProvider:
         logger.info(f"Settings: {settings}")
 
     async def get_credentials(self) -> "tuple[DbtMcpSettings, TokenProvider]":
+        # TODO: imports should be at the top of the file
         from dbt_mcp.config.settings import (
             _build_dbt_platform_url,
             validate_dbt_cli_settings,
@@ -235,6 +236,7 @@ class CredentialsProvider:
             )
             self.settings.dbt_account_id = dbt_platform_context.account_id
             self.settings.host_prefix = dbt_platform_context.host_prefix
+            self.settings.dbt_project_ids = dbt_platform_context.selected_project_ids
             self.settings.dbt_host = self.settings.base_host
             if not dbt_platform_context.decoded_access_token:
                 raise ValueError("No decoded access token found in OAuth context")

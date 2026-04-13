@@ -59,6 +59,11 @@ class MultiProjectSemanticLayerConfigProvider(
     async def get_config(self, project_id: int) -> SemanticLayerConfig:
         settings, token_provider = await self.credentials_provider.get_credentials()
         assert settings.actual_host
+        if settings.dbt_project_ids and project_id not in settings.dbt_project_ids:
+            raise ValueError(
+                f"Project {project_id} is not in the selected projects. "
+                f"Available project IDs: {settings.dbt_project_ids}"
+            )
         is_local = settings.actual_host and settings.actual_host.startswith("localhost")
         if is_local:
             host = settings.actual_host

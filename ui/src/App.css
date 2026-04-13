@@ -393,6 +393,40 @@ section {
   background: #94a3b8;
 }
 
+/* Project checklist */
+.project-checklist {
+  border: 1.5px solid #ebe9e9;
+  border-radius: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.project-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease-in-out;
+  border-bottom: 1px solid #ebe9e9;
+}
+
+.project-checkbox-row:last-child {
+  border-bottom: none;
+}
+
+.project-checkbox-row:hover {
+  background-color: #f8fafc;
+}
+
+.project-checkbox-row input[type="checkbox"] {
+  accent-color: #1c1a19;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 /* Loading state */
 .loading-state {
   display: flex;
@@ -766,6 +800,20 @@ section {
     border-color: #ebe9e9;
   }
 
+  /* Project checklist light mode */
+  .project-checklist {
+    border-color: #ebe9e9;
+  }
+
+  .project-checkbox-row {
+    border-bottom-color: #ebe9e9;
+    color: #1c1a19;
+  }
+
+  .project-checkbox-row:hover {
+    background-color: #f9f9f9;
+  }
+
   /* Custom dropdown */
   .dropdown-trigger {
     background-color: #fff;
@@ -1046,6 +1094,24 @@ section {
 
   .dropdown-option.selected:hover {
     background-color: #6b7280;
+  }
+
+  /* Project checklist dark mode */
+  .project-checklist {
+    border-color: #4e4a49;
+  }
+
+  .project-checkbox-row {
+    border-bottom-color: #4e4a49;
+    color: #f6f6f6;
+  }
+
+  .project-checkbox-row:hover {
+    background-color: #374151;
+  }
+
+  .project-checkbox-row input[type="checkbox"] {
+    accent-color: #f6f6f6;
   }
 
   /* Search in dropdown dark mode */
