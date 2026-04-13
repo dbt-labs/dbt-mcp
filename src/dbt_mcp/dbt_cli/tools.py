@@ -3,13 +3,13 @@ import os
 import subprocess
 from collections.abc import Iterable
 from typing import Any
+import logging
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
-from dbt_mcp.config.config import DbtCliConfig, load_config
-from dbt_mcp.dbt_cli.binary_type import BinaryType
-from dbt_mcp.dbt_cli.binary_type import get_color_disable_flag
+from dbt_mcp.config.config import DbtCliConfig
+from dbt_mcp.dbt_cli.binary_type import BinaryType, get_color_disable_flag
 from dbt_mcp.dbt_cli.models.lineage_types import ModelLineage
 from dbt_mcp.dbt_cli.models.manifest import Manifest
 from dbt_mcp.prompts.prompts import get_prompt
@@ -25,9 +25,7 @@ from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 
-# Is this inefficient? Can we re-use existing config
-# that is initialized in main entrypoint?
-config = load_config()
+logger = logging.getLogger(__name__)
 
 
 def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition]:
@@ -61,6 +59,10 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
                 and isinstance(state_path, str)
             ):
                 command.extend(["--state", state_path])
+            elif state_path and config.binary_type == BinaryType.DBT_CLOUD_CLI:
+                logger.warning(
+                    "--state is not supported by dbt Cloud CLI and will be ignored."
+                )
 
             if is_full_refresh is True:
                 command.append("--full-refresh")
