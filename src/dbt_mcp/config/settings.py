@@ -296,8 +296,13 @@ class DbtMcpSettings(BaseSettings):
         if v is None:
             return None
         if isinstance(v, list):
+            if not v:
+                raise ValueError("DBT_PROJECT_IDS must contain at least one project id")
             return [int(i) for i in v]
-        return [int(i.strip()) for i in str(v).split(",") if i.strip()]
+        project_ids = [int(i.strip()) for i in str(v).split(",") if i.strip()]
+        if not project_ids:
+            raise ValueError("DBT_PROJECT_IDS must contain at least one project id")
+        return project_ids
 
     @model_validator(mode="after")
     def auto_disable(self) -> "DbtMcpSettings":

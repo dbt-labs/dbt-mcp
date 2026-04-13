@@ -344,6 +344,7 @@ export default function App() {
                       <input
                         type="text"
                         className="dropdown-search"
+                        aria-label="Search projects"
                         placeholder="Search projects..."
                         value={projectSearch}
                         onChange={(e) => setProjectSearch(e.target.value)}

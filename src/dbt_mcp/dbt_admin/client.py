@@ -60,9 +60,8 @@ class DbtAdminAPIClient:
 
         Returns a tuple of (prod_environment, dev_environment).
 
-        If prod_environment_id is provided, that specific environment is used as prod.
-        Otherwise, auto-detects based on deployment_type == "production".
-        Dev environment is always auto-detected based on deployment_type == "development".
+        Auto-detects prod based on deployment_type == "production".
+        Dev environment is auto-detected based on deployment_type == "development".
         """
         prod_environment: DbtPlatformEnvironment | None = None
         dev_environment: DbtPlatformEnvironment | None = None

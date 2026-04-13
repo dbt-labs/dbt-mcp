@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from dbt_mcp.oauth.token import (
     AccessTokenResponse,
@@ -51,7 +51,7 @@ class DbtPlatformEnvironment(BaseModel):
 
 class SelectedProjectsRequest(BaseModel):
     account_id: int
-    project_ids: list[int]
+    project_ids: list[int] = Field(min_length=1)
 
 
 def dbt_platform_context_from_token_response(

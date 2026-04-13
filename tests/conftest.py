@@ -4,7 +4,7 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -108,7 +108,11 @@ def env_setup(tmp_path: Path, monkeypatch):
         if files:
             for rel, content in files.items():
                 helpers.write_file(rel, content)
-        with patch("dbt_mcp.mcp.server.DbtMCP._is_multi_project", return_value=False):
+        with patch(
+            "dbt_mcp.mcp.server.DbtMCP._is_multi_project",
+            new_callable=AsyncMock,
+            return_value=False,
+        ):
             try:
                 yield project_dir, helpers
             finally:
