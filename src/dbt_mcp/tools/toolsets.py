@@ -87,6 +87,7 @@ toolsets = {
         ToolName.RUN,
         ToolName.TEST,
         ToolName.SHOW,
+        ToolName.CLONE,
         ToolName.GET_LINEAGE_DEV,
         ToolName.GET_NODE_DETAILS_DEV,
     },

@@ -13,6 +13,7 @@ HUMAN_DESCRIPTIONS: dict[ToolName, str] = {
     ToolName.RUN: "Executes models to materialize them in the database.",
     ToolName.TEST: "Runs tests to validate data and model integrity.",
     ToolName.SHOW: "Executes SQL against the database and returns results.",
+    ToolName.CLONE: "Clones selected nodes from the specified state to the target schema(s).",
     ToolName.GET_LINEAGE_DEV: "Retrieves lineage from local manifest.json with type and depth filtering.",
     ToolName.GET_NODE_DETAILS_DEV: "Retrieves node details from local manifest.json (models, seeds, snapshots, sources).",
     # Semantic Layer tools

@@ -5,6 +5,8 @@ import pytest
 from pytest import MonkeyPatch
 
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
+from dbt_mcp.config.config import DbtCliConfig
+from dbt_mcp.dbt_cli.binary_type import BinaryType
 from tests.mocks.config import mock_dbt_cli_config
 
 
@@ -268,7 +270,7 @@ def test_list_command_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
     assert "Try using a specific selector to narrow down the results" in result
 
 
-@pytest.mark.parametrize("command_name", ["run", "build"])
+@pytest.mark.parametrize("command_name", ["run", "build", "clone"])
 def test_full_refresh_flag_added_to_command(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, command_name
 ):
@@ -447,7 +449,9 @@ def test_compile_supports_selection(
     assert "my_model" in mock_calls[0]
 
 
-@pytest.mark.parametrize("command_name", ["build", "run", "test", "compile", "ls"])
+@pytest.mark.parametrize(
+    "command_name", ["build", "run", "test", "compile", "ls", "clone"]
+)
 def test_yml_selector_flag_added_to_command(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, command_name
 ):
@@ -508,3 +512,84 @@ def test_yml_selector_not_added_when_none(
     assert mock_calls
     args_list = mock_calls[0]
     assert "--selector" not in args_list
+
+
+def test_clone_command_binary_state_path_logic(
+    monkeypatch: MonkeyPatch,
+    mock_process,
+    mock_fastmcp,
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+
+    # Case 1: DBT_CORE (--state should be added)
+    core_cli_config = DbtCliConfig(
+        project_dir="/test/project",
+        dbt_path="/path/to/dbt",
+        dbt_cli_timeout=10,
+        binary_type=BinaryType.DBT_CORE,
+    )
+    register_dbt_cli_tools(
+        fastmcp,
+        core_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    clone_tool = tools["clone"]
+    clone_tool(state_path="/some/state/path")
+
+    assert "--state" in mock_calls[0]
+    assert "/some/state/path" in mock_calls[0]
+
+    # Case 2: DBT_CLOUD_CLI (--state should NOT be added)
+    mock_calls.clear()
+    cloud_cli_config = DbtCliConfig(
+        project_dir="/test/project",
+        dbt_path="/path/to/dbt",
+        dbt_cli_timeout=10,
+        binary_type=BinaryType.DBT_CLOUD_CLI,
+    )
+    register_dbt_cli_tools(
+        fastmcp,
+        cloud_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    clone_tool = tools["clone"]
+    clone_tool(state_path="/some/state/path")
+
+    assert "--state" not in mock_calls[0]
+    assert "/some/state/path" not in mock_calls[0]
+
+    # Case 3: FUSION (--state should be added)
+    mock_calls.clear()
+    fusion_cli_config = DbtCliConfig(
+        project_dir="/test/project",
+        dbt_path="/path/to/dbt",
+        dbt_cli_timeout=10,
+        binary_type=BinaryType.FUSION,
+    )
+    register_dbt_cli_tools(
+        fastmcp,
+        fusion_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    clone_tool = tools["clone"]
+    clone_tool(state_path="/some/state/path")
+
+    assert "--state" in mock_calls[0]
+    assert "/some/state/path" in mock_calls[0]
