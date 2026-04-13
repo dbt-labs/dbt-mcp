@@ -8,7 +8,8 @@ Related: https://github.com/dbt-labs/dbt-mcp/issues/533
 
 import os
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -43,13 +44,13 @@ class TestMcpLockSymlinkResolution:
         captured_lock_paths: list[Path] = []
 
         class MockFileLock:
-            def __init__(self, path, *args, **kwargs):
+            def __init__(self, path: Any, *args: Any, **kwargs: Any) -> None:
                 captured_lock_paths.append(Path(str(path)))
 
-            def __enter__(self):
+            def __enter__(self) -> "MockFileLock":
                 return self
 
-            def __exit__(self, *args):
+            def __exit__(self, *args: Any) -> None:
                 pass
 
         mock_ctx = MagicMock()
@@ -64,12 +65,10 @@ class TestMcpLockSymlinkResolution:
         mock_context_manager = MagicMock()
         mock_context_manager.read_context.return_value = mock_ctx
 
-        with patch(
-            "dbt_mcp.config.credentials.FileLock", MockFileLock
-        ):
+        with patch("dbt_mcp.config.credentials.FileLock", MockFileLock):
             from dbt_mcp.config.credentials import get_dbt_platform_context
 
-            result = await get_dbt_platform_context(
+            await get_dbt_platform_context(
                 dbt_user_dir=tmp_path,
                 dbt_platform_url="https://cloud.getdbt.com",
                 dbt_platform_context_manager=mock_context_manager,
