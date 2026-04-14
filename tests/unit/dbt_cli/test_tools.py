@@ -4,6 +4,7 @@ import subprocess
 import pytest
 from pytest import MonkeyPatch
 
+from dbt_mcp.errors.common import InvalidParameterError
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.config.config import DbtCliConfig
 from dbt_mcp.dbt_cli.binary_type import BinaryType
@@ -567,10 +568,11 @@ def test_clone_command_binary_state_path_logic(
         disabled_toolsets=set(),
     )
     clone_tool = tools["clone"]
-    clone_tool(state_path="/some/state/path")
 
-    assert "--state" not in mock_calls[0]
-    assert "/some/state/path" not in mock_calls[0]
+    with pytest.raises(InvalidParameterError) as excinfo:
+        clone_tool(state_path="/some/state/path")
+
+    assert "--state is not supported" in str(excinfo.value)
 
     # Case 3: FUSION (--state should be added)
     mock_calls.clear()
