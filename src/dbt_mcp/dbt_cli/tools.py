@@ -12,6 +12,7 @@ from dbt_mcp.config.config import DbtCliConfig
 from dbt_mcp.dbt_cli.binary_type import BinaryType, get_color_disable_flag
 from dbt_mcp.dbt_cli.models.lineage_types import ModelLineage
 from dbt_mcp.dbt_cli.models.manifest import Manifest
+from dbt_mcp.errors.common import InvalidParameterError
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.annotations import create_tool_annotations
 from dbt_mcp.tools.definitions import ToolDefinition
@@ -60,8 +61,8 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             ):
                 command.extend(["--state", state_path])
             elif state_path and config.binary_type == BinaryType.DBT_CLOUD_CLI:
-                logger.warning(
-                    "--state is not supported by dbt Cloud CLI and will be ignored."
+                raise InvalidParameterError(
+                    "--state is not supported by dbt CLI (Cloud/Platform)."
                 )
 
             if is_full_refresh is True:
@@ -262,8 +263,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         vars: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/vars")
         ),
-        # Only applies to Core / Fusion CLI, dropped downstream depending on Binary Type
-        # Arg description explains this nuance
+        # Only applies to Core / Fusion CLI
         state_path: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/state_path")
         ),
