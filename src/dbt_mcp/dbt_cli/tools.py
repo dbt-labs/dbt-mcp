@@ -8,6 +8,7 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from dbt_mcp.config.config import DbtCliConfig
+from dbt_mcp.dbt_cli.auth_check import WarehouseAuthChecker
 from dbt_mcp.dbt_cli.binary_type import get_color_disable_flag
 from dbt_mcp.dbt_cli.models.lineage_types import ModelLineage
 from dbt_mcp.dbt_cli.models.manifest import Manifest
@@ -25,7 +26,10 @@ from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 
 
-def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition]:
+def create_dbt_cli_tool_definitions(
+    config: DbtCliConfig,
+    auth_checker: WarehouseAuthChecker | None = None,
+) -> list[ToolDefinition]:
     def _run_dbt_command(
         command: list[str],
         node_selection: str | None = None,
@@ -36,6 +40,12 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         sample: str | None = None,
         yml_selector: str | None = None,
     ) -> str:
+        # Check warehouse auth status before running commands that connect to the warehouse
+        if auth_checker:
+            status_message = auth_checker.get_status_message()
+            if status_message:
+                return status_message
+
         try:
             # Commands that should always be quiet to reduce output verbosity
             verbose_commands = [
@@ -452,10 +462,11 @@ def register_dbt_cli_tools(
     enabled_tools: set[ToolName] | None,
     enabled_toolsets: set[Toolset],
     disabled_toolsets: set[Toolset],
+    auth_checker: WarehouseAuthChecker | None = None,
 ) -> None:
     register_tools(
         dbt_mcp,
-        tool_definitions=create_dbt_cli_tool_definitions(config),
+        tool_definitions=create_dbt_cli_tool_definitions(config, auth_checker),
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,
