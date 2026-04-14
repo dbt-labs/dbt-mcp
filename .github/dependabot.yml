@@ -6,7 +6,7 @@ multi-ecosystem-groups:
       interval: "monthly"
 
 updates:
-  # Prod manifests 
+  # Prod manifests
   - package-ecosystem: "uv"
     directory: "/"
     # Ignore version update PRs - security updates remain active
@@ -29,33 +29,15 @@ updates:
     multi-ecosystem-group: "examples"
     patterns:
       - "*"
-    open-pull-requests-limit: 1
-    versioning-strategy: "increase"
-    groups:
-      examples-deps:
-        patterns:
-          - "*"
 
   - package-ecosystem: "npm"
     directory: "/examples"
     multi-ecosystem-group: "examples"
     patterns:
       - "*"
-    open-pull-requests-limit: 1
-    versioning-strategy: "increase"
-    groups:
-      examples-deps:
-        patterns:
-          - "*"
 
   - package-ecosystem: "pip"
     directory: "/examples"
     multi-ecosystem-group: "examples"
     patterns:
       - "*"
-    open-pull-requests-limit: 1
-    versioning-strategy: "increase"
-    groups:
-      examples-deps:
-        patterns:
-          - "*"

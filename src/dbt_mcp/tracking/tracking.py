@@ -145,7 +145,8 @@ class DefaultUsageTracker:
                         session_id=str(self.session_id),
                         referrer_url="",
                         dbt_cloud_account_id=dbt_cloud_account_id,
-                        dbt_cloud_account_identifier="",
+                        dbt_cloud_account_identifier=self.credentials_provider.account_identifier
+                        or "",
                         dbt_cloud_project_id="",
                         dbt_cloud_environment_id="",
                         dbt_cloud_user_id=dbt_cloud_user_id,
