@@ -6,8 +6,10 @@ from pathlib import Path
 
 from filelock import FileLock
 
+from dbt_mcp.config.config_providers.admin_api import DefaultAdminApiConfigProvider
 from dbt_mcp.config.headers import TokenProvider
 from dbt_mcp.config.settings import DbtMcpSettings
+from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
 from dbt_mcp.oauth.dbt_platform import DbtPlatformContext
 from dbt_mcp.oauth.expiry import STARTUP_EXPIRY_BUFFER_SECONDS
@@ -177,6 +179,21 @@ class CredentialsProvider:
         self.settings = settings
         self.token_provider: TokenProvider | None = None
         self.authentication_method: AuthenticationMethod | None = None
+        self.account_identifier: str | None = None
+
+    async def _resolve_account_identifier(self) -> None:
+        """Fetch and store the account identifier from the Admin API.
+
+        Fails silently — account_identifier remains None on error.
+        """
+        if not self.settings.dbt_account_id or not self.settings.actual_host:
+            return
+        try:
+            admin_client = DbtAdminAPIClient(DefaultAdminApiConfigProvider(self))
+            account_data = await admin_client.get_account(self.settings.dbt_account_id)
+            self.account_identifier = account_data.get("identifier")
+        except Exception as e:
+            logger.warning(f"Failed to fetch account identifier: {e}")
 
     def _log_settings(self) -> None:
         settings = self.settings.model_dump()
@@ -245,6 +262,7 @@ class CredentialsProvider:
                 context_manager=dbt_platform_context_manager,
             )
             self.token_provider = token_provider
+            await self._resolve_account_identifier()
 
             # Only validate CLI settings here — platform settings were already
             # checked at the top of get_credentials() and the OAuth flow has
@@ -280,6 +298,7 @@ class CredentialsProvider:
                 self.settings.host_prefix = fetched_prefix
                 self.settings.dbt_host = self.settings.base_host
                 logger.info(f"Fetched prefix {fetched_prefix} from dbt Platform.")
+        await self._resolve_account_identifier()
         validate_settings(self.settings)
         self.authentication_method = AuthenticationMethod.ENV_VAR
         self._log_settings()
