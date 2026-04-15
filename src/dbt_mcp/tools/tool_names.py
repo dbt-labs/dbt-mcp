@@ -13,6 +13,7 @@ class ToolName(Enum):
     RUN = "run"
     TEST = "test"
     SHOW = "show"
+    CLONE = "clone"
     GET_LINEAGE_DEV = "get_lineage_dev"
     GET_NODE_DETAILS_DEV = "get_node_details_dev"
 

@@ -3,14 +3,16 @@ import os
 import subprocess
 from collections.abc import Iterable
 from typing import Any
+import logging
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from dbt_mcp.config.config import DbtCliConfig
-from dbt_mcp.dbt_cli.binary_type import get_color_disable_flag
+from dbt_mcp.dbt_cli.binary_type import BinaryType, get_color_disable_flag
 from dbt_mcp.dbt_cli.models.lineage_types import ModelLineage
 from dbt_mcp.dbt_cli.models.manifest import Manifest
+from dbt_mcp.errors.common import InvalidParameterError
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.annotations import create_tool_annotations
 from dbt_mcp.tools.definitions import ToolDefinition
@@ -24,6 +26,8 @@ from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 
+logger = logging.getLogger(__name__)
+
 
 def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition]:
     def _run_dbt_command(
@@ -35,6 +39,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         vars: str | None = None,
         sample: str | None = None,
         yml_selector: str | None = None,
+        state_path: str | None = None,
     ) -> str:
         try:
             # Commands that should always be quiet to reduce output verbosity
@@ -46,7 +51,19 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
                 "run",
                 "test",
                 "list",
+                "clone",
             ]
+            if (
+                # dbt CLI (Cloud CLI) does not support --state
+                config.binary_type != BinaryType.DBT_CLOUD_CLI
+                and state_path
+                and isinstance(state_path, str)
+            ):
+                command.extend(["--state", state_path])
+            elif state_path and config.binary_type == BinaryType.DBT_CLOUD_CLI:
+                raise InvalidParameterError(
+                    "--state is not supported by dbt CLI (Cloud/Platform)."
+                )
 
             if is_full_refresh is True:
                 command.append("--full-refresh")
@@ -233,6 +250,34 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         args.extend(["--output", "json"])
         return _run_dbt_command(args)
 
+    def clone(
+        node_selection: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/node_selection")
+        ),
+        yml_selector: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/yml_selector")
+        ),
+        is_full_refresh: bool | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/full_refresh")
+        ),
+        vars: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/vars")
+        ),
+        # Only applies to Core / Fusion CLI
+        state_path: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/state_path")
+        ),
+    ) -> str:
+        return _run_dbt_command(
+            ["clone"],
+            node_selection,
+            is_selectable=True,
+            is_full_refresh=is_full_refresh,
+            vars=vars,
+            yml_selector=yml_selector,
+            state_path=state_path,
+        )
+
     def _get_manifest() -> Manifest:
         """Helper function to load the dbt manifest.json file."""
         _run_dbt_command(["parse"])  # Ensure manifest is generated
@@ -417,6 +462,16 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
                 read_only_hint=True,
                 destructive_hint=False,
                 idempotent_hint=True,
+            ),
+        ),
+        ToolDefinition(
+            fn=clone,
+            description=get_prompt("dbt_cli/clone"),
+            annotations=create_tool_annotations(
+                title="dbt clone",
+                read_only_hint=False,
+                destructive_hint=True,
+                idempotent_hint=False,
             ),
         ),
         ToolDefinition(

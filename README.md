@@ -66,6 +66,7 @@ To learn more about the dbt Discovery API, click [here](https://docs.getdbt.com/
 
 Allowing your client to utilize dbt commands through the MCP tooling could modify your data models, sources, and warehouse objects. Proceed only if you trust the client and understand the potential impact.
 - `build`: Executes models, tests, snapshots, and seeds in DAG order.
+- `clone`: Clones selected nodes from the specified state to the target schema(s).
 - `compile`: Generates executable SQL from models/tests/analyses; useful for validating Jinja logic.
 - `docs`: Generates documentation for the dbt project.
 - `get_lineage_dev`: Retrieves lineage from local manifest.json with type and depth filtering.
