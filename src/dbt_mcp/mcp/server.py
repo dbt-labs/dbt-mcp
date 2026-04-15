@@ -17,9 +17,6 @@ from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.dbt_codegen.tools import register_dbt_codegen_tools
 from dbt_mcp.discovery.tools import register_discovery_tools
 from dbt_mcp.discovery.tools_multiproject import register_multiproject_discovery_tools
-from dbt_mcp.lsp.providers.local_lsp_connection_provider import (
-    LocalLSPConnectionProvider,
-)
 from dbt_mcp.lsp.providers.lsp_connection_provider import LSPConnectionProviderProtocol
 from dbt_mcp.lsp.tools import register_lsp_tools
 from dbt_mcp.mcp_server_metadata.tools import register_mcp_server_tools
@@ -46,7 +43,6 @@ class DbtMCP(FastMCP):
             ]
             | None
         ),
-        lsp_connection_provider: LocalLSPConnectionProvider | None = None,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -55,7 +51,6 @@ class DbtMCP(FastMCP):
         self.config = config
         self.multi_project_mcp = multi_project_mcp
         self.single_project_mcp = single_project_mcp
-        self.lsp_connection_provider = lsp_connection_provider
         self._lsp_connection_task: (
             asyncio.Task[LSPConnectionProviderProtocol] | None
         ) = None
