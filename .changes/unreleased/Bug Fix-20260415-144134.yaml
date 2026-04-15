@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Fix invalid mixed state when transitioning from single-project to multi-project OAuth login — stored prod/dev environments are no longer inherited when selected_project_ids is set
+time: 2026-04-15T14:41:34.204959-07:00

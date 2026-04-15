@@ -87,9 +87,15 @@ class DbtPlatformContext(BaseModel):
         )
 
     def override(self, other: DbtPlatformContext) -> DbtPlatformContext:
+        # When transitioning to multi-project mode, environments from a prior
+        # single-project login must not be carried forward — they would create
+        # an invalid state where both dbt_prod_env_id and dbt_project_ids are set.
+        inheriting_environments = not other.selected_project_ids
         return DbtPlatformContext(
-            dev_environment=other.dev_environment or self.dev_environment,
-            prod_environment=other.prod_environment or self.prod_environment,
+            dev_environment=other.dev_environment
+            or (self.dev_environment if inheriting_environments else None),
+            prod_environment=other.prod_environment
+            or (self.prod_environment if inheriting_environments else None),
             decoded_access_token=other.decoded_access_token
             or self.decoded_access_token,
             host_prefix=other.host_prefix or self.host_prefix,
