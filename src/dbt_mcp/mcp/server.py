@@ -223,6 +223,7 @@ async def register_dbt_mcp_tools(dbt_mcp: DbtMCP, config: Config) -> None:
     logger.info("Registering product docs tools")
     register_product_docs_tools(
         dbt_mcp,
+        dbt_version=config.dbt_version,
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,

@@ -86,6 +86,32 @@ _ABBREVIATION_EXPANSIONS: dict[str, list[str]] = {
 
 _LLMS_TXT_ENTRY_RE = re.compile(r"^-\s+\[([^\]]+)\]\(([^)]+)\)(?::\s*(.+))?$")
 
+_EOL_VERSION_RE = re.compile(r"/upgrading-to-v(\d+)[._-](\d+)", re.IGNORECASE)
+_EOL_FOLDER_RE = re.compile(r"/core-upgrade/Older(?:\s|%20)versions/", re.IGNORECASE)
+_EOL_MAX_MINOR = 6  # dbt Core 1.6 and older are EOL
+
+EOL_PAGE_WARNING = (
+    ">>> VERSION NOTICE: This page describes a dbt Core version that has "
+    "reached end-of-life (EOL) and is no longer supported. The information "
+    "may be outdated or differ from current behavior. See the latest version "
+    "support info at https://docs.getdbt.com/docs/dbt-versions/core\n\n---\n\n"
+)
+
+
+def detect_eol_page(url: str) -> bool:
+    """Return ``True`` if *url* points to a page for an EOL dbt Core version (v1.6 or older).
+
+    First tries to parse the version number from the URL and compare it against
+    the EOL boundary. Falls back to folder-based detection for pages under the
+    ``Older versions`` section that do not contain an explicit version in their path.
+    """
+    version_match = _EOL_VERSION_RE.search(url)
+    if version_match:
+        major, minor = int(version_match.group(1)), int(version_match.group(2))
+        return (major, minor) <= (1, _EOL_MAX_MINOR)
+    return bool(_EOL_FOLDER_RE.search(url))
+
+
 # Relevance scoring weights for search_index ranking.
 # Higher weights push results toward the top when terms appear in
 # more-specific fields (title > description > section).

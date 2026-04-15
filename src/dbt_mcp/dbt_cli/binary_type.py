@@ -1,7 +1,10 @@
+import re
 import subprocess
 from enum import Enum
 
 from dbt_mcp.errors import BinaryExecutionError
+
+_VERSION_RE = re.compile(r"\b(\d+\.\d+\.\d+\S*)\b")
 
 
 class BinaryType(Enum):
@@ -55,6 +58,44 @@ def detect_binary_type(file_path: str) -> BinaryType:
 
     # Default to dbt Core - We could move to Fusion in the future
     return BinaryType.DBT_CORE
+
+
+def get_dbt_version(dbt_path: str, binary_type: BinaryType) -> str | None:
+    """Return the installed dbt version string (e.g. ``'1.8.4'``), or ``None`` if unparseable.
+
+    Runs ``dbt --version`` and parses the output according to the binary type:
+
+    - ``DBT_CORE``: looks for ``installed: X.Y.Z`` in the output
+    - ``DBT_CLOUD_CLI``: looks for ``dbt Cloud CLI - X.Y.Z``
+    - ``FUSION``: falls back to the first semver found in output
+    """
+    try:
+        result = subprocess.run(
+            [dbt_path, "--version"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        output = result.stdout or result.stderr
+    except Exception:
+        return None
+
+    if not output:
+        return None
+
+    if binary_type == BinaryType.DBT_CORE:
+        installed_match = re.search(r"installed:\s*(\d+\.\d+\.\d+\S*)", output)
+        if installed_match:
+            return installed_match.group(1)
+    elif binary_type == BinaryType.DBT_CLOUD_CLI:
+        cloud_match = re.search(r"dbt Cloud CLI - (\d+\.\d+\.\d+\S*)", output)
+        if cloud_match:
+            return cloud_match.group(1)
+
+    # Fallback: find first semver anywhere in the output (covers Fusion and unknown formats)
+    match = _VERSION_RE.search(output)
+    return match.group(1) if match else None
 
 
 def get_color_disable_flag(binary_type: BinaryType) -> str:
