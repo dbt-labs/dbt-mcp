@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from dbt_mcp.oauth.token import (
     AccessTokenResponse,
@@ -49,15 +49,9 @@ class DbtPlatformEnvironment(BaseModel):
     deployment_type: str
 
 
-class GetEnvironmentsRequest(BaseModel):
+class SelectedProjectsRequest(BaseModel):
     account_id: int
-    project_id: int
-
-
-class SelectedProjectRequest(BaseModel):
-    account_id: int
-    project_id: int
-    prod_environment_id: int | None = None
+    project_ids: list[int] = Field(min_length=1)
 
 
 def dbt_platform_context_from_token_response(
@@ -82,6 +76,7 @@ class DbtPlatformContext(BaseModel):
     dev_environment: DbtPlatformEnvironment | None = None
     prod_environment: DbtPlatformEnvironment | None = None
     account_id: int | None = None
+    selected_project_ids: list[int] | None = None
 
     @property
     def user_id(self) -> int | None:
@@ -92,11 +87,19 @@ class DbtPlatformContext(BaseModel):
         )
 
     def override(self, other: DbtPlatformContext) -> DbtPlatformContext:
+        # When transitioning to multi-project mode, environments from a prior
+        # single-project login must not be carried forward — they would create
+        # an invalid state where both dbt_prod_env_id and dbt_project_ids are set.
+        inheriting_environments = not other.selected_project_ids
         return DbtPlatformContext(
-            dev_environment=other.dev_environment or self.dev_environment,
-            prod_environment=other.prod_environment or self.prod_environment,
+            dev_environment=other.dev_environment
+            or (self.dev_environment if inheriting_environments else None),
+            prod_environment=other.prod_environment
+            or (self.prod_environment if inheriting_environments else None),
             decoded_access_token=other.decoded_access_token
             or self.decoded_access_token,
             host_prefix=other.host_prefix or self.host_prefix,
             account_id=other.account_id or self.account_id,
+            selected_project_ids=other.selected_project_ids
+            or self.selected_project_ids,
         )

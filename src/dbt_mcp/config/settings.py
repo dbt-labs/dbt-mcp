@@ -56,6 +56,9 @@ class DbtMcpSettings(BaseSettings):
     )  # legacy support
     host_prefix: str | None = Field(None, alias="DBT_HOST_PREFIX")
     dbt_lsp_path: str | None = Field(None, alias="DBT_LSP_PATH")
+    dbt_project_ids: Annotated[list[int] | None, NoDecode] = Field(
+        None, alias="DBT_PROJECT_IDS"
+    )
 
     # dbt CLI settings
     dbt_project_dir: str | None = Field(None, alias="DBT_PROJECT_DIR")
@@ -100,9 +103,6 @@ class DbtMcpSettings(BaseSettings):
     send_anonymous_usage_data: str | None = Field(
         None, alias="DBT_SEND_ANONYMOUS_USAGE_STATS"
     )
-
-    # Multi-project settings
-    multi_project_enabled: bool = Field(False, alias="DBT_MCP_MULTI_PROJECT_ENABLED")
 
     # Semantic layer settings
     sl_metrics_related_max: int = Field(
@@ -290,6 +290,20 @@ class DbtMcpSettings(BaseSettings):
     def parse_enable_tools(cls, env_var: str | None) -> list[ToolName] | None:
         return _parse_tool_list(env_var, "DBT_MCP_ENABLE_TOOLS")
 
+    @field_validator("dbt_project_ids", mode="before")
+    @classmethod
+    def parse_project_ids(cls, v: str | list | None) -> list[int] | None:
+        if v is None:
+            return None
+        if isinstance(v, list):
+            if not v:
+                raise ValueError("DBT_PROJECT_IDS must contain at least one project id")
+            return [int(i) for i in v]
+        project_ids = [int(i.strip()) for i in str(v).split(",") if i.strip()]
+        if not project_ids:
+            raise ValueError("DBT_PROJECT_IDS must contain at least one project id")
+        return project_ids
+
     @model_validator(mode="after")
     def auto_disable(self) -> "DbtMcpSettings":
         """Auto-disable features based on required settings."""
@@ -442,9 +456,19 @@ def validate_dbt_platform_settings(settings: DbtMcpSettings) -> list[str]:
             errors.append(
                 "DBT_HOST environment variable is required when semantic layer, discovery, SQL or admin API tools are enabled."
             )
-        if not settings.actual_prod_environment_id:
+        if (
+            settings.actual_prod_environment_id is None
+            and settings.dbt_project_ids is None
+        ):
             errors.append(
-                "DBT_PROD_ENV_ID environment variable is required when semantic layer, discovery, SQL or admin API tools are enabled."
+                "DBT_PROD_ENV_ID or DBT_PROJECT_IDS environment variable is required when semantic layer, discovery, SQL or admin API tools are enabled."
+            )
+        if (
+            settings.actual_prod_environment_id is not None
+            and settings.dbt_project_ids is not None
+        ):
+            errors.append(
+                "DBT_PROD_ENV_ID and DBT_PROJECT_IDS environment variables cannot be set at the same time."
             )
         if not settings.dbt_token:
             errors.append(

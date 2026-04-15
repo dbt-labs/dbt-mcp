@@ -29,6 +29,10 @@ from dbt_mcp.config.headers import (
 from dbt_mcp.config.settings import DbtMcpSettings
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo
+from dbt_mcp.lsp.providers.local_lsp_client_provider import LocalLSPClientProvider
+from dbt_mcp.lsp.providers.local_lsp_connection_provider import (
+    LocalLSPConnectionProvider,
+)
 from dbt_mcp.oauth.token_provider import StaticTokenProvider
 
 mock_settings = DbtMcpSettings.model_construct()
@@ -57,11 +61,18 @@ mock_dbt_codegen_config = DbtCodegenConfig(
     binary_type=BinaryType.DBT_CORE,
 )
 
-mock_lsp_config = LspConfig(
-    project_dir="/test/project",
+mock_local_lsp_connection_provider = LocalLSPConnectionProvider(
     lsp_binary_info=LspBinaryInfo(
         path="/path/to/lsp",
         version="1.0.0",
+    ),
+    project_dir="/test/project",
+)
+
+mock_lsp_config = LspConfig(
+    local_lsp_connection_provider=mock_local_lsp_connection_provider,
+    lsp_client_provider=LocalLSPClientProvider(
+        lsp_connection_provider=mock_local_lsp_connection_provider,
     ),
 )
 

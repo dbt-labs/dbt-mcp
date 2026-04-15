@@ -18,10 +18,8 @@ from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
 from dbt_mcp.oauth.dbt_platform import (
     DbtPlatformContext,
-    DbtPlatformEnvironmentResponse,
     DbtPlatformProject,
-    GetEnvironmentsRequest,
-    SelectedProjectRequest,
+    SelectedProjectsRequest,
     dbt_platform_context_from_token_response,
 )
 from dbt_mcp.oauth.token import (
@@ -163,43 +161,11 @@ def create_app(
         logger.info("Selected project received")
         return dbt_platform_context_manager.read_context() or DbtPlatformContext()
 
-    @app.post("/environments")
-    async def get_deployment_environments(
-        request: GetEnvironmentsRequest,
-    ) -> list[DbtPlatformEnvironmentResponse]:
-        """Get all deployment environments for a project, excluding development environments."""
-        logger.info("Getting environments for project %s", request.project_id)
-        if app.state.decoded_access_token is None:
-            raise RuntimeError("Access token missing; OAuth flow not completed")
-        access_token = app.state.decoded_access_token.access_token_response.access_token
-        admin_client = DbtAdminAPIClient(
-            StaticConfigProvider(
-                config=AdminApiConfig(
-                    url=dbt_platform_url,
-                    headers_provider=AdminApiHeadersProvider(
-                        token_provider=StaticTokenProvider(access_token)
-                    ),
-                    account_id=request.account_id,
-                    prod_environment_id=None,
-                )
-            )
-        )
-        environments = await admin_client.fetch_project_environment_responses(
-            request.project_id,
-            page_size=100,
-        )
-        # Filter out development environments since this is for selecting production
-        return [
-            env
-            for env in environments
-            if not (env.type and env.type.lower() == "development")
-        ]
-
-    @app.post("/selected_project")
-    async def set_selected_project(
-        selected_project_request: SelectedProjectRequest,
+    @app.post("/selected_projects")
+    async def set_selected_projects(
+        selected_projects_request: SelectedProjectsRequest,
     ) -> DbtPlatformContext:
-        logger.info("Selected project received")
+        logger.info("Selected projects received")
         if app.state.decoded_access_token is None:
             raise RuntimeError("Access token missing; OAuth flow not completed")
         access_token = app.state.decoded_access_token.access_token_response.access_token
@@ -212,10 +178,13 @@ def create_app(
             headers=headers,
         )
         account = next(
-            (a for a in accounts if a.id == selected_project_request.account_id), None
+            (a for a in accounts if a.id == selected_projects_request.account_id),
+            None,
         )
         if account is None:
-            raise ValueError(f"Account {selected_project_request.account_id} not found")
+            raise ValueError(
+                f"Account {selected_projects_request.account_id} not found"
+            )
 
         admin_client = DbtAdminAPIClient(
             StaticConfigProvider(
@@ -224,28 +193,38 @@ def create_app(
                     headers_provider=AdminApiHeadersProvider(
                         token_provider=StaticTokenProvider(access_token)
                     ),
-                    account_id=selected_project_request.account_id,
-                    prod_environment_id=selected_project_request.prod_environment_id,
+                    account_id=selected_projects_request.account_id,
+                    prod_environment_id=None,
                 )
             )
         )
-        environments = await admin_client.fetch_project_environment_responses(
-            selected_project_request.project_id,
-            page_size=100,
-        )
 
-        prod_environment, dev_environment = DbtAdminAPIClient.resolve_environments(
-            environments,
-            prod_environment_id=selected_project_request.prod_environment_id,
-        )
+        prod_environment = None
+        dev_environment = None
+        selected_project_ids = None
+        if len(selected_projects_request.project_ids) == 1:
+            # Single project: auto-detect environments and route to single-project
+            # tools (no project_id param) by leaving selected_project_ids unset.
+            environments = await admin_client.fetch_project_environment_responses(
+                selected_projects_request.project_ids[0],
+                page_size=100,
+            )
+            prod_environment, dev_environment = DbtAdminAPIClient.resolve_environments(
+                environments
+            )
+        else:
+            # Multiple projects: set selected_project_ids so the dispatcher routes
+            # to multi-project tools (with project_id param).
+            selected_project_ids = selected_projects_request.project_ids
 
         dbt_platform_context = dbt_platform_context_manager.update_context(
             new_dbt_platform_context=DbtPlatformContext(
                 decoded_access_token=app.state.decoded_access_token,
-                dev_environment=dev_environment,
-                prod_environment=prod_environment,
                 host_prefix=account.host_prefix,
                 account_id=account.id,
+                selected_project_ids=selected_project_ids,
+                prod_environment=prod_environment,
+                dev_environment=dev_environment,
             ),
         )
         app.state.dbt_platform_context = dbt_platform_context

@@ -63,41 +63,28 @@ class DbtAdminAPIClient:
     @staticmethod
     def resolve_environments(
         environments: list[DbtPlatformEnvironmentResponse],
-        *,
-        prod_environment_id: int | None = None,
     ) -> tuple[DbtPlatformEnvironment | None, DbtPlatformEnvironment | None]:
         """Resolve prod and dev environments from a list of environment responses.
 
         Returns a tuple of (prod_environment, dev_environment).
 
-        If prod_environment_id is provided, that specific environment is used as prod.
-        Otherwise, auto-detects based on deployment_type == "production".
-        Dev environment is always auto-detected based on deployment_type == "development".
+        Auto-detects prod based on deployment_type == "production".
+        Dev environment is auto-detected based on deployment_type == "development".
         """
         prod_environment: DbtPlatformEnvironment | None = None
         dev_environment: DbtPlatformEnvironment | None = None
 
-        if prod_environment_id:
-            for environment in environments:
-                if environment.id == prod_environment_id:
-                    prod_environment = DbtPlatformEnvironment(
-                        id=environment.id,
-                        name=environment.name,
-                        deployment_type=environment.deployment_type or "production",
-                    )
-                    break
-        else:
-            for environment in environments:
-                if (
-                    environment.deployment_type
-                    and environment.deployment_type.lower() == "production"
-                ):
-                    prod_environment = DbtPlatformEnvironment(
-                        id=environment.id,
-                        name=environment.name,
-                        deployment_type=environment.deployment_type,
-                    )
-                    break
+        for environment in environments:
+            if (
+                environment.deployment_type
+                and environment.deployment_type.lower() == "production"
+            ):
+                prod_environment = DbtPlatformEnvironment(
+                    id=environment.id,
+                    name=environment.name,
+                    deployment_type=environment.deployment_type,
+                )
+                break
 
         for environment in environments:
             if (
@@ -142,7 +129,6 @@ class DbtAdminAPIClient:
         self,
         project_id: int,
         *,
-        prod_environment_id: int | None = None,
         page_size: int = 100,
     ) -> tuple[DbtPlatformEnvironment | None, DbtPlatformEnvironment | None]:
         """Fetch environments for a project and resolve prod/dev."""
@@ -150,10 +136,7 @@ class DbtAdminAPIClient:
             project_id,
             page_size=page_size,
         )
-        return self.resolve_environments(
-            raw,
-            prod_environment_id=prod_environment_id,
-        )
+        return self.resolve_environments(raw)
 
     @cache
     async def list_jobs(self, account_id: int, **params: Any) -> list[dict[str, Any]]:

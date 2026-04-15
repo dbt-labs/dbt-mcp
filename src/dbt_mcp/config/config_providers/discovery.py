@@ -37,7 +37,12 @@ class MultiProjectDiscoveryConfigProvider(MultiProjectConfigProvider[DiscoveryCo
 
     async def get_config(self, project_id: int) -> DiscoveryConfig:
         settings, token_provider = await self.credentials_provider.get_credentials()
-        assert settings.actual_host and settings.actual_prod_environment_id
+        assert settings.actual_host
+        if settings.dbt_project_ids and project_id not in settings.dbt_project_ids:
+            raise ValueError(
+                f"Project {project_id} is not in the selected projects. "
+                f"Available project IDs: {settings.dbt_project_ids}"
+            )
         if settings.actual_host_prefix:
             url = f"https://{settings.actual_host_prefix}.metadata.{settings.base_host}/graphql"
         else:
