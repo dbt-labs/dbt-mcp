@@ -127,7 +127,7 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
         ):
             logger.info("Registering proxied tools")
             await register_proxied_tools(
-                dbt_mcp=server,
+                dbt_mcp=server.single_project_mcp,
                 config_provider=server.config.proxied_tool_config_provider,
                 disabled_tools=set(server.config.disable_tools),
                 enabled_tools=(
