@@ -94,7 +94,6 @@ toolsets = {
         ToolName.LIST_PROJECTS,
         ToolName.LIST_JOBS,
         ToolName.GET_JOB_DETAILS,
-        ToolName.GET_PROJECT_DETAILS,
         ToolName.TRIGGER_JOB_RUN,
         ToolName.LIST_JOBS_RUNS,
         ToolName.GET_JOB_RUN_DETAILS,

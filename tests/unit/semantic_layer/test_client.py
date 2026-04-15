@@ -285,6 +285,142 @@ def test_default_result_formatter_with_mixed_types() -> None:
     assert parsed[0]["binary_col"] == base64.b64encode(b"data").decode("utf-8")
 
 
+MOCK_METRICS_RESPONSE = {
+    "data": {
+        "metricsPaginated": {
+            "items": [
+                {
+                    "name": "revenue",
+                    "type": "simple",
+                    "label": "Revenue",
+                    "description": "Total revenue",
+                    "config": None,
+                }
+            ]
+        }
+    }
+}
+
+MOCK_METRICS_WITH_RELATED_RESPONSE = {
+    "data": {
+        "metricsPaginated": {
+            "items": [
+                {
+                    "name": "revenue",
+                    "type": "simple",
+                    "label": "Revenue",
+                    "description": "Total revenue",
+                    "config": None,
+                    "dimensions": [
+                        {
+                            "name": "order_date",
+                            "type": "time",
+                            "description": None,
+                            "label": None,
+                            "queryableGranularities": ["day"],
+                            "queryableTimeGranularities": [],
+                            "config": None,
+                        }
+                    ],
+                    "entities": [
+                        {
+                            "name": "customer",
+                            "type": "primary",
+                            "description": None,
+                        }
+                    ],
+                }
+            ]
+        }
+    }
+}
+
+
+def _make_query_dispatcher():
+    """Return a side_effect function that dispatches mock responses by query content.
+
+    Distinguishes the lightweight metrics query from the full metrics_with_related
+    query by checking for the presence of nested 'dimensions {' in the query string.
+    """
+
+    def dispatch(_, payload):
+        query = payload.get("query", "")
+        if "metricsPaginated" in query:
+            if "dimensions {" in query:
+                return MOCK_METRICS_WITH_RELATED_RESPONSE
+            return MOCK_METRICS_RESPONSE
+        if "dimensionsPaginated" in query:
+            return {"data": {"dimensionsPaginated": {"items": []}}}
+        if "entitiesPaginated" in query:
+            return {"data": {"entitiesPaginated": {"items": []}}}
+        raise AssertionError(f"Unexpected GraphQL query: {query}")
+
+    return dispatch
+
+
+@pytest.mark.asyncio
+@patch("dbt_mcp.semantic_layer.client.submit_request")
+async def test_list_metrics_below_threshold_returns_full_config(
+    mock_submit_request, fetcher, mock_config_provider
+):
+    """When metric count <= threshold, dims and entities are embedded per metric."""
+    mock_submit_request.side_effect = _make_query_dispatcher()
+    config = mock_config_provider.get_config.return_value
+    result = await fetcher.list_metrics(config=config)
+
+    assert len(result.metrics) == 1
+    metric = result.metrics[0]
+    assert metric.dimensions == ["order_date"]
+    assert metric.entities == ["customer"]
+    assert mock_submit_request.call_count == 2
+
+
+@pytest.mark.asyncio
+@patch("dbt_mcp.semantic_layer.client.submit_request")
+async def test_list_metrics_above_threshold_returns_metrics_only(
+    mock_submit_request, mock_client_provider, mock_config_provider
+):
+    """When metric count > threshold, only metrics are returned (no dims/entities)."""
+    many_metrics = [
+        {
+            "name": f"metric_{i}",
+            "type": "simple",
+            "label": None,
+            "description": None,
+            "config": None,
+        }
+        for i in range(3)
+    ]
+    mock_submit_request.return_value = {
+        "data": {"metricsPaginated": {"items": many_metrics}}
+    }
+    config = mock_config_provider.get_config.return_value
+    config.metrics_related_max = 2
+    fetcher = SemanticLayerFetcher(client_provider=mock_client_provider)
+    result = await fetcher.list_metrics(config=config)
+
+    assert len(result.metrics) == 3
+    assert all(m.dimensions is None for m in result.metrics)
+    assert all(m.entities is None for m in result.metrics)
+    assert mock_submit_request.call_count == 1
+
+
+@pytest.mark.asyncio
+@patch("dbt_mcp.semantic_layer.client.submit_request")
+async def test_list_metrics_at_threshold_returns_full_config(
+    mock_submit_request, mock_client_provider, mock_config_provider
+):
+    """When metric count == threshold, dims and entities are embedded per metric."""
+    mock_submit_request.side_effect = _make_query_dispatcher()
+    config = mock_config_provider.get_config.return_value
+    config.metrics_related_max = 1
+    fetcher = SemanticLayerFetcher(client_provider=mock_client_provider)
+    result = await fetcher.list_metrics(config=config)
+
+    assert result.metrics[0].dimensions is not None
+    assert result.metrics[0].entities is not None
+
+
 def test_format_semantic_layer_error_cleans_query_failed_error(fetcher) -> None:
     """Normal QueryFailedError messages should be cleaned up."""
     error = Exception(
@@ -317,6 +453,7 @@ def mock_config_provider():
         token="test-token",
         host="test-host",
         url="https://test-host/api/graphql",
+        metrics_related_max=10,
     )
     return config_provider
 
@@ -327,9 +464,8 @@ def mock_client_provider():
 
 
 @pytest.fixture
-def fetcher(mock_config_provider, mock_client_provider):
+def fetcher(mock_client_provider):
     return SemanticLayerFetcher(
-        config_provider=mock_config_provider,
         client_provider=mock_client_provider,
     )
 
@@ -374,7 +510,9 @@ async def test_get_dimensions_includes_metadata(
         }
     }
 
-    result = await fetcher.get_dimensions(metrics=["revenue"])
+    result = await fetcher.get_dimensions(
+        config=mock_config_provider.get_config.return_value, metrics=["revenue"]
+    )
 
     assert len(result) == 3
     assert result[0].metadata == {"display_name": "Order Date"}
@@ -395,16 +533,29 @@ class TestQueryMetricsCompiledTimeout:
         return client
 
     @pytest.fixture
-    def compiled_fetcher(self, mock_config_provider, mock_sl_client):
+    def mock_config(self):
+        token_p = MagicMock()
+        token_p.get_token.return_value = "tok"
+        headers_p = MagicMock()
+        headers_p.get_headers.return_value = {}
+        return SemanticLayerConfig(
+            url="https://test-host/api/graphql",
+            host="test-host",
+            prod_environment_id=123,
+            token_provider=token_p,
+            headers_provider=headers_p,
+        )
+
+    @pytest.fixture
+    def compiled_fetcher(self, mock_sl_client):
         client_provider = AsyncMock()
         client_provider.get_client.return_value = mock_sl_client
         return SemanticLayerFetcher(
-            config_provider=mock_config_provider,
             client_provider=client_provider,
         )
 
     async def test_compiled_timeout_raises_client_error(
-        self, compiled_fetcher, mock_sl_client
+        self, compiled_fetcher, mock_sl_client, mock_config
     ):
         """COMPILED status timeout should raise SemanticLayerQueryTimeoutError."""
         mock_sl_client.query.side_effect = RetryTimeoutError(
@@ -412,30 +563,36 @@ class TestQueryMetricsCompiledTimeout:
         )
 
         with pytest.raises(SemanticLayerQueryTimeoutError) as exc_info:
-            await compiled_fetcher.query_metrics(metrics=["revenue"])
+            await compiled_fetcher.query_metrics(
+                config=mock_config, metrics=["revenue"]
+            )
 
         assert "COMPILED" in str(exc_info.value)
 
     async def test_running_timeout_returns_error_result(
-        self, compiled_fetcher, mock_sl_client
+        self, compiled_fetcher, mock_sl_client, mock_config
     ):
         """RUNNING status timeout should return QueryMetricsError, not raise."""
         mock_sl_client.query.side_effect = RetryTimeoutError(
             timeout_s=60, status="RUNNING"
         )
 
-        result = await compiled_fetcher.query_metrics(metrics=["revenue"])
+        result = await compiled_fetcher.query_metrics(
+            config=mock_config, metrics=["revenue"]
+        )
 
         assert isinstance(result, QueryMetricsError)
         assert result.error is not None
 
     async def test_none_status_timeout_returns_error_result(
-        self, compiled_fetcher, mock_sl_client
+        self, compiled_fetcher, mock_sl_client, mock_config
     ):
         """None status timeout should return QueryMetricsError, not raise."""
         mock_sl_client.query.side_effect = RetryTimeoutError(timeout_s=60)
 
-        result = await compiled_fetcher.query_metrics(metrics=["revenue"])
+        result = await compiled_fetcher.query_metrics(
+            config=mock_config, metrics=["revenue"]
+        )
 
         assert isinstance(result, QueryMetricsError)
         assert result.error is not None
@@ -443,7 +600,7 @@ class TestQueryMetricsCompiledTimeout:
 
 @pytest.mark.asyncio
 async def test_query_metrics_sdk_client_uses_fetcher_config_override(
-    mock_config_provider, mock_client_provider
+    mock_client_provider,
 ):
     token_p = MagicMock()
     token_p.get_token.return_value = "tok"
@@ -465,18 +622,16 @@ async def test_query_metrics_sdk_client_uses_fetcher_config_override(
     mock_client_provider.get_client.return_value = mock_sl_client
 
     fetcher = SemanticLayerFetcher(
-        config_provider=mock_config_provider,
         client_provider=mock_client_provider,
-        config=override,
     )
-    await fetcher.query_metrics(metrics=["revenue"])
+    await fetcher.query_metrics(config=override, metrics=["revenue"])
 
     mock_client_provider.get_client.assert_awaited_once_with(config=override)
 
 
 @pytest.mark.asyncio
 async def test_get_metrics_compiled_sql_sdk_client_uses_fetcher_config_override(
-    mock_config_provider, mock_client_provider
+    mock_client_provider,
 ):
     token_p = MagicMock()
     token_p.get_token.return_value = "tok"
@@ -498,10 +653,8 @@ async def test_get_metrics_compiled_sql_sdk_client_uses_fetcher_config_override(
     mock_client_provider.get_client.return_value = mock_sl_client
 
     fetcher = SemanticLayerFetcher(
-        config_provider=mock_config_provider,
         client_provider=mock_client_provider,
-        config=override,
     )
-    await fetcher.get_metrics_compiled_sql(metrics=["revenue"])
+    await fetcher.get_metrics_compiled_sql(config=override, metrics=["revenue"])
 
     mock_client_provider.get_client.assert_awaited_once_with(config=override)

@@ -31,6 +31,7 @@ class TestCredentialsProviderAuthenticationMethod:
         mock_dbt_context.prod_environment.id = 123
         mock_decoded_token = MagicMock()
         mock_decoded_token.access_token_response.access_token = "mock_token"
+        mock_decoded_token.decoded_claims = {}
         mock_dbt_context.decoded_access_token = mock_decoded_token
 
         with (
@@ -134,6 +135,7 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
         mock_dbt_context.prod_environment.id = 123
         mock_decoded_token = MagicMock()
         mock_decoded_token.access_token_response.access_token = "mock_oauth_token"
+        mock_decoded_token.decoded_claims = {}
         mock_dbt_context.decoded_access_token = mock_decoded_token
 
         with (
@@ -171,6 +173,7 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
         mock_dbt_context.prod_environment.id = 123
         mock_decoded_token = MagicMock()
         mock_decoded_token.access_token_response.access_token = "mock_token"
+        mock_decoded_token.decoded_claims = {}
         mock_dbt_context.decoded_access_token = mock_decoded_token
 
         with (
@@ -212,6 +215,7 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
         mock_dbt_context.prod_environment.id = 123
         mock_decoded_token = MagicMock()
         mock_decoded_token.access_token_response.access_token = "mock_token"
+        mock_decoded_token.decoded_claims = {}
         mock_dbt_context.decoded_access_token = mock_decoded_token
 
         with (
@@ -259,7 +263,9 @@ class TestCredentialsProviderOAuthUrl:
         mock_dbt_context.user_id = 789
         mock_dbt_context.dev_environment = None
         mock_dbt_context.prod_environment.id = 123
-        mock_dbt_context.decoded_access_token = MagicMock()
+        mock_decoded_token = MagicMock()
+        mock_decoded_token.decoded_claims = {}
+        mock_dbt_context.decoded_access_token = mock_decoded_token
 
         captured_urls: list[str] = []
 
@@ -313,7 +319,9 @@ class TestCredentialsProviderWarnings:
         mock_dbt_context.user_id = 789
         mock_dbt_context.dev_environment = None
         mock_dbt_context.prod_environment.id = 123
-        mock_dbt_context.decoded_access_token = MagicMock()
+        mock_decoded_token = MagicMock()
+        mock_decoded_token.decoded_claims = {}
+        mock_dbt_context.decoded_access_token = mock_decoded_token
 
         with (
             patch(
@@ -336,3 +344,100 @@ class TestCredentialsProviderWarnings:
 
         assert "DBT_TOKEN is set but will be ignored" in caplog.text
         assert "Falling back to OAuth authentication" in caplog.text
+
+
+class TestCredentialsProviderAccountIdentifier:
+    """Test account_identifier population in both OAuth and PAT paths."""
+
+    @pytest.mark.asyncio
+    async def test_oauth_fetches_identifier_from_admin_api(self):
+        """OAuth path fetches account_identifier from Admin API."""
+        mock_settings = DbtMcpSettings.model_construct(
+            dbt_host="cloud.getdbt.com",
+            dbt_prod_env_id=123,
+            dbt_account_id=456,
+            dbt_token=None,
+        )
+
+        credentials_provider = CredentialsProvider(mock_settings)
+
+        mock_dbt_context = MagicMock()
+        mock_dbt_context.account_id = 456
+        mock_dbt_context.host_prefix = "ab123"
+        mock_dbt_context.user_id = 789
+        mock_dbt_context.dev_environment.id = 111
+        mock_dbt_context.prod_environment.id = 123
+        mock_decoded_token = MagicMock()
+        mock_decoded_token.access_token_response.access_token = "mock_token"
+        mock_decoded_token.decoded_claims = {}
+        mock_dbt_context.decoded_access_token = mock_decoded_token
+
+        with (
+            patch(
+                "dbt_mcp.config.credentials.get_dbt_platform_context",
+                return_value=mock_dbt_context,
+            ),
+            patch(
+                "dbt_mcp.config.credentials.OAuthTokenProvider"
+            ) as mock_token_provider,
+            patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
+            patch(
+                "dbt_mcp.dbt_admin.client.DbtAdminAPIClient.get_account",
+                new_callable=AsyncMock,
+                return_value={"id": 456, "identifier": "ab123"},
+            ),
+        ):
+            mock_token_provider.create = AsyncMock(return_value=MagicMock())
+
+            await credentials_provider.get_credentials()
+
+            assert credentials_provider.account_identifier == "ab123"
+
+    @pytest.mark.asyncio
+    async def test_pat_fetches_identifier_from_admin_api(self):
+        """PAT path fetches account_identifier from Admin API."""
+        mock_settings = DbtMcpSettings.model_construct(
+            dbt_host="cloud.getdbt.com",
+            dbt_prod_env_id=123,
+            dbt_account_id=456,
+            dbt_token="test_token",
+        )
+
+        credentials_provider = CredentialsProvider(mock_settings)
+
+        with (
+            patch("dbt_mcp.config.settings.validate_settings"),
+            patch(
+                "dbt_mcp.dbt_admin.client.DbtAdminAPIClient.get_account",
+                new_callable=AsyncMock,
+                return_value={"id": 456, "identifier": "ab123"},
+            ),
+        ):
+            await credentials_provider.get_credentials()
+
+            assert credentials_provider.account_identifier == "ab123"
+
+    @pytest.mark.asyncio
+    async def test_api_failure_does_not_break_credentials(self):
+        """If Admin API call fails, get_credentials still succeeds."""
+        mock_settings = DbtMcpSettings.model_construct(
+            dbt_host="cloud.getdbt.com",
+            dbt_prod_env_id=123,
+            dbt_account_id=456,
+            dbt_token="test_token",
+        )
+
+        credentials_provider = CredentialsProvider(mock_settings)
+
+        with (
+            patch("dbt_mcp.config.settings.validate_settings"),
+            patch(
+                "dbt_mcp.dbt_admin.client.DbtAdminAPIClient.get_account",
+                new_callable=AsyncMock,
+                side_effect=Exception("API error"),
+            ),
+        ):
+            _, token_provider = await credentials_provider.get_credentials()
+
+            assert credentials_provider.account_identifier is None
+            assert token_provider is not None

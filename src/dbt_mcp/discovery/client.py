@@ -445,7 +445,11 @@ class PaginatedResourceFetcher:
             request_variables["first"] = min(self._page_size, remaining_capacity)
             if current_cursor is not None:
                 request_variables["after"] = current_cursor
-            result = await execute_query(query, request_variables, config=config)
+            result = await execute_query(
+                query,
+                request_variables,
+                config=config,
+            )
             page_edges = self._parse_edges(result)
             collected.extend(page_edges)
             page_info_data = self._extract_path(result, self._page_info_path)
@@ -942,6 +946,7 @@ class ModelPerformanceFetcher:
             InvalidParameterError: If neither name nor unique_id provided
             ToolCallError: If model not found or API error
         """
+        environment_id = config.environment_id
         if not name and not unique_id:
             raise InvalidParameterError("Either 'name' or 'unique_id' must be provided")
 
@@ -970,7 +975,7 @@ class ModelPerformanceFetcher:
             resolved_unique_id = details[0]["uniqueId"]
 
         variables = {
-            "environmentId": config.environment_id,
+            "environmentId": environment_id,
             "uniqueId": resolved_unique_id,
             "lastRunCount": num_runs,
         }

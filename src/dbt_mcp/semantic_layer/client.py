@@ -18,7 +18,7 @@ from dbtsl.client.sync import SyncSemanticLayerClient
 from dbtsl.error import QueryFailedError, RetryTimeoutError
 from dbtsl.models.query import QueryStatus
 
-from dbt_mcp.config.config_providers import ConfigProvider, SemanticLayerConfig
+from dbt_mcp.config.config_providers import SemanticLayerConfig
 from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.errors.semantic_layer import SemanticLayerQueryTimeoutError
 from dbt_mcp.semantic_layer.gql.gql import GRAPHQL_QUERIES
@@ -35,6 +35,7 @@ from dbt_mcp.semantic_layer.types import (
     QueryMetricsResult,
     QueryMetricsSuccess,
     SavedQueryToolResponse,
+    ListMetricsResponse,
 )
 
 
@@ -92,71 +93,90 @@ class SemanticLayerClientProtocol(Protocol):
 
 class SemanticLayerClientProvider(Protocol):
     async def get_client(
-        self, *, config: SemanticLayerConfig | None = None
+        self, *, config: SemanticLayerConfig
     ) -> SemanticLayerClientProtocol: ...
 
 
 class DefaultSemanticLayerClientProvider:
-    def __init__(self, config_provider: ConfigProvider[SemanticLayerConfig]):
-        self.config_provider = config_provider
-
     async def get_client(
-        self, *, config: SemanticLayerConfig | None = None
+        self, *, config: SemanticLayerConfig
     ) -> SemanticLayerClientProtocol:
-        resolved = (
-            config if config is not None else await self.config_provider.get_config()
-        )
         return SyncSemanticLayerClient(
-            environment_id=resolved.prod_environment_id,
-            auth_token=resolved.token_provider.get_token(),
-            host=resolved.host,
+            environment_id=config.prod_environment_id,
+            auth_token=config.token_provider.get_token(),
+            host=config.host,
         )
 
 
 class SemanticLayerFetcher:
     def __init__(
         self,
-        config_provider: ConfigProvider[SemanticLayerConfig],
         client_provider: SemanticLayerClientProvider,
-        config: SemanticLayerConfig | None = None,
     ):
         self.client_provider = client_provider
-        self.config_provider = config_provider
-        self._config = config
-        self.entities_cache: dict[str, list[EntityToolResponse]] = {}
-        self.dimensions_cache: dict[str, list[DimensionToolResponse]] = {}
-
-    async def _resolve_config(self) -> SemanticLayerConfig:
-        if self._config is not None:
-            return self._config
-        return await self.config_provider.get_config()
+        # TODO: we shouldn't allow these dicts to grow unbounded?
+        self.entities_cache: dict[tuple[str, str | None], list[EntityToolResponse]] = {}
+        self.dimensions_cache: dict[
+            tuple[str, str | None], list[DimensionToolResponse]
+        ] = {}
 
     async def list_metrics(
         self,
+        config: SemanticLayerConfig,
         search: str | None = None,
-    ) -> list[MetricToolResponse]:
+    ) -> ListMetricsResponse:
         metrics_result = await submit_request(
-            await self._resolve_config(),
+            config,
             {"query": GRAPHQL_QUERIES["metrics"], "variables": {"search": search}},
         )
-        return [
-            MetricToolResponse(
-                name=m.get("name"),
-                type=m.get("type"),
-                label=m.get("label"),
-                description=m.get("description"),
-                metadata=(m.get("config") or {}).get("meta"),
+        metrics_count = len(metrics_result["data"]["metricsPaginated"]["items"])
+        if metrics_count and metrics_count <= config.metrics_related_max:
+            # Re-fetch with the same search filter using a single query that includes
+            # per-metric dimensions and entities. This avoids the N×2 parallel calls
+            # approach: the nested GQL fields return per-metric data accurately (not
+            # an intersection like dimensionsPaginated with multiple metrics would).
+            full_result = await submit_request(
+                config,
+                {
+                    "query": GRAPHQL_QUERIES["metrics_with_related"],
+                    "variables": {"search": search},
+                },
             )
-            for m in metrics_result["data"]["metricsPaginated"]["items"]
-        ]
+            return ListMetricsResponse(
+                metrics=[
+                    MetricToolResponse(
+                        name=m.get("name"),
+                        type=m.get("type"),
+                        label=m.get("label"),
+                        description=m.get("description"),
+                        metadata=(m.get("config") or {}).get("meta"),
+                        dimensions=[d.get("name") for d in (m.get("dimensions") or [])],
+                        entities=[e.get("name") for e in (m.get("entities") or [])],
+                    )
+                    for m in full_result["data"]["metricsPaginated"]["items"]
+                ]
+            )
+        return ListMetricsResponse(
+            metrics=[
+                MetricToolResponse(
+                    name=m.get("name"),
+                    type=m.get("type"),
+                    label=m.get("label"),
+                    description=m.get("description"),
+                    metadata=(m.get("config") or {}).get("meta"),
+                )
+                for m in metrics_result["data"]["metricsPaginated"]["items"]
+            ]
+        )
 
     async def list_saved_queries(
         self,
+        config: SemanticLayerConfig,
         search: str | None = None,
     ) -> list[SavedQueryToolResponse]:
         """Fetch all saved queries from the Semantic Layer API."""
         saved_queries_result = await submit_request(
-            await self._resolve_config(),
+            config,
             {
                 "query": GRAPHQL_QUERIES["saved_queries"],
                 "variables": {"search": search},
@@ -186,13 +206,14 @@ class SemanticLayerFetcher:
 
     async def get_dimensions(
         self,
+        config: SemanticLayerConfig,
         metrics: list[str],
         search: str | None = None,
     ) -> list[DimensionToolResponse]:
-        metrics_key = ",".join(sorted(metrics))
+        metrics_key = (",".join(sorted(metrics)), search)
         if metrics_key not in self.dimensions_cache:
             dimensions_result = await submit_request(
-                await self._resolve_config(),
+                config,
                 {
                     "query": GRAPHQL_QUERIES["dimensions"],
                     "variables": {
@@ -219,13 +240,14 @@ class SemanticLayerFetcher:
 
     async def get_entities(
         self,
+        config: SemanticLayerConfig,
         metrics: list[str],
         search: str | None = None,
     ) -> list[EntityToolResponse]:
-        metrics_key = ",".join(sorted(metrics))
+        metrics_key = (",".join(sorted(metrics)), search)
         if metrics_key not in self.entities_cache:
             entities_result = await submit_request(
-                await self._resolve_config(),
+                config,
                 {
                     "query": GRAPHQL_QUERIES["entities"],
                     "variables": {
@@ -314,6 +336,7 @@ class SemanticLayerFetcher:
 
     async def get_metrics_compiled_sql(
         self,
+        config: SemanticLayerConfig,
         metrics: list[str],
         group_by: list[GroupByParam] | None = None,
         order_by: list[OrderByParam] | None = None,
@@ -335,7 +358,7 @@ class SemanticLayerFetcher:
         """
         try:
             sl_client = await self.client_provider.get_client(
-                config=await self._resolve_config(),
+                config=config,
             )
             with sl_client.session():
                 parsed_order_by: list[OrderBySpec] = self._get_order_bys(
@@ -358,6 +381,7 @@ class SemanticLayerFetcher:
 
     async def query_metrics(
         self,
+        config: SemanticLayerConfig,
         metrics: list[str],
         group_by: list[GroupByParam] | None = None,
         order_by: list[OrderByParam] | None = None,
@@ -368,7 +392,7 @@ class SemanticLayerFetcher:
         try:
             query_error: Exception | None = None
             sl_client = await self.client_provider.get_client(
-                config=await self._resolve_config(),
+                config=config,
             )
             with sl_client.session():
                 # Catching any exception within the session

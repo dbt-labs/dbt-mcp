@@ -71,7 +71,7 @@ def create_mock_httpx_client(mock_response):
 
 
 async def test_client_initialization(client):
-    config = await client.get_config()
+    config = await client.config_provider.get_config()
     assert config.account_id == 12345
     assert config.headers_provider.get_headers() == {
         "Authorization": "Bearer test_token"
@@ -633,6 +633,28 @@ async def test_list_projects(client):
             "state": 1,
             "include_related": "['environments','repository']",
         },
+    )
+
+
+async def test_get_account(client):
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "data": {"id": 12345, "name": "Test Account", "identifier": "ab123"}
+    }
+    mock_response.raise_for_status.return_value = None
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.get_account(12345)
+
+    assert result == {"id": 12345, "name": "Test Account", "identifier": "ab123"}
+    headers = await client.get_headers()
+    mock_client.request.assert_called_once_with(
+        "GET",
+        "https://cloud.getdbt.com/api/v2/accounts/12345/",
+        headers=headers,
+        follow_redirects=True,
     )
 
 

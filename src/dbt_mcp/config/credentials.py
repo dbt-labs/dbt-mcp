@@ -6,8 +6,10 @@ from pathlib import Path
 
 from filelock import FileLock
 
+from dbt_mcp.config.config_providers.admin_api import DefaultAdminApiConfigProvider
 from dbt_mcp.config.headers import TokenProvider
 from dbt_mcp.config.settings import DbtMcpSettings
+from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
 from dbt_mcp.oauth.dbt_platform import DbtPlatformContext
 from dbt_mcp.oauth.expiry import STARTUP_EXPIRY_BUFFER_SECONDS
@@ -17,6 +19,7 @@ from dbt_mcp.oauth.token_provider import (
     OAuthTokenProvider,
     StaticTokenProvider,
 )
+from dbt_mcp.project.project_resolver import get_account
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +117,30 @@ def _try_refresh_token(
         return None
 
 
+async def _fetch_host_prefix_from_platform(
+    *,
+    dbt_platform_url: str,
+    account_id: int,
+    token: str,
+) -> str | None:
+    try:
+        account = await get_account(
+            dbt_platform_url=dbt_platform_url,
+            account_id=account_id,
+            headers={
+                "Authorization": f"Token {token}",
+                "Accept": "application/json",
+            },
+        )
+        return account.host_prefix
+    except Exception:
+        logger.warning(
+            "Failed to fetch host prefix from dbt platform. "
+            "If your account requires a prefix, try setting DBT_HOST_PREFIX explicitly."
+        )
+        return None
+
+
 async def get_dbt_platform_context(
     *,
     dbt_user_dir: Path,
@@ -122,7 +149,9 @@ async def get_dbt_platform_context(
 ) -> DbtPlatformContext:
     # Some MCP hosts (Claude Desktop) tend to run multiple MCP servers instances.
     # We need to lock so that only one can run the oauth flow.
-    with FileLock(dbt_user_dir / "mcp.lock"):
+    # Resolve the lock file path to handle multi-level symbolic links (see #533).
+    lock_path = (dbt_user_dir / "mcp.lock").resolve()
+    with FileLock(lock_path):
         dbt_ctx = dbt_platform_context_manager.read_context()
 
         # If context is complete, check token validity
@@ -152,6 +181,21 @@ class CredentialsProvider:
         self.settings = settings
         self.token_provider: TokenProvider | None = None
         self.authentication_method: AuthenticationMethod | None = None
+        self.account_identifier: str | None = None
+
+    async def _resolve_account_identifier(self) -> None:
+        """Fetch and store the account identifier from the Admin API.
+
+        Fails silently — account_identifier remains None on error.
+        """
+        if not self.settings.dbt_account_id or not self.settings.actual_host:
+            return
+        try:
+            admin_client = DbtAdminAPIClient(DefaultAdminApiConfigProvider(self))
+            account_data = await admin_client.get_account(self.settings.dbt_account_id)
+            self.account_identifier = account_data.get("identifier")
+        except Exception as e:
+            logger.warning(f"Failed to fetch account identifier: {e}")
 
     def _log_settings(self) -> None:
         settings = self.settings.model_dump()
@@ -220,6 +264,7 @@ class CredentialsProvider:
                 context_manager=dbt_platform_context_manager,
             )
             self.token_provider = token_provider
+            await self._resolve_account_identifier()
 
             # Only validate CLI settings here — platform settings were already
             # checked at the top of get_credentials() and the OAuth flow has
@@ -235,6 +280,27 @@ class CredentialsProvider:
             self._log_settings()
             return self.settings, self.token_provider
         self.token_provider = StaticTokenProvider(token=self.settings.dbt_token)
+        # Fetch host prefix from the platform when not explicitly configured via env vars
+        # Only strip dbt_host to base_host if the fetch succeeds , otherwise
+        # preserve what the user set in DBT_HOST. (The OAuth flow always strips dbt_host
+        # to base_host since host_prefix is guaranteed to be set after login)
+        if (
+            not self.settings.actual_host_prefix
+            and self.settings.dbt_account_id
+            and self.settings.dbt_token
+            and self.settings.actual_host
+        ):
+            dbt_platform_url = _build_dbt_platform_url(self.settings.actual_host, None)
+            fetched_prefix = await _fetch_host_prefix_from_platform(
+                dbt_platform_url=dbt_platform_url,
+                account_id=self.settings.dbt_account_id,
+                token=self.settings.dbt_token,
+            )
+            if fetched_prefix:
+                self.settings.host_prefix = fetched_prefix
+                self.settings.dbt_host = self.settings.base_host
+                logger.info(f"Fetched prefix {fetched_prefix} from dbt Platform.")
+        await self._resolve_account_identifier()
         validate_settings(self.settings)
         self.authentication_method = AuthenticationMethod.ENV_VAR
         self._log_settings()

@@ -84,7 +84,6 @@ To learn more about the dbt Administrative API, click [here](https://docs.getdbt
 - `get_job_run_artifact`: Downloads a specific artifact file from a job run.
 - `get_job_run_details`: Gets run details including status, timing, steps, and artifacts.
 - `get_job_run_error`: Gets error and/or warning details for a job run; option to include or show warnings only.
-- `get_project_details`: Gets project information for a specific dbt project.
 - `list_job_run_artifacts`: Lists available artifacts from a job run.
 - `list_jobs`: Lists jobs in a dbt Platform account; option to filter by project or environment.
 - `list_jobs_runs`: Lists job runs; option to filter by job, status, or order by field.

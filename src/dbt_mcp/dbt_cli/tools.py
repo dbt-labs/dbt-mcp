@@ -34,6 +34,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         is_full_refresh: bool | None = False,
         vars: str | None = None,
         sample: str | None = None,
+        yml_selector: str | None = None,
     ) -> str:
         try:
             # Commands that should always be quiet to reduce output verbosity
@@ -56,9 +57,12 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             if vars and isinstance(vars, str):
                 command.extend(["--vars", vars])
 
-            if node_selection:
-                selector_params = str(node_selection).split(" ")
+            if node_selection and isinstance(node_selection, str):
+                selector_params = node_selection.split(" ")
                 command.extend(["--select"] + selector_params)
+
+            if yml_selector and isinstance(yml_selector, str):
+                command.extend(["--selector", yml_selector])
 
             if isinstance(resource_type, Iterable):
                 command.extend(["--resource-type"] + resource_type)
@@ -100,6 +104,9 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         node_selection: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/node_selection")
         ),
+        yml_selector: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/yml_selector")
+        ),
         is_full_refresh: bool | None = Field(
             default=None, description=get_prompt("dbt_cli/args/full_refresh")
         ),
@@ -117,14 +124,20 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             is_full_refresh=is_full_refresh,
             vars=vars,
             sample=sample,
+            yml_selector=yml_selector,
         )
 
     def compile(
         node_selection: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/node_selection")
         ),
+        yml_selector: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/yml_selector")
+        ),
     ) -> str:
-        return _run_dbt_command(["compile"], node_selection, is_selectable=True)
+        return _run_dbt_command(
+            ["compile"], node_selection, is_selectable=True, yml_selector=yml_selector
+        )
 
     def docs() -> str:
         return _run_dbt_command(["docs", "generate"])
@@ -132,6 +145,9 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
     def ls(
         node_selection: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/node_selection")
+        ),
+        yml_selector: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/yml_selector")
         ),
         resource_type: list[str] | None = Field(
             default=None,
@@ -143,6 +159,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             node_selection,
             resource_type=resource_type,
             is_selectable=True,
+            yml_selector=yml_selector,
         )
 
     def parse() -> str:
@@ -151,6 +168,9 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
     def run(
         node_selection: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/node_selection")
+        ),
+        yml_selector: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/yml_selector")
         ),
         is_full_refresh: bool | None = Field(
             default=None, description=get_prompt("dbt_cli/args/full_refresh")
@@ -169,17 +189,27 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             is_full_refresh=is_full_refresh,
             vars=vars,
             sample=sample,
+            yml_selector=yml_selector,
         )
 
     def test(
         node_selection: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/node_selection")
         ),
+        yml_selector: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/yml_selector")
+        ),
         vars: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/vars")
         ),
     ) -> str:
-        return _run_dbt_command(["test"], node_selection, is_selectable=True, vars=vars)
+        return _run_dbt_command(
+            ["test"],
+            node_selection,
+            is_selectable=True,
+            vars=vars,
+            yml_selector=yml_selector,
+        )
 
     def show(
         sql_query: str = Field(description=get_prompt("dbt_cli/args/sql_query")),

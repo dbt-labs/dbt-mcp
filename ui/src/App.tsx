@@ -65,7 +65,7 @@ function sleep(ms: number) {
 async function fetchWithRetry(
   input: RequestInfo | URL,
   init?: RequestInit,
-  options?: FetchRetryOptions
+  options?: FetchRetryOptions,
 ): Promise<Response> {
   const {
     attempts = 3,
@@ -159,24 +159,41 @@ function useOAuthResult(): OAuthResult {
   };
 }
 
-type CustomDropdownProps = {
+type CustomDropdownProps<T> = {
   value: number | null;
   onChange: (value: string) => void;
-  options: Project[];
+  options: T[];
   placeholder: string;
   id: string;
+  getOptionId: (option: T) => number;
+  getPrimary: (option: T) => string;
+  getSecondary: (option: T) => string;
+  getSearchText: (option: T) => string;
 };
 
-function CustomDropdown({
+function CustomDropdown<T>({
   value,
   onChange,
   options,
   placeholder,
   id,
-}: CustomDropdownProps) {
+  getOptionId,
+  getPrimary,
+  getSecondary,
+  getSearchText,
+}: CustomDropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  // Array may retain stale null entries when filteredOptions shrinks after a
+  // search — React sets each ref to null on unmount, so optional-chaining
+  // guards on all accesses keep this safe.
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  // Tracks which direction key opened the dropdown so the auto-focus effect
+  // can land on the right element (search for ArrowDown, last option for ArrowUp).
+  const openDirectionRef = useRef<"down" | "up" | null>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -186,6 +203,7 @@ function CustomDropdown({
         !dropdownRef.current.contains(event.target as Node)
       ) {
         setIsOpen(false);
+        setSearchQuery("");
       }
     }
 
@@ -197,66 +215,124 @@ function CustomDropdown({
     }
   }, [isOpen]);
 
-  // Handle keyboard navigation
+  // Auto-focus the correct element when the dropdown opens:
+  // ArrowUp focuses the last option; everything else focuses the search input.
+  // Uses options.length (not filteredOptions.length) because searchQuery is reset
+  // on every close, so the full list is always visible when this runs.
   useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (!isOpen) {
-        if (
-          event.key === "Enter" ||
-          event.key === " " ||
-          event.key === "ArrowDown"
-        ) {
-          event.preventDefault();
-          setIsOpen(true);
-        }
-        return;
+    if (isOpen) {
+      if (openDirectionRef.current === "up") {
+        const lastIndex = options.length - 1;
+        (optionRefs.current[lastIndex] ?? searchRef.current)?.focus();
+      } else {
+        searchRef.current?.focus();
       }
-
-      if (event.key === "Escape") {
-        setIsOpen(false);
-        triggerRef.current?.focus();
-      }
+      openDirectionRef.current = null;
     }
+  }, [isOpen, options]);
 
-    if (triggerRef.current?.contains(document.activeElement)) {
-      document.addEventListener("keydown", handleKeyDown);
-      return () => {
-        document.removeEventListener("keydown", handleKeyDown);
-      };
+  const query = searchQuery.trim().toLowerCase();
+  const filteredOptions = query
+    ? options.filter((o) => getSearchText(o).toLowerCase().includes(query))
+    : options;
+
+  const selectedOption = options.find((o) => getOptionId(o) === value);
+
+  const handleTriggerKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === "ArrowDown" || e.key === " ") {
+      e.preventDefault();
+      openDirectionRef.current = "down";
+      setIsOpen(true);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      openDirectionRef.current = "up";
+      setIsOpen(true);
+    } else if (e.key === "Escape") {
+      setIsOpen(false);
+      setSearchQuery("");
     }
-  }, [isOpen]);
-
-  const selectedProject = options.find((p) => p.id === value);
+  };
 
   const handleToggle = () => {
+    if (isOpen) setSearchQuery("");
     setIsOpen(!isOpen);
   };
 
-  const handleOptionSelect = (project: Project) => {
-    onChange(project.id.toString());
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      optionRefs.current[0]?.focus();
+    } else if (e.key === "ArrowUp" || e.key === "Escape") {
+      e.preventDefault();
+      setIsOpen(false);
+      setSearchQuery("");
+      triggerRef.current?.focus();
+    }
+  };
+
+  const handleOptionKeyDown = (
+    e: React.KeyboardEvent<HTMLButtonElement>,
+    index: number,
+    option: T,
+  ) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      optionRefs.current[index + 1]?.focus();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (index === 0) {
+        searchRef.current?.focus();
+      } else {
+        optionRefs.current[index - 1]?.focus();
+      }
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      handleOptionSelect(option);
+    } else if (e.key === "Escape") {
+      setIsOpen(false);
+      setSearchQuery("");
+      triggerRef.current?.focus();
+    }
+  };
+
+  const handleContainerBlur = (e: React.FocusEvent<HTMLDivElement>) => {
+    if (!dropdownRef.current?.contains(e.relatedTarget as Node)) {
+      setIsOpen(false);
+      setSearchQuery("");
+    }
+  };
+
+  const handleOptionSelect = (option: T) => {
+    onChange(getOptionId(option).toString());
     setIsOpen(false);
+    setSearchQuery("");
     triggerRef.current?.focus();
   };
 
   return (
-    <div className="custom-dropdown" ref={dropdownRef}>
+    <div
+      className="custom-dropdown"
+      ref={dropdownRef}
+      onBlur={handleContainerBlur}
+    >
       <button
         ref={triggerRef}
         id={id}
         type="button"
         className={`dropdown-trigger ${isOpen ? "open" : ""} ${
-          !selectedProject ? "placeholder" : ""
+          !selectedOption ? "placeholder" : ""
         }`}
         onClick={handleToggle}
+        onKeyDown={handleTriggerKeyDown}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-labelledby={`${id}-label`}
       >
-        {selectedProject ? (
+        {selectedOption ? (
           <>
-            <div className="option-primary">{selectedProject.name}</div>
+            <div className="option-primary">{getPrimary(selectedOption)}</div>
             <div className="option-secondary">
-              {selectedProject.account_name}
+              {getSecondary(selectedOption)}
             </div>
           </>
         ) : (
@@ -265,27 +341,44 @@ function CustomDropdown({
       </button>
 
       {isOpen && (
-        <div
-          ref={dropdownRef}
-          className="dropdown-options"
-          role="listbox"
-          aria-labelledby={`${id}-label`}
-        >
-          {options.map((project) => (
-            <button
-              key={`${project.account_id}-${project.id}`}
-              type="button"
-              className={`dropdown-option ${
-                project.id === value ? "selected" : ""
-              }`}
-              onClick={() => handleOptionSelect(project)}
-              role="option"
-              aria-selected={project.id === value}
-            >
-              <div className="option-primary">{project.name}</div>
-              <div className="option-secondary">{project.account_name}</div>
-            </button>
-          ))}
+        <div className="dropdown-options">
+          <div className="dropdown-search-wrapper">
+            <input
+              ref={searchRef}
+              type="text"
+              className="dropdown-search"
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={handleSearchKeyDown}
+              aria-label={`Search ${placeholder}`}
+            />
+          </div>
+          <div role="listbox" aria-labelledby={`${id}-label`}>
+            {filteredOptions.map((option, index) => (
+              <button
+                key={getOptionId(option)}
+                ref={(el) => {
+                  optionRefs.current[index] = el;
+                }}
+                type="button"
+                className={`dropdown-option ${
+                  getOptionId(option) === value ? "selected" : ""
+                }`}
+                onClick={() => handleOptionSelect(option)}
+                onKeyDown={(e) => handleOptionKeyDown(e, index, option)}
+                role="option"
+                aria-selected={getOptionId(option) === value}
+              >
+                <div className="option-primary">{getPrimary(option)}</div>
+                <div className="option-secondary">{getSecondary(option)}</div>
+              </button>
+            ))}
+            {filteredOptions.length === 0 && (
+              <div className="dropdown-no-results">No results found</div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -299,7 +392,7 @@ export default function App() {
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(
-    null
+    null,
   );
   const [dbtPlatformContext, setDbtPlatformContext] =
     useState<DbtPlatformContext | null>(null);
@@ -308,7 +401,7 @@ export default function App() {
   const [environments, setEnvironments] = useState<Environment[]>([]);
   const [loadingEnvironments, setLoadingEnvironments] = useState(false);
   const [environmentsError, setEnvironmentsError] = useState<string | null>(
-    null
+    null,
   );
   const [selectedEnvironmentId, setSelectedEnvironmentId] = useState<
     number | null
@@ -328,7 +421,7 @@ export default function App() {
         const response = await fetchWithRetry(
           "/projects",
           { signal: abortController.signal },
-          { attempts: 3, delayMs: 400 }
+          { attempts: 3, delayMs: 400 },
         );
 
         if (!response.ok) {
@@ -373,7 +466,7 @@ export default function App() {
         const res = await fetchWithRetry(
           "/dbt_platform_context",
           { signal: abortController.signal },
-          { attempts: 2, delayMs: 400 }
+          { attempts: 2, delayMs: 400 },
         );
         if (!res.ok || cancelled) return; // if no config yet or server error, skip silently
         const data: DbtPlatformContext = await res.json();
@@ -402,7 +495,7 @@ export default function App() {
       const res = await fetchWithRetry(
         "/shutdown",
         { method: "POST" },
-        { attempts: 3, delayMs: 400 }
+        { attempts: 3, delayMs: 400 },
       );
       const text = await res.text();
       if (res.ok) {
@@ -414,7 +507,7 @@ export default function App() {
     } catch (err) {
       if (isNetworkError(err)) {
         setResponseText(
-          "Something went wrong when setting up the authentication. Please close this window and try again."
+          "Something went wrong when setting up the authentication. Please close this window and try again.",
         );
       } else {
         setResponseText(String(err));
@@ -447,7 +540,7 @@ export default function App() {
             project_id: project.id,
           }),
         },
-        { attempts: 3, delayMs: 400 }
+        { attempts: 3, delayMs: 400 },
       );
       if (res.ok) {
         const data: Environment[] = await res.json();
@@ -456,7 +549,7 @@ export default function App() {
         const prodEnv = data.find(
           (env) =>
             env.deployment_type &&
-            env.deployment_type.toLowerCase() === "production"
+            env.deployment_type.toLowerCase() === "production",
         );
         if (prodEnv) {
           setSelectedEnvironmentId(prodEnv.id);
@@ -467,14 +560,24 @@ export default function App() {
         setEnvironmentsError(await res.text());
       }
     } catch (err) {
-      setEnvironmentsError(String(err));
+      if (isAbortError(err)) {
+        setEnvironmentsError(
+          "The request took too long or was cancelled. Check your connection and try again."
+        );
+      } else if (isNetworkError(err)) {
+        setEnvironmentsError(
+          "Could not reach the setup server. Open this page from the MCP OAuth flow (not only a standalone Vite dev URL), or check your network and try again."
+        );
+      } else {
+        setEnvironmentsError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setLoadingEnvironments(false);
     }
   };
 
-  const onSelectEnvironment = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const envId = Number(e.target.value);
+  const onSelectEnvironment = (envIdStr: string) => {
+    const envId = Number(envIdStr);
     setSelectedEnvironmentId(Number.isNaN(envId) ? null : envId);
   };
 
@@ -494,7 +597,7 @@ export default function App() {
             prod_environment_id: selectedEnvironmentId,
           }),
         },
-        { attempts: 3, delayMs: 400 }
+        { attempts: 3, delayMs: 400 },
       );
       if (res.ok) {
         const data = await res.json();
@@ -528,9 +631,7 @@ export default function App() {
           <section className="error-section">
             <div className="section-header">
               <h2>Authentication Error</h2>
-              <p>
-                The dbt MCP server could not authenticate with dbt Platform
-              </p>
+              <p>The dbt MCP server could not authenticate with dbt Platform</p>
             </div>
 
             <div className="error-details">
@@ -597,6 +698,10 @@ export default function App() {
                     onChange={onSelectProject}
                     options={projects}
                     placeholder="Choose a project"
+                    getOptionId={(p) => p.id}
+                    getPrimary={(p) => p.name}
+                    getSecondary={(p) => p.account_name}
+                    getSearchText={(p) => `${p.name} ${p.account_name}`}
                   />
                 </div>
               )}
@@ -627,18 +732,23 @@ export default function App() {
                     >
                       Deployment Environment
                     </label>
-                    <select
+                    <CustomDropdown
                       id="environment-select"
-                      className="environment-select"
-                      value={selectedEnvironmentId ?? ""}
+                      value={selectedEnvironmentId}
                       onChange={onSelectEnvironment}
-                    >
-                      {environments.map((env) => (
-                        <option key={env.id} value={env.id}>
-                          {env.name} ({env.deployment_type ? `${env.deployment_type} - ${env.id}` : env.id})
-                        </option>
-                      ))}
-                    </select>
+                      options={environments}
+                      placeholder="Choose an environment"
+                      getOptionId={(e) => e.id}
+                      getPrimary={(e) => e.name}
+                      getSecondary={(e) =>
+                        e.deployment_type
+                          ? `${e.deployment_type} · ${e.id}`
+                          : String(e.id)
+                      }
+                      getSearchText={(e) =>
+                        `${e.name} ${e.deployment_type ?? ""}`
+                      }
+                    />
                   </div>
                 )}
 
@@ -659,7 +769,10 @@ export default function App() {
                 environments.length > 0 &&
                 selectedEnvironmentId !== null &&
                 !dbtPlatformContext && (
-                  <div className="button-container" style={{ marginTop: "1rem" }}>
+                  <div
+                    className="button-container"
+                    style={{ marginTop: "1rem" }}
+                  >
                     <button
                       onClick={onConfirmSelection}
                       className="primary-button"
@@ -727,8 +840,8 @@ export default function App() {
             <div className="completion-card">
               <h2>All Set!</h2>
               <p>
-                The dbt MCP server is authenticated and configured with your
-                dbt Platform account. This window can now be closed.
+                The dbt MCP server is authenticated and configured with your dbt
+                Platform account. This window can now be closed.
               </p>
             </div>
           </section>

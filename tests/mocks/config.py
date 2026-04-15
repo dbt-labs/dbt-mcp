@@ -7,6 +7,7 @@ from dbt_mcp.config.config import (
 from dbt_mcp.config.config_providers import (
     AdminApiConfig,
     DiscoveryConfig,
+    MultiProjectDiscoveryConfigProvider,
     ProxiedToolConfig,
     SemanticLayerConfig,
 )
@@ -18,13 +19,13 @@ from dbt_mcp.config.config_providers.proxied_tool import (
 from dbt_mcp.config.config_providers.semantic_layer import (
     DefaultSemanticLayerConfigProvider,
 )
+from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.config.headers import (
     AdminApiHeadersProvider,
     DiscoveryHeadersProvider,
     ProxiedToolHeadersProvider,
     SemanticLayerHeadersProvider,
 )
-from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.config.settings import DbtMcpSettings
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo
@@ -64,6 +65,7 @@ mock_lsp_config = LspConfig(
     ),
 )
 
+
 mock_discovery_config = DiscoveryConfig(
     url="http://localhost:8000",
     headers_provider=DiscoveryHeadersProvider(
@@ -100,6 +102,14 @@ class MockProxiedToolConfigProvider(DefaultProxiedToolConfigProvider):
 
     async def get_config(self):
         return mock_proxied_tool_config
+
+
+class MockMultiProjectDiscoveryConfigProvider(MultiProjectDiscoveryConfigProvider):
+    def __init__(self):
+        pass  # Skip the base class __init__
+
+    async def get_config(self, project_id: int):
+        return mock_discovery_config
 
 
 class MockDiscoveryConfigProvider(DefaultDiscoveryConfigProvider):
@@ -139,7 +149,9 @@ mock_config = Config(
     proxied_tool_config_provider=MockProxiedToolConfigProvider(),
     dbt_cli_config=mock_dbt_cli_config,
     dbt_codegen_config=mock_dbt_codegen_config,
+    multi_project_discovery_config_provider=MockMultiProjectDiscoveryConfigProvider(),
     discovery_config_provider=MockDiscoveryConfigProvider(),
+    multi_project_semantic_layer_config_provider=None,
     semantic_layer_config_provider=MockSemanticLayerConfigProvider(),
     admin_api_config_provider=MockAdminApiConfigProvider(),
     lsp_config=mock_lsp_config,

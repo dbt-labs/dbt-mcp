@@ -1,7 +1,13 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from dbt_mcp.config.headers import AdminApiHeadersProvider
-from dbt_mcp.config.credentials import CredentialsProvider
 
 from .base import AdminApiConfig, ConfigProvider
+
+if TYPE_CHECKING:
+    from dbt_mcp.config.credentials import CredentialsProvider
 
 
 class DefaultAdminApiConfigProvider(ConfigProvider[AdminApiConfig]):

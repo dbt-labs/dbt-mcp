@@ -14,10 +14,10 @@ from dbt_mcp.semantic_layer.types import (
     DimensionToolResponse,
     EntityToolResponse,
     GetMetricsCompiledSqlSuccess,
-    MetricToolResponse,
     OrderByParam,
     QueryMetricsSuccess,
     SavedQueryToolResponse,
+    ListMetricsResponse,
 )
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SemanticLayerToolContext:
+    config_provider: ConfigProvider[SemanticLayerConfig]
     semantic_layer_fetcher: SemanticLayerFetcher
 
     def __init__(
@@ -36,8 +37,9 @@ class SemanticLayerToolContext:
         config_provider: ConfigProvider[SemanticLayerConfig],
         client_provider: SemanticLayerClientProvider,
     ):
+        self.config_provider = config_provider
         self.semantic_layer_fetcher = SemanticLayerFetcher(
-            config_provider=config_provider, client_provider=client_provider
+            client_provider=client_provider,
         )
 
 
@@ -51,8 +53,11 @@ class SemanticLayerToolContext:
 async def list_metrics(
     context: SemanticLayerToolContext,
     search: str | None = None,
-) -> list[MetricToolResponse]:
-    return await context.semantic_layer_fetcher.list_metrics(search=search)
+) -> ListMetricsResponse:
+    config = await context.config_provider.get_config()
+    return await context.semantic_layer_fetcher.list_metrics(
+        config=config, search=search
+    )
 
 
 @dbt_mcp_tool(
@@ -66,7 +71,10 @@ async def list_saved_queries(
     context: SemanticLayerToolContext,
     search: str | None = None,
 ) -> list[SavedQueryToolResponse]:
-    return await context.semantic_layer_fetcher.list_saved_queries(search=search)
+    config = await context.config_provider.get_config()
+    return await context.semantic_layer_fetcher.list_saved_queries(
+        config=config, search=search
+    )
 
 
 @dbt_mcp_tool(
@@ -81,8 +89,9 @@ async def get_dimensions(
     metrics: list[str],
     search: str | None = None,
 ) -> list[DimensionToolResponse]:
+    config = await context.config_provider.get_config()
     return await context.semantic_layer_fetcher.get_dimensions(
-        metrics=metrics, search=search
+        config=config, metrics=metrics, search=search
     )
 
 
@@ -98,8 +107,9 @@ async def get_entities(
     metrics: list[str],
     search: str | None = None,
 ) -> list[EntityToolResponse]:
+    config = await context.config_provider.get_config()
     return await context.semantic_layer_fetcher.get_entities(
-        metrics=metrics, search=search
+        config=config, metrics=metrics, search=search
     )
 
 
@@ -118,7 +128,9 @@ async def query_metrics(
     where: str | None = None,
     limit: int | None = None,
 ) -> str:
+    config = await context.config_provider.get_config()
     result = await context.semantic_layer_fetcher.query_metrics(
+        config=config,
         metrics=metrics,
         group_by=group_by,
         order_by=order_by,
@@ -146,7 +158,9 @@ async def get_metrics_compiled_sql(
     where: str | None = None,
     limit: int | None = None,
 ) -> str:
+    config = await context.config_provider.get_config()
     result = await context.semantic_layer_fetcher.get_metrics_compiled_sql(
+        config=config,
         metrics=metrics,
         group_by=group_by,
         order_by=order_by,
@@ -181,7 +195,8 @@ def register_sl_tools(
 ) -> None:
     def bind_context() -> SemanticLayerToolContext:
         return SemanticLayerToolContext(
-            config_provider=config_provider, client_provider=client_provider
+            config_provider=config_provider,
+            client_provider=client_provider,
         )
 
     register_tools(

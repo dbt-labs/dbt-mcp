@@ -57,3 +57,4 @@ class SemanticLayerConfig:
     prod_environment_id: int
     token_provider: TokenProvider
     headers_provider: HeadersProvider
+    metrics_related_max: int = 10
