@@ -1,3 +1,0 @@
-kind: Fixed
-body: Improve error messages when dbt Cloud platform credentials expire for Semantic Layer tools (query_metrics, execute_sql). The error now clearly indicates this is a platform-side credential issue and directs users to the dbt Cloud UI to refresh their development credentials.
-time: 2026-04-12T21:00:00.000000-07:00
