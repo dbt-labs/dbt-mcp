@@ -9,7 +9,9 @@ from mcp.client.streamable_http import streamablehttp_client
 @contextlib.asynccontextmanager
 async def session_context() -> AsyncGenerator[ClientSession, None]:
     host = os.environ.get("DBT_HOST")
-    prefix = os.environ.get("MULTICELL_ACCOUNT_PREFIX")
+    prefix = os.environ.get("DBT_HOST_PREFIX") or os.environ.get(
+        "MULTICELL_ACCOUNT_PREFIX"
+    )
     url = (
         f"https://{prefix}.{host}/api/ai/v1/mcp/"
         if prefix
