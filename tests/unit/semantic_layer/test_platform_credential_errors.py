@@ -52,14 +52,10 @@ class TestPlatformCredentialErrorDetection:
         )
 
     def test_case_insensitive(self) -> None:
-        assert _is_platform_credential_error(
-            "sso AUTHENTICATION Has Expired"
-        )
+        assert _is_platform_credential_error("sso AUTHENTICATION Has Expired")
 
     def test_does_not_match_generic_query_error(self) -> None:
-        assert not _is_platform_credential_error(
-            "column 'revenue' not found in table"
-        )
+        assert not _is_platform_credential_error("column 'revenue' not found in table")
 
     def test_does_not_match_syntax_error(self) -> None:
         assert not _is_platform_credential_error(
@@ -67,9 +63,7 @@ class TestPlatformCredentialErrorDetection:
         )
 
     def test_does_not_match_timeout_error(self) -> None:
-        assert not _is_platform_credential_error(
-            "Query timed out after 60 seconds"
-        )
+        assert not _is_platform_credential_error("Query timed out after 60 seconds")
 
     def test_does_not_match_empty_string(self) -> None:
         assert not _is_platform_credential_error("")
@@ -107,7 +101,7 @@ class TestFormatSemanticLayerErrorWithCredentialHint:
         """QueryFailedError wrapping a credential expiry should also get the hint."""
         error = Exception(
             'QueryFailedError(["SSO authentication has expired, '
-            "please re-connect to Snowflake\"])"
+            'please re-connect to Snowflake"])'
         )
         result = fetcher._format_semantic_layer_error(error)
         assert "dbt Cloud" in result
@@ -118,7 +112,8 @@ class TestFormatSemanticLayerErrorWithCredentialHint:
         from dbtsl.error import QueryFailedError
 
         error = QueryFailedError(
-            "SSO authentication has expired, please re-connect to Snowflake"
+            message="SSO authentication has expired, please re-connect to Snowflake",
+            status="FAILED",
         )
         result = fetcher._format_query_failed_error(error)
         assert "dbt Cloud" in result.error

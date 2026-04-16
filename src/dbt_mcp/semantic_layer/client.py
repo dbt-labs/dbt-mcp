@@ -65,8 +65,7 @@ _PLATFORM_CREDENTIAL_HINT = (
 def _is_platform_credential_error(error_message: str) -> bool:
     """Detect whether an error message indicates expired dbt Cloud platform credentials."""
     return any(
-        pattern.search(error_message)
-        for pattern in _PLATFORM_CREDENTIAL_ERROR_PATTERNS
+        pattern.search(error_message) for pattern in _PLATFORM_CREDENTIAL_ERROR_PATTERNS
     )
 
 
