@@ -2,8 +2,9 @@ import contextlib
 import os
 from collections.abc import AsyncGenerator
 
+import httpx
 from mcp import ClientSession
-from mcp.client.streamable_http import streamablehttp_client
+from mcp.client.streamable_http import streamable_http_client
 
 
 @contextlib.asynccontextmanager
@@ -22,12 +23,14 @@ async def session_context() -> AsyncGenerator[ClientSession, None]:
     token = os.environ.get("DBT_TOKEN")
     prod_environment_id = os.environ.get("DBT_PROD_ENV_ID", "")
     async with (
-        streamablehttp_client(
+        streamable_http_client(
             url=url,
-            headers={
-                "Authorization": f"token {token}",
-                "x-dbt-prod-environment-id": prod_environment_id,
-            },
+            http_client=httpx.AsyncClient(
+                headers={
+                    "Authorization": f"token {token}",
+                    "x-dbt-prod-environment-id": prod_environment_id,
+                }
+            ),
         ) as (
             read_stream,
             write_stream,
