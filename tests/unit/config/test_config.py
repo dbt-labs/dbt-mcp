@@ -270,14 +270,14 @@ class TestDbtMcpSettings:
         assert "'xy999'" in caplog.text
         assert "'ab123'" in caplog.text
 
-    def test_auto_disable_platform_features_logging(self):
+    def test_auto_disable_cli_features_only(self):
         with patch.dict(os.environ, {}, clear=True):
             settings = DbtMcpSettings(_env_file=None)
-            # When DBT_HOST is missing, platform features should be disabled
-            assert settings.disable_admin_api is True
-            assert settings.disable_sql is True
-            assert settings.disable_semantic_layer is True
-            assert settings.disable_discovery is True
+            # Platform features are NOT auto-disabled (elicitation handles missing DBT_HOST)
+            assert settings.disable_admin_api is False
+            assert settings.disable_semantic_layer is False
+            assert settings.disable_discovery is False
+            # CLI features ARE still auto-disabled when project dir / dbt path invalid
             assert settings.disable_dbt_cli is True
             assert settings.disable_dbt_codegen is True
 
