@@ -57,7 +57,6 @@ HUMAN_DESCRIPTIONS: dict[ToolName, str] = {
     ToolName.CANCEL_JOB_RUN: "Cancels a running job.",
     ToolName.RETRY_JOB_RUN: "Retries a failed job run.",
     ToolName.LIST_JOB_RUN_ARTIFACTS: "Lists available artifacts from a job run.",
-    ToolName.GET_JOB_RUN_ARTIFACT: "Downloads a specific artifact file from a job run.",
     ToolName.GET_JOB_RUN_ERROR: "Gets error and/or warning details for a job run; option to include or show warnings only.",
     # dbt-codegen tools
     ToolName.GENERATE_SOURCE: "Generates source YAML by introspecting database schemas; option to include columns.",

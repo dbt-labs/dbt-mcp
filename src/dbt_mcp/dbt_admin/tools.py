@@ -214,23 +214,6 @@ async def list_job_run_artifacts(context: AdminToolContext, run_id: int) -> list
 
 
 @dbt_mcp_tool(
-    description=get_prompt("admin_api/get_job_run_artifact"),
-    title="Get Job Run Artifact",
-    read_only_hint=True,
-    destructive_hint=False,
-    idempotent_hint=True,
-)
-async def get_job_run_artifact(
-    context: AdminToolContext, run_id: int, artifact_path: str, step: int | None = None
-) -> Any:
-    """Get a specific job run artifact."""
-    admin_api_config = await context.admin_api_config_provider.get_config()
-    return await context.admin_client.get_job_run_artifact(
-        admin_api_config.account_id, run_id, artifact_path, step
-    )
-
-
-@dbt_mcp_tool(
     description=get_prompt("admin_api/get_job_run_error"),
     title="Get Job Run Error",
     read_only_hint=True,
@@ -287,7 +270,6 @@ ADMIN_TOOLS = [
     cancel_job_run,
     retry_job_run,
     list_job_run_artifacts,
-    get_job_run_artifact,
     get_job_run_error,
 ]
 

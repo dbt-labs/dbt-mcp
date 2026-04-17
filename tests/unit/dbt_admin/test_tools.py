@@ -8,7 +8,6 @@ from dbt_mcp.dbt_admin.tools import (
     JobRunStatus,
     cancel_job_run,
     get_job_details,
-    get_job_run_artifact,
     get_job_run_details,
     get_job_run_error,
     list_job_run_artifacts,
@@ -19,6 +18,8 @@ from dbt_mcp.dbt_admin.tools import (
     trigger_job_run,
 )
 from tests.mocks.config import mock_config
+
+NUM_ADMIN_TOOLS = 10
 
 
 @pytest.fixture
@@ -121,7 +122,7 @@ async def test_register_admin_api_tools_all_tools(mock_register_tools, mock_fast
     mock_register_tools.assert_called_once()
     args, kwargs = mock_register_tools.call_args
     tool_definitions = kwargs["tool_definitions"]
-    assert len(tool_definitions) == 11
+    assert len(tool_definitions) == NUM_ADMIN_TOOLS
 
 
 @patch("dbt_mcp.dbt_admin.tools.register_tools")
@@ -146,7 +147,7 @@ async def test_register_admin_api_tools_with_disabled_tools(
     args, kwargs = mock_register_tools.call_args
     tool_definitions = kwargs["tool_definitions"]
     disabled_tools = kwargs["disabled_tools"]
-    assert len(tool_definitions) == 11
+    assert len(tool_definitions) == NUM_ADMIN_TOOLS
     assert disabled_tools == set(disable_tools)
 
 
@@ -213,17 +214,6 @@ async def test_list_job_run_artifacts_tool(admin_context):
     assert isinstance(result, list)
     admin_context.admin_client.list_job_run_artifacts.assert_called_once_with(
         12345, 100
-    )
-
-
-async def test_get_job_run_artifact_tool(admin_context):
-    result = await get_job_run_artifact.fn(
-        admin_context, run_id=100, artifact_path="manifest.json", step=1
-    )
-
-    assert result is not None
-    admin_context.admin_client.get_job_run_artifact.assert_called_once_with(
-        12345, 100, "manifest.json", 1
     )
 
 
@@ -371,10 +361,9 @@ def test_admin_tools_list_contains_all_tools():
         "cancel_job_run",
         "retry_job_run",
         "list_job_run_artifacts",
-        "get_job_run_artifact",
         "get_job_run_error",
     }
 
     actual_tool_names = {tool.fn.__name__ for tool in ADMIN_TOOLS}
     assert actual_tool_names == expected_tool_names
-    assert len(ADMIN_TOOLS) == 11
+    assert len(ADMIN_TOOLS) == NUM_ADMIN_TOOLS
