@@ -14,6 +14,7 @@ from dbt_mcp.config.config_providers.semantic_layer import (
     MultiProjectSemanticLayerConfigProvider,
 )
 from dbt_mcp.config.credentials import CredentialsProvider
+from dbt_mcp.config.elicitation import ConfigPersistence, ElicitingCredentialsProvider
 from dbt_mcp.config.settings import (
     DbtMcpLogSettings,
     DbtMcpSettings,
@@ -87,14 +88,15 @@ class Config:
     proxied_tool_config_provider: DefaultProxiedToolConfigProvider | None
     dbt_cli_config: DbtCliConfig | None
     dbt_codegen_config: DbtCodegenConfig | None
-    multi_project_discovery_config_provider: MultiProjectDiscoveryConfigProvider | None
-    discovery_config_provider: DefaultDiscoveryConfigProvider | None
+    multi_project_discovery_config_provider: MultiProjectDiscoveryConfigProvider
+    discovery_config_provider: DefaultDiscoveryConfigProvider
     multi_project_semantic_layer_config_provider: (
-        MultiProjectSemanticLayerConfigProvider | None
+        MultiProjectSemanticLayerConfigProvider
     )
-    semantic_layer_config_provider: DefaultSemanticLayerConfigProvider | None
-    admin_api_config_provider: DefaultAdminApiConfigProvider | None
+    semantic_layer_config_provider: DefaultSemanticLayerConfigProvider
+    admin_api_config_provider: DefaultAdminApiConfigProvider
     credentials_provider: CredentialsProvider
+    eliciting_credentials_provider: ElicitingCredentialsProvider
     lsp_config: LspConfig | None
 
 
@@ -104,7 +106,15 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         file_logging=log_settings.file_logging, log_level=log_settings.log_level
     )
     settings = DbtMcpSettings()  # type: ignore
-    credentials_provider = CredentialsProvider(settings)
+
+    # Apply persisted config from previous elicitation (env vars still win)
+    persistence = ConfigPersistence()
+    persisted = persistence.read()
+    if settings.dbt_host is None and "dbt_host" in persisted:
+        settings.dbt_host = persisted["dbt_host"]
+
+    inner_credentials = CredentialsProvider(settings)
+    credentials_provider = ElicitingCredentialsProvider(inner_credentials, persistence)
 
     # Set default warn error options if not provided
     if settings.dbt_warn_error_options is None:
@@ -124,32 +134,43 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         if getattr(settings, attr_name, False)
     }
 
+    # Proxied tools still gated on explicit opt-in flag
     proxied_tool_config_provider = None
-    if enable_proxied_tools and settings.actual_host:
+    if enable_proxied_tools:
         proxied_tool_config_provider = DefaultProxiedToolConfigProvider(
-            credentials_provider=credentials_provider
+            credentials_provider=inner_credentials
         )
 
-    admin_api_config_provider = None
-    multi_project_discovery_config_provider = None
-    multi_project_semantic_layer_config_provider = None
-    if settings.actual_host:
-        admin_api_config_provider = DefaultAdminApiConfigProvider(
-            credentials_provider=credentials_provider,
-        )
-        admin_client = DbtAdminAPIClient(admin_api_config_provider)
-        multi_project_discovery_config_provider = MultiProjectDiscoveryConfigProvider(
-            credentials_provider=credentials_provider,
+    # Platform providers — always created (they resolve lazily via get_credentials).
+    # Providers hold the raw CredentialsProvider (not the wrapper) because:
+    # 1. They type-expect CredentialsProvider, not the wrapper
+    # 2. _is_multi_project() calls the wrapper first, which elicits + populates
+    #    settings, so by the time a provider's get_config() runs, the inner
+    #    CredentialsProvider already has valid settings cached.
+    admin_api_config_provider = DefaultAdminApiConfigProvider(
+        credentials_provider=inner_credentials,
+    )
+    admin_client = DbtAdminAPIClient(admin_api_config_provider)
+    multi_project_discovery_config_provider = MultiProjectDiscoveryConfigProvider(
+        credentials_provider=inner_credentials,
+        admin_client=admin_client,
+    )
+    multi_project_semantic_layer_config_provider = (
+        MultiProjectSemanticLayerConfigProvider(
+            credentials_provider=inner_credentials,
             admin_client=admin_client,
+            metrics_related_max=settings.sl_metrics_related_max,
         )
-        multi_project_semantic_layer_config_provider = (
-            MultiProjectSemanticLayerConfigProvider(
-                credentials_provider=credentials_provider,
-                admin_client=admin_client,
-                metrics_related_max=settings.sl_metrics_related_max,
-            )
-        )
+    )
+    discovery_config_provider = DefaultDiscoveryConfigProvider(
+        credentials_provider=inner_credentials,
+    )
+    semantic_layer_config_provider = DefaultSemanticLayerConfigProvider(
+        credentials_provider=inner_credentials,
+        metrics_related_max=settings.sl_metrics_related_max,
+    )
 
+    # CLI/codegen/LSP — still conditional (need concrete paths at registration time)
     dbt_cli_config = None
     if settings.dbt_project_dir and settings.dbt_path:
         binary_type = detect_binary_type(settings.dbt_path)
@@ -168,19 +189,6 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
             dbt_path=settings.dbt_path,
             dbt_cli_timeout=settings.dbt_cli_timeout,
             binary_type=binary_type,
-        )
-
-    discovery_config_provider = None
-    if settings.actual_host:
-        discovery_config_provider = DefaultDiscoveryConfigProvider(
-            credentials_provider=credentials_provider,
-        )
-
-    semantic_layer_config_provider = None
-    if settings.actual_host:
-        semantic_layer_config_provider = DefaultSemanticLayerConfigProvider(
-            credentials_provider=credentials_provider,
-            metrics_related_max=settings.sl_metrics_related_max,
         )
 
     lsp_config = None
@@ -212,6 +220,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         multi_project_semantic_layer_config_provider=multi_project_semantic_layer_config_provider,
         semantic_layer_config_provider=semantic_layer_config_provider,
         admin_api_config_provider=admin_api_config_provider,
-        credentials_provider=credentials_provider,
+        credentials_provider=inner_credentials,
+        eliciting_credentials_provider=credentials_provider,
         lsp_config=lsp_config,
     )

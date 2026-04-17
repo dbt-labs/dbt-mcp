@@ -374,10 +374,12 @@ class TestLoadConfig:
 
         config = self._load_config_with_env(env_vars)
 
-        assert config.proxied_tool_config_provider is None
+        # Platform providers are always created (resolve lazily via elicitation)
+        assert config.discovery_config_provider is not None
+        assert config.semantic_layer_config_provider is not None
+        assert config.admin_api_config_provider is not None
+        # CLI config still gated on concrete paths
         assert config.dbt_cli_config is None
-        assert config.discovery_config_provider is None
-        assert config.semantic_layer_config_provider is None
 
     def test_invalid_environment_variable_types(self):
         # Test invalid integer types

@@ -108,6 +108,8 @@ class ConfigPersistence:
 
     def read(self) -> dict[str, Any]:
         """Read all persisted config values. Returns {} on missing or invalid files."""
+        if not self._path.exists():
+            return {}
         with FileLock(self._lock_path):
             return self._load_yaml()
 
