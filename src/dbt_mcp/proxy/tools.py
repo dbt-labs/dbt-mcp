@@ -7,10 +7,10 @@ from typing import (
     ForwardRef,
 )
 
-import httpx
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from mcp import ClientSession
 from mcp.client.streamable_http import GetSessionIdCallback, streamable_http_client
+from mcp.shared._httpx_utils import create_mcp_http_client
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import InvalidSignature
 from mcp.server.fastmcp.tools.base import Tool as InternalTool
@@ -103,6 +103,9 @@ class ProxiedToolsManager:
     async def get_remote_mcp_session(
         self, url: str, headers: dict[str, str]
     ) -> ClientSession:
+        http_client = await self._stack.enter_async_context(
+            create_mcp_http_client(headers=headers)
+        )
         streamable_http_client_context: tuple[
             MemoryObjectReceiveStream[SessionMessage | Exception],
             MemoryObjectSendStream[SessionMessage],
@@ -110,7 +113,7 @@ class ProxiedToolsManager:
         ] = await self._stack.enter_async_context(
             streamable_http_client(
                 url=url,
-                http_client=httpx.AsyncClient(headers=headers),
+                http_client=http_client,
             )
         )
         read_stream, write_stream, _ = streamable_http_client_context
