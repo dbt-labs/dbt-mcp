@@ -68,6 +68,13 @@ class TestIsMultiProject:
         dispatcher = _make_dispatcher(settings=settings)
         assert await dispatcher._is_multi_project() is False
 
+    async def test_returns_false_when_credentials_raise(self):
+        dispatcher = _make_dispatcher()
+        dispatcher.config.eliciting_credentials_provider.get_credentials = AsyncMock(
+            side_effect=ValueError("DBT_HOST is a required environment variable")
+        )
+        assert await dispatcher._is_multi_project() is False
+
 
 class TestListToolsRouting:
     async def test_routes_to_multi_project_when_multi(self):
