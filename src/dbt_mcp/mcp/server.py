@@ -56,7 +56,13 @@ class DbtMCP(FastMCP):
         ) = None
 
     async def _is_multi_project(self) -> bool:
-        settings, _ = await self.config.credentials_provider.get_credentials()
+        try:
+            (
+                settings,
+                _,
+            ) = await self.config.eliciting_credentials_provider.get_credentials()
+        except ValueError:
+            return False
         return bool(
             settings.dbt_project_ids is not None and len(settings.dbt_project_ids) > 0
         )
@@ -176,27 +182,25 @@ async def register_multi_project_dbt_mcp(dbt_mcp: FastMCP, config: Config) -> No
     disabled_toolsets = config.disabled_toolsets
 
     logger.info("Registering semantic layer tools for multi-project")
-    if config.multi_project_semantic_layer_config_provider:
-        register_multiproject_sl_tools(
-            dbt_mcp=dbt_mcp,
-            config_provider=config.multi_project_semantic_layer_config_provider,
-            client_provider=DefaultSemanticLayerClientProvider(),
-            disabled_tools=disabled_tools,
-            enabled_tools=enabled_tools,
-            enabled_toolsets=enabled_toolsets,
-            disabled_toolsets=disabled_toolsets,
-        )
+    register_multiproject_sl_tools(
+        dbt_mcp=dbt_mcp,
+        config_provider=config.multi_project_semantic_layer_config_provider,
+        client_provider=DefaultSemanticLayerClientProvider(),
+        disabled_tools=disabled_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
+    )
 
     logger.info("Registering discovery tools for multi-project")
-    if config.multi_project_discovery_config_provider:
-        register_multiproject_discovery_tools(
-            dbt_mcp=dbt_mcp,
-            config_provider=config.multi_project_discovery_config_provider,
-            disabled_tools=disabled_tools,
-            enabled_tools=enabled_tools,
-            enabled_toolsets=enabled_toolsets,
-            disabled_toolsets=disabled_toolsets,
-        )
+    register_multiproject_discovery_tools(
+        dbt_mcp=dbt_mcp,
+        config_provider=config.multi_project_discovery_config_provider,
+        disabled_tools=disabled_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
+    )
 
 
 async def register_dbt_mcp_tools(dbt_mcp: FastMCP, config: Config) -> None:
@@ -227,28 +231,26 @@ async def register_dbt_mcp_tools(dbt_mcp: FastMCP, config: Config) -> None:
         disabled_toolsets=disabled_toolsets,
     )
 
-    if config.semantic_layer_config_provider:
-        logger.info("Registering semantic layer tools")
-        register_sl_tools(
-            dbt_mcp,
-            config_provider=config.semantic_layer_config_provider,
-            client_provider=DefaultSemanticLayerClientProvider(),
-            disabled_tools=disabled_tools,
-            enabled_tools=enabled_tools,
-            enabled_toolsets=enabled_toolsets,
-            disabled_toolsets=disabled_toolsets,
-        )
+    logger.info("Registering semantic layer tools")
+    register_sl_tools(
+        dbt_mcp,
+        config_provider=config.semantic_layer_config_provider,
+        client_provider=DefaultSemanticLayerClientProvider(),
+        disabled_tools=disabled_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
+    )
 
-    if config.discovery_config_provider:
-        logger.info("Registering discovery tools")
-        register_discovery_tools(
-            dbt_mcp,
-            discovery_config_provider=config.discovery_config_provider,
-            disabled_tools=disabled_tools,
-            enabled_tools=enabled_tools,
-            enabled_toolsets=enabled_toolsets,
-            disabled_toolsets=disabled_toolsets,
-        )
+    logger.info("Registering discovery tools")
+    register_discovery_tools(
+        dbt_mcp,
+        discovery_config_provider=config.discovery_config_provider,
+        disabled_tools=disabled_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
+    )
 
     if config.dbt_cli_config:
         logger.info("Registering dbt cli tools")
@@ -272,16 +274,15 @@ async def register_dbt_mcp_tools(dbt_mcp: FastMCP, config: Config) -> None:
             disabled_toolsets=disabled_toolsets,
         )
 
-    if config.admin_api_config_provider:
-        logger.info("Registering dbt admin API tools")
-        register_admin_api_tools(
-            dbt_mcp,
-            config.admin_api_config_provider,
-            disabled_tools=disabled_tools,
-            enabled_tools=enabled_tools,
-            enabled_toolsets=enabled_toolsets,
-            disabled_toolsets=disabled_toolsets,
-        )
+    logger.info("Registering dbt admin API tools")
+    register_admin_api_tools(
+        dbt_mcp,
+        config.admin_api_config_provider,
+        disabled_tools=disabled_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
+    )
 
     if config.lsp_config:
         logger.info("Registering LSP tools")

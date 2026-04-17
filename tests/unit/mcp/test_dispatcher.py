@@ -31,6 +31,7 @@ def _make_dispatcher(
 
     config = MagicMock(spec=Config)
     config.credentials_provider = credentials_provider
+    config.eliciting_credentials_provider = credentials_provider
 
     usage_tracker = MagicMock(spec=UsageTracker)
     usage_tracker.emit_tool_called_event = AsyncMock()
