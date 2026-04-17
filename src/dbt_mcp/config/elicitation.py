@@ -1,12 +1,11 @@
-"""General-purpose MCP elicitation primitives.
+"""MCP elicitation primitives and first consumer (DBT_HOST wrapper)."""
 
-Not coupled to any specific config value or consumer.
-"""
+from __future__ import annotations
 
 import logging
 import os
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 from filelock import FileLock
@@ -17,6 +16,12 @@ from mcp.server.elicitation import (
 )
 from mcp.server.session import ServerSession
 from mcp.types import RequestId
+from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from dbt_mcp.config.credentials import AuthenticationMethod, CredentialsProvider
+    from dbt_mcp.config.headers import TokenProvider
+    from dbt_mcp.config.settings import DbtMcpSettings
 
 logger = logging.getLogger(__name__)
 
@@ -117,3 +122,60 @@ class ConfigPersistence:
     def read_value(self, key: str) -> Any | None:
         """Read a single config value. Returns None if not found."""
         return self.read().get(key)
+
+
+# ---------------------------------------------------------------------------
+# First consumer: DBT_HOST elicitation wrapper
+# ---------------------------------------------------------------------------
+
+
+class DbtHostSchema(BaseModel):
+    """Elicitation form for dbt Cloud host."""
+
+    dbt_host: str = Field(description="Your dbt Cloud host (e.g., cloud.getdbt.com)")
+
+
+class ElicitingCredentialsProvider:
+    """Wrap CredentialsProvider to elicit DBT_HOST when missing.
+
+    Not a subclass due to circular import constraints. Implements the same
+    interface via delegation — compatible via duck typing.
+    """
+
+    def __init__(
+        self,
+        inner: CredentialsProvider,
+        persistence: ConfigPersistence,
+    ) -> None:
+        self._inner = inner
+        self._persistence = persistence
+
+    async def get_credentials(self) -> tuple[DbtMcpSettings, TokenProvider]:
+        """Delegate to inner provider; elicit DBT_HOST on ValueError."""
+        try:
+            return await self._inner.get_credentials()
+        except ValueError as e:
+            if "DBT_HOST" not in str(e):
+                raise
+            data = await elicit_or_raise(
+                e, DbtHostSchema, "Let's set up dbt-mcp. What's your dbt Cloud host?"
+            )
+            self._inner.settings.dbt_host = data.dbt_host
+            self._persistence.write("dbt_host", data.dbt_host)
+            return await self._inner.get_credentials()
+
+    @property
+    def settings(self) -> DbtMcpSettings:
+        return self._inner.settings
+
+    @property
+    def token_provider(self) -> TokenProvider | None:
+        return self._inner.token_provider
+
+    @property
+    def authentication_method(self) -> AuthenticationMethod | None:
+        return self._inner.authentication_method
+
+    @property
+    def account_identifier(self) -> str | None:
+        return self._inner.account_identifier

@@ -8,6 +8,8 @@ import yaml
 
 from dbt_mcp.config.elicitation import (
     ConfigPersistence,
+    DbtHostSchema,
+    ElicitingCredentialsProvider,
     elicit_or_raise,
     get_mcp_session,
 )
@@ -238,3 +240,112 @@ class TestConfigPersistence:
 
         p = ConfigPersistence(config_path=config_file)
         assert p.read() == {}
+
+
+# ---------------------------------------------------------------------------
+# TestElicitingCredentialsProvider
+# ---------------------------------------------------------------------------
+
+
+class TestElicitingCredentialsProvider:
+    def _make_inner(self):
+        """Build a mock CredentialsProvider that succeeds by default."""
+        inner = MagicMock()
+        inner.settings = MagicMock()
+        inner.token_provider = MagicMock()
+        inner.authentication_method = MagicMock()
+        inner.account_identifier = "test-account"
+        inner.get_credentials = AsyncMock(
+            return_value=(inner.settings, inner.token_provider)
+        )
+        return inner
+
+    def _make_elicitation_wrapper(self, inner, tmp_path, *, host="cloud.getdbt.com"):
+        """Set up inner to fail once with missing DBT_HOST, then succeed on retry."""
+        inner.get_credentials.side_effect = [
+            ValueError("DBT_HOST is a required environment variable"),
+            (inner.settings, inner.token_provider),
+        ]
+        persistence = ConfigPersistence(config_path=tmp_path / "cfg.yml")
+        wrapper = ElicitingCredentialsProvider(inner, persistence)
+        accepted = DbtHostSchema(dbt_host=host)
+        return wrapper, persistence, accepted
+
+    @pytest.mark.asyncio
+    async def test_delegates_to_inner_when_credentials_available(self, tmp_path: Path):
+        inner = self._make_inner()
+        persistence = ConfigPersistence(config_path=tmp_path / "cfg.yml")
+        wrapper = ElicitingCredentialsProvider(inner, persistence)
+
+        result = await wrapper.get_credentials()
+
+        assert result == (inner.settings, inner.token_provider)
+        inner.get_credentials.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_elicits_dbt_host_on_missing_host_error(self, tmp_path: Path):
+        inner = self._make_inner()
+        wrapper, _, accepted = self._make_elicitation_wrapper(inner, tmp_path)
+
+        with patch(
+            "dbt_mcp.config.elicitation.elicit_or_raise",
+            new_callable=AsyncMock,
+            return_value=accepted,
+        ):
+            result = await wrapper.get_credentials()
+
+        assert result == (inner.settings, inner.token_provider)
+        assert inner.settings.dbt_host == "cloud.getdbt.com"
+
+    @pytest.mark.asyncio
+    async def test_reraises_non_host_errors(self, tmp_path: Path):
+        original = ValueError("something else entirely")
+        inner = self._make_inner()
+        inner.get_credentials = AsyncMock(side_effect=original)
+        persistence = ConfigPersistence(config_path=tmp_path / "cfg.yml")
+        wrapper = ElicitingCredentialsProvider(inner, persistence)
+
+        with pytest.raises(ValueError) as exc_info:
+            await wrapper.get_credentials()
+
+        assert exc_info.value is original
+
+    @pytest.mark.asyncio
+    async def test_persists_elicited_host(self, tmp_path: Path):
+        inner = self._make_inner()
+        wrapper, persistence, accepted = self._make_elicitation_wrapper(
+            inner, tmp_path, host="emea.dbt.com"
+        )
+
+        with patch(
+            "dbt_mcp.config.elicitation.elicit_or_raise",
+            new_callable=AsyncMock,
+            return_value=accepted,
+        ):
+            await wrapper.get_credentials()
+
+        assert persistence.read_value("dbt_host") == "emea.dbt.com"
+
+    @pytest.mark.asyncio
+    async def test_updates_settings_in_memory(self, tmp_path: Path):
+        inner = self._make_inner()
+        wrapper, _, accepted = self._make_elicitation_wrapper(inner, tmp_path)
+
+        with patch(
+            "dbt_mcp.config.elicitation.elicit_or_raise",
+            new_callable=AsyncMock,
+            return_value=accepted,
+        ):
+            await wrapper.get_credentials()
+
+        assert inner.settings.dbt_host == "cloud.getdbt.com"
+
+    def test_transparent_property_delegation(self, tmp_path: Path):
+        inner = self._make_inner()
+        persistence = ConfigPersistence(config_path=tmp_path / "cfg.yml")
+        wrapper = ElicitingCredentialsProvider(inner, persistence)
+
+        assert wrapper.settings is inner.settings
+        assert wrapper.token_provider is inner.token_provider
+        assert wrapper.authentication_method is inner.authentication_method
+        assert wrapper.account_identifier == "test-account"
