@@ -127,7 +127,10 @@ class ConfigPersistence:
 class DbtHostSchema(BaseModel):
     """Elicitation form for dbt Cloud host."""
 
-    dbt_host: str = Field(description="Your dbt Cloud host (e.g., cloud.getdbt.com)")
+    dbt_host: str = Field(
+        min_length=1,
+        description="Your dbt Cloud host (e.g., ab123.us1.dbt.com — find it in your browser URL bar when logged into dbt Cloud)",
+    )
 
     @field_validator("dbt_host")
     @classmethod
