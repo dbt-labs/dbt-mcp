@@ -7,6 +7,7 @@ from pathlib import Path
 from filelock import FileLock
 
 from dbt_mcp.config.config_providers.admin_api import DefaultAdminApiConfigProvider
+from dbt_mcp.errors.common import MissingHostError
 from dbt_mcp.config.headers import TokenProvider
 from dbt_mcp.config.settings import DbtMcpSettings
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
@@ -230,7 +231,7 @@ class CredentialsProvider:
             config_location = dbt_user_dir / "mcp.yml"
             actual_host = self.settings.actual_host
             if not actual_host:
-                raise ValueError("DBT_HOST is a required environment variable")
+                raise MissingHostError("DBT_HOST is a required environment variable")
             dbt_platform_url = _build_dbt_platform_url(
                 actual_host, self.settings.actual_host_prefix
             )

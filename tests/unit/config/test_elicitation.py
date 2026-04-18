@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import yaml
 
+from dbt_mcp.errors.common import MissingHostError
 from dbt_mcp.config.elicitation import (
     ConfigPersistence,
     DbtHostSchema,
@@ -263,7 +264,7 @@ class TestElicitingCredentialsProvider:
     def _make_elicitation_wrapper(self, inner, tmp_path, *, host="cloud.getdbt.com"):
         """Set up inner to fail once with missing DBT_HOST, then succeed on retry."""
         inner.get_credentials.side_effect = [
-            ValueError("DBT_HOST is a required environment variable"),
+            MissingHostError("DBT_HOST is a required environment variable"),
             (inner.settings, inner.token_provider),
         ]
         persistence = ConfigPersistence(config_path=tmp_path / "cfg.yml")

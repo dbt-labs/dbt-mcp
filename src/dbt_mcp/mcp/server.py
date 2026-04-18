@@ -61,9 +61,10 @@ class DbtMCP(FastMCP):
                 settings,
                 _,
             ) = await self.config.eliciting_credentials_provider.get_credentials()
-        except ValueError:
+        except ValueError as e:
             logger.warning(
-                "Could not resolve credentials — defaulting to single-project mode"
+                "Could not resolve credentials — defaulting to single-project mode: %s",
+                e,
             )
             return False
         return bool(

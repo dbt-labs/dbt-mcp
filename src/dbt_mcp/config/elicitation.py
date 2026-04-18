@@ -18,6 +18,8 @@ from mcp.server.session import ServerSession
 from mcp.types import RequestId
 from pydantic import BaseModel, Field, field_validator
 
+from dbt_mcp.errors.common import MissingHostError
+
 if TYPE_CHECKING:
     from dbt_mcp.config.credentials import AuthenticationMethod, CredentialsProvider
     from dbt_mcp.config.headers import TokenProvider
@@ -145,12 +147,10 @@ class ElicitingCredentialsProvider:
         self._persistence = persistence
 
     async def get_credentials(self) -> tuple[DbtMcpSettings, TokenProvider]:
-        """Delegate to inner provider; elicit DBT_HOST on ValueError."""
+        """Delegate to inner provider; elicit DBT_HOST on MissingHostError."""
         try:
             return await self._inner.get_credentials()
-        except ValueError as e:
-            if "DBT_HOST" not in str(e):
-                raise
+        except MissingHostError as e:
             data = await elicit_or_raise(
                 e, DbtHostSchema, "Let's set up dbt-mcp. What's your dbt Cloud host?"
             )

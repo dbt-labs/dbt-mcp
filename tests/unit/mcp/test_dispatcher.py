@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from mcp.server.fastmcp import FastMCP
 from mcp.types import TextContent, Tool
 
+from dbt_mcp.errors.common import MissingHostError
 from dbt_mcp.config.settings import DbtMcpSettings
 from dbt_mcp.mcp.server import DbtMCP
 from dbt_mcp.oauth.token_provider import StaticTokenProvider
@@ -71,7 +72,7 @@ class TestIsMultiProject:
     async def test_returns_false_when_credentials_raise(self):
         dispatcher = _make_dispatcher()
         dispatcher.config.eliciting_credentials_provider.get_credentials = AsyncMock(
-            side_effect=ValueError("DBT_HOST is a required environment variable")
+            side_effect=MissingHostError("DBT_HOST is a required environment variable")
         )
         assert await dispatcher._is_multi_project() is False
 
