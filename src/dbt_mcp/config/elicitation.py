@@ -16,7 +16,7 @@ from mcp.server.elicitation import (
 )
 from mcp.server.session import ServerSession
 from mcp.types import RequestId
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 if TYPE_CHECKING:
     from dbt_mcp.config.credentials import AuthenticationMethod, CredentialsProvider
@@ -27,8 +27,6 @@ logger = logging.getLogger(__name__)
 
 
 def _default_config_dir() -> Path:
-    # Same logic as credentials.get_dbt_profiles_path(), duplicated here
-    # to avoid a circular import through the credentials → config_providers chain.
     profiles_dir = os.environ.get("DBT_PROFILES_DIR")
     if profiles_dir:
         return Path(profiles_dir).expanduser()
@@ -37,8 +35,6 @@ def _default_config_dir() -> Path:
 
 def get_mcp_session() -> tuple[ServerSession, RequestId] | None:
     """Return the active MCP session and request ID, or None if elicitation is unsupported."""
-    # Lazy import — avoids hard dependency on lowlevel internals at module
-    # load time.
     from mcp.server.lowlevel.server import request_ctx
 
     ctx = request_ctx.get(None)
@@ -51,7 +47,7 @@ def get_mcp_session() -> tuple[ServerSession, RequestId] | None:
         return None
 
     caps = client_params.capabilities
-    if caps is None or caps.elicitation is None or caps.elicitation.form is None:
+    if caps is None or caps.elicitation is None:
         return None
 
     return session, ctx.request_id
@@ -91,7 +87,7 @@ class ConfigPersistence:
         self._lock_path = config_path.with_suffix(".lock")
 
     def _load_yaml(self) -> dict[str, Any]:
-        """Parse the config file into a dict. Caller must hold the lock."""
+        """Parse the config file. Caller must hold the lock."""
         if not self._path.exists():
             return {}
         try:
@@ -126,23 +122,19 @@ class ConfigPersistence:
         return self.read().get(key)
 
 
-# ---------------------------------------------------------------------------
-# First consumer: DBT_HOST elicitation wrapper
-# ---------------------------------------------------------------------------
-
-
 class DbtHostSchema(BaseModel):
     """Elicitation form for dbt Cloud host."""
 
     dbt_host: str = Field(description="Your dbt Cloud host (e.g., cloud.getdbt.com)")
 
+    @field_validator("dbt_host")
+    @classmethod
+    def strip_whitespace(cls, v: str) -> str:
+        return v.strip()
+
 
 class ElicitingCredentialsProvider:
-    """Wrap CredentialsProvider to elicit DBT_HOST when missing.
-
-    Not a subclass due to circular import constraints. Implements the same
-    interface via delegation — compatible via duck typing.
-    """
+    """Wrap CredentialsProvider to elicit DBT_HOST when missing."""
 
     def __init__(
         self,

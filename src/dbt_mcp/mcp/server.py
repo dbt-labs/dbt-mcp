@@ -134,19 +134,25 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
             server.config.proxied_tool_config_provider
             and not await server._is_multi_project()
         ):
-            logger.info("Registering proxied tools")
-            await register_proxied_tools(
-                dbt_mcp=server.single_project_mcp,
-                config_provider=server.config.proxied_tool_config_provider,
-                disabled_tools=set(server.config.disable_tools),
-                enabled_tools=(
-                    set(server.config.enable_tools)
-                    if server.config.enable_tools is not None
-                    else None
-                ),
-                enabled_toolsets=server.config.enabled_toolsets,
-                disabled_toolsets=server.config.disabled_toolsets,
-            )
+            try:
+                logger.info("Registering proxied tools")
+                await register_proxied_tools(
+                    dbt_mcp=server.single_project_mcp,
+                    config_provider=server.config.proxied_tool_config_provider,
+                    disabled_tools=set(server.config.disable_tools),
+                    enabled_tools=(
+                        set(server.config.enable_tools)
+                        if server.config.enable_tools is not None
+                        else None
+                    ),
+                    enabled_toolsets=server.config.enabled_toolsets,
+                    disabled_toolsets=server.config.disabled_toolsets,
+                )
+            except ValueError as e:
+                logger.warning(
+                    "Could not register proxied tools — credentials not yet available: %s",
+                    e,
+                )
 
         # eager start and initialize the LSP connection
         if server.config.lsp_config:

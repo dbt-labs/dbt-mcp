@@ -141,12 +141,6 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
             credentials_provider=inner_credentials
         )
 
-    # Platform providers — always created (they resolve lazily via get_credentials).
-    # Providers hold the raw CredentialsProvider (not the wrapper) because:
-    # 1. They type-expect CredentialsProvider, not the wrapper
-    # 2. _is_multi_project() calls the wrapper first, which elicits + populates
-    #    settings, so by the time a provider's get_config() runs, the inner
-    #    CredentialsProvider already has valid settings cached.
     admin_api_config_provider = DefaultAdminApiConfigProvider(
         credentials_provider=inner_credentials,
     )
