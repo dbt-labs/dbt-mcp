@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -26,13 +25,6 @@ if TYPE_CHECKING:
     from dbt_mcp.config.settings import DbtMcpSettings
 
 logger = logging.getLogger(__name__)
-
-
-def _default_config_dir() -> Path:
-    profiles_dir = os.environ.get("DBT_PROFILES_DIR")
-    if profiles_dir:
-        return Path(profiles_dir).expanduser()
-    return Path.home() / ".dbt"
 
 
 def get_mcp_session() -> tuple[ServerSession, RequestId] | None:
@@ -84,7 +76,9 @@ class ConfigPersistence:
 
     def __init__(self, config_path: Path | None = None) -> None:
         if config_path is None:
-            config_path = _default_config_dir() / "mcp-config.yml"
+            from dbt_mcp.config.credentials import get_dbt_profiles_path
+
+            config_path = get_dbt_profiles_path() / "mcp-config.yml"
         self._path = config_path
         self._lock_path = config_path.with_suffix(".lock")
 
