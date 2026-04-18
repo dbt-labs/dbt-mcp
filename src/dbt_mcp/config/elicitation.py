@@ -1,4 +1,4 @@
-"""MCP elicitation primitives and first consumer (DBT_HOST wrapper)."""
+"""MCP elicitation primitives."""
 
 from __future__ import annotations
 
