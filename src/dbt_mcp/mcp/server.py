@@ -12,6 +12,7 @@ from mcp.server.lowlevel.server import LifespanResultT
 from mcp.types import ContentBlock, TextContent, Tool
 
 from dbt_mcp.config.config import Config
+from dbt_mcp.errors.common import MissingHostError
 from dbt_mcp.dbt_admin.tools import register_admin_api_tools
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.dbt_codegen.tools import register_dbt_codegen_tools
@@ -61,7 +62,7 @@ class DbtMCP(FastMCP):
                 settings,
                 _,
             ) = await self.config.eliciting_credentials_provider.get_credentials()
-        except ValueError as e:
+        except MissingHostError as e:
             logger.warning(
                 "Could not resolve credentials — defaulting to single-project mode: %s",
                 e,
@@ -149,7 +150,7 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
                     enabled_toolsets=server.config.enabled_toolsets,
                     disabled_toolsets=server.config.disabled_toolsets,
                 )
-            except ValueError as e:
+            except MissingHostError as e:
                 logger.warning(
                     "Could not register proxied tools — credentials not yet available: %s",
                     e,
