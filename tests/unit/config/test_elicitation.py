@@ -1,5 +1,6 @@
 """Tests for the general-purpose MCP elicitation infrastructure."""
 
+import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -340,6 +341,33 @@ class TestElicitingCredentialsProvider:
             await wrapper.get_credentials()
 
         assert inner.settings.dbt_host == "cloud.getdbt.com"
+
+    @pytest.mark.asyncio
+    async def test_concurrent_calls_elicit_only_once(self, tmp_path: Path):
+        inner = self._make_inner()
+        # First call raises MissingHostError, all subsequent calls succeed
+        inner.get_credentials.side_effect = [
+            MissingHostError("DBT_HOST is a required environment variable"),
+            (inner.settings, inner.token_provider),
+            (inner.settings, inner.token_provider),
+        ]
+        persistence = ConfigPersistence(config_path=tmp_path / "cfg.yml")
+        wrapper = ElicitingCredentialsProvider(inner, persistence)
+        accepted = DbtHostSchema(dbt_host="cloud.getdbt.com")
+
+        with patch(
+            "dbt_mcp.config.elicitation.elicit_or_raise",
+            new_callable=AsyncMock,
+            return_value=accepted,
+        ) as mock_elicit:
+            results = await asyncio.gather(
+                wrapper.get_credentials(),
+                wrapper.get_credentials(),
+            )
+
+        # Lock serializes: first call elicits, second sees the already-set host
+        mock_elicit.assert_called_once()
+        assert all(r == (inner.settings, inner.token_provider) for r in results)
 
     def test_transparent_property_delegation(self, tmp_path: Path):
         inner = self._make_inner()

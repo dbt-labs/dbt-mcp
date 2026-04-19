@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -142,18 +143,22 @@ class ElicitingCredentialsProvider:
     ) -> None:
         self._inner = inner
         self._persistence = persistence
+        self._lock = asyncio.Lock()
 
     async def get_credentials(self) -> tuple[DbtMcpSettings, TokenProvider]:
         """Delegate to inner provider; elicit DBT_HOST on MissingHostError."""
-        try:
-            return await self._inner.get_credentials()
-        except MissingHostError as e:
-            data = await elicit_or_raise(
-                e, DbtHostSchema, "Let's set up dbt-mcp. What's your dbt Cloud host?"
-            )
-            self._inner.settings.dbt_host = data.dbt_host
-            self._persistence.write("dbt_host", data.dbt_host)
-            return await self._inner.get_credentials()
+        async with self._lock:
+            try:
+                return await self._inner.get_credentials()
+            except MissingHostError as e:
+                data = await elicit_or_raise(
+                    e,
+                    DbtHostSchema,
+                    "Let's set up dbt-mcp. What's your dbt Cloud host?",
+                )
+                self._inner.settings.dbt_host = data.dbt_host
+                self._persistence.write("dbt_host", data.dbt_host)
+                return await self._inner.get_credentials()
 
     @property
     def settings(self) -> DbtMcpSettings:
