@@ -184,7 +184,7 @@ class TestCallToolRouting:
         assert isinstance(result[0], TextContent)
         assert "something broke" in result[0].text
 
-    async def test_returns_error_when_tracking_fails(self):
+    async def test_tracking_failure_does_not_crash_call_tool(self):
         single = MagicMock(spec=FastMCP)
         single.call_tool = AsyncMock(
             side_effect=MissingHostError("DBT_HOST is a required environment variable")
@@ -192,13 +192,16 @@ class TestCallToolRouting:
 
         dispatcher = _make_dispatcher(single_project_mcp=single)
         dispatcher.usage_tracker.emit_tool_called_event = AsyncMock(
-            side_effect=MissingHostError("DBT_HOST is a required environment variable")
+            side_effect=MissingHostError("tracking credentials missing")
         )
         with patch.object(
             dispatcher, "_is_multi_project", AsyncMock(return_value=False)
         ):
             result = await dispatcher.call_tool("some_tool", {})
 
+        # Tool error is returned cleanly despite tracking also failing
         assert len(result) == 1
         assert isinstance(result[0], TextContent)
         assert "DBT_HOST" in result[0].text
+        # Tracking was attempted (and failed, but didn't crash)
+        dispatcher.usage_tracker.emit_tool_called_event.assert_awaited_once()

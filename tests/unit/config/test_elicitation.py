@@ -2,6 +2,7 @@
 
 import asyncio
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -368,7 +369,7 @@ class TestElicitingCredentialsProvider:
     @pytest.mark.asyncio
     async def test_concurrent_calls_elicit_only_once(self, tmp_path: Path):
         inner = self._make_inner()
-        # First call raises MissingHostError, all subsequent calls succeed
+        # First call raises, all subsequent succeed
         inner.get_credentials.side_effect = [
             MissingHostError("DBT_HOST is a required environment variable"),
             (inner.settings, inner.token_provider),
@@ -378,18 +379,31 @@ class TestElicitingCredentialsProvider:
         wrapper = ElicitingCredentialsProvider(inner, persistence)
         accepted = DbtHostSchema(dbt_host="cloud.getdbt.com")
 
+        # Gate forces first call to yield at elicitation, giving second call
+        # a chance to contend on the lock — proving real serialization.
+        gate = asyncio.Event()
+
+        real_elicit_call_count = 0
+
+        async def slow_elicit(*args: Any, **kwargs: Any) -> DbtHostSchema:
+            nonlocal real_elicit_call_count
+            real_elicit_call_count += 1
+            gate.set()  # signal that elicitation is in progress
+            await asyncio.sleep(0)  # yield to event loop so second task runs
+            return accepted
+
         with patch(
             "dbt_mcp.config.elicitation.elicit_or_raise",
-            new_callable=AsyncMock,
-            return_value=accepted,
-        ) as mock_elicit:
-            results = await asyncio.gather(
-                wrapper.get_credentials(),
-                wrapper.get_credentials(),
-            )
+            side_effect=slow_elicit,
+        ):
+            # Start both tasks; second will block on the lock while first elicits
+            task1 = asyncio.create_task(wrapper.get_credentials())
+            await asyncio.sleep(0)  # let task1 start and hit the lock
+            task2 = asyncio.create_task(wrapper.get_credentials())
+            results = await asyncio.gather(task1, task2)
 
         # Lock serializes: first call elicits, second sees the already-set host
-        mock_elicit.assert_called_once()
+        assert real_elicit_call_count == 1
         assert all(r == (inner.settings, inner.token_provider) for r in results)
 
     @pytest.mark.asyncio
