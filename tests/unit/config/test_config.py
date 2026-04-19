@@ -527,6 +527,35 @@ class TestLoadConfig:
         assert config.discovery_config_provider is not None
         assert config.credentials_provider is not None
 
+    def test_persisted_config_applied_when_env_var_missing(self):
+        env_vars = {
+            "DBT_TOKEN": "test_token",
+            "DISABLE_DBT_CLI": "true",
+        }
+
+        with patch(
+            "dbt_mcp.config.config.ConfigPersistence.read",
+            return_value={"dbt_host": "persisted.dbt.com"},
+        ):
+            config = self._load_config_with_env(env_vars)
+
+        assert config.credentials_provider.settings.dbt_host == "persisted.dbt.com"
+
+    def test_env_var_takes_precedence_over_persisted_config(self):
+        env_vars = {
+            "DBT_HOST": "env.dbt.com",
+            "DBT_TOKEN": "test_token",
+            "DISABLE_DBT_CLI": "true",
+        }
+
+        with patch(
+            "dbt_mcp.config.config.ConfigPersistence.read",
+            return_value={"dbt_host": "persisted.dbt.com"},
+        ):
+            config = self._load_config_with_env(env_vars)
+
+        assert config.credentials_provider.settings.dbt_host == "env.dbt.com"
+
     def test_case_insensitive_environment_variables(self):
         # pydantic_settings should handle case insensitivity based on config
         env_vars = {
