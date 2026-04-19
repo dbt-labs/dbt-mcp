@@ -89,15 +89,18 @@ class DbtMCP(FastMCP):
                 f"Error calling tool: {name} with arguments: {arguments} "
                 + f"in {end_time - start_time}ms: {e}"
             )
-            await self.usage_tracker.emit_tool_called_event(
-                tool_called_event=ToolCalledEvent(
-                    tool_name=name,
-                    arguments=arguments,
-                    start_time_ms=start_time,
-                    end_time_ms=end_time,
-                    error_message=str(e),
-                ),
-            )
+            try:
+                await self.usage_tracker.emit_tool_called_event(
+                    tool_called_event=ToolCalledEvent(
+                        tool_name=name,
+                        arguments=arguments,
+                        start_time_ms=start_time,
+                        end_time_ms=end_time,
+                        error_message=str(e),
+                    ),
+                )
+            except Exception:
+                logger.debug("Usage tracking failed — skipping", exc_info=True)
             return [
                 TextContent(
                     type="text",
@@ -106,15 +109,18 @@ class DbtMCP(FastMCP):
             ]
         end_time = int(time.time() * 1000)
         logger.info(f"Tool {name} called successfully in {end_time - start_time}ms")
-        await self.usage_tracker.emit_tool_called_event(
-            tool_called_event=ToolCalledEvent(
-                tool_name=name,
-                arguments=arguments,
-                start_time_ms=start_time,
-                end_time_ms=end_time,
-                error_message=None,
-            ),
-        )
+        try:
+            await self.usage_tracker.emit_tool_called_event(
+                tool_called_event=ToolCalledEvent(
+                    tool_name=name,
+                    arguments=arguments,
+                    start_time_ms=start_time,
+                    end_time_ms=end_time,
+                    error_message=None,
+                ),
+            )
+        except Exception:
+            logger.debug("Usage tracking failed — skipping", exc_info=True)
         return result
 
     async def list_tools(self) -> list[Tool]:
