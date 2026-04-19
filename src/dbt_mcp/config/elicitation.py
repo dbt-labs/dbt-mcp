@@ -127,7 +127,7 @@ class DbtHostSchema(BaseModel):
         description="Your dbt Cloud host (e.g., ab123.us1.dbt.com — find it in your browser URL bar when logged into dbt Cloud)",
     )
 
-    @field_validator("dbt_host")
+    @field_validator("dbt_host", mode="before")
     @classmethod
     def strip_whitespace(cls, v: str) -> str:
         return v.strip()

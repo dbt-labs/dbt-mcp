@@ -245,6 +245,29 @@ class TestConfigPersistence:
 
 
 # ---------------------------------------------------------------------------
+# TestDbtHostSchema
+# ---------------------------------------------------------------------------
+
+
+class TestDbtHostSchema:
+    def test_valid_host(self):
+        schema = DbtHostSchema(dbt_host="cloud.getdbt.com")
+        assert schema.dbt_host == "cloud.getdbt.com"
+
+    def test_strips_whitespace(self):
+        schema = DbtHostSchema(dbt_host="  cloud.getdbt.com  ")
+        assert schema.dbt_host == "cloud.getdbt.com"
+
+    def test_rejects_empty_string(self):
+        with pytest.raises(ValueError):
+            DbtHostSchema(dbt_host="")
+
+    def test_rejects_whitespace_only(self):
+        with pytest.raises(ValueError):
+            DbtHostSchema(dbt_host="   ")
+
+
+# ---------------------------------------------------------------------------
 # TestElicitingCredentialsProvider
 # ---------------------------------------------------------------------------
 
