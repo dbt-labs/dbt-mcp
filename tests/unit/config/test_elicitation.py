@@ -369,6 +369,29 @@ class TestElicitingCredentialsProvider:
         mock_elicit.assert_called_once()
         assert all(r == (inner.settings, inner.token_provider) for r in results)
 
+    @pytest.mark.asyncio
+    async def test_does_not_persist_when_retry_fails(self, tmp_path: Path):
+        inner = self._make_inner()
+        inner.get_credentials.side_effect = [
+            MissingHostError("DBT_HOST is a required environment variable"),
+            RuntimeError("OAuth failed for invalid host"),
+        ]
+        persistence = ConfigPersistence(config_path=tmp_path / "cfg.yml")
+        wrapper = ElicitingCredentialsProvider(inner, persistence)
+        accepted = DbtHostSchema(dbt_host="bad-host.example.com")
+
+        with (
+            patch(
+                "dbt_mcp.config.elicitation.elicit_or_raise",
+                new_callable=AsyncMock,
+                return_value=accepted,
+            ),
+            pytest.raises(RuntimeError, match="OAuth failed"),
+        ):
+            await wrapper.get_credentials()
+
+        assert persistence.read_value("dbt_host") is None
+
     def test_transparent_property_delegation(self, tmp_path: Path):
         inner = self._make_inner()
         persistence = ConfigPersistence(config_path=tmp_path / "cfg.yml")

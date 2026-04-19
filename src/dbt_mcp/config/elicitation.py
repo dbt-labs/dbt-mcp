@@ -157,8 +157,9 @@ class ElicitingCredentialsProvider:
                     "Let's set up dbt-mcp. What's your dbt Cloud host?",
                 )
                 self._inner.settings.dbt_host = data.dbt_host
+                result = await self._inner.get_credentials()
                 self._persistence.write("dbt_host", data.dbt_host)
-                return await self._inner.get_credentials()
+                return result
 
     @property
     def settings(self) -> DbtMcpSettings:
