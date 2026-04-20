@@ -8,7 +8,13 @@ from filelock import FileLock
 
 from dbt_mcp.config.config_providers.admin_api import DefaultAdminApiConfigProvider
 from dbt_mcp.config.headers import TokenProvider
-from dbt_mcp.config.settings import DbtMcpSettings
+from dbt_mcp.config.settings import (
+    DbtMcpSettings,
+    _build_dbt_platform_url,
+    validate_dbt_cli_settings,
+    validate_dbt_platform_settings,
+    validate_settings,
+)
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
 from dbt_mcp.oauth.dbt_platform import DbtPlatformContext
@@ -204,14 +210,6 @@ class CredentialsProvider:
         logger.info(f"Settings: {settings}")
 
     async def get_credentials(self) -> "tuple[DbtMcpSettings, TokenProvider]":
-        # TODO: imports should be at the top of the file
-        from dbt_mcp.config.settings import (
-            _build_dbt_platform_url,
-            validate_dbt_cli_settings,
-            validate_dbt_platform_settings,
-            validate_settings,
-        )
-
         if self.token_provider is not None:
             # If token provider is already set, just return the cached values
             return self.settings, self.token_provider
