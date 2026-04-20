@@ -42,7 +42,9 @@ class TestCredentialsProviderAuthenticationMethod:
             patch(
                 "dbt_mcp.config.credentials.OAuthTokenProvider"
             ) as mock_token_provider,
-            patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
+            patch(
+                "dbt_mcp.config.credentials.validate_dbt_cli_settings", return_value=[]
+            ),
         ):
             mock_provider_instance = MagicMock()
             mock_token_provider.create = AsyncMock(return_value=mock_provider_instance)
@@ -65,7 +67,7 @@ class TestCredentialsProviderAuthenticationMethod:
 
         credentials_provider = CredentialsProvider(mock_settings)
 
-        with patch("dbt_mcp.config.settings.validate_settings"):
+        with patch("dbt_mcp.config.credentials.validate_settings"):
             _, token_provider = await credentials_provider.get_credentials()
 
             assert (
@@ -96,7 +98,7 @@ class TestCredentialsProviderAuthenticationMethod:
 
         credentials_provider = CredentialsProvider(mock_settings)
 
-        with patch("dbt_mcp.config.settings.validate_settings"):
+        with patch("dbt_mcp.config.credentials.validate_settings"):
             # First call
             await credentials_provider.get_credentials()
             assert (
@@ -144,7 +146,9 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
                 return_value=mock_dbt_context,
             ),
             patch("dbt_mcp.config.credentials.OAuthTokenProvider") as mock_tp_cls,
-            patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
+            patch(
+                "dbt_mcp.config.credentials.validate_dbt_cli_settings", return_value=[]
+            ),
         ):
             mock_tp_cls.create = AsyncMock(return_value=MagicMock())
 
@@ -182,7 +186,9 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
                 return_value=mock_dbt_context,
             ),
             patch("dbt_mcp.config.credentials.OAuthTokenProvider") as mock_tp_cls,
-            patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
+            patch(
+                "dbt_mcp.config.credentials.validate_dbt_cli_settings", return_value=[]
+            ),
         ):
             mock_provider_instance = MagicMock()
             mock_tp_cls.create = AsyncMock(return_value=mock_provider_instance)
@@ -224,8 +230,10 @@ class TestCredentialsProviderOAuthDoesNotSetDbtToken:
                 return_value=mock_dbt_context,
             ),
             patch("dbt_mcp.config.credentials.OAuthTokenProvider") as mock_tp_cls,
-            patch("dbt_mcp.config.settings.validate_settings") as mock_validate,
-            patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
+            patch("dbt_mcp.config.credentials.validate_settings") as mock_validate,
+            patch(
+                "dbt_mcp.config.credentials.validate_dbt_cli_settings", return_value=[]
+            ),
         ):
             mock_tp_cls.create = AsyncMock(return_value=MagicMock())
 
@@ -279,7 +287,9 @@ class TestCredentialsProviderOAuthUrl:
                 side_effect=capture_platform_context,
             ),
             patch("dbt_mcp.config.credentials.OAuthTokenProvider") as mock_tp_cls,
-            patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
+            patch(
+                "dbt_mcp.config.credentials.validate_dbt_cli_settings", return_value=[]
+            ),
             patch("dbt_mcp.config.credentials.get_dbt_profiles_path"),
             patch("dbt_mcp.config.credentials.DbtPlatformContextManager"),
         ):
@@ -329,11 +339,13 @@ class TestCredentialsProviderWarnings:
                 return_value=mock_dbt_context,
             ),
             patch("dbt_mcp.config.credentials.OAuthTokenProvider") as mock_tp_cls,
-            patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
+            patch(
+                "dbt_mcp.config.credentials.validate_dbt_cli_settings", return_value=[]
+            ),
             patch("dbt_mcp.config.credentials.get_dbt_profiles_path"),
             patch("dbt_mcp.config.credentials.DbtPlatformContextManager"),
             patch(
-                "dbt_mcp.config.settings.validate_dbt_platform_settings",
+                "dbt_mcp.config.credentials.validate_dbt_platform_settings",
                 return_value=["DBT_PROD_ENV_ID environment variable is required"],
             ),
             caplog.at_level(logging.WARNING, logger="dbt_mcp.config.credentials"),
@@ -380,7 +392,9 @@ class TestCredentialsProviderAccountIdentifier:
             patch(
                 "dbt_mcp.config.credentials.OAuthTokenProvider"
             ) as mock_token_provider,
-            patch("dbt_mcp.config.settings.validate_dbt_cli_settings", return_value=[]),
+            patch(
+                "dbt_mcp.config.credentials.validate_dbt_cli_settings", return_value=[]
+            ),
             patch(
                 "dbt_mcp.dbt_admin.client.DbtAdminAPIClient.get_account",
                 new_callable=AsyncMock,
@@ -406,7 +420,7 @@ class TestCredentialsProviderAccountIdentifier:
         credentials_provider = CredentialsProvider(mock_settings)
 
         with (
-            patch("dbt_mcp.config.settings.validate_settings"),
+            patch("dbt_mcp.config.credentials.validate_settings"),
             patch(
                 "dbt_mcp.dbt_admin.client.DbtAdminAPIClient.get_account",
                 new_callable=AsyncMock,
@@ -430,7 +444,7 @@ class TestCredentialsProviderAccountIdentifier:
         credentials_provider = CredentialsProvider(mock_settings)
 
         with (
-            patch("dbt_mcp.config.settings.validate_settings"),
+            patch("dbt_mcp.config.credentials.validate_settings"),
             patch(
                 "dbt_mcp.dbt_admin.client.DbtAdminAPIClient.get_account",
                 new_callable=AsyncMock,
