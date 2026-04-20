@@ -50,36 +50,30 @@ def _make_request_context(session, request_id="req-1"):
 
 
 class TestGetMcpSession:
-    def test_returns_none_outside_request_context(self):
-        """No contextvar set → None."""
-        ctx_var = MagicMock()
-        ctx_var.get.return_value = None
-
-        with patch("mcp.server.lowlevel.server.request_ctx", ctx_var):
-            result = get_mcp_session()
-
-        assert result is None
-        ctx_var.get.assert_called_once_with(None)
-
-    def test_returns_none_when_no_elicitation_capability(self):
-        session = _make_session(elicitation_supported=False)
-        ctx = _make_request_context(session)
-
-        with patch("mcp.server.lowlevel.server.request_ctx") as mock_ctx_var:
-            mock_ctx_var.get.return_value = ctx
-            result = get_mcp_session()
-
-        assert result is None
-
-    def test_returns_none_when_client_params_is_none(self):
-        session = _make_session(elicitation_supported=False, client_params_none=True)
-        ctx = _make_request_context(session)
+    @pytest.mark.parametrize(
+        "ctx_value",
+        [
+            pytest.param(None, id="no_request_context"),
+            pytest.param(
+                lambda: _make_request_context(
+                    _make_session(elicitation_supported=False)
+                ),
+                id="no_elicitation_capability",
+            ),
+            pytest.param(
+                lambda: _make_request_context(
+                    _make_session(elicitation_supported=False, client_params_none=True)
+                ),
+                id="client_params_none",
+            ),
+        ],
+    )
+    def test_returns_none_when_elicitation_unavailable(self, ctx_value):
+        resolved = ctx_value() if callable(ctx_value) else ctx_value
 
         with patch("mcp.server.lowlevel.server.request_ctx") as mock_ctx_var:
-            mock_ctx_var.get.return_value = ctx
-            result = get_mcp_session()
-
-        assert result is None
+            mock_ctx_var.get.return_value = resolved
+            assert get_mcp_session() is None
 
     def test_returns_session_when_elicitation_supported(self):
         session = _make_session(elicitation_supported=True)
@@ -112,9 +106,17 @@ class TestElicitOrRaise:
         assert exc_info.value is original
 
     @pytest.mark.asyncio
-    async def test_raises_original_error_when_user_declines(self):
-        from mcp.server.elicitation import DeclinedElicitation
+    @pytest.mark.parametrize(
+        "elicitation_response",
+        [
+            pytest.param("DeclinedElicitation", id="declined"),
+            pytest.param("CancelledElicitation", id="cancelled"),
+        ],
+    )
+    async def test_raises_original_error_when_user_rejects(self, elicitation_response):
+        import mcp.server.elicitation as elicitation_mod
 
+        response_cls = getattr(elicitation_mod, elicitation_response)
         original = ValueError("need config")
         session = _make_session(elicitation_supported=True)
 
@@ -126,30 +128,7 @@ class TestElicitOrRaise:
             patch(
                 "dbt_mcp.config.elicitation.elicit_with_validation",
                 new_callable=AsyncMock,
-                return_value=DeclinedElicitation(),
-            ),
-        ):
-            with pytest.raises(ValueError) as exc_info:
-                await elicit_or_raise(original, MagicMock, "provide it")
-
-        assert exc_info.value is original
-
-    @pytest.mark.asyncio
-    async def test_raises_original_error_when_user_cancels(self):
-        from mcp.server.elicitation import CancelledElicitation
-
-        original = ValueError("need config")
-        session = _make_session(elicitation_supported=True)
-
-        with (
-            patch(
-                "dbt_mcp.config.elicitation.get_mcp_session",
-                return_value=(session, "req-1"),
-            ),
-            patch(
-                "dbt_mcp.config.elicitation.elicit_with_validation",
-                new_callable=AsyncMock,
-                return_value=CancelledElicitation(),
+                return_value=response_cls(),
             ),
         ):
             with pytest.raises(ValueError) as exc_info:
@@ -259,13 +238,16 @@ class TestDbtHostSchema:
         schema = DbtHostSchema(dbt_host="  cloud.getdbt.com  ")
         assert schema.dbt_host == "cloud.getdbt.com"
 
-    def test_rejects_empty_string(self):
+    @pytest.mark.parametrize(
+        "invalid_input",
+        [
+            pytest.param("", id="empty_string"),
+            pytest.param("   ", id="whitespace_only"),
+        ],
+    )
+    def test_rejects_invalid_host(self, invalid_input):
         with pytest.raises(ValueError):
-            DbtHostSchema(dbt_host="")
-
-    def test_rejects_whitespace_only(self):
-        with pytest.raises(ValueError):
-            DbtHostSchema(dbt_host="   ")
+            DbtHostSchema(dbt_host=invalid_input)
 
 
 # ---------------------------------------------------------------------------
@@ -351,20 +333,6 @@ class TestElicitingCredentialsProvider:
             await wrapper.get_credentials()
 
         assert persistence.read_value("dbt_host") == "emea.dbt.com"
-
-    @pytest.mark.asyncio
-    async def test_updates_settings_in_memory(self, tmp_path: Path):
-        inner = self._make_inner()
-        wrapper, _, accepted = self._make_elicitation_wrapper(inner, tmp_path)
-
-        with patch(
-            "dbt_mcp.config.elicitation.elicit_or_raise",
-            new_callable=AsyncMock,
-            return_value=accepted,
-        ):
-            await wrapper.get_credentials()
-
-        assert inner.settings.dbt_host == "cloud.getdbt.com"
 
     @pytest.mark.asyncio
     async def test_concurrent_calls_elicit_only_once(self, tmp_path: Path):

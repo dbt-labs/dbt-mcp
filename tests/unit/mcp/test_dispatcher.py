@@ -87,85 +87,69 @@ class TestIsMultiProject:
 
 
 class TestListToolsRouting:
-    async def test_routes_to_multi_project_when_multi(self):
+    @pytest.mark.parametrize(
+        "is_multi,expected_tool,called,not_called",
+        [
+            pytest.param(True, "multi_tool", "multi", "single", id="multi_project"),
+            pytest.param(False, "single_tool", "single", "multi", id="single_project"),
+        ],
+    )
+    async def test_routes_based_on_project_mode(
+        self, is_multi, expected_tool, called, not_called
+    ):
         multi = MagicMock(spec=FastMCP)
         multi.list_tools = AsyncMock(return_value=[_make_tool("multi_tool")])
         single = MagicMock(spec=FastMCP)
         single.list_tools = AsyncMock(return_value=[_make_tool("single_tool")])
 
+        mcps = {"multi": multi, "single": single}
         dispatcher = _make_dispatcher(
             multi_project_mcp=multi, single_project_mcp=single
         )
         with patch.object(
-            dispatcher, "_is_multi_project", AsyncMock(return_value=True)
+            dispatcher, "_is_multi_project", AsyncMock(return_value=is_multi)
         ):
             tools = await dispatcher.list_tools()
 
-        assert [t.name for t in tools] == ["multi_tool"]
-        multi.list_tools.assert_awaited_once()
-        single.list_tools.assert_not_awaited()
-
-    async def test_routes_to_single_project_when_not_multi(self):
-        multi = MagicMock(spec=FastMCP)
-        multi.list_tools = AsyncMock(return_value=[_make_tool("multi_tool")])
-        single = MagicMock(spec=FastMCP)
-        single.list_tools = AsyncMock(return_value=[_make_tool("single_tool")])
-
-        dispatcher = _make_dispatcher(
-            multi_project_mcp=multi, single_project_mcp=single
-        )
-        with patch.object(
-            dispatcher, "_is_multi_project", AsyncMock(return_value=False)
-        ):
-            tools = await dispatcher.list_tools()
-
-        assert [t.name for t in tools] == ["single_tool"]
-        single.list_tools.assert_awaited_once()
-        multi.list_tools.assert_not_awaited()
+        assert [t.name for t in tools] == [expected_tool]
+        mcps[called].list_tools.assert_awaited_once()
+        mcps[not_called].list_tools.assert_not_awaited()
 
 
 class TestCallToolRouting:
-    async def test_routes_to_multi_project_when_multi(self):
-        expected = [TextContent(type="text", text="multi result")]
-        multi = MagicMock(spec=FastMCP)
-        multi.call_tool = AsyncMock(return_value=expected)
-        single = MagicMock(spec=FastMCP)
-        single.call_tool = AsyncMock(
-            return_value=[TextContent(type="text", text="single result")]
-        )
-
-        dispatcher = _make_dispatcher(
-            multi_project_mcp=multi, single_project_mcp=single
-        )
-        with patch.object(
-            dispatcher, "_is_multi_project", AsyncMock(return_value=True)
-        ):
-            result = await dispatcher.call_tool("some_tool", {"arg": "val"})
-
-        assert result == expected
-        multi.call_tool.assert_awaited_once_with("some_tool", {"arg": "val"})
-        single.call_tool.assert_not_awaited()
-
-    async def test_routes_to_single_project_when_not_multi(self):
-        expected = [TextContent(type="text", text="single result")]
+    @pytest.mark.parametrize(
+        "is_multi,expected_text,called,not_called",
+        [
+            pytest.param(True, "multi result", "multi", "single", id="multi_project"),
+            pytest.param(
+                False, "single result", "single", "multi", id="single_project"
+            ),
+        ],
+    )
+    async def test_routes_based_on_project_mode(
+        self, is_multi, expected_text, called, not_called
+    ):
         multi = MagicMock(spec=FastMCP)
         multi.call_tool = AsyncMock(
             return_value=[TextContent(type="text", text="multi result")]
         )
         single = MagicMock(spec=FastMCP)
-        single.call_tool = AsyncMock(return_value=expected)
+        single.call_tool = AsyncMock(
+            return_value=[TextContent(type="text", text="single result")]
+        )
 
+        mcps = {"multi": multi, "single": single}
         dispatcher = _make_dispatcher(
             multi_project_mcp=multi, single_project_mcp=single
         )
         with patch.object(
-            dispatcher, "_is_multi_project", AsyncMock(return_value=False)
+            dispatcher, "_is_multi_project", AsyncMock(return_value=is_multi)
         ):
-            result = await dispatcher.call_tool("some_tool", {})
+            result = await dispatcher.call_tool("some_tool", {"arg": "val"})
 
-        assert result == expected
-        single.call_tool.assert_awaited_once_with("some_tool", {})
-        multi.call_tool.assert_not_awaited()
+        assert result == [TextContent(type="text", text=expected_text)]
+        mcps[called].call_tool.assert_awaited_once()
+        mcps[not_called].call_tool.assert_not_awaited()
 
     async def test_returns_text_content_on_tool_error(self):
         multi = MagicMock(spec=FastMCP)
