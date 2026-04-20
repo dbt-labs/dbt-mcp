@@ -296,11 +296,17 @@ class SemanticLayerFetcher:
             error=self._format_semantic_layer_error(compile_error)
         )
 
-    def _normalize_where(self, where: str) -> str:
-        """Strip surrounding quotes that LLMs sometimes add to where clause strings."""
+    def _normalize_where(self, where: str | None) -> str | None:
+        """Strip surrounding quotes that LLMs sometimes add to where clause strings.
+
+        Returns None if the input is None or becomes empty/whitespace-only after
+        stripping quotes — the caller should treat this as "no where clause".
+        """
+        if where is None:
+            return None
         if len(where) >= 2 and where[0] == '"' and where[-1] == '"':
-            return where[1:-1]
-        return where
+            where = where[1:-1]
+        return where.strip() or None
 
     # TODO: move this to the SDK
     def _format_query_failed_error(self, query_error: Exception) -> QueryMetricsError:
@@ -375,7 +381,9 @@ class SemanticLayerFetcher:
                     metrics=metrics,
                     group_by=group_by,  # type: ignore
                     order_by=parsed_order_by,  # type: ignore
-                    where=[self._normalize_where(where)] if where else None,
+                    where=[normalized_where]
+                    if (normalized_where := self._normalize_where(where))
+                    else None,
                     limit=limit,
                     read_cache=True,
                 )
@@ -412,7 +420,9 @@ class SemanticLayerFetcher:
                         metrics=metrics,
                         group_by=group_by,  # type: ignore
                         order_by=parsed_order_by,  # type: ignore
-                        where=[self._normalize_where(where)] if where else None,
+                        where=[normalized_where]
+                        if (normalized_where := self._normalize_where(where))
+                        else None,
                         limit=limit,
                     )
                 except RetryTimeoutError as e:

@@ -39,12 +39,12 @@ def _build_csv(metrics: list[MetricToolResponse], columns: list[str]) -> str:
             return ", ".join(str(v) for v in val)
         return str(val)
 
-    output = io.StringIO()
+    output = io.StringIO(newline="")
     writer = csv.writer(output)
     writer.writerow(columns)
     for m in metrics:
         writer.writerow([_cell(m, col) for col in columns])
-    return output.getvalue().strip()
+    return output.getvalue().rstrip("\r\n")
 
 
 def _metrics_to_csv(response: ListMetricsResponse, max_response_chars: int = 0) -> str:
@@ -53,7 +53,9 @@ def _metrics_to_csv(response: ListMetricsResponse, max_response_chars: int = 0) 
         return ""
 
     def _has_any(field: str) -> bool:
-        return any(getattr(m, field) is not None for m in metrics)
+        # Skip columns where every value is None/empty — empty lists/dicts/strings
+        # count as "no data" so the column is omitted entirely.
+        return any(getattr(m, field) for m in metrics)
 
     columns: list[str] = ["name", "type", "label"]
     for col in ("description", "metadata", "dimensions", "entities"):
