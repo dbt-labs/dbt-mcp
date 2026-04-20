@@ -7,7 +7,12 @@ from typing import Any
 import httpx
 
 from dbt_mcp.config.config_providers import AdminApiConfig, ConfigProvider
-from dbt_mcp.errors import AdminAPIError, ArtifactRetrievalError, NotFoundError
+from dbt_mcp.errors import (
+    AdminAPIError,
+    ArtifactRetrievalError,
+    InvalidParameterError,
+    NotFoundError,
+)
 from dbt_mcp.oauth.dbt_platform import (
     DbtPlatformEnvironment,
     DbtPlatformEnvironmentResponse,
@@ -48,9 +53,14 @@ class DbtAdminAPIClient:
                 )
                 response.raise_for_status()
                 return response.json()
+        except httpx.HTTPStatusError as e:
+            if 400 <= e.response.status_code < 500:
+                raise InvalidParameterError(
+                    f"API request failed ({e.response.status_code}): {e}"
+                ) from e
+            raise AdminAPIError(f"API request failed: {e}") from e
         except httpx.HTTPError as e:
-            logger.error(f"API request failed: {e}")
-            raise AdminAPIError(f"API request failed: {e}")
+            raise AdminAPIError(f"API request failed: {e}") from e
 
     async def get_account(self, account_id: int) -> dict[str, Any]:
         """Get details for an account."""

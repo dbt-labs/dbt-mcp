@@ -8,6 +8,7 @@ from dbt_mcp.dbt_admin.client import (
     AdminAPIError,
     ArtifactRetrievalError,
     DbtAdminAPIClient,
+    InvalidParameterError,
     NotFoundError,
 )
 
@@ -104,10 +105,27 @@ async def test_make_request_success(client):
     )
 
 
-async def test_make_request_failure(client):
+async def test_make_request_4xx_raises_invalid_parameter(client):
     mock_response = MagicMock()
     mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
-        "404 Not Found", request=MagicMock(), response=MagicMock()
+        "400 Bad Request",
+        request=MagicMock(),
+        response=MagicMock(status_code=400),
+    )
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        with pytest.raises(InvalidParameterError):
+            await client._make_request("POST", "/test/endpoint")
+
+
+async def test_make_request_5xx_raises_admin_api_error(client):
+    mock_response = MagicMock()
+    mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "500 Internal Server Error",
+        request=MagicMock(),
+        response=MagicMock(status_code=500),
     )
 
     mock_client = create_mock_httpx_client(mock_response)
