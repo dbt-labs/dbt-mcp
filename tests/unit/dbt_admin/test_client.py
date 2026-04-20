@@ -8,6 +8,7 @@ from dbt_mcp.dbt_admin.client import (
     AdminAPIError,
     ArtifactRetrievalError,
     DbtAdminAPIClient,
+    NotFoundError,
 )
 
 
@@ -546,17 +547,36 @@ async def test_get_job_run_artifact_no_step_param(client):
     )
 
 
-async def test_get_job_run_artifact_request_exception(client):
+async def test_get_job_run_artifact_404_raises_not_found(client):
     mock_response = MagicMock()
+    mock_response.status_code = 404
     mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
-        "404 Not Found", request=MagicMock(), response=MagicMock()
+        "404 Not Found",
+        request=MagicMock(),
+        response=MagicMock(status_code=404),
+    )
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        with pytest.raises(NotFoundError, match="not found for run"):
+            await client.get_job_run_artifact(12345, 100, "nonexistent.json")
+
+
+async def test_get_job_run_artifact_server_error_raises_artifact_retrieval(client):
+    mock_response = MagicMock()
+    mock_response.status_code = 500
+    mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "500 Internal Server Error",
+        request=MagicMock(),
+        response=MagicMock(status_code=500),
     )
 
     mock_client = create_mock_httpx_client(mock_response)
 
     with patch("httpx.AsyncClient", return_value=mock_client):
         with pytest.raises(ArtifactRetrievalError):
-            await client.get_job_run_artifact(12345, 100, "nonexistent.json")
+            await client.get_job_run_artifact(12345, 100, "manifest.json")
 
 
 async def test_list_projects(client):

@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 
 from dbt_mcp.config.config_providers import AdminApiConfig, ConfigProvider
-from dbt_mcp.errors import AdminAPIError, ArtifactRetrievalError
+from dbt_mcp.errors import AdminAPIError, ArtifactRetrievalError, NotFoundError
 from dbt_mcp.oauth.dbt_platform import (
     DbtPlatformEnvironment,
     DbtPlatformEnvironmentResponse,
@@ -382,6 +382,14 @@ class DbtAdminAPIClient:
                 )
                 response.raise_for_status()
                 return response.text
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                raise NotFoundError(
+                    f"Artifact '{artifact_path}' not found for run {run_id}"
+                ) from e
+            raise ArtifactRetrievalError(
+                f"Artifact '{artifact_path}' not available for run {run_id}"
+            ) from e
         except httpx.HTTPError as e:
             raise ArtifactRetrievalError(
                 f"Artifact '{artifact_path}' not available for run {run_id}"
