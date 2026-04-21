@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 from dbtsl.models.metric import MetricType
 
 from dbt_mcp.config.config_providers.base import SemanticLayerConfig
-from dbt_mcp.semantic_layer.tools import _metrics_to_csv
+from dbt_mcp.semantic_layer.tools import metrics_to_csv
 from dbt_mcp.semantic_layer.types import ListMetricsResponse, MetricToolResponse
 
 
@@ -48,7 +48,7 @@ def _make_response(count: int, description: str | None = None) -> ListMetricsRes
 def test_no_trimming_when_response_fits():
     """When CSV fits within max_response_chars, description and metadata are kept."""
     response = _make_response(3, description="short")
-    result = _metrics_to_csv(response, max_response_chars=16000)
+    result = metrics_to_csv(response, max_response_chars=16000)
     assert "short" in result
     assert "description" in result.splitlines()[0]
 
@@ -56,7 +56,7 @@ def test_no_trimming_when_response_fits():
 def test_trims_when_csv_exceeds_max_chars():
     """When CSV exceeds max_response_chars, description and metadata are stripped."""
     response = _make_response(2, description="A " * 500)  # ~1000 chars each
-    result = _metrics_to_csv(response, max_response_chars=100)
+    result = metrics_to_csv(response, max_response_chars=100)
     header = result.splitlines()[0]
     assert "description" not in header
     assert "metadata" not in header
@@ -67,19 +67,19 @@ def test_trims_when_csv_exceeds_max_chars():
 def test_trimming_disabled_when_max_is_zero():
     """max_response_chars=0 disables trimming."""
     response = _make_response(2, description="A " * 500)
-    result = _metrics_to_csv(response, max_response_chars=0)
+    result = metrics_to_csv(response, max_response_chars=0)
     assert "description" in result.splitlines()[0]
 
 
 def test_empty_response_returns_empty_string():
-    result = _metrics_to_csv(ListMetricsResponse(metrics=[]))
+    result = metrics_to_csv(ListMetricsResponse(metrics=[]))
     assert result == ""
 
 
 def test_columns_without_data_are_omitted():
     """Columns with all-None values are not included."""
     response = _make_response(2, description=None)
-    result = _metrics_to_csv(response)
+    result = metrics_to_csv(response)
     header = result.splitlines()[0]
     assert "description" not in header
     assert "metadata" not in header

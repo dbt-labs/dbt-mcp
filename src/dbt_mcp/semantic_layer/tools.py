@@ -50,7 +50,7 @@ def _build_csv(metrics: list[MetricToolResponse], columns: list[str]) -> str:
     return output.getvalue().rstrip("\n")
 
 
-def _metrics_to_csv(response: ListMetricsResponse, max_response_chars: int = 0) -> str:
+def metrics_to_csv(response: ListMetricsResponse, max_response_chars: int = 0) -> str:
     metrics = response.metrics
     if not metrics:
         return ""
@@ -60,8 +60,8 @@ def _metrics_to_csv(response: ListMetricsResponse, max_response_chars: int = 0) 
         # count as "no data" so the column is omitted entirely.
         return any(getattr(m, field) for m in metrics)
 
-    columns: list[str] = ["name", "type", "label"]
-    for col in ("description", "metadata", "dimensions", "entities"):
+    columns: list[str] = ["name", "type"]
+    for col in ("label", "description", "metadata", "dimensions", "entities"):
         if _has_any(col):
             columns.append(col)
 
@@ -104,7 +104,7 @@ async def list_metrics(
     response = await context.semantic_layer_fetcher.list_metrics(
         config=config, search=search
     )
-    return _metrics_to_csv(response, max_response_chars=config.max_response_chars)
+    return metrics_to_csv(response, max_response_chars=config.max_response_chars)
 
 
 @dbt_mcp_tool(

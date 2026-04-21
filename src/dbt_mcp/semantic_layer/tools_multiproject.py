@@ -15,7 +15,7 @@ from dbt_mcp.semantic_layer.client import (
     SemanticLayerClientProvider,
     SemanticLayerFetcher,
 )
-from dbt_mcp.semantic_layer.tools import _metrics_to_csv
+from dbt_mcp.semantic_layer.tools import metrics_to_csv
 from dbt_mcp.semantic_layer.types import (
     DimensionToolResponse,
     EntityToolResponse,
@@ -60,7 +60,7 @@ async def list_metrics(
     response = await SemanticLayerFetcher(
         client_provider=context.client_provider,
     ).list_metrics(config=config, search=search)
-    return _metrics_to_csv(response, max_response_chars=config.max_response_chars)
+    return metrics_to_csv(response, max_response_chars=config.max_response_chars)
 
 
 @dbt_mcp_tool(
