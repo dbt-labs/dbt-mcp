@@ -304,6 +304,7 @@ class SemanticLayerFetcher:
         """
         if where is None:
             return None
+        where = where.strip()
         if len(where) >= 2 and where[0] == '"' and where[-1] == '"':
             where = where[1:-1]
         return where.strip() or None

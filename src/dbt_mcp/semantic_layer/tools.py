@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 import logging
 from dataclasses import dataclass
 
@@ -37,14 +38,16 @@ def _build_csv(metrics: list[MetricToolResponse], columns: list[str]) -> str:
             return ""
         if isinstance(val, list):
             return ", ".join(str(v) for v in val)
+        if isinstance(val, dict):
+            return json.dumps(val, separators=(",", ":"), sort_keys=True)
         return str(val)
 
-    output = io.StringIO(newline="")
-    writer = csv.writer(output)
+    output = io.StringIO()
+    writer = csv.writer(output, lineterminator="\n")
     writer.writerow(columns)
     for m in metrics:
         writer.writerow([_cell(m, col) for col in columns])
-    return output.getvalue().rstrip("\r\n")
+    return output.getvalue().rstrip("\n")
 
 
 def _metrics_to_csv(response: ListMetricsResponse, max_response_chars: int = 0) -> str:

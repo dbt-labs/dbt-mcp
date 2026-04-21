@@ -421,6 +421,22 @@ async def test_list_metrics_at_threshold_returns_full_config(
     assert result.metrics[0].entities is not None
 
 
+@pytest.mark.parametrize(
+    "input_where,expected",
+    [
+        (None, None),
+        ("", None),
+        ("   ", None),
+        ("metric_time > '2024-01-01'", "metric_time > '2024-01-01'"),
+        ("\"metric_time > '2024-01-01'\"", "metric_time > '2024-01-01'"),
+        ("  \"metric_time > '2024-01-01'\"  ", "metric_time > '2024-01-01'"),
+        ('"   "', None),
+    ],
+)
+def test_normalize_where(fetcher, input_where, expected) -> None:
+    assert fetcher._normalize_where(input_where) == expected
+
+
 def test_format_semantic_layer_error_cleans_query_failed_error(fetcher) -> None:
     """Normal QueryFailedError messages should be cleaned up."""
     error = Exception(
