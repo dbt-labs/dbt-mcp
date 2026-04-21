@@ -1,6 +1,8 @@
 <instructions>
 Get the dimensions for specified metrics
 
+Note: `metric_time` is a standard time dimension available on most metrics. You do not need to call this tool just to confirm time dimensions exist — call it only when you need categorical dimensions or specific granularity details. If this tool returns no results, proceed to query directly using `metric_time`.
+
 Dimensions are the attributes, features, or characteristics
 that describe or categorize data.
 

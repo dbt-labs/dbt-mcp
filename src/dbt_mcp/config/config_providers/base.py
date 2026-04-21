@@ -58,3 +58,4 @@ class SemanticLayerConfig:
     token_provider: TokenProvider
     headers_provider: HeadersProvider
     metrics_related_max: int = 10
+    max_response_chars: int = 16000

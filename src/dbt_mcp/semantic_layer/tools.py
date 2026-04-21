@@ -1,3 +1,6 @@
+import csv
+import io
+import json
 import logging
 from dataclasses import dataclass
 
@@ -14,10 +17,11 @@ from dbt_mcp.semantic_layer.types import (
     DimensionToolResponse,
     EntityToolResponse,
     GetMetricsCompiledSqlSuccess,
+    ListMetricsResponse,
+    MetricToolResponse,
     OrderByParam,
     QueryMetricsSuccess,
     SavedQueryToolResponse,
-    ListMetricsResponse,
 )
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
@@ -25,6 +29,48 @@ from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
+
+
+def _build_csv(metrics: list[MetricToolResponse], columns: list[str]) -> str:
+    def _cell(m: MetricToolResponse, col: str) -> str:
+        val = getattr(m, col)
+        if val is None:
+            return ""
+        if isinstance(val, list):
+            return ",".join(str(v) for v in val)
+        if isinstance(val, dict):
+            return json.dumps(val, separators=(",", ":"), sort_keys=True)
+        return str(val)
+
+    output = io.StringIO()
+    writer = csv.writer(output, lineterminator="\n")
+    writer.writerow(columns)
+    for m in metrics:
+        writer.writerow([_cell(m, col) for col in columns])
+    return output.getvalue().rstrip("\n")
+
+
+def metrics_to_csv(response: ListMetricsResponse, max_response_chars: int = 0) -> str:
+    metrics = response.metrics
+    if not metrics:
+        return ""
+
+    def _has_any(field: str) -> bool:
+        # Skip columns where every value is None/empty — empty lists/dicts/strings
+        # count as "no data" so the column is omitted entirely.
+        return any(getattr(m, field) for m in metrics)
+
+    columns: list[str] = ["name", "type"]
+    for col in ("label", "description", "metadata", "dimensions", "entities"):
+        if _has_any(col):
+            columns.append(col)
+
+    result = _build_csv(metrics, columns)
+    if max_response_chars > 0 and len(result) > max_response_chars:
+        # Strip optional fields and rebuild
+        columns = [c for c in columns if c not in ("description", "metadata")]
+        result = _build_csv(metrics, columns)
+    return result
 
 
 @dataclass
@@ -53,11 +99,12 @@ class SemanticLayerToolContext:
 async def list_metrics(
     context: SemanticLayerToolContext,
     search: str | None = None,
-) -> ListMetricsResponse:
+) -> str:
     config = await context.config_provider.get_config()
-    return await context.semantic_layer_fetcher.list_metrics(
+    response = await context.semantic_layer_fetcher.list_metrics(
         config=config, search=search
     )
+    return metrics_to_csv(response, max_response_chars=config.max_response_chars)
 
 
 @dbt_mcp_tool(

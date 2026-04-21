@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Reduce list_metrics response size by switching from JSON to CSV format, cutting response size by ~67% and reducing agent cost by up to 33% per query
+time: 2026-04-10T13:30:00.000000-07:00

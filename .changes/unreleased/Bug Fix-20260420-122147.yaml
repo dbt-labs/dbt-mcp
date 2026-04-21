@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Raise NotFoundError instead of ArtifactRetrievalError for 404 responses in get_job_run_artifact
-time: 2026-04-20T12:21:47.231658+01:00

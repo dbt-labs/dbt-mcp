@@ -108,6 +108,9 @@ class DbtMcpSettings(BaseSettings):
     sl_metrics_related_max: int = Field(
         10, alias="DBT_MCP_SL_METRICS_RELATED_MAX", ge=0
     )
+    sl_metrics_max_response_chars: int = Field(
+        16000, alias="DBT_MCP_SL_MAX_RESPONSE_CHARS", ge=0
+    )
 
     def __repr__(self):
         """Custom repr to bring most important settings to front. Redact sensitive info."""

@@ -148,6 +148,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
             credentials_provider=inner_credentials,
             admin_client=admin_client,
             metrics_related_max=settings.sl_metrics_related_max,
+            max_response_chars=settings.sl_metrics_max_response_chars,
         )
     )
     discovery_config_provider = DefaultDiscoveryConfigProvider(
@@ -156,6 +157,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
     semantic_layer_config_provider = DefaultSemanticLayerConfigProvider(
         credentials_provider=inner_credentials,
         metrics_related_max=settings.sl_metrics_related_max,
+        max_response_chars=settings.sl_metrics_max_response_chars,
     )
 
     # CLI/codegen/LSP — still conditional (need concrete paths at registration time)
