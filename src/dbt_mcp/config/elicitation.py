@@ -81,7 +81,7 @@ class ConfigPersistence:
 
             config_path = get_dbt_profiles_path() / "mcp-config.yml"
         self._path = config_path
-        self._lock_path = config_path.with_suffix(".lock")
+        self._lock_path = config_path.with_suffix(".lock").resolve()
 
     def _load_yaml(self) -> dict[str, Any]:
         """Parse the config file. Caller must hold the lock."""
@@ -158,7 +158,9 @@ class ElicitingCredentialsProvider:
                 )
                 self._inner.settings.dbt_host = data.dbt_host
                 result = await self._inner.get_credentials()
-                self._persistence.write("dbt_host", data.dbt_host)
+                await asyncio.to_thread(
+                    self._persistence.write, "dbt_host", data.dbt_host
+                )
                 return result
 
     @property
