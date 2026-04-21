@@ -267,6 +267,10 @@ class CredentialsProvider:
             self.settings.host_prefix = dbt_platform_context.host_prefix
             self.settings.dbt_project_ids = dbt_platform_context.selected_project_ids
             self.settings.dbt_host = self.settings.base_host
+            if self.settings.actual_host and not dbt_platform_context.dbt_host:
+                dbt_platform_context_manager.update_context(
+                    DbtPlatformContext(dbt_host=self.settings.actual_host)
+                )
             if not dbt_platform_context.decoded_access_token:
                 raise ValueError("No decoded access token found in OAuth context")
 
