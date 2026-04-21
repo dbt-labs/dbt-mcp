@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import logging
 import socket
 import time
 from enum import Enum
 from pathlib import Path
+from typing import Protocol, runtime_checkable
 
 from filelock import FileLock
 
@@ -177,8 +180,20 @@ async def get_dbt_platform_context(
         )
 
 
+@runtime_checkable
+class CredentialsProviderProtocol(Protocol):
+    """Shared interface for credential providers. Keeps wrappers in sync with the base."""
+
+    settings: DbtMcpSettings
+    token_provider: TokenProvider | None
+    authentication_method: AuthenticationMethod | None
+    account_identifier: str | None
+
+    async def get_credentials(self) -> tuple[DbtMcpSettings, TokenProvider]: ...
+
+
 class CredentialsProvider:
-    def __init__(self, settings: "DbtMcpSettings") -> None:
+    def __init__(self, settings: DbtMcpSettings) -> None:
         self.settings = settings
         self.token_provider: TokenProvider | None = None
         self.authentication_method: AuthenticationMethod | None = None
@@ -204,7 +219,7 @@ class CredentialsProvider:
             settings["dbt_token"] = "***redacted***"
         logger.info(f"Settings: {settings}")
 
-    async def get_credentials(self) -> "tuple[DbtMcpSettings, TokenProvider]":
+    async def get_credentials(self) -> tuple[DbtMcpSettings, TokenProvider]:
         # TODO: imports should be at the top of the file
         from dbt_mcp.config.settings import (
             _build_dbt_platform_url,
