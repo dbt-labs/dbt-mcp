@@ -1,12 +1,10 @@
-from pathlib import Path
-
 from dbt_mcp.config.config import (
     Config,
     DbtCliConfig,
     DbtCodegenConfig,
     LspConfig,
 )
-from dbt_mcp.config.elicitation import ConfigPersistence, ElicitingCredentialsProvider
+from dbt_mcp.config.elicitation import ElicitingCredentialsProvider
 from dbt_mcp.config.config_providers import (
     AdminApiConfig,
     DiscoveryConfig,
@@ -187,6 +185,5 @@ mock_config = Config(
     credentials_provider=MockCredentialsProvider(),
     eliciting_credentials_provider=ElicitingCredentialsProvider(
         inner=MockCredentialsProvider(),
-        persistence=ConfigPersistence(config_path=Path("/tmp/dbt-mcp-test-config.yml")),
     ),
 )

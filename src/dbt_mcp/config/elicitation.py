@@ -4,11 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-import yaml
-from filelock import FileLock
 from mcp.server.elicitation import (
     AcceptedElicitation,
     ElicitSchemaModelT,
@@ -72,53 +69,6 @@ async def elicit_or_raise(
     raise error
 
 
-class ConfigPersistence:
-    """Read/write elicited config values to ~/.dbt/mcp-config.yml."""
-
-    def __init__(self, config_path: Path | None = None) -> None:
-        if config_path is None:
-            from dbt_mcp.config.credentials import get_dbt_profiles_path
-
-            config_path = get_dbt_profiles_path() / "mcp-config.yml"
-        self._path = config_path.resolve()
-        self._lock_path = config_path.with_suffix(".lock").resolve()
-
-    def _load_yaml(self) -> dict[str, Any]:
-        """Parse the config file. Caller must hold the lock."""
-        if not self._path.exists():
-            return {}
-        try:
-            data = yaml.safe_load(self._path.read_text())
-        except yaml.YAMLError:
-            logger.warning(
-                "Failed to parse elicited config at %s — ignoring file",
-                self._path,
-            )
-            return {}
-        if not isinstance(data, dict):
-            return {}
-        return data
-
-    def read(self) -> dict[str, Any]:
-        """Read all persisted config values. Returns {} on missing or invalid files."""
-        if not self._path.exists():
-            return {}
-        with FileLock(self._lock_path):
-            return self._load_yaml()
-
-    def write(self, key: str, value: Any) -> None:
-        """Write a single config value. Preserves existing keys."""
-        with FileLock(self._lock_path):
-            existing = self._load_yaml()
-            existing[key] = value
-            self._path.parent.mkdir(parents=True, exist_ok=True)
-            self._path.write_text(yaml.dump(existing, default_flow_style=False))
-
-    def read_value(self, key: str) -> Any | None:
-        """Read a single config value. Returns None if not found."""
-        return self.read().get(key)
-
-
 class DbtHostSchema(BaseModel):
     """Elicitation form for dbt Cloud host."""
 
@@ -136,13 +86,8 @@ class DbtHostSchema(BaseModel):
 class ElicitingCredentialsProvider:
     """Wrap CredentialsProvider to elicit DBT_HOST when missing."""
 
-    def __init__(
-        self,
-        inner: CredentialsProvider,
-        persistence: ConfigPersistence,
-    ) -> None:
+    def __init__(self, inner: CredentialsProvider) -> None:
         self._inner = inner
-        self._persistence = persistence
         self._lock = asyncio.Lock()
 
     async def get_credentials(self) -> tuple[DbtMcpSettings, TokenProvider]:
@@ -158,14 +103,10 @@ class ElicitingCredentialsProvider:
                 )
                 self._inner.settings.dbt_host = data.dbt_host
                 try:
-                    result = await self._inner.get_credentials()
+                    return await self._inner.get_credentials()
                 except Exception:
                     self._inner.settings.dbt_host = None
                     raise
-                await asyncio.to_thread(
-                    self._persistence.write, "dbt_host", data.dbt_host
-                )
-                return result
 
     @property
     def settings(self) -> DbtMcpSettings:

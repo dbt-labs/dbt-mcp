@@ -14,7 +14,7 @@ from dbt_mcp.config.config_providers.semantic_layer import (
     MultiProjectSemanticLayerConfigProvider,
 )
 from dbt_mcp.config.credentials import CredentialsProvider
-from dbt_mcp.config.elicitation import ConfigPersistence, ElicitingCredentialsProvider
+from dbt_mcp.config.elicitation import ElicitingCredentialsProvider
 from dbt_mcp.config.settings import (
     DbtMcpLogSettings,
     DbtMcpSettings,
@@ -107,14 +107,8 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
     )
     settings = DbtMcpSettings()  # type: ignore
 
-    # Apply persisted config from previous elicitation (env vars still win)
-    persistence = ConfigPersistence()
-    persisted = persistence.read()
-    if settings.dbt_host is None and "dbt_host" in persisted:
-        settings.dbt_host = persisted["dbt_host"]
-
     inner_credentials = CredentialsProvider(settings)
-    credentials_provider = ElicitingCredentialsProvider(inner_credentials, persistence)
+    credentials_provider = ElicitingCredentialsProvider(inner_credentials)
 
     # Set default warn error options if not provided
     if settings.dbt_warn_error_options is None:

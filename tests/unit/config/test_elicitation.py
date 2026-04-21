@@ -1,16 +1,13 @@
 """Tests for the general-purpose MCP elicitation infrastructure."""
 
 import asyncio
-from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import yaml
 
 from dbt_mcp.errors.common import MissingHostError
 from dbt_mcp.config.elicitation import (
-    ConfigPersistence,
     DbtHostSchema,
     ElicitingCredentialsProvider,
     elicit_or_raise,
@@ -167,64 +164,6 @@ class TestElicitOrRaise:
 
 
 # ---------------------------------------------------------------------------
-# TestConfigPersistence
-# ---------------------------------------------------------------------------
-
-
-class TestConfigPersistence:
-    def test_read_returns_empty_dict_when_no_file(self, tmp_path: Path):
-        p = ConfigPersistence(config_path=tmp_path / "nonexistent.yml")
-        assert p.read() == {}
-
-    def test_write_creates_file_and_dirs(self, tmp_path: Path):
-        nested = tmp_path / "a" / "b" / "config.yml"
-        p = ConfigPersistence(config_path=nested)
-        p.write("key", "value")
-
-        assert nested.exists()
-        data = yaml.safe_load(nested.read_text())
-        assert data == {"key": "value"}
-
-    def test_write_preserves_existing_keys(self, tmp_path: Path):
-        config_file = tmp_path / "config.yml"
-        config_file.write_text(yaml.dump({"existing": "one"}))
-
-        p = ConfigPersistence(config_path=config_file)
-        p.write("new_key", "two")
-
-        data = yaml.safe_load(config_file.read_text())
-        assert data == {"existing": "one", "new_key": "two"}
-
-    def test_read_value_returns_none_for_missing_key(self, tmp_path: Path):
-        config_file = tmp_path / "config.yml"
-        config_file.write_text(yaml.dump({"a": 1}))
-
-        p = ConfigPersistence(config_path=config_file)
-        assert p.read_value("nonexistent") is None
-
-    def test_read_value_returns_stored_value(self, tmp_path: Path):
-        config_file = tmp_path / "config.yml"
-        p = ConfigPersistence(config_path=config_file)
-        p.write("host", "cloud.getdbt.com")
-
-        assert p.read_value("host") == "cloud.getdbt.com"
-
-    def test_handles_empty_file(self, tmp_path: Path):
-        config_file = tmp_path / "config.yml"
-        config_file.write_text("")
-
-        p = ConfigPersistence(config_path=config_file)
-        assert p.read() == {}
-
-    def test_handles_corrupt_yaml(self, tmp_path: Path):
-        config_file = tmp_path / "config.yml"
-        config_file.write_text(": : : not valid yaml [[[")
-
-        p = ConfigPersistence(config_path=config_file)
-        assert p.read() == {}
-
-
-# ---------------------------------------------------------------------------
 # TestDbtHostSchema
 # ---------------------------------------------------------------------------
 
@@ -260,6 +199,7 @@ class TestElicitingCredentialsProvider:
         """Build a mock CredentialsProvider that succeeds by default."""
         inner = MagicMock()
         inner.settings = MagicMock()
+        inner.settings.dbt_host = None
         inner.token_provider = MagicMock()
         inner.authentication_method = MagicMock()
         inner.account_identifier = "test-account"
@@ -268,22 +208,20 @@ class TestElicitingCredentialsProvider:
         )
         return inner
 
-    def _make_elicitation_wrapper(self, inner, tmp_path, *, host="cloud.getdbt.com"):
+    def _make_elicitation_wrapper(self, inner, *, host="cloud.getdbt.com"):
         """Set up inner to fail once with missing DBT_HOST, then succeed on retry."""
         inner.get_credentials.side_effect = [
             MissingHostError("DBT_HOST is a required environment variable"),
             (inner.settings, inner.token_provider),
         ]
-        persistence = ConfigPersistence(config_path=tmp_path / "cfg.yml")
-        wrapper = ElicitingCredentialsProvider(inner, persistence)
+        wrapper = ElicitingCredentialsProvider(inner)
         accepted = DbtHostSchema(dbt_host=host)
-        return wrapper, persistence, accepted
+        return wrapper, accepted
 
     @pytest.mark.asyncio
-    async def test_delegates_to_inner_when_credentials_available(self, tmp_path: Path):
+    async def test_delegates_to_inner_when_credentials_available(self):
         inner = self._make_inner()
-        persistence = ConfigPersistence(config_path=tmp_path / "cfg.yml")
-        wrapper = ElicitingCredentialsProvider(inner, persistence)
+        wrapper = ElicitingCredentialsProvider(inner)
 
         result = await wrapper.get_credentials()
 
@@ -291,9 +229,9 @@ class TestElicitingCredentialsProvider:
         inner.get_credentials.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_elicits_dbt_host_on_missing_host_error(self, tmp_path: Path):
+    async def test_elicits_dbt_host_on_missing_host_error(self):
         inner = self._make_inner()
-        wrapper, _, accepted = self._make_elicitation_wrapper(inner, tmp_path)
+        wrapper, accepted = self._make_elicitation_wrapper(inner)
 
         with patch(
             "dbt_mcp.config.elicitation.elicit_or_raise",
@@ -306,12 +244,11 @@ class TestElicitingCredentialsProvider:
         assert inner.settings.dbt_host == "cloud.getdbt.com"
 
     @pytest.mark.asyncio
-    async def test_reraises_non_host_errors(self, tmp_path: Path):
+    async def test_reraises_non_host_errors(self):
         original = ValueError("something else entirely")
         inner = self._make_inner()
         inner.get_credentials = AsyncMock(side_effect=original)
-        persistence = ConfigPersistence(config_path=tmp_path / "cfg.yml")
-        wrapper = ElicitingCredentialsProvider(inner, persistence)
+        wrapper = ElicitingCredentialsProvider(inner)
 
         with pytest.raises(ValueError) as exc_info:
             await wrapper.get_credentials()
@@ -319,70 +256,44 @@ class TestElicitingCredentialsProvider:
         assert exc_info.value is original
 
     @pytest.mark.asyncio
-    async def test_persists_elicited_host(self, tmp_path: Path):
+    async def test_concurrent_calls_elicit_only_once(self):
         inner = self._make_inner()
-        wrapper, persistence, accepted = self._make_elicitation_wrapper(
-            inner, tmp_path, host="emea.dbt.com"
-        )
-
-        with patch(
-            "dbt_mcp.config.elicitation.elicit_or_raise",
-            new_callable=AsyncMock,
-            return_value=accepted,
-        ):
-            await wrapper.get_credentials()
-
-        assert persistence.read_value("dbt_host") == "emea.dbt.com"
-
-    @pytest.mark.asyncio
-    async def test_concurrent_calls_elicit_only_once(self, tmp_path: Path):
-        inner = self._make_inner()
-        # First call raises, all subsequent succeed
         inner.get_credentials.side_effect = [
             MissingHostError("DBT_HOST is a required environment variable"),
             (inner.settings, inner.token_provider),
             (inner.settings, inner.token_provider),
         ]
-        persistence = ConfigPersistence(config_path=tmp_path / "cfg.yml")
-        wrapper = ElicitingCredentialsProvider(inner, persistence)
+        wrapper = ElicitingCredentialsProvider(inner)
         accepted = DbtHostSchema(dbt_host="cloud.getdbt.com")
-
-        # Gate forces first call to yield at elicitation, giving second call
-        # a chance to contend on the lock — proving real serialization.
-        gate = asyncio.Event()
 
         real_elicit_call_count = 0
 
         async def slow_elicit(*args: Any, **kwargs: Any) -> DbtHostSchema:
             nonlocal real_elicit_call_count
             real_elicit_call_count += 1
-            gate.set()  # signal that elicitation is in progress
-            await asyncio.sleep(0)  # yield to event loop so second task runs
+            await asyncio.sleep(0)
             return accepted
 
         with patch(
             "dbt_mcp.config.elicitation.elicit_or_raise",
             side_effect=slow_elicit,
         ):
-            # Start both tasks; second will block on the lock while first elicits
             task1 = asyncio.create_task(wrapper.get_credentials())
-            await asyncio.sleep(0)  # let task1 start and hit the lock
+            await asyncio.sleep(0)
             task2 = asyncio.create_task(wrapper.get_credentials())
             results = await asyncio.gather(task1, task2)
 
-        # Lock serializes: first call elicits, second sees the already-set host
         assert real_elicit_call_count == 1
         assert all(r == (inner.settings, inner.token_provider) for r in results)
 
     @pytest.mark.asyncio
-    async def test_does_not_persist_when_retry_fails(self, tmp_path: Path):
+    async def test_resets_host_when_retry_fails(self):
         inner = self._make_inner()
         inner.get_credentials.side_effect = [
             MissingHostError("DBT_HOST is a required environment variable"),
             RuntimeError("OAuth failed for invalid host"),
         ]
-        persistence = ConfigPersistence(config_path=tmp_path / "cfg.yml")
-        wrapper = ElicitingCredentialsProvider(inner, persistence)
+        wrapper = ElicitingCredentialsProvider(inner)
         accepted = DbtHostSchema(dbt_host="bad-host.example.com")
 
         with (
@@ -395,13 +306,11 @@ class TestElicitingCredentialsProvider:
         ):
             await wrapper.get_credentials()
 
-        assert persistence.read_value("dbt_host") is None
         assert inner.settings.dbt_host is None
 
-    def test_transparent_property_delegation(self, tmp_path: Path):
+    def test_transparent_property_delegation(self):
         inner = self._make_inner()
-        persistence = ConfigPersistence(config_path=tmp_path / "cfg.yml")
-        wrapper = ElicitingCredentialsProvider(inner, persistence)
+        wrapper = ElicitingCredentialsProvider(inner)
 
         assert wrapper.settings is inner.settings
         assert wrapper.token_provider is inner.token_provider
