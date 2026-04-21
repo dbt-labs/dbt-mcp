@@ -231,12 +231,14 @@ class CredentialsProvider:
             config_location = dbt_user_dir / "mcp.yml"
             dbt_platform_context_manager = DbtPlatformContextManager(config_location)
             existing_context = dbt_platform_context_manager.read_context()
-            if (
-                existing_context
-                and existing_context.dbt_host
-                and not self.settings.actual_host
-            ):
-                self.settings.dbt_host = existing_context.dbt_host
+            if existing_context and not self.settings.actual_host:
+                if existing_context.dbt_host:
+                    self.settings.dbt_host = existing_context.dbt_host
+                if (
+                    existing_context.host_prefix
+                    and not self.settings.actual_host_prefix
+                ):
+                    self.settings.host_prefix = existing_context.host_prefix
             actual_host = self.settings.actual_host
             if not actual_host:
                 raise MissingHostError("DBT_HOST is a required environment variable")
