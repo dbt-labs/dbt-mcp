@@ -396,6 +396,7 @@ class TestElicitingCredentialsProvider:
             await wrapper.get_credentials()
 
         assert persistence.read_value("dbt_host") is None
+        assert inner.settings.dbt_host is None
 
     def test_transparent_property_delegation(self, tmp_path: Path):
         inner = self._make_inner()

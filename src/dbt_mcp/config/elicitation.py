@@ -80,7 +80,7 @@ class ConfigPersistence:
             from dbt_mcp.config.credentials import get_dbt_profiles_path
 
             config_path = get_dbt_profiles_path() / "mcp-config.yml"
-        self._path = config_path
+        self._path = config_path.resolve()
         self._lock_path = config_path.with_suffix(".lock").resolve()
 
     def _load_yaml(self) -> dict[str, Any]:
@@ -157,7 +157,11 @@ class ElicitingCredentialsProvider:
                     "Let's set up dbt-mcp. What's your dbt Cloud host?",
                 )
                 self._inner.settings.dbt_host = data.dbt_host
-                result = await self._inner.get_credentials()
+                try:
+                    result = await self._inner.get_credentials()
+                except Exception:
+                    self._inner.settings.dbt_host = None
+                    raise
                 await asyncio.to_thread(
                     self._persistence.write, "dbt_host", data.dbt_host
                 )
