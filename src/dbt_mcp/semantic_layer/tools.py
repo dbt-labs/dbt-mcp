@@ -37,7 +37,7 @@ def _build_csv(metrics: list[MetricToolResponse], columns: list[str]) -> str:
         if val is None:
             return ""
         if isinstance(val, list):
-            return ", ".join(str(v) for v in val)
+            return ",".join(str(v) for v in val)
         if isinstance(val, dict):
             return json.dumps(val, separators=(",", ":"), sort_keys=True)
         return str(val)
