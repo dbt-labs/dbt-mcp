@@ -11,7 +11,7 @@ from dbt_mcp.config.elicitation import (
     DbtHostSchema,
     ElicitingCredentialsProvider,
     elicit_or_raise,
-    get_mcp_session,
+    get_elicitation_session,
 )
 
 
@@ -70,7 +70,7 @@ class TestGetMcpSession:
 
         with patch("mcp.server.lowlevel.server.request_ctx") as mock_ctx_var:
             mock_ctx_var.get.return_value = resolved
-            assert get_mcp_session() is None
+            assert get_elicitation_session() is None
 
     def test_returns_session_when_elicitation_supported(self):
         session = _make_session(elicitation_supported=True)
@@ -78,7 +78,7 @@ class TestGetMcpSession:
 
         with patch("mcp.server.lowlevel.server.request_ctx") as mock_ctx_var:
             mock_ctx_var.get.return_value = ctx
-            result = get_mcp_session()
+            result = get_elicitation_session()
 
         assert result is not None
         returned_session, returned_request_id = result
@@ -96,7 +96,9 @@ class TestElicitOrRaise:
     async def test_raises_original_error_when_no_session(self):
         original = ValueError("something is missing")
 
-        with patch("dbt_mcp.config.elicitation.get_mcp_session", return_value=None):
+        with patch(
+            "dbt_mcp.config.elicitation.get_elicitation_session", return_value=None
+        ):
             with pytest.raises(ValueError) as exc_info:
                 await elicit_or_raise(original, MagicMock, "provide it")
 
@@ -119,7 +121,7 @@ class TestElicitOrRaise:
 
         with (
             patch(
-                "dbt_mcp.config.elicitation.get_mcp_session",
+                "dbt_mcp.config.elicitation.get_elicitation_session",
                 return_value=(session, "req-1"),
             ),
             patch(
@@ -147,7 +149,7 @@ class TestElicitOrRaise:
 
         with (
             patch(
-                "dbt_mcp.config.elicitation.get_mcp_session",
+                "dbt_mcp.config.elicitation.get_elicitation_session",
                 return_value=(session, "req-1"),
             ),
             patch(
@@ -258,11 +260,16 @@ class TestElicitingCredentialsProvider:
     @pytest.mark.asyncio
     async def test_concurrent_calls_elicit_only_once(self):
         inner = self._make_inner()
-        inner.get_credentials.side_effect = [
-            MissingHostError("DBT_HOST is a required environment variable"),
-            (inner.settings, inner.token_provider),
-            (inner.settings, inner.token_provider),
-        ]
+        call_count = 0
+
+        async def order_independent_credentials():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise MissingHostError("DBT_HOST is a required environment variable")
+            return (inner.settings, inner.token_provider)
+
+        inner.get_credentials = AsyncMock(side_effect=order_independent_credentials)
         wrapper = ElicitingCredentialsProvider(inner)
         accepted = DbtHostSchema(dbt_host="cloud.getdbt.com")
 

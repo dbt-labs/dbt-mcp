@@ -25,8 +25,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def get_mcp_session() -> tuple[ServerSession, RequestId] | None:
-    """Return the active MCP session and request ID, or None if elicitation is unsupported."""
+def get_elicitation_session() -> tuple[ServerSession, RequestId] | None:
+    """Return the active MCP session and request ID if the client supports elicitation."""
     from mcp.server.lowlevel.server import request_ctx
 
     ctx = request_ctx.get(None)
@@ -51,7 +51,7 @@ async def elicit_or_raise(
     message: str,
 ) -> ElicitSchemaModelT:
     """Elicit information from the user, or re-raise the original error."""
-    session_info = get_mcp_session()
+    session_info = get_elicitation_session()
     if session_info is None:
         raise error
 
