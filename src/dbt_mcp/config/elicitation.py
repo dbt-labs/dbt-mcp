@@ -18,10 +18,7 @@ from pydantic import BaseModel, Field, field_validator
 from dbt_mcp.errors.common import MissingHostError
 
 if TYPE_CHECKING:
-    from dbt_mcp.config.credentials import (
-        AuthenticationMethod,
-        CredentialsProviderProtocol,
-    )
+    from dbt_mcp.config.credentials import AuthenticationMethod, CredentialsProvider
     from dbt_mcp.config.headers import TokenProvider
     from dbt_mcp.config.settings import DbtMcpSettings
 
@@ -89,7 +86,7 @@ class DbtHostSchema(BaseModel):
 class ElicitingCredentialsProvider:
     """Wrap CredentialsProvider to elicit DBT_HOST when missing."""
 
-    def __init__(self, inner: CredentialsProviderProtocol) -> None:
+    def __init__(self, inner: CredentialsProvider) -> None:
         self._inner = inner
         self._lock = asyncio.Lock()
 

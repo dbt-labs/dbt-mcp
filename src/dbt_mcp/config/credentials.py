@@ -5,7 +5,6 @@ import socket
 import time
 from enum import Enum
 from pathlib import Path
-from typing import Protocol, runtime_checkable
 
 from filelock import FileLock
 
@@ -178,18 +177,6 @@ async def get_dbt_platform_context(
             port=selected_port,
             dbt_platform_context_manager=dbt_platform_context_manager,
         )
-
-
-@runtime_checkable
-class CredentialsProviderProtocol(Protocol):
-    """Shared interface for credential providers. Keeps wrappers in sync with the base."""
-
-    settings: DbtMcpSettings
-    token_provider: TokenProvider | None
-    authentication_method: AuthenticationMethod | None
-    account_identifier: str | None
-
-    async def get_credentials(self) -> tuple[DbtMcpSettings, TokenProvider]: ...
 
 
 class CredentialsProvider:
