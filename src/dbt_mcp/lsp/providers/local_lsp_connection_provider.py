@@ -70,12 +70,12 @@ class LocalLSPConnectionProvider(LSPConnectionProvider):
 
         try:
             logger.info(
-                f"Using LSP binary in {self.lsp_binary_info.path} with version {self.lsp_binary_info.version}"
+                f"Using LSP command '{' '.join(self.lsp_binary_info.cmd)}' with version {self.lsp_binary_info.version}"
             )
 
             # Create the connection wrapper (doesn't start the process yet)
             lsp_connection = SocketLSPConnection(
-                binary_path=self.lsp_binary_info.path,
+                cmd=self.lsp_binary_info.cmd,
                 args=[],
                 cwd=self.project_dir,
             )

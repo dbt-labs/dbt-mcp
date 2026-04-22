@@ -9,6 +9,7 @@ from dbt_mcp.lsp.lsp_binary_manager import (
     CodeEditor,
     LspBinaryInfo,
     dbt_lsp_binary_info,
+    detect_fusion_lsp,
     detect_lsp_binary,
     get_lsp_binary_version,
     get_storage_path,
@@ -228,7 +229,7 @@ class TestDetectLspBinary:
         result = detect_lsp_binary()
 
         assert result is not None
-        assert result.path == "/path/to/cursor/dbt-lsp"
+        assert result.cmd == ["/path/to/cursor/dbt-lsp"]
         assert result.version == "1.5.0"
         assert mock_get_path.call_count == 2  # Called for CODE and CURSOR
 
@@ -289,94 +290,170 @@ class TestDetectLspBinary:
         result = detect_lsp_binary()
 
         assert result is not None
-        assert result.path == "/path/to/windsurf/dbt-lsp"
+        assert result.cmd == ["/path/to/windsurf/dbt-lsp"]
         assert result.version == "2.0.0"
+
+
+class TestDetectFusionLsp:
+    """Tests for detect_fusion_lsp function."""
+
+    @patch("dbt_mcp.lsp.lsp_binary_manager.subprocess.run")
+    @patch("dbt_mcp.lsp.lsp_binary_manager.shutil.which")
+    def test_fusion_available_returns_binary_info(self, mock_which, mock_run):
+        """Test that Fusion LSP is detected when dbt supports lsp subcommand."""
+        mock_which.return_value = "/usr/local/bin/dbt"
+        mock_run.side_effect = [
+            Mock(returncode=0),  # dbt lsp --help
+            Mock(stdout="dbt-fusion 1.9.0\n"),  # dbt --version
+        ]
+
+        result = detect_fusion_lsp("dbt")
+
+        assert result is not None
+        assert result.cmd == ["dbt", "lsp"]
+        assert result.version == "dbt-fusion 1.9.0"
+
+    @patch("dbt_mcp.lsp.lsp_binary_manager.shutil.which")
+    def test_dbt_not_in_path_returns_none(self, mock_which):
+        """Test that None is returned when dbt is not in PATH."""
+        mock_which.return_value = None
+
+        result = detect_fusion_lsp("dbt")
+
+        assert result is None
+
+    @patch("dbt_mcp.lsp.lsp_binary_manager.subprocess.run")
+    @patch("dbt_mcp.lsp.lsp_binary_manager.shutil.which")
+    def test_dbt_lsp_not_supported_returns_none(self, mock_which, mock_run):
+        """Test that None is returned when dbt does not support the lsp subcommand."""
+        mock_which.return_value = "/usr/bin/dbt"
+        mock_run.return_value = Mock(returncode=1)  # dbt lsp --help fails
+
+        result = detect_fusion_lsp("dbt")
+
+        assert result is None
+
+    @patch("dbt_mcp.lsp.lsp_binary_manager.subprocess.run")
+    @patch("dbt_mcp.lsp.lsp_binary_manager.shutil.which")
+    def test_custom_dbt_path_used_in_cmd(self, mock_which, mock_run):
+        """Test that a custom dbt_path is reflected in the returned cmd."""
+        mock_which.return_value = "/custom/path/dbt"
+        mock_run.side_effect = [
+            Mock(returncode=0),
+            Mock(stdout="2.0.0\n"),
+        ]
+
+        result = detect_fusion_lsp("/custom/path/dbt")
+
+        assert result is not None
+        assert result.cmd == ["/custom/path/dbt", "lsp"]
+
+    @patch("dbt_mcp.lsp.lsp_binary_manager.subprocess.run")
+    @patch("dbt_mcp.lsp.lsp_binary_manager.shutil.which")
+    def test_subprocess_timeout_returns_none(self, mock_which, mock_run):
+        """Test that a subprocess timeout is handled gracefully."""
+        import subprocess as sp
+
+        mock_which.return_value = "/usr/bin/dbt"
+        mock_run.side_effect = sp.TimeoutExpired(cmd="dbt", timeout=5)
+
+        result = detect_fusion_lsp("dbt")
+
+        assert result is None
 
 
 class TestDbtLspBinaryInfo:
     """Tests for dbt_lsp_binary_info function."""
 
-    def test_custom_path_valid_file(self, tmp_path):
-        """Test using a valid custom LSP binary path."""
+    @patch("dbt_mcp.lsp.lsp_binary_manager.detect_fusion_lsp")
+    def test_fusion_takes_priority_over_custom_path(self, mock_fusion, tmp_path):
+        """Test that Fusion is preferred over a custom LSP path."""
+        mock_fusion.return_value = LspBinaryInfo(cmd=["dbt", "lsp"], version="2.0.0")
         lsp_binary = tmp_path / "custom-lsp"
         lsp_binary.touch()
-        version_file = tmp_path / ".version"
-        version_file.write_text("1.0.0")
 
-        with patch(
-            "dbt_mcp.lsp.lsp_binary_manager.get_lsp_binary_version"
-        ) as mock_version:
-            mock_version.return_value = "1.0.0"
-
-            result = dbt_lsp_binary_info(str(lsp_binary))
-
-            assert result is not None
-            assert result.path == str(lsp_binary)
-            assert result.version == "1.0.0"
-
-    @patch("dbt_mcp.lsp.lsp_binary_manager.detect_lsp_binary")
-    def test_custom_path_invalid_falls_back_to_detection(self, mock_detect):
-        """Test that invalid custom path falls back to auto-detection."""
-        mock_detect.return_value = LspBinaryInfo(
-            path="/auto/detected/path", version="2.0.0"
-        )
-
-        result = dbt_lsp_binary_info("/nonexistent/path")
+        result = dbt_lsp_binary_info(lsp_path=str(lsp_binary), dbt_path="dbt")
 
         assert result is not None
-        assert result.path == "/auto/detected/path"
-        assert result.version == "2.0.0"
+        assert result.cmd == ["dbt", "lsp"]
+        mock_fusion.assert_called_once_with("dbt")
+
+    @patch("dbt_mcp.lsp.lsp_binary_manager.detect_fusion_lsp")
+    def test_custom_path_used_when_no_fusion(self, mock_fusion, tmp_path):
+        """Test that custom LSP path is used when Fusion is not available."""
+        mock_fusion.return_value = None
+        lsp_binary = tmp_path / "custom-lsp"
+        lsp_binary.touch()
+
+        with patch("dbt_mcp.lsp.lsp_binary_manager.get_lsp_binary_version") as mock_v:
+            mock_v.return_value = "1.0.0"
+            result = dbt_lsp_binary_info(lsp_path=str(lsp_binary), dbt_path="dbt")
+
+        assert result is not None
+        assert result.cmd == [str(lsp_binary)]
+        assert result.version == "1.0.0"
+
+    @patch("dbt_mcp.lsp.lsp_binary_manager.detect_lsp_binary")
+    @patch("dbt_mcp.lsp.lsp_binary_manager.detect_fusion_lsp")
+    def test_editor_paths_fallback_when_no_fusion_no_custom_path(
+        self, mock_fusion, mock_detect
+    ):
+        """Test that editor storage paths are used as last resort."""
+        mock_fusion.return_value = None
+        mock_detect.return_value = LspBinaryInfo(
+            cmd=["/path/to/editor/dbt-lsp"], version="1.5.0"
+        )
+
+        result = dbt_lsp_binary_info(lsp_path=None, dbt_path="dbt")
+
+        assert result is not None
+        assert result.cmd == ["/path/to/editor/dbt-lsp"]
         mock_detect.assert_called_once()
 
     @patch("dbt_mcp.lsp.lsp_binary_manager.detect_lsp_binary")
-    def test_custom_path_empty_string_uses_detection(self, mock_detect):
-        """Test that empty string path triggers auto-detection."""
-        mock_detect.return_value = LspBinaryInfo(
-            path="/auto/detected/path", version="3.0.0"
-        )
-
-        result = dbt_lsp_binary_info("")
-
-        assert result is not None
-        assert result.path == "/auto/detected/path"
-        mock_detect.assert_called_once()
-
-    @patch("dbt_mcp.lsp.lsp_binary_manager.detect_lsp_binary")
-    def test_no_custom_path_uses_detection(self, mock_detect):
-        """Test that None path uses auto-detection."""
-        mock_detect.return_value = LspBinaryInfo(
-            path="/auto/detected/path", version="4.0.0"
-        )
-
-        result = dbt_lsp_binary_info(None)
-
-        assert result is not None
-        assert result.path == "/auto/detected/path"
-        mock_detect.assert_called_once()
-
-    @patch("dbt_mcp.lsp.lsp_binary_manager.detect_lsp_binary")
-    def test_detection_returns_none(self, mock_detect):
-        """Test that None is returned when detection fails."""
+    @patch("dbt_mcp.lsp.lsp_binary_manager.detect_fusion_lsp")
+    def test_returns_none_when_all_detection_fails(self, mock_fusion, mock_detect):
+        """Test that None is returned when all detection methods fail."""
+        mock_fusion.return_value = None
         mock_detect.return_value = None
 
-        result = dbt_lsp_binary_info(None)
+        result = dbt_lsp_binary_info(lsp_path=None, dbt_path="dbt")
 
         assert result is None
+
+    @patch("dbt_mcp.lsp.lsp_binary_manager.detect_lsp_binary")
+    @patch("dbt_mcp.lsp.lsp_binary_manager.detect_fusion_lsp")
+    def test_invalid_custom_path_falls_back_to_editor(self, mock_fusion, mock_detect):
+        """Test that invalid custom path falls back to editor storage detection."""
+        mock_fusion.return_value = None
+        mock_detect.return_value = LspBinaryInfo(
+            cmd=["/editor/dbt-lsp"], version="3.0.0"
+        )
+
+        result = dbt_lsp_binary_info(lsp_path="/nonexistent/path", dbt_path="dbt")
+
+        assert result is not None
+        assert result.cmd == ["/editor/dbt-lsp"]
+        mock_detect.assert_called_once()
 
     def test_custom_path_directory_not_file(self, tmp_path):
         """Test that directory path (not file) falls back to detection."""
         lsp_dir = tmp_path / "lsp"
         lsp_dir.mkdir()
 
-        with patch("dbt_mcp.lsp.lsp_binary_manager.detect_lsp_binary") as mock_detect:
+        with (
+            patch("dbt_mcp.lsp.lsp_binary_manager.detect_fusion_lsp") as mock_fusion,
+            patch("dbt_mcp.lsp.lsp_binary_manager.detect_lsp_binary") as mock_detect,
+        ):
+            mock_fusion.return_value = None
             mock_detect.return_value = LspBinaryInfo(
-                path="/detected/path", version="5.0.0"
+                cmd=["/detected/path"], version="5.0.0"
             )
 
-            result = dbt_lsp_binary_info(str(lsp_dir))
+            result = dbt_lsp_binary_info(lsp_path=str(lsp_dir), dbt_path="dbt")
 
             assert result is not None
-            assert result.path == "/detected/path"
+            assert result.cmd == ["/detected/path"]
             mock_detect.assert_called_once()
 
 
@@ -385,16 +462,23 @@ class TestLspBinaryInfo:
 
     def test_create_lsp_binary_info(self):
         """Test creating LspBinaryInfo instance."""
-        info = LspBinaryInfo(path="/path/to/lsp", version="1.2.3")
+        info = LspBinaryInfo(cmd=["/path/to/lsp"], version="1.2.3")
 
-        assert info.path == "/path/to/lsp"
+        assert info.cmd == ["/path/to/lsp"]
         assert info.version == "1.2.3"
+
+    def test_create_fusion_lsp_binary_info(self):
+        """Test creating LspBinaryInfo for Fusion (multi-element cmd)."""
+        info = LspBinaryInfo(cmd=["dbt", "lsp"], version="1.5.0")
+
+        assert info.cmd == ["dbt", "lsp"]
+        assert info.version == "1.5.0"
 
     def test_lsp_binary_info_equality(self):
         """Test LspBinaryInfo equality comparison."""
-        info1 = LspBinaryInfo(path="/path/to/lsp", version="1.2.3")
-        info2 = LspBinaryInfo(path="/path/to/lsp", version="1.2.3")
-        info3 = LspBinaryInfo(path="/other/path", version="1.2.3")
+        info1 = LspBinaryInfo(cmd=["/path/to/lsp"], version="1.2.3")
+        info2 = LspBinaryInfo(cmd=["/path/to/lsp"], version="1.2.3")
+        info3 = LspBinaryInfo(cmd=["/other/path"], version="1.2.3")
 
         assert info1 == info2
         assert info1 != info3

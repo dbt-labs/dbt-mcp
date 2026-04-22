@@ -12,7 +12,6 @@ import socket
 import subprocess
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 import uuid
 from dataclasses import asdict
@@ -86,7 +85,7 @@ class SocketLSPConnection(LSPConnectionProviderProtocol):
 
     def __init__(
         self,
-        binary_path: str,
+        cmd: list[str],
         cwd: str,
         args: Sequence[str] | None = None,
         connection_timeout: float = 10,
@@ -95,7 +94,7 @@ class SocketLSPConnection(LSPConnectionProviderProtocol):
         """Initialize the LSP connection manager.
 
         Args:
-            binary_path: Path to the LSP server binary
+            cmd: Command to launch the LSP server (e.g. ["dbt", "lsp"] or ["/path/to/dbt-lsp"])
             cwd: Working directory for the LSP process
             args: Optional command-line arguments for the LSP server
             connection_timeout: Timeout in seconds for establishing the initial socket
@@ -104,7 +103,7 @@ class SocketLSPConnection(LSPConnectionProviderProtocol):
                                    (default: 60). Used when no timeout is specified for
                                    individual requests.
         """
-        self.binary_path = Path(binary_path)
+        self.cmd = cmd
         self.args = list(args) if args else []
         self.cwd = cwd
         self.host = "127.0.0.1"
@@ -129,7 +128,7 @@ class SocketLSPConnection(LSPConnectionProviderProtocol):
         self.connection_timeout = connection_timeout
         self.default_request_timeout = default_request_timeout
 
-        logger.debug(f"LSP Connection initialized with binary: {self.binary_path}")
+        logger.debug(f"LSP Connection initialized with command: {' '.join(self.cmd)}")
 
     def compiled(self) -> bool:
         return self.state.compiled
@@ -207,7 +206,7 @@ class SocketLSPConnection(LSPConnectionProviderProtocol):
         """
         # Prepare command with socket info
         cmd = [
-            str(self.binary_path),
+            *self.cmd,
             "--socket",
             f"{self.port}",
             "--project-dir",
