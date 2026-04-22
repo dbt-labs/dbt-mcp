@@ -304,7 +304,7 @@ class TestDetectFusionLsp:
         mock_which.return_value = "/usr/local/bin/dbt"
         mock_run.side_effect = [
             Mock(returncode=0),  # dbt lsp --help
-            Mock(stdout="dbt-fusion 1.9.0\n"),  # dbt --version
+            Mock(returncode=0, stdout="dbt-fusion 1.9.0\n"),  # dbt --version
         ]
 
         result = detect_fusion_lsp("dbt")
@@ -360,6 +360,33 @@ class TestDetectFusionLsp:
         result = detect_fusion_lsp("dbt")
 
         assert result is None
+
+    @patch("dbt_mcp.lsp.lsp_binary_manager.subprocess.run")
+    @patch("dbt_mcp.lsp.lsp_binary_manager.shutil.which")
+    def test_oserror_on_probe_returns_none(self, mock_which, mock_run):
+        """Test that an OSError (e.g. exec format error) is handled gracefully."""
+        mock_which.return_value = "/usr/bin/dbt"
+        mock_run.side_effect = OSError("Exec format error")
+
+        result = detect_fusion_lsp("dbt")
+
+        assert result is None
+
+    @patch("dbt_mcp.lsp.lsp_binary_manager.subprocess.run")
+    @patch("dbt_mcp.lsp.lsp_binary_manager.shutil.which")
+    def test_version_failure_still_returns_binary_info(self, mock_which, mock_run):
+        """Test that a failed dbt --version still returns LspBinaryInfo with empty version."""
+        mock_which.return_value = "/usr/bin/dbt"
+        mock_run.side_effect = [
+            Mock(returncode=0),  # dbt lsp --help succeeds
+            Mock(returncode=1),  # dbt --version fails
+        ]
+
+        result = detect_fusion_lsp("dbt")
+
+        assert result is not None
+        assert result.cmd == ["dbt", "lsp"]
+        assert result.version == ""
 
 
 class TestDbtLspBinaryInfo:

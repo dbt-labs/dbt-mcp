@@ -118,9 +118,28 @@ def detect_fusion_lsp(dbt_path: str) -> LspBinaryInfo | None:
     except subprocess.TimeoutExpired:
         logger.debug(f"Timed out probing {dbt_path} lsp --help")
         return None
-    version = subprocess.run(
-        [dbt_path, "--version"], capture_output=True, text=True
-    ).stdout.strip()
+    except OSError as exc:
+        logger.debug(f"Failed probing {dbt_path} lsp --help: {exc}")
+        return None
+
+    version = ""
+    try:
+        version_result = subprocess.run(
+            [dbt_path, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if version_result.returncode == 0:
+            version = version_result.stdout.strip()
+        else:
+            logger.debug(
+                f"Failed to get version from {dbt_path} --version "
+                f"(exit code {version_result.returncode})"
+            )
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        logger.debug(f"Failed probing {dbt_path} --version: {exc}")
+
     logger.debug(f"Found dbt Fusion LSP via {dbt_path} with version {version}")
     return LspBinaryInfo(cmd=[dbt_path, "lsp"], version=version)
 

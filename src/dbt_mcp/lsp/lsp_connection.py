@@ -95,7 +95,7 @@ class SocketLSPConnection(LSPConnectionProviderProtocol):
 
         Args:
             cmd: Command to launch the LSP server (e.g. ["dbt", "lsp"] or ["/path/to/dbt-lsp"])
-            cwd: Working directory for the LSP process
+            cwd: dbt project directory passed to the LSP server via --project-dir
             args: Optional command-line arguments for the LSP server
             connection_timeout: Timeout in seconds for establishing the initial socket
                               connection (default: 10). Used during server startup.
