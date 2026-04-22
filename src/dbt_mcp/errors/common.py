@@ -24,7 +24,7 @@ class NotFoundError(ToolCallError):
     pass
 
 
-class MissingHostError(ValueError):
+class MissingHostError(ConfigurationError):
     """Raised when DBT_HOST is required but not configured."""
 
     pass
