@@ -129,6 +129,37 @@ from dbt_mcp.errors import ArtifactRetrievalError
                 "log_warnings": 1,
             },
         ),
+        # Fusion log warnings extracted from WARN-prefixed log entries
+        (
+            {
+                "id": 500,
+                "status": 10,
+                "is_cancelled": False,
+                "finished_at": "2024-01-01T12:00:00Z",
+                "run_steps": [
+                    {
+                        "index": 1,
+                        "name": "Invoke dbt with `dbt run`",
+                        "status": 10,
+                        "finished_at": "2024-01-01T12:00:00Z",
+                        "logs": (
+                            "04:00:14      INFO \x1b[1m     Running\x1b[0m Fusion version: 2.0.0-preview.173\n"
+                            "04:00:14      WARN \x1b[33;1m        Warn\x1b[0m \x1b[1mdbt1088\x1b[0m: Updated version available for zendesk@1.4.1: 1.5.1\n"
+                            "04:00:15      WARN \x1b[33;1m        Warn\x1b[0m \x1b[1mdbt1088\x1b[0m: Updated version available for tiktok_ads@1.1.0: 1.2.0\n"
+                            "04:00:16      INFO \x1b[1;32m   Installed\x1b[0m 2 packages"
+                        ),
+                    }
+                ],
+            },
+            [None],  # No run_results.json available
+            True,
+            {
+                "total_warnings": 2,
+                "test_warnings": 0,
+                "freshness_warnings": 0,
+                "log_warnings": 2,
+            },
+        ),
     ],
 )
 async def test_warning_scenarios(
