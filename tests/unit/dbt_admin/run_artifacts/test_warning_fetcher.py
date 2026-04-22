@@ -215,3 +215,67 @@ async def test_warning_scenarios(
 
     assert result["has_warnings"] == expected_has_warnings
     assert result["summary"] == expected_counts
+
+
+@pytest.mark.parametrize(
+    "clean_logs,expected",
+    [
+        # Fusion banner present → detected as Fusion
+        ("04:00:14      INFO      Running Fusion version: 2.0.0-preview.173\n", True),
+        # Core logs — no Fusion banner
+        ("10:00:00 [WARNING] Deprecated function usage detected\n", False),
+        # Contains "Fusion" in a model name but not the banner — must not false-positive
+        ("10:00:00 INFO model fusion_events completed successfully\n", False),
+    ],
+)
+def test_is_fusion_logs(mock_client, admin_config, clean_logs, expected):
+    fetcher = WarningFetcher(
+        run_id=1,
+        run_details={
+            "id": 1,
+            "status": 10,
+            "is_cancelled": False,
+            "finished_at": "2024-01-01T00:00:00Z",
+            "run_steps": [],
+        },
+        client=mock_client,
+        admin_api_config=admin_config,
+    )
+    assert fetcher._is_fusion_logs(clean_logs) == expected
+
+
+@pytest.mark.parametrize(
+    "clean_logs,expected_messages",
+    [
+        # No WARN lines → empty result
+        (
+            "04:00:14      INFO      Running Fusion version: 2.0.0-preview.173\n"
+            "04:00:16      INFO      Installed 2 packages\n",
+            [],
+        ),
+        # Single WARN line → one result with the full line as the message
+        (
+            "04:00:14      WARN      Warn dbt1088: Updated version available for zendesk@1.4.1: 1.5.1\n",
+            [
+                "04:00:14      WARN      Warn dbt1088: Updated version available for zendesk@1.4.1: 1.5.1"
+            ],
+        ),
+    ],
+)
+def test_extract_fusion_log_warnings(
+    mock_client, admin_config, clean_logs, expected_messages
+):
+    fetcher = WarningFetcher(
+        run_id=1,
+        run_details={
+            "id": 1,
+            "status": 10,
+            "is_cancelled": False,
+            "finished_at": "2024-01-01T00:00:00Z",
+            "run_steps": [],
+        },
+        client=mock_client,
+        admin_api_config=admin_config,
+    )
+    results = fetcher._extract_fusion_log_warnings(clean_logs)
+    assert [r.message for r in results] == expected_messages
