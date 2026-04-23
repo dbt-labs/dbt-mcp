@@ -455,3 +455,155 @@ class TestCredentialsProviderAccountIdentifier:
 
             assert credentials_provider.account_identifier is None
             assert token_provider is not None
+
+
+class TestCredentialsProviderUserId:
+    """Test user_id population in both OAuth and PAT paths."""
+
+    @pytest.mark.asyncio
+    async def test_resolve_user_id_uses_settings_when_available(self):
+        """When settings.dbt_user_id is populated (e.g. from OAuth JWT), skip the Admin API call."""
+        mock_settings = DbtMcpSettings.model_construct(
+            dbt_host="cloud.getdbt.com",
+            dbt_prod_env_id=123,
+            dbt_account_id=456,
+            dbt_token=None,
+        )
+
+        credentials_provider = CredentialsProvider(mock_settings)
+
+        mock_dbt_context = MagicMock()
+        mock_dbt_context.account_id = 456
+        mock_dbt_context.host_prefix = "ab123"
+        mock_dbt_context.user_id = 789
+        mock_dbt_context.dev_environment.id = 111
+        mock_dbt_context.prod_environment.id = 123
+        mock_decoded_token = MagicMock()
+        mock_decoded_token.access_token_response.access_token = "mock_token"
+        mock_decoded_token.decoded_claims = {}
+        mock_dbt_context.decoded_access_token = mock_decoded_token
+
+        with (
+            patch(
+                "dbt_mcp.config.credentials.get_dbt_platform_context",
+                return_value=mock_dbt_context,
+            ),
+            patch(
+                "dbt_mcp.config.credentials.OAuthTokenProvider"
+            ) as mock_token_provider,
+            patch(
+                "dbt_mcp.config.credentials.validate_dbt_cli_settings", return_value=[]
+            ),
+            patch(
+                "dbt_mcp.dbt_admin.client.DbtAdminAPIClient.get_account",
+                new_callable=AsyncMock,
+                return_value={"id": 456, "identifier": "ab123"},
+            ),
+            patch(
+                "dbt_mcp.dbt_admin.client.DbtAdminAPIClient.get_current_user",
+                new_callable=AsyncMock,
+            ) as mock_get_current_user,
+        ):
+            mock_token_provider.create = AsyncMock(return_value=MagicMock())
+
+            await credentials_provider.get_credentials()
+
+            assert credentials_provider.user_id == 789
+            mock_get_current_user.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_resolve_user_id_fetches_from_admin_api(self):
+        """When settings.dbt_user_id is None, fall back to the Admin API."""
+        mock_settings = DbtMcpSettings.model_construct(
+            dbt_host="cloud.getdbt.com",
+            dbt_prod_env_id=123,
+            dbt_account_id=456,
+            dbt_token="test_token",
+            dbt_user_id=None,
+        )
+
+        credentials_provider = CredentialsProvider(mock_settings)
+
+        with (
+            patch("dbt_mcp.config.credentials.validate_settings"),
+            patch(
+                "dbt_mcp.dbt_admin.client.DbtAdminAPIClient.get_account",
+                new_callable=AsyncMock,
+                return_value={"id": 456, "identifier": "ab123"},
+            ),
+            patch(
+                "dbt_mcp.dbt_admin.client.DbtAdminAPIClient.get_current_user",
+                new_callable=AsyncMock,
+                return_value={"user": {"id": 789}},
+            ) as mock_get_current_user,
+        ):
+            await credentials_provider.get_credentials()
+
+            assert credentials_provider.user_id == 789
+            mock_get_current_user.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_resolve_user_id_api_failure_does_not_break_credentials(self):
+        """If the Admin API user lookup fails, get_credentials still succeeds."""
+        mock_settings = DbtMcpSettings.model_construct(
+            dbt_host="cloud.getdbt.com",
+            dbt_prod_env_id=123,
+            dbt_account_id=456,
+            dbt_token="test_token",
+            dbt_user_id=None,
+        )
+
+        credentials_provider = CredentialsProvider(mock_settings)
+
+        with (
+            patch("dbt_mcp.config.credentials.validate_settings"),
+            patch(
+                "dbt_mcp.dbt_admin.client.DbtAdminAPIClient.get_account",
+                new_callable=AsyncMock,
+                return_value={"id": 456, "identifier": "ab123"},
+            ),
+            patch(
+                "dbt_mcp.dbt_admin.client.DbtAdminAPIClient.get_current_user",
+                new_callable=AsyncMock,
+                side_effect=Exception("API error"),
+            ),
+        ):
+            _, token_provider = await credentials_provider.get_credentials()
+
+            assert credentials_provider.user_id is None
+            assert token_provider is not None
+
+    @pytest.mark.asyncio
+    async def test_resolve_user_id_skips_when_no_token_available(self):
+        """When no token is set (e.g. platform tools disabled), skip the Admin
+        API call instead of logging a warning for the expected missing token."""
+        mock_settings = DbtMcpSettings.model_construct(
+            dbt_host="cloud.getdbt.com",
+            dbt_prod_env_id=123,
+            dbt_account_id=456,
+            dbt_token=None,
+            dbt_user_id=None,
+            disable_semantic_layer=True,
+            disable_discovery=True,
+            disable_admin_api=True,
+            disable_sql=True,
+        )
+
+        credentials_provider = CredentialsProvider(mock_settings)
+
+        with (
+            patch("dbt_mcp.config.credentials.validate_settings"),
+            patch(
+                "dbt_mcp.dbt_admin.client.DbtAdminAPIClient.get_account",
+                new_callable=AsyncMock,
+                return_value={"id": 456, "identifier": "ab123"},
+            ),
+            patch(
+                "dbt_mcp.dbt_admin.client.DbtAdminAPIClient.get_current_user",
+                new_callable=AsyncMock,
+            ) as mock_get_current_user,
+        ):
+            await credentials_provider.get_credentials()
+
+            assert credentials_provider.user_id is None
+            mock_get_current_user.assert_not_called()

@@ -70,6 +70,11 @@ class DbtAdminAPIClient:
         )
         return result.get("data", {})
 
+    async def get_current_user(self) -> dict[str, Any]:
+        """Get details for the current authenticated user."""
+        result = await self._make_request("GET", "/api/v2/whoami/")
+        return result.get("data", {})
+
     @staticmethod
     def resolve_environments(
         environments: list[DbtPlatformEnvironmentResponse],

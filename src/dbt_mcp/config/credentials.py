@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import socket
 import time
@@ -188,6 +189,7 @@ class CredentialsProvider:
         self.token_provider: TokenProvider | None = None
         self.authentication_method: AuthenticationMethod | None = None
         self.account_identifier: str | None = None
+        self.user_id: int | None = None
 
     async def _resolve_account_identifier(self) -> None:
         """Fetch and store the account identifier from the Admin API.
@@ -202,6 +204,26 @@ class CredentialsProvider:
             self.account_identifier = account_data.get("identifier")
         except Exception as e:
             logger.warning(f"Failed to fetch account identifier: {e}")
+
+    async def _resolve_user_id(self) -> None:
+        """Fetch and store the current user id.
+
+        Uses settings.dbt_user_id if already populated (e.g. by OAuth JWT);
+        otherwise falls back to the Admin API. Fails silently — user_id
+        remains None on error.
+        """
+        if self.settings.dbt_user_id is not None:
+            self.user_id = self.settings.dbt_user_id
+            return
+        if not self.settings.actual_host or not self.token_provider:
+            return
+        try:
+            admin_client = DbtAdminAPIClient(DefaultAdminApiConfigProvider(self))
+            user_data = await admin_client.get_current_user()
+            id_response = (user_data.get("user") or {}).get("id")
+            self.user_id = int(id_response) if id_response is not None else None
+        except Exception as e:
+            logger.warning(f"Failed to fetch user id: {e}")
 
     def _log_settings(self) -> None:
         settings = self.settings.model_dump()
@@ -264,7 +286,10 @@ class CredentialsProvider:
                 context_manager=dbt_platform_context_manager,
             )
             self.token_provider = token_provider
-            await self._resolve_account_identifier()
+            await asyncio.gather(
+                self._resolve_account_identifier(),
+                self._resolve_user_id(),
+            )
 
             # Only validate CLI settings here — platform settings were already
             # checked at the top of get_credentials() and the OAuth flow has
@@ -300,7 +325,10 @@ class CredentialsProvider:
                 self.settings.host_prefix = fetched_prefix
                 self.settings.dbt_host = self.settings.base_host
                 logger.info(f"Fetched prefix {fetched_prefix} from dbt Platform.")
-        await self._resolve_account_identifier()
+        await asyncio.gather(
+            self._resolve_account_identifier(),
+            self._resolve_user_id(),
+        )
         validate_settings(self.settings)
         self.authentication_method = AuthenticationMethod.ENV_VAR
         self._log_settings()

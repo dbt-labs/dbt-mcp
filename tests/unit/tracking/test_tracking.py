@@ -49,13 +49,13 @@ class TestUsageTracker:
             send_anonymous_usage_data=None,  # Not disabled
             dbt_prod_env_id=1,
             dbt_dev_env_id=2,
-            dbt_user_id=3,
             actual_host="test.dbt.com",
             actual_host_prefix="prefix",
         )
 
         mock_credentials_provider = MockCredentialsProvider(mock_settings)
         mock_credentials_provider.account_identifier = "ab123"
+        mock_credentials_provider.user_id = 3
 
         tracker = DefaultUsageTracker(
             credentials_provider=mock_credentials_provider,
@@ -122,6 +122,43 @@ class TestUsageTracker:
 
         tool_called = mock_log_proto.call_args.args[0]
         assert tool_called.ctx.dbt_cloud_account_identifier == ""
+
+    @pytest.mark.asyncio
+    async def test_emit_tool_called_event_user_id_none(self):
+        """When credentials_provider.user_id is None, dbt_cloud_user_id defaults to empty string."""
+        mock_settings = DbtMcpSettings.model_construct(
+            do_not_track=None,
+            send_anonymous_usage_data=None,
+        )
+
+        mock_credentials_provider = MockCredentialsProvider(mock_settings)
+        mock_credentials_provider.user_id = None
+
+        tracker = DefaultUsageTracker(
+            credentials_provider=mock_credentials_provider,
+            session_id=uuid.uuid4(),
+        )
+
+        with (
+            patch("dbt_mcp.tracking.tracking.log_proto") as mock_log_proto,
+            patch(
+                "dbt_mcp.tracking.tracking.DefaultUsageTracker._get_local_user_id",
+                return_value="local-user",
+            ),
+        ):
+            await tracker.emit_tool_called_event(
+                tool_called_event=ToolCalledEvent(
+                    tool_name="list_metrics",
+                    arguments={},
+                    start_time_ms=0,
+                    end_time_ms=1,
+                    error_message=None,
+                ),
+            )
+
+        tool_called = mock_log_proto.call_args.args[0]
+        assert tool_called.dbt_cloud_user_id == ""
+        assert tool_called.ctx.dbt_cloud_user_id == ""
 
     @pytest.mark.asyncio
     async def test_get_local_user_id_success(self):

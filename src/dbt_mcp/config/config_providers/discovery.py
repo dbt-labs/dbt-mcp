@@ -1,7 +1,13 @@
-from dbt_mcp.config.credentials import CredentialsProvider
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from dbt_mcp.config.headers import DiscoveryHeadersProvider
-from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.errors import NotFoundError
+
+if TYPE_CHECKING:
+    from dbt_mcp.config.credentials import CredentialsProvider
+    from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 
 from .base import ConfigProvider, DiscoveryConfig, MultiProjectConfigProvider
 
