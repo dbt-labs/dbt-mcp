@@ -26,6 +26,16 @@ from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
+# Matches ANSI color/style escape sequences (ie \x1b[33;1m) so they can be
+# stripped from log output before pattern matching on plain text
+_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
+# dbt<####> is the Fusion event code (ie dbt1088) to catch warnings. Warnings without this code
+# will not be matched (can upate if Fusion changes its log format)
+_FUSION_WARN = re.compile(
+    r"^\d{2}:\d{2}:\d{2}\s+WARN\s+Warn\s+dbt\d+:\s+.+$",
+    re.MULTILINE,
+)
+
 
 class JobRunFetcher:
     """Base class for fetching and parsing dbt Cloud job run artifacts.
@@ -537,20 +547,42 @@ class WarningFetcher(JobRunFetcher):
             result_status="warn",
         )
 
+    def _is_fusion_logs(self, clean_logs: str) -> bool:
+        """Detect whether logs are from dbt Fusion (vs dbt Core/Platform)."""
+        return "Fusion version:" in clean_logs
+
+    def _extract_fusion_log_warnings(self, clean_logs: str) -> list[OutputResultSchema]:
+        """Extract warnings from dbt Fusion logs.
+
+        Fusion warnings are self-contained single lines:
+            HH:MM:SS      WARN         Warn dbtXXXX: <message>
+        """
+        return [
+            OutputResultSchema(
+                unique_id=None,
+                relation_name=None,
+                message=match.group(0).strip(),
+                status="warn",
+            )
+            for match in _FUSION_WARN.finditer(clean_logs)
+        ]
+
     def _extract_log_warnings(self, step: RunStepSchema) -> list[OutputResultSchema]:
-        """Extract warnings from step logs, matching on [WARNING] log entries."""
+        """Extract warnings from step logs (supports dbt Core and dbt Fusion formats)."""
         if not step.logs:
             return []
 
-        if "[WARNING]" not in step.logs:
+        # Remove ANSI color codes to focus on text
+        clean_logs = _ANSI_ESCAPE.sub("", step.logs)
+
+        # dbt Fusion: WARN with single line
+        if self._is_fusion_logs(clean_logs):
+            return self._extract_fusion_log_warnings(clean_logs)
+
+        # dbt Core: [WARNING] inline marker with possible continuation lines
+        if "[WARNING]" not in clean_logs:
             return []
 
-        # TODO: Fusion logs differ from core (currently core only)
-        # Need to explore and implement a solution for this
-
-        # Remove ANSI color codes to focus on text
-        ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
-        clean_logs = ansi_escape.sub("", step.logs)
         lines = clean_logs.split("\n")
         warnings = []
         warning_pattern = r"\[WARNING\]"  # Standard warning log pattern in dbt Platform
