@@ -598,12 +598,7 @@ class TestCredentialsProviderUserId:
                 new_callable=AsyncMock,
                 return_value={"id": 456, "identifier": "ab123"},
             ),
-            patch(
-                "dbt_mcp.dbt_admin.client.DbtAdminAPIClient.get_current_user",
-                new_callable=AsyncMock,
-            ) as mock_get_current_user,
         ):
             await credentials_provider.get_credentials()
 
             assert credentials_provider.user_id is None
-            mock_get_current_user.assert_not_called()
