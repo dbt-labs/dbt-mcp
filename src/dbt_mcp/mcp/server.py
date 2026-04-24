@@ -61,7 +61,7 @@ class DbtMCP(FastMCP):
             (
                 settings,
                 _,
-            ) = await self.config.eliciting_credentials_provider.get_credentials()
+            ) = await self.config.credentials_provider.get_credentials()
         except MissingHostError as e:
             logger.warning(
                 "Could not resolve credentials — defaulting to single-project mode: %s",
@@ -324,7 +324,7 @@ async def create_dbt_mcp(config: Config) -> FastMCP:
         name="dbt",
         config=config,
         usage_tracker=DefaultUsageTracker(
-            credentials_provider=config.credentials_provider,
+            credentials_provider=config.credentials_provider.inner_provider,
             session_id=uuid.uuid4(),
         ),
         lifespan=app_lifespan,

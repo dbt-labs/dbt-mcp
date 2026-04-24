@@ -109,6 +109,10 @@ class ElicitingCredentialsProvider:
                     raise
 
     @property
+    def inner_provider(self) -> CredentialsProvider:
+        return self._inner
+
+    @property
     def settings(self) -> DbtMcpSettings:
         return self._inner.settings
 

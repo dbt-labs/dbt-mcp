@@ -95,8 +95,7 @@ class Config:
     )
     semantic_layer_config_provider: DefaultSemanticLayerConfigProvider
     admin_api_config_provider: DefaultAdminApiConfigProvider
-    credentials_provider: CredentialsProvider
-    eliciting_credentials_provider: ElicitingCredentialsProvider
+    credentials_provider: ElicitingCredentialsProvider
     lsp_config: LspConfig | None
 
 
@@ -210,7 +209,6 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         multi_project_semantic_layer_config_provider=multi_project_semantic_layer_config_provider,
         semantic_layer_config_provider=semantic_layer_config_provider,
         admin_api_config_provider=admin_api_config_provider,
-        credentials_provider=inner_credentials,
-        eliciting_credentials_provider=credentials_provider,
+        credentials_provider=credentials_provider,
         lsp_config=lsp_config,
     )

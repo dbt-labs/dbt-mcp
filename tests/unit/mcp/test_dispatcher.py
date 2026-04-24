@@ -33,7 +33,6 @@ def _make_dispatcher(
 
     config = MagicMock(spec=Config)
     config.credentials_provider = credentials_provider
-    config.eliciting_credentials_provider = credentials_provider
 
     usage_tracker = MagicMock(spec=UsageTracker)
     usage_tracker.emit_tool_called_event = AsyncMock()
@@ -72,14 +71,14 @@ class TestIsMultiProject:
 
     async def test_returns_false_when_credentials_raise(self):
         dispatcher = _make_dispatcher()
-        dispatcher.config.eliciting_credentials_provider.get_credentials = AsyncMock(
+        dispatcher.config.credentials_provider.get_credentials = AsyncMock(
             side_effect=MissingHostError("DBT_HOST is a required environment variable")
         )
         assert await dispatcher._is_multi_project() is False
 
     async def test_raises_non_host_value_errors(self):
         dispatcher = _make_dispatcher()
-        dispatcher.config.eliciting_credentials_provider.get_credentials = AsyncMock(
+        dispatcher.config.credentials_provider.get_credentials = AsyncMock(
             side_effect=ValueError("No decoded access token found in OAuth context")
         )
         with pytest.raises(ValueError, match="No decoded access token"):

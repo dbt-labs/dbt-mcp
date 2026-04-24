@@ -182,8 +182,7 @@ mock_config = Config(
     enable_tools=None,  # None means not set, [] would mean allowlist mode
     disabled_toolsets=set(),
     enabled_toolsets=set(),
-    credentials_provider=MockCredentialsProvider(),
-    eliciting_credentials_provider=ElicitingCredentialsProvider(
+    credentials_provider=ElicitingCredentialsProvider(
         inner=MockCredentialsProvider(),
     ),
 )
