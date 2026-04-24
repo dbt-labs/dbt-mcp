@@ -180,10 +180,35 @@ class TestDbtHostSchema:
         assert schema.dbt_host == "cloud.getdbt.com"
 
     @pytest.mark.parametrize(
+        "raw_input,expected",
+        [
+            pytest.param(
+                "https://cloud.getdbt.com", "cloud.getdbt.com", id="https_prefix"
+            ),
+            pytest.param(
+                "http://cloud.getdbt.com", "cloud.getdbt.com", id="http_prefix"
+            ),
+            pytest.param("cloud.getdbt.com/", "cloud.getdbt.com", id="trailing_slash"),
+            pytest.param(
+                "https://ab123.us1.dbt.com/", "ab123.us1.dbt.com", id="full_url"
+            ),
+            pytest.param(
+                "  https://cloud.getdbt.com/  ",
+                "cloud.getdbt.com",
+                id="whitespace_and_url",
+            ),
+        ],
+    )
+    def test_normalizes_host_input(self, raw_input, expected):
+        schema = DbtHostSchema(dbt_host=raw_input)
+        assert schema.dbt_host == expected
+
+    @pytest.mark.parametrize(
         "invalid_input",
         [
             pytest.param("", id="empty_string"),
             pytest.param("   ", id="whitespace_only"),
+            pytest.param("https://", id="scheme_only"),
         ],
     )
     def test_rejects_invalid_host(self, invalid_input):
@@ -310,6 +335,31 @@ class TestElicitingCredentialsProvider:
                 return_value=accepted,
             ),
             pytest.raises(RuntimeError, match="OAuth failed"),
+        ):
+            await wrapper.get_credentials()
+
+        assert inner.settings.dbt_host is None
+
+    @pytest.mark.asyncio
+    async def test_timeout_resets_host_and_raises(self):
+        inner = self._make_inner()
+        inner.get_credentials = AsyncMock(
+            side_effect=MissingHostError("DBT_HOST is a required environment variable"),
+        )
+        wrapper = ElicitingCredentialsProvider(inner)
+        accepted = DbtHostSchema(dbt_host="bad-host.example.com")
+
+        with (
+            patch(
+                "dbt_mcp.config.elicitation.elicit_or_raise",
+                new_callable=AsyncMock,
+                return_value=accepted,
+            ),
+            patch(
+                "dbt_mcp.config.elicitation.asyncio.wait_for",
+                side_effect=TimeoutError(),
+            ),
+            pytest.raises(MissingHostError, match="OAuth timed out"),
         ):
             await wrapper.get_credentials()
 

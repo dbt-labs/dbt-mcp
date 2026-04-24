@@ -79,8 +79,9 @@ class DbtHostSchema(BaseModel):
 
     @field_validator("dbt_host", mode="before")
     @classmethod
-    def strip_whitespace(cls, v: str) -> str:
-        return v.strip()
+    def normalize_host(cls, v: str) -> str:
+        v = v.strip().removeprefix("https://").removeprefix("http://")
+        return v.rstrip("/")
 
 
 class ElicitingCredentialsProvider:
@@ -99,11 +100,21 @@ class ElicitingCredentialsProvider:
                 data = await elicit_or_raise(
                     e,
                     DbtHostSchema,
-                    "Let's set up dbt-mcp. What's your dbt Cloud host?",
+                    "Let's set up dbt-mcp. What's your dbt Cloud host? "
+                    "(You can also set the DBT_HOST environment variable to skip this prompt.)",
                 )
                 self._inner.settings.dbt_host = data.dbt_host
                 try:
-                    return await self._inner.get_credentials()
+                    return await asyncio.wait_for(
+                        self._inner.get_credentials(),
+                        timeout=120,
+                    )
+                except TimeoutError:
+                    self._inner.settings.dbt_host = None
+                    raise MissingHostError(
+                        f"OAuth timed out for host '{data.dbt_host}' — "
+                        "check that the host is correct and try again."
+                    )
                 except Exception:
                     self._inner.settings.dbt_host = None
                     raise
