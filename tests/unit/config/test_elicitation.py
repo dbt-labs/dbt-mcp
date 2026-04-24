@@ -10,8 +10,10 @@ from dbt_mcp.errors.common import MissingHostError
 from dbt_mcp.config.elicitation import (
     DbtHostSchema,
     ElicitingCredentialsProvider,
+    _host_schema_with_hint,
     elicit_or_raise,
     get_elicitation_session,
+    validate_host_reachable,
 )
 
 
@@ -68,7 +70,7 @@ class TestGetMcpSession:
     def test_returns_none_when_elicitation_unavailable(self, ctx_value):
         resolved = ctx_value() if callable(ctx_value) else ctx_value
 
-        with patch("mcp.server.lowlevel.server.request_ctx") as mock_ctx_var:
+        with patch("dbt_mcp.config.elicitation.request_ctx") as mock_ctx_var:
             mock_ctx_var.get.return_value = resolved
             assert get_elicitation_session() is None
 
@@ -76,7 +78,7 @@ class TestGetMcpSession:
         session = _make_session(elicitation_supported=True)
         ctx = _make_request_context(session, request_id="req-42")
 
-        with patch("mcp.server.lowlevel.server.request_ctx") as mock_ctx_var:
+        with patch("dbt_mcp.config.elicitation.request_ctx") as mock_ctx_var:
             mock_ctx_var.get.return_value = ctx
             result = get_elicitation_session()
 
@@ -217,6 +219,33 @@ class TestDbtHostSchema:
 
 
 # ---------------------------------------------------------------------------
+# TestHostSchemaWithHint
+# ---------------------------------------------------------------------------
+
+
+class TestHostSchemaWithHint:
+    def test_returns_base_schema_when_no_hint(self):
+        assert _host_schema_with_hint(None) is DbtHostSchema
+        assert _host_schema_with_hint("") is DbtHostSchema
+
+    def test_hint_appears_in_field_title(self):
+        hint = "Could not reach 'bad.example.com'. Please double-check the hostname."
+        schema_cls = _host_schema_with_hint(hint)
+        json_schema = schema_cls.model_json_schema()
+        assert json_schema["properties"]["dbt_host"]["title"] == hint
+
+    def test_inherits_normalization_validator(self):
+        schema_cls = _host_schema_with_hint("some error hint")
+        instance = schema_cls(dbt_host="https://cloud.getdbt.com/")
+        assert instance.dbt_host == "cloud.getdbt.com"
+
+    def test_inherits_min_length_validation(self):
+        schema_cls = _host_schema_with_hint("some error hint")
+        with pytest.raises(ValueError):
+            schema_cls(dbt_host="")
+
+
+# ---------------------------------------------------------------------------
 # TestElicitingCredentialsProvider
 # ---------------------------------------------------------------------------
 
@@ -227,6 +256,7 @@ class TestElicitingCredentialsProvider:
         inner = MagicMock()
         inner.settings = MagicMock()
         inner.settings.dbt_host = None
+        inner.settings.dbt_profiles_dir = None
         inner.token_provider = MagicMock()
         inner.authentication_method = MagicMock()
         inner.account_identifier = "test-account"
@@ -260,10 +290,17 @@ class TestElicitingCredentialsProvider:
         inner = self._make_inner()
         wrapper, accepted = self._make_elicitation_wrapper(inner)
 
-        with patch(
-            "dbt_mcp.config.elicitation.elicit_or_raise",
-            new_callable=AsyncMock,
-            return_value=accepted,
+        with (
+            patch(
+                "dbt_mcp.config.elicitation.elicit_or_raise",
+                new_callable=AsyncMock,
+                return_value=accepted,
+            ),
+            patch(
+                "dbt_mcp.config.elicitation.validate_host_reachable",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
         ):
             result = await wrapper.get_credentials()
 
@@ -306,9 +343,16 @@ class TestElicitingCredentialsProvider:
             await asyncio.sleep(0)
             return accepted
 
-        with patch(
-            "dbt_mcp.config.elicitation.elicit_or_raise",
-            side_effect=slow_elicit,
+        with (
+            patch(
+                "dbt_mcp.config.elicitation.elicit_or_raise",
+                side_effect=slow_elicit,
+            ),
+            patch(
+                "dbt_mcp.config.elicitation.validate_host_reachable",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
         ):
             task1 = asyncio.create_task(wrapper.get_credentials())
             await asyncio.sleep(0)
@@ -334,14 +378,24 @@ class TestElicitingCredentialsProvider:
                 new_callable=AsyncMock,
                 return_value=accepted,
             ),
+            patch(
+                "dbt_mcp.config.elicitation.validate_host_reachable",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "dbt_mcp.config.elicitation._clear_persisted_host",
+            ) as mock_clear,
             pytest.raises(RuntimeError, match="OAuth failed"),
         ):
             await wrapper.get_credentials()
 
         assert inner.settings.dbt_host is None
+        mock_clear.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_timeout_resets_host_and_raises(self):
+    async def test_timeout_resets_host_and_clears_persisted(self):
+        """Timeout resets in-memory host, clears mcp.yml, and re-elicits until retries exhausted."""
         inner = self._make_inner()
         inner.get_credentials = AsyncMock(
             side_effect=MissingHostError("DBT_HOST is a required environment variable"),
@@ -356,13 +410,103 @@ class TestElicitingCredentialsProvider:
                 return_value=accepted,
             ),
             patch(
+                "dbt_mcp.config.elicitation.validate_host_reachable",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
                 "dbt_mcp.config.elicitation.asyncio.wait_for",
                 side_effect=TimeoutError(),
             ),
-            pytest.raises(MissingHostError, match="OAuth timed out"),
+            patch(
+                "dbt_mcp.config.elicitation._clear_persisted_host",
+            ) as mock_clear,
+            pytest.raises(MissingHostError, match="Authentication timed out"),
         ):
             await wrapper.get_credentials()
 
+        assert inner.settings.dbt_host is None
+        assert mock_clear.call_count == 3  # once per retry
+
+    @pytest.mark.asyncio
+    async def test_unreachable_host_re_elicits_then_succeeds(self):
+        """When host is unreachable, re-prompt with hinted schema; succeed on second try."""
+        inner = self._make_inner()
+        inner.get_credentials.side_effect = [
+            MissingHostError("DBT_HOST is a required environment variable"),
+            (inner.settings, inner.token_provider),
+        ]
+        wrapper = ElicitingCredentialsProvider(inner)
+        bad_host = DbtHostSchema(dbt_host="bad-host.example.com")
+        good_host = DbtHostSchema(dbt_host="cloud.getdbt.com")
+
+        schemas_received: list[type] = []
+
+        async def elicit_side_effect(
+            error: Exception, schema: type, message: str
+        ) -> DbtHostSchema:
+            schemas_received.append(schema)
+            return bad_host if len(schemas_received) == 1 else good_host
+
+        validate_calls = 0
+
+        async def validate_side_effect(host: str, **kwargs: Any) -> bool:
+            nonlocal validate_calls
+            validate_calls += 1
+            return host != "bad-host.example.com"
+
+        with (
+            patch(
+                "dbt_mcp.config.elicitation.elicit_or_raise",
+                side_effect=elicit_side_effect,
+            ),
+            patch(
+                "dbt_mcp.config.elicitation.validate_host_reachable",
+                side_effect=validate_side_effect,
+            ),
+        ):
+            result = await wrapper.get_credentials()
+
+        assert result == (inner.settings, inner.token_provider)
+        assert len(schemas_received) == 2
+        assert validate_calls == 2
+        assert inner.settings.dbt_host == "cloud.getdbt.com"
+
+        # First call uses default schema, second uses hinted schema
+        assert schemas_received[0] is DbtHostSchema
+        assert schemas_received[1] is not DbtHostSchema
+        hinted_title = schemas_received[1].model_json_schema()["properties"][
+            "dbt_host"
+        ]["title"]
+        assert "bad-host.example.com" in hinted_title
+
+    @pytest.mark.asyncio
+    async def test_unreachable_host_exhausts_retries(self):
+        """After MAX_ELICITATION_RETRIES unreachable hosts, raise MissingHostError."""
+        inner = self._make_inner()
+        inner.get_credentials = AsyncMock(
+            side_effect=MissingHostError("DBT_HOST is a required environment variable"),
+        )
+        wrapper = ElicitingCredentialsProvider(inner)
+        accepted = DbtHostSchema(dbt_host="unreachable.example.com")
+
+        with (
+            patch(
+                "dbt_mcp.config.elicitation.elicit_or_raise",
+                new_callable=AsyncMock,
+                return_value=accepted,
+            ),
+            patch(
+                "dbt_mcp.config.elicitation.validate_host_reachable",
+                new_callable=AsyncMock,
+                return_value=False,
+            ) as mock_validate,
+            pytest.raises(MissingHostError, match="Could not reach"),
+        ):
+            await wrapper.get_credentials()
+
+        assert mock_validate.call_count == 3
+        # Host should never have been set since validation always failed
         assert inner.settings.dbt_host is None
 
     def test_transparent_property_delegation(self):
@@ -373,3 +517,74 @@ class TestElicitingCredentialsProvider:
         assert wrapper.token_provider is inner.token_provider
         assert wrapper.authentication_method is inner.authentication_method
         assert wrapper.account_identifier == "test-account"
+
+
+# ---------------------------------------------------------------------------
+# TestValidateHostReachable
+# ---------------------------------------------------------------------------
+
+
+class TestValidateHostReachable:
+    @pytest.mark.asyncio
+    async def test_reachable_host_returns_true(self):
+        mock_writer = MagicMock()
+        mock_writer.close = MagicMock()
+        mock_writer.wait_closed = AsyncMock()
+
+        with patch(
+            "dbt_mcp.config.elicitation.asyncio.open_connection",
+            new_callable=AsyncMock,
+            return_value=(MagicMock(), mock_writer),
+        ):
+            assert await validate_host_reachable("cloud.getdbt.com") is True
+
+        mock_writer.close.assert_called_once()
+        mock_writer.wait_closed.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_unreachable_host_returns_false(self):
+        with patch(
+            "dbt_mcp.config.elicitation.asyncio.open_connection",
+            new_callable=AsyncMock,
+            side_effect=OSError("Connection refused"),
+        ):
+            assert await validate_host_reachable("nonexistent.invalid") is False
+
+    @pytest.mark.asyncio
+    async def test_timeout_returns_false(self):
+        with patch(
+            "dbt_mcp.config.elicitation.asyncio.open_connection",
+            new_callable=AsyncMock,
+            side_effect=TimeoutError(),
+        ):
+            assert await validate_host_reachable("slow.example.com") is False
+
+
+# ---------------------------------------------------------------------------
+# TestClearPersistedHost
+# ---------------------------------------------------------------------------
+
+
+class TestClearPersistedHost:
+    def test_clears_host_from_existing_context(self, tmp_path):
+        from dbt_mcp.config.elicitation import _clear_persisted_host
+        from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
+        from dbt_mcp.oauth.dbt_platform import DbtPlatformContext
+
+        mcp_yml = tmp_path / "mcp.yml"
+        ctx_manager = DbtPlatformContextManager(mcp_yml)
+        ctx_manager.write_context_to_file(
+            DbtPlatformContext(dbt_host="stale-host.example.com", account_id=123)
+        )
+
+        _clear_persisted_host(str(tmp_path))
+
+        updated = ctx_manager.read_context()
+        assert updated is not None
+        assert updated.dbt_host is None
+        assert updated.account_id == 123  # other fields preserved
+
+    def test_noop_when_no_mcp_yml(self, tmp_path):
+        from dbt_mcp.config.elicitation import _clear_persisted_host
+
+        _clear_persisted_host(str(tmp_path))  # should not raise
