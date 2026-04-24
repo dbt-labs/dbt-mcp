@@ -218,6 +218,10 @@ class CredentialsProvider:
         if not self.settings.actual_host or not self.token_provider:
             return
         try:
+            self.token_provider.get_token()
+        except Exception:
+            return
+        try:
             admin_client = DbtAdminAPIClient(DefaultAdminApiConfigProvider(self))
             user_data = await admin_client.get_current_user()
             id_response = (user_data.get("user") or {}).get("id")
