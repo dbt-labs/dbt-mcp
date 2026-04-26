@@ -198,6 +198,17 @@ async def register_multi_project_dbt_mcp(dbt_mcp: FastMCP, config: Config) -> No
             disabled_toolsets=disabled_toolsets,
         )
 
+    if config.admin_api_config_provider:
+        logger.info("Registering dbt admin API tools for multi-project")
+        register_admin_api_tools(
+            dbt_mcp,
+            config.admin_api_config_provider,
+            disabled_tools=disabled_tools,
+            enabled_tools=enabled_tools,
+            enabled_toolsets=enabled_toolsets,
+            disabled_toolsets=disabled_toolsets,
+        )
+
 
 async def register_dbt_mcp_tools(dbt_mcp: FastMCP, config: Config) -> None:
     disabled_tools = set(config.disable_tools)

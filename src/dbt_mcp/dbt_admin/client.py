@@ -207,6 +207,8 @@ class DbtAdminAPIClient:
                 ).get("finished_at")
                 if job.get("most_recent_completed_run")
                 else None,
+                "environment_id": job.get("environment_id"),
+                "project_id": job.get("project_id"),
                 "schedule": job.get("schedule").get("cron")
                 if job.get("schedule")
                 else None,
