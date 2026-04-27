@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Fix get_job_run_error returning empty failed_steps when artifact 404s raise NotFoundError
-time: 2026-04-27T15:09:13.154529+02:00
