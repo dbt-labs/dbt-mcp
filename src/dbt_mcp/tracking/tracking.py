@@ -112,7 +112,9 @@ class DefaultUsageTracker:
                 str(settings.dbt_dev_env_id) if settings.dbt_dev_env_id else ""
             )
             dbt_cloud_user_id = (
-                str(settings.dbt_user_id) if settings.dbt_user_id else ""
+                str(self.credentials_provider.user_id)
+                if self.credentials_provider.user_id
+                else ""
             )
             authentication_method = (
                 self.credentials_provider.authentication_method.value

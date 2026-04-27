@@ -700,6 +700,28 @@ async def test_get_account(client):
     )
 
 
+async def test_get_current_user(client):
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "data": {"user": {"id": 789, "email": "user@example.com"}}
+    }
+    mock_response.raise_for_status.return_value = None
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.get_current_user()
+
+    assert result == {"user": {"id": 789, "email": "user@example.com"}}
+    headers = await client.get_headers()
+    mock_client.request.assert_called_once_with(
+        "GET",
+        "https://cloud.getdbt.com/api/v2/whoami/",
+        headers=headers,
+        follow_redirects=True,
+    )
+
+
 async def test_list_projects_no_semantic_layer(client):
     mock_response = MagicMock()
     mock_response.json.return_value = {
