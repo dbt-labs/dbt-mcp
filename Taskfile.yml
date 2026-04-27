@@ -102,7 +102,6 @@ tasks:
   build:
     desc: "Build the package"
     cmds:
-      - (cd ui && pnpm install && pnpm build)
       - uv build
 
   client:
