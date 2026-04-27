@@ -158,6 +158,8 @@ async def test_list_jobs(client):
                     "started_at": "2024-01-01T00:00:00Z",
                     "finished_at": "2024-01-01T00:04:00Z",
                 },
+                "environment_id": 42,
+                "project_id": 7,
                 "schedule": {"cron": "0 9 * * *"},
                 "next_run": "2024-01-02T09:00:00Z",
             }
@@ -174,6 +176,8 @@ async def test_list_jobs(client):
     assert result[0]["id"] == 1
     assert result[0]["name"] == "test_job"
     assert result[0]["most_recent_run_id"] == 100
+    assert result[0]["environment_id"] == 42
+    assert result[0]["project_id"] == 7
     assert result[0]["schedule"] == "0 9 * * *"
 
     headers = await client.get_headers()

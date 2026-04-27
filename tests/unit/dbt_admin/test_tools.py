@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from dbt_mcp.mcp.server import register_multi_project_dbt_mcp
 from dbt_mcp.dbt_admin.tools import (
     ADMIN_TOOLS,
     AdminToolContext,
@@ -245,6 +246,13 @@ async def test_tools_with_no_optional_parameters(admin_context):
     result = await get_job_run_details.fn(admin_context, run_id=100)
     assert isinstance(result, dict)
     admin_context.admin_client.get_job_run_details.assert_called_with(12345, 100)
+
+
+async def test_admin_tools_registered_in_multi_project_mcp(mock_fastmcp):
+    fastmcp, tools = mock_fastmcp
+    await register_multi_project_dbt_mcp(fastmcp, mock_config)
+    admin_tool_names = {tool.fn.__name__ for tool in ADMIN_TOOLS}
+    assert admin_tool_names.issubset(tools.keys())
 
 
 async def test_trigger_job_run_with_all_optional_params(admin_context):
