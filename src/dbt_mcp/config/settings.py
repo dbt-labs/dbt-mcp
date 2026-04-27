@@ -327,20 +327,6 @@ class DbtMcpSettings(BaseSettings):
                     f"Consider setting DBT_HOST='{result.base_host}' and keeping {prefix_env_var}='{prefix}'."
                 )
 
-        # platform features
-        if (
-            not self.actual_host
-        ):  # host is the only truly required setting for platform features
-            # object.__setattr__ is used in case we want to set values on a frozen model
-            object.__setattr__(self, "disable_semantic_layer", True)
-            object.__setattr__(self, "disable_discovery", True)
-            object.__setattr__(self, "disable_admin_api", True)
-            object.__setattr__(self, "disable_sql", True)
-
-            logger.warning(
-                "Platform features have been automatically disabled due to missing DBT_HOST."
-            )
-
         # CLI features
         cli_errors = validate_dbt_cli_settings(self)
         if cli_errors:

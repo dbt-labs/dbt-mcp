@@ -22,3 +22,9 @@ class NotFoundError(ToolCallError):
     """Exception raised when a resource is not found."""
 
     pass
+
+
+class MissingHostError(ConfigurationError):
+    """Raised when DBT_HOST is required but not configured."""
+
+    pass
