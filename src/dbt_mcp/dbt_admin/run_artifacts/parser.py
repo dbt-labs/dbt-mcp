@@ -21,7 +21,7 @@ from dbt_mcp.dbt_admin.run_artifacts.config import (
     RunStepSchema,
     SourcesArtifactSchema,
 )
-from dbt_mcp.errors import ArtifactRetrievalError
+from dbt_mcp.errors import ArtifactRetrievalError, NotFoundError
 from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
@@ -88,7 +88,7 @@ class JobRunFetcher:
                 logger.info(f"Got run_results.json from step {step_index}")
                 return run_results_content
             return None
-        except ArtifactRetrievalError as e:
+        except (ArtifactRetrievalError, NotFoundError) as e:
             logger.debug(f"No run_results.json for step {step_index}: {e}")
             return None
 
@@ -107,7 +107,7 @@ class JobRunFetcher:
                 logger.info(f"Got sources.json from step {step_index}")
                 return sources_content
             return None
-        except ArtifactRetrievalError as e:
+        except (ArtifactRetrievalError, NotFoundError) as e:
             logger.debug(f"No sources.json for step {step_index}: {e}")
             return None
 
