@@ -20,10 +20,8 @@ def test_manifest_uses_utf8_encoding(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
 ):
     """Regression test for #594: open() without encoding defaults to CP-1252 on Windows."""
-    mock_calls = []
 
     def mock_popen(args, **kwargs):
-        mock_calls.append(args)
         return mock_process
 
     monkeypatch.setattr("subprocess.Popen", mock_popen)
