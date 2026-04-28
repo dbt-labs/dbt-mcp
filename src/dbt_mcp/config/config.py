@@ -182,7 +182,9 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
 
     lsp_config = None
     if settings.dbt_project_dir:
-        lsp_binary_info = dbt_lsp_binary_info(settings.dbt_lsp_path)
+        lsp_binary_info = dbt_lsp_binary_info(
+            lsp_path=settings.dbt_lsp_path, dbt_path=settings.dbt_path
+        )
         if lsp_binary_info:
             local_lsp_connection_provider = LocalLSPConnectionProvider(
                 lsp_binary_info=lsp_binary_info,

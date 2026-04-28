@@ -9,6 +9,7 @@ from enum import StrEnum
 import os
 from pathlib import Path
 import platform
+import shutil
 import subprocess
 from dataclasses import dataclass
 
@@ -25,11 +26,12 @@ class LspBinaryInfo:
     """Information about a detected dbt LSP binary.
 
     Attributes:
-        path: Full filesystem path to the LSP binary executable.
+        cmd: Command to launch the LSP server (e.g. ["dbt", "lsp"] for Fusion
+            or ["/path/to/dbt-lsp"] for the legacy standalone binary).
         version: Version string of the LSP binary.
     """
 
-    path: str
+    cmd: list[str]
     version: str
 
 
@@ -89,34 +91,89 @@ def get_storage_path(editor: CodeEditor) -> Path:
     return Path(base, "User", "globalStorage", "dbtlabsinc.dbt", "bin", binary_name)
 
 
-def dbt_lsp_binary_info(lsp_path: str | None = None) -> LspBinaryInfo | None:
-    """Get dbt LSP binary information from a custom path or auto-detect it.
+def detect_fusion_lsp(dbt_path: str) -> LspBinaryInfo | None:
+    """Detect dbt Fusion LSP by probing the dbt CLI.
 
-    Attempts to locate and validate the dbt LSP binary. If a custom path is provided,
-    it will be validated first. If the custom path is invalid or not provided, the
-    function will attempt to auto-detect the binary in standard editor locations.
+    Checks whether the dbt binary at dbt_path supports the `lsp` subcommand
+    (i.e. is dbt Fusion, not dbt-core).
 
     Args:
-        lsp_path: Optional custom path to the dbt LSP binary. If provided, this
-            path will be validated and used if it exists. If None or invalid,
-            auto-detection will be attempted.
+        dbt_path: Path or name of the dbt CLI executable (e.g. "dbt" or "/usr/bin/dbt").
 
     Returns:
-        LspBinaryInfo object containing the path and version of the found binary,
-        or None if no valid binary could be found.
-
-    Note:
-        If a custom path is provided but invalid, a warning will be logged before
-        falling back to auto-detection.
+        LspBinaryInfo with cmd=[dbt_path, "lsp"] if Fusion is available, else None.
     """
+    if not shutil.which(dbt_path):
+        logger.debug(f"dbt executable not found in PATH: {dbt_path}")
+        return None
+    try:
+        result = subprocess.run(
+            [dbt_path, "lsp", "--help"],
+            capture_output=True,
+            timeout=5,
+        )
+        if result.returncode != 0:
+            logger.debug(f"{dbt_path} does not support the lsp subcommand")
+            return None
+    except subprocess.TimeoutExpired:
+        logger.debug(f"Timed out probing {dbt_path} lsp --help")
+        return None
+    except OSError as exc:
+        logger.debug(f"Failed probing {dbt_path} lsp --help: {exc}")
+        return None
+
+    version = ""
+    try:
+        version_result = subprocess.run(
+            [dbt_path, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if version_result.returncode == 0:
+            version = version_result.stdout.strip()
+        else:
+            logger.debug(
+                f"Failed to get version from {dbt_path} --version "
+                f"(exit code {version_result.returncode})"
+            )
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        logger.debug(f"Failed probing {dbt_path} --version: {exc}")
+
+    logger.debug(f"Found dbt Fusion LSP via {dbt_path} with version {version}")
+    return LspBinaryInfo(cmd=[dbt_path, "lsp"], version=version)
+
+
+def dbt_lsp_binary_info(
+    lsp_path: str | None = None, dbt_path: str = "dbt"
+) -> LspBinaryInfo | None:
+    """Get dbt LSP binary information, preferring dbt Fusion when available.
+
+    Resolution order:
+    1. dbt Fusion CLI (`dbt lsp`) if dbt_path supports the lsp subcommand
+    2. Custom legacy binary at lsp_path (DBT_LSP_PATH), if set and valid
+    3. Auto-detection in standard editor storage locations
+
+    Args:
+        lsp_path: Optional path to a legacy dbt-lsp binary (DBT_LSP_PATH).
+        dbt_path: Path or name of the dbt CLI executable (DBT_PATH, default "dbt").
+
+    Returns:
+        LspBinaryInfo with the resolved command and version, or None if not found.
+    """
+    fusion = detect_fusion_lsp(dbt_path)
+    if fusion:
+        return fusion
+
     if lsp_path:
         logger.debug(f"Using custom LSP binary path: {lsp_path}")
         if Path(lsp_path).exists() and Path(lsp_path).is_file():
             version = get_lsp_binary_version(lsp_path)
-            return LspBinaryInfo(path=lsp_path, version=version)
+            return LspBinaryInfo(cmd=[lsp_path], version=version)
         logger.warning(
             f"Provided LSP binary path {lsp_path} does not exist or is not a file, falling back to detecting LSP binary"
         )
+
     return detect_lsp_binary()
 
 
@@ -140,7 +197,7 @@ def detect_lsp_binary() -> LspBinaryInfo | None:
         if path.exists() and path.is_file():
             version = get_lsp_binary_version(path.as_posix())
             logger.debug(f"Found LSP binary in {path} with version {version}")
-            return LspBinaryInfo(path=path.as_posix(), version=version)
+            return LspBinaryInfo(cmd=[path.as_posix()], version=version)
 
     return None
 

@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Populate dbt_cloud_user_id in telemetry events by resolving the current user from the Admin API when not already set by OAuth
+time: 2026-04-22T17:46:48.469112-05:00

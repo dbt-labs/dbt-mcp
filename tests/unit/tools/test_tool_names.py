@@ -22,7 +22,7 @@ async def test_tool_names_match_server_tools(env_setup):
         ),
         patch(
             "dbt_mcp.config.config.dbt_lsp_binary_info",
-            return_value=LspBinaryInfo(path="/path/to/lsp", version="1.0.0"),
+            return_value=LspBinaryInfo(cmd=["/path/to/lsp"], version="1.0.0"),
         ),
     ):
         config = load_config(enable_proxied_tools=False)

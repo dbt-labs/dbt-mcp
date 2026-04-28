@@ -158,6 +158,8 @@ async def test_list_jobs(client):
                     "started_at": "2024-01-01T00:00:00Z",
                     "finished_at": "2024-01-01T00:04:00Z",
                 },
+                "environment_id": 42,
+                "project_id": 7,
                 "schedule": {"cron": "0 9 * * *"},
                 "next_run": "2024-01-02T09:00:00Z",
             }
@@ -174,6 +176,8 @@ async def test_list_jobs(client):
     assert result[0]["id"] == 1
     assert result[0]["name"] == "test_job"
     assert result[0]["most_recent_run_id"] == 100
+    assert result[0]["environment_id"] == 42
+    assert result[0]["project_id"] == 7
     assert result[0]["schedule"] == "0 9 * * *"
 
     headers = await client.get_headers()
@@ -691,6 +695,28 @@ async def test_get_account(client):
     mock_client.request.assert_called_once_with(
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/",
+        headers=headers,
+        follow_redirects=True,
+    )
+
+
+async def test_get_current_user(client):
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "data": {"user": {"id": 789, "email": "user@example.com"}}
+    }
+    mock_response.raise_for_status.return_value = None
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.get_current_user()
+
+    assert result == {"user": {"id": 789, "email": "user@example.com"}}
+    headers = await client.get_headers()
+    mock_client.request.assert_called_once_with(
+        "GET",
+        "https://cloud.getdbt.com/api/v2/whoami/",
         headers=headers,
         follow_redirects=True,
     )

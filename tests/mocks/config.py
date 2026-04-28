@@ -65,7 +65,7 @@ mock_dbt_codegen_config = DbtCodegenConfig(
 
 mock_local_lsp_connection_provider = LocalLSPConnectionProvider(
     lsp_binary_info=LspBinaryInfo(
-        path="/path/to/lsp",
+        cmd=["/path/to/lsp"],
         version="1.0.0",
     ),
     project_dir="/test/project",

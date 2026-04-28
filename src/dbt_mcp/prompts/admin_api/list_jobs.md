@@ -4,14 +4,14 @@ This tool retrieves jobs from the dbt Admin API. Jobs are the configuration for 
 
 ## Parameters
 
-- **project_id** (optional): Filter jobs by specific project ID
-- **environment_id** (optional): Filter jobs by specific environment ID
 - **limit** (optional): Maximum number of results to return
 - **offset** (optional): Number of results to skip for pagination
 
+When a single project is configured, results are automatically scoped to that environment. Otherwise, all jobs in the account are returned — use `limit` to constrain large result sets.
+
 Returns a list of job objects with details like:
 - Job ID, name, and description
-- Environment and project information
+- Environment ID and project ID the job belongs to
 - Schedule configuration
 - Execute steps (dbt commands)
 - Trigger settings
