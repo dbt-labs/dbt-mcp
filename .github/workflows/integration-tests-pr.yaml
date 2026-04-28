@@ -4,8 +4,9 @@ name: Integration tests
 # 1. Internal PRs (same repo): Runs automatically via pull_request trigger
 # 2. Fork PRs: Requires 'ok-to-test' label added by maintainer (pull_request_target)
 #
-# Fork PRs via pull_request are skipped (not failed) to avoid confusing status checks.
-# This protects secrets from being exfiltrated by malicious fork PRs.
+# Fork PRs via pull_request run but fail early (before checkout) until approved.
+# This makes the check blocking rather than showing as a green skip.
+# Secrets are never exposed — the auth gate runs before any checkout of fork code.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -26,12 +27,12 @@ permissions:
 
 jobs:
   integration:
-    # Only run for:
-    # 1. pull_request_target from fork PRs (with ok-to-test label)
-    # 2. pull_request from internal PRs (not forks)
+    # Run for:
+    # 1. pull_request_target from fork PRs (triggered by ok-to-test label)
+    # 2. pull_request from any PR — fork PRs fail at the auth gate before checkout
     if: |
       (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository) ||
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+      github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     environment: integration
     permissions:
