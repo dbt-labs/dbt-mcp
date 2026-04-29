@@ -8,6 +8,7 @@ from pathlib import Path
 from filelock import FileLock
 
 from dbt_mcp.config.config_providers.admin_api import DefaultAdminApiConfigProvider
+from dbt_mcp.errors.common import MissingHostError
 from dbt_mcp.config.headers import TokenProvider
 from dbt_mcp.config.settings import (
     DbtMcpSettings,
@@ -184,7 +185,7 @@ async def get_dbt_platform_context(
 
 
 class CredentialsProvider:
-    def __init__(self, settings: "DbtMcpSettings") -> None:
+    def __init__(self, settings: DbtMcpSettings) -> None:
         self.settings = settings
         self.token_provider: TokenProvider | None = None
         self.authentication_method: AuthenticationMethod | None = None
@@ -231,7 +232,7 @@ class CredentialsProvider:
             settings["dbt_token"] = "***redacted***"
         logger.info(f"Settings: {settings}")
 
-    async def get_credentials(self) -> "tuple[DbtMcpSettings, TokenProvider]":
+    async def get_credentials(self) -> tuple[DbtMcpSettings, TokenProvider]:
         if self.token_provider is not None:
             # If token provider is already set, just return the cached values
             return self.settings, self.token_provider
@@ -248,13 +249,22 @@ class CredentialsProvider:
                 dbt_profiles_dir=self.settings.dbt_profiles_dir
             )
             config_location = dbt_user_dir / "mcp.yml"
+            dbt_platform_context_manager = DbtPlatformContextManager(config_location)
+            existing_context = dbt_platform_context_manager.read_context()
+            if existing_context and not self.settings.actual_host:
+                if existing_context.dbt_host:
+                    self.settings.dbt_host = existing_context.dbt_host
+                if (
+                    existing_context.host_prefix
+                    and not self.settings.actual_host_prefix
+                ):
+                    self.settings.host_prefix = existing_context.host_prefix
             actual_host = self.settings.actual_host
             if not actual_host:
-                raise ValueError("DBT_HOST is a required environment variable")
+                raise MissingHostError("DBT_HOST is a required environment variable")
             dbt_platform_url = _build_dbt_platform_url(
                 actual_host, self.settings.actual_host_prefix
             )
-            dbt_platform_context_manager = DbtPlatformContextManager(config_location)
             dbt_platform_context = await get_dbt_platform_context(
                 dbt_platform_context_manager=dbt_platform_context_manager,
                 dbt_user_dir=dbt_user_dir,
@@ -277,6 +287,9 @@ class CredentialsProvider:
             self.settings.host_prefix = dbt_platform_context.host_prefix
             self.settings.dbt_project_ids = dbt_platform_context.selected_project_ids
             self.settings.dbt_host = self.settings.base_host
+            if isinstance(dbt_platform_context, DbtPlatformContext):
+                dbt_platform_context.dbt_host = self.settings.actual_host
+                dbt_platform_context_manager.write_context_to_file(dbt_platform_context)
             if not dbt_platform_context.decoded_access_token:
                 raise ValueError("No decoded access token found in OAuth context")
 

@@ -4,6 +4,7 @@ from dbt_mcp.config.config import (
     DbtCodegenConfig,
     LspConfig,
 )
+from dbt_mcp.config.elicitation import ElicitingCredentialsProvider
 from dbt_mcp.config.config_providers import (
     AdminApiConfig,
     DiscoveryConfig,
@@ -18,6 +19,7 @@ from dbt_mcp.config.config_providers.proxied_tool import (
 )
 from dbt_mcp.config.config_providers.semantic_layer import (
     DefaultSemanticLayerConfigProvider,
+    MultiProjectSemanticLayerConfigProvider,
 )
 from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.config.headers import (
@@ -139,6 +141,16 @@ class MockSemanticLayerConfigProvider(DefaultSemanticLayerConfigProvider):
         return mock_semantic_layer_config
 
 
+class MockMultiProjectSemanticLayerConfigProvider(
+    MultiProjectSemanticLayerConfigProvider
+):
+    def __init__(self):
+        pass  # Skip the base class __init__
+
+    async def get_config(self, project_id: int):
+        return mock_semantic_layer_config
+
+
 class MockAdminApiConfigProvider(DefaultAdminApiConfigProvider):
     def __init__(self):
         pass  # Skip the base class __init__
@@ -162,7 +174,7 @@ mock_config = Config(
     dbt_codegen_config=mock_dbt_codegen_config,
     multi_project_discovery_config_provider=MockMultiProjectDiscoveryConfigProvider(),
     discovery_config_provider=MockDiscoveryConfigProvider(),
-    multi_project_semantic_layer_config_provider=None,
+    multi_project_semantic_layer_config_provider=MockMultiProjectSemanticLayerConfigProvider(),
     semantic_layer_config_provider=MockSemanticLayerConfigProvider(),
     admin_api_config_provider=MockAdminApiConfigProvider(),
     lsp_config=mock_lsp_config,
@@ -170,5 +182,7 @@ mock_config = Config(
     enable_tools=None,  # None means not set, [] would mean allowlist mode
     disabled_toolsets=set(),
     enabled_toolsets=set(),
-    credentials_provider=MockCredentialsProvider(),
+    credentials_provider=ElicitingCredentialsProvider(
+        inner=MockCredentialsProvider(),
+    ),
 )

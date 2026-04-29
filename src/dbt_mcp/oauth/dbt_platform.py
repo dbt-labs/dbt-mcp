@@ -73,6 +73,7 @@ def dbt_platform_context_from_token_response(
 class DbtPlatformContext(BaseModel):
     decoded_access_token: DecodedAccessToken | None = None
     host_prefix: str | None = None
+    dbt_host: str | None = None
     dev_environment: DbtPlatformEnvironment | None = None
     prod_environment: DbtPlatformEnvironment | None = None
     account_id: int | None = None
@@ -99,6 +100,7 @@ class DbtPlatformContext(BaseModel):
             decoded_access_token=other.decoded_access_token
             or self.decoded_access_token,
             host_prefix=other.host_prefix or self.host_prefix,
+            dbt_host=other.dbt_host or self.dbt_host,
             account_id=other.account_id or self.account_id,
             selected_project_ids=other.selected_project_ids
             or self.selected_project_ids,

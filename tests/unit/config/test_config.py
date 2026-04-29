@@ -284,14 +284,14 @@ class TestDbtMcpSettings:
         assert "'xy999'" in caplog.text
         assert "'ab123'" in caplog.text
 
-    def test_auto_disable_platform_features_logging(self):
+    def test_auto_disable_cli_features_only(self):
         with patch.dict(os.environ, {}, clear=True):
             settings = DbtMcpSettings(_env_file=None)
-            # When DBT_HOST is missing, platform features should be disabled
-            assert settings.disable_admin_api is True
-            assert settings.disable_sql is True
-            assert settings.disable_semantic_layer is True
-            assert settings.disable_discovery is True
+            # Platform features are NOT auto-disabled (elicitation handles missing DBT_HOST)
+            assert settings.disable_admin_api is False
+            assert settings.disable_semantic_layer is False
+            assert settings.disable_discovery is False
+            # CLI features ARE still auto-disabled when project dir / dbt path invalid
             assert settings.disable_dbt_cli is True
             assert settings.disable_dbt_codegen is True
 
@@ -388,10 +388,12 @@ class TestLoadConfig:
 
         config = self._load_config_with_env(env_vars)
 
-        assert config.proxied_tool_config_provider is None
+        # Platform providers are always created (resolve lazily via elicitation)
+        assert config.discovery_config_provider is not None
+        assert config.semantic_layer_config_provider is not None
+        assert config.admin_api_config_provider is not None
+        # CLI config still gated on concrete paths
         assert config.dbt_cli_config is None
-        assert config.discovery_config_provider is None
-        assert config.semantic_layer_config_provider is None
 
     def test_invalid_environment_variable_types(self):
         # Test invalid integer types

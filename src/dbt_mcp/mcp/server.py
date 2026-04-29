@@ -12,6 +12,7 @@ from mcp.server.lowlevel.server import LifespanResultT
 from mcp.types import ContentBlock, TextContent, Tool
 
 from dbt_mcp.config.config import Config
+from dbt_mcp.errors.common import MissingHostError
 from dbt_mcp.dbt_admin.tools import register_admin_api_tools
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.dbt_codegen.tools import register_dbt_codegen_tools
@@ -56,7 +57,17 @@ class DbtMCP(FastMCP):
         ) = None
 
     async def _is_multi_project(self) -> bool:
-        settings, _ = await self.config.credentials_provider.get_credentials()
+        try:
+            (
+                settings,
+                _,
+            ) = await self.config.credentials_provider.get_credentials()
+        except MissingHostError as e:
+            logger.warning(
+                "Could not resolve credentials — defaulting to single-project mode: %s",
+                e,
+            )
+            return False
         return bool(
             settings.dbt_project_ids is not None and len(settings.dbt_project_ids) > 0
         )
@@ -78,15 +89,18 @@ class DbtMCP(FastMCP):
                 f"Error calling tool: {name} with arguments: {arguments} "
                 + f"in {end_time - start_time}ms: {e}"
             )
-            await self.usage_tracker.emit_tool_called_event(
-                tool_called_event=ToolCalledEvent(
-                    tool_name=name,
-                    arguments=arguments,
-                    start_time_ms=start_time,
-                    end_time_ms=end_time,
-                    error_message=str(e),
-                ),
-            )
+            try:
+                await self.usage_tracker.emit_tool_called_event(
+                    tool_called_event=ToolCalledEvent(
+                        tool_name=name,
+                        arguments=arguments,
+                        start_time_ms=start_time,
+                        end_time_ms=end_time,
+                        error_message=str(e),
+                    ),
+                )
+            except Exception:
+                logger.debug("Usage tracking failed — skipping", exc_info=True)
             return [
                 TextContent(
                     type="text",
@@ -95,15 +109,18 @@ class DbtMCP(FastMCP):
             ]
         end_time = int(time.time() * 1000)
         logger.info(f"Tool {name} called successfully in {end_time - start_time}ms")
-        await self.usage_tracker.emit_tool_called_event(
-            tool_called_event=ToolCalledEvent(
-                tool_name=name,
-                arguments=arguments,
-                start_time_ms=start_time,
-                end_time_ms=end_time,
-                error_message=None,
-            ),
-        )
+        try:
+            await self.usage_tracker.emit_tool_called_event(
+                tool_called_event=ToolCalledEvent(
+                    tool_name=name,
+                    arguments=arguments,
+                    start_time_ms=start_time,
+                    end_time_ms=end_time,
+                    error_message=None,
+                ),
+            )
+        except Exception:
+            logger.debug("Usage tracking failed — skipping", exc_info=True)
         return result
 
     async def list_tools(self) -> list[Tool]:
@@ -125,19 +142,25 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
             server.config.proxied_tool_config_provider
             and not await server._is_multi_project()
         ):
-            logger.info("Registering proxied tools")
-            await register_proxied_tools(
-                dbt_mcp=server.single_project_mcp,
-                config_provider=server.config.proxied_tool_config_provider,
-                disabled_tools=set(server.config.disable_tools),
-                enabled_tools=(
-                    set(server.config.enable_tools)
-                    if server.config.enable_tools is not None
-                    else None
-                ),
-                enabled_toolsets=server.config.enabled_toolsets,
-                disabled_toolsets=server.config.disabled_toolsets,
-            )
+            try:
+                logger.info("Registering proxied tools")
+                await register_proxied_tools(
+                    dbt_mcp=server.single_project_mcp,
+                    config_provider=server.config.proxied_tool_config_provider,
+                    disabled_tools=set(server.config.disable_tools),
+                    enabled_tools=(
+                        set(server.config.enable_tools)
+                        if server.config.enable_tools is not None
+                        else None
+                    ),
+                    enabled_toolsets=server.config.enabled_toolsets,
+                    disabled_toolsets=server.config.disabled_toolsets,
+                )
+            except MissingHostError as e:
+                logger.warning(
+                    "Could not register proxied tools — credentials not yet available: %s",
+                    e,
+                )
 
         # eager start and initialize the LSP connection
         if server.config.lsp_config:
@@ -176,27 +199,25 @@ async def register_multi_project_dbt_mcp(dbt_mcp: FastMCP, config: Config) -> No
     disabled_toolsets = config.disabled_toolsets
 
     logger.info("Registering semantic layer tools for multi-project")
-    if config.multi_project_semantic_layer_config_provider:
-        register_multiproject_sl_tools(
-            dbt_mcp=dbt_mcp,
-            config_provider=config.multi_project_semantic_layer_config_provider,
-            client_provider=DefaultSemanticLayerClientProvider(),
-            disabled_tools=disabled_tools,
-            enabled_tools=enabled_tools,
-            enabled_toolsets=enabled_toolsets,
-            disabled_toolsets=disabled_toolsets,
-        )
+    register_multiproject_sl_tools(
+        dbt_mcp=dbt_mcp,
+        config_provider=config.multi_project_semantic_layer_config_provider,
+        client_provider=DefaultSemanticLayerClientProvider(),
+        disabled_tools=disabled_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
+    )
 
     logger.info("Registering discovery tools for multi-project")
-    if config.multi_project_discovery_config_provider:
-        register_multiproject_discovery_tools(
-            dbt_mcp=dbt_mcp,
-            config_provider=config.multi_project_discovery_config_provider,
-            disabled_tools=disabled_tools,
-            enabled_tools=enabled_tools,
-            enabled_toolsets=enabled_toolsets,
-            disabled_toolsets=disabled_toolsets,
-        )
+    register_multiproject_discovery_tools(
+        dbt_mcp=dbt_mcp,
+        config_provider=config.multi_project_discovery_config_provider,
+        disabled_tools=disabled_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
+    )
 
     if config.admin_api_config_provider:
         logger.info("Registering dbt admin API tools for multi-project")
@@ -238,28 +259,26 @@ async def register_dbt_mcp_tools(dbt_mcp: FastMCP, config: Config) -> None:
         disabled_toolsets=disabled_toolsets,
     )
 
-    if config.semantic_layer_config_provider:
-        logger.info("Registering semantic layer tools")
-        register_sl_tools(
-            dbt_mcp,
-            config_provider=config.semantic_layer_config_provider,
-            client_provider=DefaultSemanticLayerClientProvider(),
-            disabled_tools=disabled_tools,
-            enabled_tools=enabled_tools,
-            enabled_toolsets=enabled_toolsets,
-            disabled_toolsets=disabled_toolsets,
-        )
+    logger.info("Registering semantic layer tools")
+    register_sl_tools(
+        dbt_mcp,
+        config_provider=config.semantic_layer_config_provider,
+        client_provider=DefaultSemanticLayerClientProvider(),
+        disabled_tools=disabled_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
+    )
 
-    if config.discovery_config_provider:
-        logger.info("Registering discovery tools")
-        register_discovery_tools(
-            dbt_mcp,
-            discovery_config_provider=config.discovery_config_provider,
-            disabled_tools=disabled_tools,
-            enabled_tools=enabled_tools,
-            enabled_toolsets=enabled_toolsets,
-            disabled_toolsets=disabled_toolsets,
-        )
+    logger.info("Registering discovery tools")
+    register_discovery_tools(
+        dbt_mcp,
+        discovery_config_provider=config.discovery_config_provider,
+        disabled_tools=disabled_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
+    )
 
     if config.dbt_cli_config:
         logger.info("Registering dbt cli tools")
@@ -283,16 +302,15 @@ async def register_dbt_mcp_tools(dbt_mcp: FastMCP, config: Config) -> None:
             disabled_toolsets=disabled_toolsets,
         )
 
-    if config.admin_api_config_provider:
-        logger.info("Registering dbt admin API tools")
-        register_admin_api_tools(
-            dbt_mcp,
-            config.admin_api_config_provider,
-            disabled_tools=disabled_tools,
-            enabled_tools=enabled_tools,
-            enabled_toolsets=enabled_toolsets,
-            disabled_toolsets=disabled_toolsets,
-        )
+    logger.info("Registering dbt admin API tools")
+    register_admin_api_tools(
+        dbt_mcp,
+        config.admin_api_config_provider,
+        disabled_tools=disabled_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
+    )
 
     if config.lsp_config:
         logger.info("Registering LSP tools")
@@ -317,7 +335,7 @@ async def create_dbt_mcp(config: Config) -> FastMCP:
         name="dbt",
         config=config,
         usage_tracker=DefaultUsageTracker(
-            credentials_provider=config.credentials_provider,
+            credentials_provider=config.credentials_provider.inner_provider,
             session_id=uuid.uuid4(),
         ),
         lifespan=app_lifespan,
