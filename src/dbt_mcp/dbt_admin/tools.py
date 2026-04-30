@@ -27,7 +27,7 @@ from dbt_mcp.dbt_admin.param_descriptions import (
     TRIGGER_STEPS_OVERRIDE,
     WARNINGS_ONLY,
 )
-from dbt_mcp.dbt_admin.run_artifacts import ErrorFetcher, WarningFetcher
+from dbt_mcp.dbt_admin.run_artifacts.parser import ErrorFetcher, WarningFetcher
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
