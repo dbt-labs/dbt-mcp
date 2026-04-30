@@ -12,13 +12,17 @@ from dbt_mcp.dbt_admin.constants import (
     JobRunStatus,
     RunResultsStatus,
 )
-from dbt_mcp.dbt_admin.run_artifacts.config import (
+from dbt_mcp.dbt_admin.run_artifacts.schemas.output import (
     OutputResultSchema,
     OutputStepSchema,
+)
+from dbt_mcp.dbt_admin.run_artifacts.schemas.run_results import (
     RunDetailsSchema,
     RunResultsArtifactSchema,
     RunResultSchema,
     RunStepSchema,
+)
+from dbt_mcp.dbt_admin.run_artifacts.schemas.sources import (
     SourcesArtifactSchema,
 )
 from dbt_mcp.errors import ArtifactRetrievalError, NotFoundError

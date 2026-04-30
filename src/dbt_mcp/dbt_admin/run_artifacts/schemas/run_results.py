@@ -1,4 +1,7 @@
+"""Pydantic schemas for run_results.json artifacts and Admin API run detail responses."""
+
 from typing import Any
+
 from pydantic import BaseModel
 
 
@@ -34,6 +37,10 @@ class RunResultSchema(BaseModel):
     message: str | None = None
     relation_name: str | None = None
     compiled_code: str | None = None
+    execution_time: float | None = None
+    thread_id: str | None = None
+    adapter_response: dict[str, Any] | None = None
+    timing: list[dict[str, Any]] | None = None
 
     class Config:
         extra = "allow"
@@ -54,51 +61,6 @@ class RunResultsArtifactSchema(BaseModel):
     results: list[RunResultSchema]
     args: RunResultsArgsSchema | None = None
     metadata: dict[str, Any] | None = None
-
-    class Config:
-        extra = "allow"
-
-
-class OutputResultSchema(BaseModel):
-    """Schema for individual error/warning result."""
-
-    unique_id: str | None = None
-    relation_name: str | None = None
-    message: str
-    status: str | None = None  # "error", "fail", "warn" - helps distinguish result type
-    compiled_code: str | None = None
-    truncated_logs: str | None = None
-
-
-class OutputStepSchema(BaseModel):
-    """Schema for a single step with its results (errors/warnings)."""
-
-    target: str | None = None
-    step_name: str | None = None
-    finished_at: str | None = None
-    results: list[OutputResultSchema]
-
-
-class SourceFreshnessResultSchema(BaseModel):
-    """Schema for source freshness results from sources.json."""
-
-    unique_id: str
-    max_loaded_at: str | None = None
-    snapshotted_at: str | None = None
-    max_loaded_at_time_ago_in_s: float | None = None
-    status: str  # "pass", "warn", "fail"
-    criteria: dict[str, Any] | None = None
-
-    class Config:
-        extra = "allow"
-
-
-class SourcesArtifactSchema(BaseModel):
-    """Schema for sources.json artifact."""
-
-    results: list[SourceFreshnessResultSchema]
-    metadata: dict[str, Any] | None = None
-    elapsed_time: float | None = None
 
     class Config:
         extra = "allow"
