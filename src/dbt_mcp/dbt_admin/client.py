@@ -102,14 +102,11 @@ class DbtAdminAPIClient:
                 break
 
         for environment in environments:
-            if (
-                environment.deployment_type
-                and environment.deployment_type.lower() == "development"
-            ):
+            if environment.type and environment.type.lower() == "development":
                 dev_environment = DbtPlatformEnvironment(
                     id=environment.id,
                     name=environment.name,
-                    deployment_type=environment.deployment_type,
+                    deployment_type=None,
                 )
                 break
 
