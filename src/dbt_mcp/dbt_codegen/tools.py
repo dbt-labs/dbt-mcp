@@ -53,7 +53,7 @@ def create_dbt_codegen_tool_definitions(
                 args=args_list,
                 cwd=cwd_path,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                stderr=subprocess.PIPE,
                 stdin=subprocess.DEVNULL,
                 text=True,
             )

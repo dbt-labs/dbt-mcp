@@ -515,6 +515,36 @@ def test_yml_selector_not_added_when_none(
     assert "--selector" not in args_list
 
 
+def test_stderr_not_merged_into_stdout(monkeypatch: MonkeyPatch, mock_fastmcp):
+    captured_kwargs: dict = {}
+
+    class MockProcessWithStderrWarning:
+        def communicate(self, timeout=None):
+            return "", "urllib3 v2.0 only supports OpenSSL 1.1.1+: NotOpenSSLWarning"
+
+    def mock_popen(args, **kwargs):
+        captured_kwargs.update(kwargs)
+        return MockProcessWithStderrWarning()
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    build_tool = tools["build"]
+
+    result = build_tool()
+
+    assert captured_kwargs.get("stderr") == subprocess.PIPE
+    assert result == "OK"
+
+
 def test_clone_command_binary_state_path_logic(
     monkeypatch: MonkeyPatch,
     mock_process,
