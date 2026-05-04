@@ -519,6 +519,8 @@ def test_stderr_not_merged_into_stdout(monkeypatch: MonkeyPatch, mock_fastmcp):
     captured_kwargs: dict = {}
 
     class MockProcessWithStderrWarning:
+        returncode = 0
+
         def communicate(self, timeout=None):
             return "", "urllib3 v2.0 only supports OpenSSL 1.1.1+: NotOpenSSLWarning"
 
@@ -543,6 +545,36 @@ def test_stderr_not_merged_into_stdout(monkeypatch: MonkeyPatch, mock_fastmcp):
 
     assert captured_kwargs.get("stderr") == subprocess.PIPE
     assert result == "OK"
+
+
+def test_failure_output_returned_when_dbt_errors(
+    monkeypatch: MonkeyPatch, mock_fastmcp
+):
+    class MockProcessWithFailure:
+        returncode = 1
+
+        def communicate(self, timeout=None):
+            return "Compilation Error in model my_model", ""
+
+    def mock_popen(args, **kwargs):
+        return MockProcessWithFailure()
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    build_tool = tools["build"]
+
+    result = build_tool()
+
+    assert result == "Compilation Error in model my_model"
 
 
 def test_clone_command_binary_state_path_logic(

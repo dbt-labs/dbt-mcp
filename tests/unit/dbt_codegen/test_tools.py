@@ -437,6 +437,45 @@ def test_stderr_not_merged_into_stdout(monkeypatch: MonkeyPatch, mock_fastmcp):
     assert result == "OK"
 
 
+def test_failure_output_returned_when_dbt_errors(
+    monkeypatch: MonkeyPatch, mock_fastmcp
+):
+    """Test that stdout error output is surfaced correctly on failure."""
+
+    class MockProcessWithFailure:
+        returncode = 1
+
+        def communicate(self, timeout=None):
+            return "macro not found: generate_source", ""
+
+    def mock_popen(args, **kwargs):
+        return MockProcessWithFailure()
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, _ = mock_fastmcp
+    register_dbt_codegen_tools(
+        fastmcp,
+        mock_dbt_codegen_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    generate_source_tool = fastmcp.tools["generate_source"]
+
+    result = generate_source_tool(
+        schema_name="test_schema",
+        database_name=None,
+        table_names=None,
+        generate_columns=False,
+        include_descriptions=False,
+    )
+
+    assert "macro not found: generate_source" in result
+    assert result != "OK"
+
+
 def test_all_tools_registered(mock_fastmcp):
     """Test that all expected tools are registered."""
     fastmcp, _ = mock_fastmcp
