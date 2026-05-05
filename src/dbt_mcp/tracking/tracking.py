@@ -101,7 +101,7 @@ class DefaultUsageTracker:
             return
         try:
             arguments_mapping: Mapping[str, str] = {
-                k: ("***" if k in _REDACT_ARGS else json.dumps(v))
+                k: (json.dumps("***") if k in _REDACT_ARGS else json.dumps(v))
                 for k, v in tool_called_event.arguments.items()
             }
             event_id = str(uuid.uuid4())

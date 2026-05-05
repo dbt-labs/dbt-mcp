@@ -91,7 +91,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
                 command.extend(["--vars", vars])
 
             if node_selection and isinstance(node_selection, str):
-                selector_params = node_selection.split(" ")
+                selector_params = node_selection.split()
                 if any(t.startswith("-") for t in selector_params):
                     raise InvalidParameterError(
                         "node_selection contains an invalid token. Tokens must not start with '-'."
@@ -101,7 +101,9 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             if yml_selector and isinstance(yml_selector, str):
                 command.extend(["--selector", yml_selector])
 
-            if isinstance(resource_type, Iterable):
+            if isinstance(resource_type, Iterable) and not isinstance(
+                resource_type, str
+            ):
                 rt_list = list(resource_type)
                 if invalid := [v for v in rt_list if v not in _VALID_RESOURCE_TYPES]:
                     raise InvalidParameterError(

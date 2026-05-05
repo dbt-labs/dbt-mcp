@@ -629,6 +629,6 @@ class TestUsageTracker:
             )
 
         tool_called = mock_log_proto.call_args.args[0]
-        assert tool_called.arguments["sql_query"] == "***"
-        assert tool_called.arguments["vars"] == "***"
+        assert tool_called.arguments["sql_query"] == '"***"'
+        assert tool_called.arguments["vars"] == '"***"'
         assert tool_called.arguments["limit"] == "5"
