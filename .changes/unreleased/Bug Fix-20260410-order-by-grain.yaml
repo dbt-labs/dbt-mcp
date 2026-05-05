@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Fix query_metrics order_by to accept an explicit grain, matching the grain specified in group_by instead of silently inheriting it
+time: 2026-04-10T13:45:00.000000-07:00
