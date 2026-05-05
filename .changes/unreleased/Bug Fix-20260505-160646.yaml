@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: 'Fix server crash for CLI-only users introduced in v1.17.0: register_proxied_tools now filters enabled tools before calling get_config(), preventing an AssertionError when DBT_HOST is unset; replace bare assert with MissingHostError; improve lifespan error logging to include full traceback'
-time: 2026-05-05T16:06:46.017395+02:00
