@@ -1,5 +1,6 @@
 """Unit tests for DbtMCP tool dispatcher routing."""
 
+import logging
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -188,3 +189,43 @@ class TestCallToolRouting:
         assert "DBT_HOST" in result[0].text
         # Tracking was attempted (and failed, but didn't crash)
         dispatcher.usage_tracker.emit_tool_called_event.assert_awaited_once()
+
+
+class TestAppLifespanLogging:
+    async def test_lifespan_logs_exception_with_traceback(self, caplog):
+        """Regression: app_lifespan used logger.error() without exc_info=True, so an
+        AssertionError with no message logged as 'Error in MCP server:' with no traceback —
+        making the crash completely undiagnosable. Should use logger.exception() instead."""
+        from dbt_mcp.mcp.server import app_lifespan
+
+        server = _make_dispatcher()
+        server.config.proxied_tool_config_provider = MagicMock()
+        server.config.lsp_config = None
+        server.config.disable_tools = []
+        server.config.enable_tools = None
+        server.config.enabled_toolsets = set()
+        server.config.disabled_toolsets = set()
+        server._is_multi_project = AsyncMock(return_value=False)
+
+        with patch(
+            "dbt_mcp.mcp.server.register_proxied_tools", side_effect=AssertionError()
+        ):
+            with patch(
+                "dbt_mcp.mcp.server.ProxiedToolsManager.close", new_callable=AsyncMock
+            ):
+                with patch("dbt_mcp.mcp.server.shutdown"):
+                    with caplog.at_level(logging.ERROR, logger="dbt_mcp.mcp.server"):
+                        with pytest.raises(AssertionError):
+                            async with app_lifespan(server):
+                                pass
+
+        error_records = [
+            r
+            for r in caplog.records
+            if r.levelno == logging.ERROR and "Error in MCP server" in r.message
+        ]
+        assert error_records, "Expected an ERROR log for 'Error in MCP server'"
+        assert any(r.exc_info is not None for r in error_records), (
+            "Expected exc_info to be set so the full traceback appears in the log, "
+            "not just the (empty) exception message"
+        )

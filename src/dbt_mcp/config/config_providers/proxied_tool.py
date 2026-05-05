@@ -1,5 +1,6 @@
 from dbt_mcp.config.headers import ProxiedToolHeadersProvider
 from dbt_mcp.config.credentials import CredentialsProvider
+from dbt_mcp.errors.common import MissingHostError
 
 from .base import ConfigProvider, ProxiedToolConfig
 
@@ -10,7 +11,8 @@ class DefaultProxiedToolConfigProvider(ConfigProvider[ProxiedToolConfig]):
 
     async def get_config(self) -> ProxiedToolConfig:
         settings, token_provider = await self.credentials_provider.get_credentials()
-        assert settings.actual_host
+        if not settings.actual_host:
+            raise MissingHostError("DBT_HOST is required for proxied tools")
         is_local = settings.actual_host and settings.actual_host.startswith("localhost")
         path = "/v1/mcp/" if is_local else "/api/ai/v1/mcp/"
         scheme = "http://" if is_local else "https://"
