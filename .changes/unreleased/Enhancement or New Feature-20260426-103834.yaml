@@ -1,3 +1,0 @@
-kind: Enhancement or New Feature
-body: Register admin API tools in the multiproject MCP server so they are available when DBT_PROJECT_IDS is configured
-time: 2026-04-26T10:38:34.116935-05:00

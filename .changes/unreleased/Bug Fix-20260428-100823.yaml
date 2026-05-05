@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Fix UnicodeDecodeError when reading manifest.json on Windows with UTF-8 model descriptions
-time: 2026-04-28T10:08:23.680284+02:00

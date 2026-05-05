@@ -1,3 +1,0 @@
-kind: Enhancement or New Feature
-body: Elicit DBT_HOST from user on first platform tool call when not set via env vars (#488)
-time: 2026-04-17T23:25:37.853311+01:00

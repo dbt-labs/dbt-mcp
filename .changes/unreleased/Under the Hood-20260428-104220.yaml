@@ -1,3 +1,0 @@
-kind: Under the Hood
-body: 'Make integration test check blocking for fork PRs: fail early instead of skipping when ok-to-test label is absent'
-time: 2026-04-28T10:42:20.688843+02:00

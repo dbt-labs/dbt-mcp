@@ -1,3 +1,0 @@
-kind: Security
-body: Add 7-day minimum package release age gate to prevent supply chain attacks via freshly-published malicious packages
-time: 2026-05-01T12:42:50.530604-05:00
