@@ -7,7 +7,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
+exclude-newer = "2026-04-28T02:31:46.651546Z"
 exclude-newer-span = "P7D"
 
 [options.exclude-newer-package]
@@ -264,10 +264,23 @@ wheels = [
 ]
 
 [[package]]
+name = "dbt-artifacts-parser"
+version = "0.13.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/64/bd/b0f90c3b973e3d2a6f37c9b279aff47cb7426265893517c3268ec3838d31/dbt_artifacts_parser-0.13.1.tar.gz", hash = "sha256:c7a3c4e309ae2d7d566a615e92043b0d346a77998203b0cc466234717b806e40", size = 260372, upload-time = "2026-04-13T23:27:15.188Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/68/59/f33d851b116cf955dc38c2c8bffc2671f080e51ddddc5d4af0c5fa47e6c6/dbt_artifacts_parser-0.13.1-py3-none-any.whl", hash = "sha256:c341730fa34ebb38cc7d2de0282e8b713e2fc65fc6577f0d944f8abee8949dc4", size = 250502, upload-time = "2026-04-13T23:27:16.211Z" },
+]
+
+[[package]]
 name = "dbt-mcp"
 source = { editable = "." }
 dependencies = [
     { name = "authlib" },
+    { name = "dbt-artifacts-parser" },
     { name = "dbt-protos" },
     { name = "dbt-sl-sdk", extra = ["sync"] },
     { name = "dbtlabs-vortex" },
@@ -298,6 +311,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "authlib", specifier = "~=1.6.7" },
+    { name = "dbt-artifacts-parser", specifier = "~=0.13.1" },
     { name = "dbt-protos", specifier = "~=1.0.431" },
     { name = "dbt-sl-sdk", extras = ["sync"], specifier = "~=0.13.2" },
     { name = "dbtlabs-vortex", specifier = "~=0.2.0" },

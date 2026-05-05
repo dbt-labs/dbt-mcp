@@ -1,28 +1,30 @@
 import asyncio
+import json
 import logging
 import re
+from collections.abc import Callable
 from typing import Any
 
-from dbt_mcp.config.config_providers import AdminApiConfig
-from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
+from pydantic import ValidationError
 
+from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.dbt_admin.constants import (
     STATUS_MAP,
     TRUNCATED_LOGS_LENGTH,
     JobRunStatus,
-    RunResultsStatus,
 )
-from dbt_mcp.dbt_admin.run_artifacts.config import (
+from dbt_mcp.dbt_admin.run_artifacts.artifacts import run_results as rr_artifact
+from dbt_mcp.dbt_admin.run_artifacts.artifacts import sources as src_artifact
+from dbt_mcp.dbt_admin.run_artifacts.schemas.output import (
     OutputResultSchema,
     OutputStepSchema,
-    RunDetailsSchema,
-    RunResultsArtifactSchema,
-    RunResultSchema,
-    RunStepSchema,
-    SourcesArtifactSchema,
 )
+from dbt_mcp.dbt_admin.run_artifacts.schemas.job_run import (
+    RunDetailsSchema,
+    RunStepSchema,
+)
+from dbt_mcp.config.config_providers import AdminApiConfig
 from dbt_mcp.errors import ArtifactRetrievalError, NotFoundError
-from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -111,23 +113,16 @@ class JobRunFetcher:
             logger.debug(f"No sources.json for step {step_index}: {e}")
             return None
 
-    async def _check_source_freshness_results(
+    async def _check_source_freshness(
         self,
         step: RunStepSchema,
-        status_filter: list[str],
-        message_prefix: str,
-        result_status: str | None = None,
+        mapper: Callable[[Any], OutputResultSchema | None],
     ) -> OutputStepSchema | None:
-        """
-        Check for source freshness results (errors/warnings) in sources.json artifact.
-        Note: Only method used by both ErrorFetcher and WarningFetcher that differ in usage
-        with params so including a complete docstring.
+        """Check for source freshness results in sources.json artifact.
 
         Args:
-            step: The run step to check for source freshness results
-            status_filter: List of status values to filter for (["error", "fail"] or ["warn"])
-            message_prefix: Prefix for the result message ("Source freshness error")
-            result_status: Optional status value to set in OutputResultSchema ("warn")
+            step: The run step to check
+            mapper: Per-result mapping function (to_freshness_error or to_freshness_warning)
         """
         sources_content = await self._fetch_sources_artifact(step)
 
@@ -135,24 +130,8 @@ class JobRunFetcher:
             return None
 
         try:
-            sources = SourcesArtifactSchema.model_validate_json(sources_content)
-
-            message_suffix = (
-                " (max allowed exceeded)" if "error" in message_prefix.lower() else ""
-            )
-
-            results = [
-                OutputResultSchema(
-                    unique_id=result.unique_id,
-                    relation_name=result.unique_id.split(".")[-1]
-                    if result.unique_id
-                    else "Unknown",
-                    message=f"{message_prefix}: {result.max_loaded_at_time_ago_in_s or 0:.0f}s since last load{message_suffix}",
-                    status=result_status,
-                )
-                for result in sources.results
-                if result.status in status_filter
-            ]
+            parsed = src_artifact.parse(json.loads(sources_content))
+            results = [r for result in parsed.results if (r := mapper(result))]
 
             if results:
                 return OutputStepSchema(
@@ -162,10 +141,9 @@ class JobRunFetcher:
                     results=results,
                 )
             return None
-        except ValidationError as e:
-            logger.debug(f"sources.json validation failed: {e}")
-            return None
         except Exception as e:
+            # src_artifact.parse() never raises (it falls back to _AttrDict internally),
+            # but guard against unexpected AttributeError on missing keys or JSON errors.
             logger.debug(f"Error parsing sources.json: {e}")
             return None
 
@@ -228,7 +206,9 @@ class ErrorFetcher(JobRunFetcher):
 
         if not run_results_content:
             # Try to get structured errors from sources.json for source freshness checks
-            source_errors = await self._check_source_freshness_errors(failed_step)
+            source_errors = await self._check_source_freshness(
+                failed_step, src_artifact.to_freshness_error
+            )
             if source_errors:
                 return source_errors
             # Fall back to truncated logs if no structured errors available
@@ -241,52 +221,27 @@ class ErrorFetcher(JobRunFetcher):
     ) -> OutputStepSchema:
         """Parse run_results.json content and extract errors."""
         try:
-            run_results = RunResultsArtifactSchema.model_validate_json(
-                run_results_content
+            parsed = rr_artifact.parse(json.loads(run_results_content))
+            errors = [
+                r
+                for result in parsed.results
+                if (r := rr_artifact.to_error_result(result))
+            ]
+            return self._build_error_response(
+                errors, failed_step, rr_artifact.get_target(parsed)
             )
-            errors = self._extract_errors_from_results(run_results.results)
 
-            return self._build_error_response(errors, failed_step, run_results.args)
-
-        except ValidationError as e:
-            logger.warning(f"run_results.json validation failed: {e}")
-            return self._handle_artifact_error(failed_step)
         except Exception as e:
             logger.warning(f"run_results.json parsing failed: {e}")
             return self._handle_artifact_error(failed_step)
-
-    def _extract_errors_from_results(
-        self, results: list[RunResultSchema]
-    ) -> list[OutputResultSchema]:
-        """Extract error results from run results."""
-        errors = []
-        for result in results:
-            if result.status in [
-                RunResultsStatus.ERROR.value,
-                RunResultsStatus.FAIL.value,
-            ]:
-                relation_name = (
-                    result.relation_name
-                    if result.relation_name is not None
-                    else "No database relation"
-                )
-                error = OutputResultSchema(
-                    unique_id=result.unique_id,
-                    relation_name=relation_name,
-                    message=result.message or "",
-                    compiled_code=result.compiled_code,
-                )
-                errors.append(error)
-        return errors
 
     def _build_error_response(
         self,
         errors: list[OutputResultSchema],
         failed_step: RunStepSchema,
-        args: Any | None,
+        target: str | None,
     ) -> OutputStepSchema:
         """Build the final error response structure."""
-        target = args.target if args else None
         step_name = failed_step.name
         finished_at = failed_step.finished_at
         truncated_logs = self._get_truncated_logs(failed_step)
@@ -335,32 +290,14 @@ class ErrorFetcher(JobRunFetcher):
             target=target,
         )
 
-    async def _check_source_freshness_errors(
-        self, step: RunStepSchema
-    ) -> OutputStepSchema | None:
-        """Check for source freshness errors in sources.json artifact."""
-        return await self._check_source_freshness_results(
-            step=step,
-            status_filter=["error", "fail"],  # sources.json uses "fail" for errors
-            message_prefix="Source freshness error",
-            result_status=None,
-        )
-
     def _handle_artifact_error(self, failed_step: RunStepSchema) -> OutputStepSchema:
         """Handle cases where run_results.json is not available."""
-        relation_name = "No database relation"
-        step_name = failed_step.name
-        finished_at = failed_step.finished_at
-        truncated_logs = self._get_truncated_logs(failed_step)
-
-        message = "run_results.json not available - returning logs"
-
         return self._create_error_result(
-            message=message,
-            relation_name=relation_name,
-            step_name=step_name,
-            finished_at=finished_at,
-            truncated_logs=truncated_logs,
+            message="run_results.json not available - returning logs",
+            relation_name="No database relation",
+            step_name=failed_step.name,
+            finished_at=failed_step.finished_at,
+            truncated_logs=self._get_truncated_logs(failed_step),
         )
 
     def _get_truncated_logs(self, step: RunStepSchema) -> str | None:
@@ -473,7 +410,9 @@ class WarningFetcher(JobRunFetcher):
         if run_results_content:
             result = self._parse_run_results_for_warnings(run_results_content, step)
         else:
-            result = await self._check_source_freshness_warnings(step)
+            result = await self._check_source_freshness(
+                step, src_artifact.to_freshness_warning
+            )
 
         log_warnings = self._extract_log_warnings(step)
 
@@ -501,51 +440,23 @@ class WarningFetcher(JobRunFetcher):
     ) -> OutputStepSchema | None:
         """Parse run_results.json content and extract structured warnings."""
         try:
-            run_results = RunResultsArtifactSchema.model_validate_json(
-                run_results_content
-            )
-            warnings = self._extract_warnings_from_results(run_results.results)
-
+            parsed = rr_artifact.parse(json.loads(run_results_content))
+            warnings = [
+                r
+                for result in parsed.results
+                if (r := rr_artifact.to_warning_result(result))
+            ]
             if warnings:
                 return OutputStepSchema(
-                    target=run_results.args.target if run_results.args else None,
+                    target=rr_artifact.get_target(parsed),
                     step_name=step.name,
                     finished_at=step.finished_at,
                     results=warnings,
                 )
             return None
-        except (ValidationError, Exception) as e:
+        except Exception as e:
             logger.warning(f"run_results.json parsing failed: {e}")
             return None
-
-    def _extract_warnings_from_results(
-        self, results: list[RunResultSchema]
-    ) -> list[OutputResultSchema]:
-        """Extract warning results from run results."""
-        warnings = []
-        for result in results:
-            if result.status == RunResultsStatus.WARN.value:
-                warnings.append(
-                    OutputResultSchema(
-                        unique_id=result.unique_id,
-                        relation_name=result.relation_name or "No database relation",
-                        message=result.message or "Warning detected",
-                        status="warn",
-                        compiled_code=result.compiled_code,
-                    )
-                )
-        return warnings
-
-    async def _check_source_freshness_warnings(
-        self, step: RunStepSchema
-    ) -> OutputStepSchema | None:
-        """Check for source freshness warnings in sources.json artifact."""
-        return await self._check_source_freshness_results(
-            step=step,
-            status_filter=["warn"],
-            message_prefix="Source freshness warning",
-            result_status="warn",
-        )
 
     def _is_fusion_logs(self, clean_logs: str) -> bool:
         """Detect whether logs are from dbt Fusion (vs dbt Core/Platform)."""
