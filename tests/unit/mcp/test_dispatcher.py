@@ -229,3 +229,25 @@ class TestAppLifespanLogging:
             "Expected exc_info to be set so the full traceback appears in the log, "
             "not just the (empty) exception message"
         )
+
+
+class TestArgLogging:
+    async def test_sensitive_args_not_logged(self, caplog):
+        single = MagicMock(spec=FastMCP)
+        single.call_tool = AsyncMock(return_value=[TextContent(type="text", text="ok")])
+        dispatcher = _make_dispatcher(single_project_mcp=single)
+
+        with (
+            patch.object(
+                dispatcher, "_is_multi_project", AsyncMock(return_value=False)
+            ),
+            caplog.at_level(logging.INFO, logger="dbt_mcp.mcp.server"),
+        ):
+            await dispatcher.call_tool(
+                "show",
+                {"sql_query": "SELECT id FROM my_model", "limit": 5},
+            )
+
+        assert "SELECT id FROM my_model" not in caplog.text
+        assert "***" in caplog.text
+        assert "limit" in caplog.text

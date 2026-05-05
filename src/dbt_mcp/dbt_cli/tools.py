@@ -28,6 +28,22 @@ from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
 
+_VALID_RESOURCE_TYPES = frozenset(
+    {
+        "analysis",
+        "function",
+        "metric",
+        "model",
+        "saved_query",
+        "seed",
+        "semantic_model",
+        "snapshot",
+        "source",
+        "test",
+        "unit_test",
+    }
+)
+
 
 def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition]:
     def _run_dbt_command(
@@ -76,13 +92,23 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
 
             if node_selection and isinstance(node_selection, str):
                 selector_params = node_selection.split(" ")
+                if any(t.startswith("-") for t in selector_params):
+                    raise InvalidParameterError(
+                        "node_selection contains an invalid token. Tokens must not start with '-'."
+                    )
                 command.extend(["--select"] + selector_params)
 
             if yml_selector and isinstance(yml_selector, str):
                 command.extend(["--selector", yml_selector])
 
             if isinstance(resource_type, Iterable):
-                command.extend(["--resource-type"] + resource_type)
+                rt_list = list(resource_type)
+                if invalid := [v for v in rt_list if v not in _VALID_RESOURCE_TYPES]:
+                    raise InvalidParameterError(
+                        f"resource_type contains invalid values: {invalid}. "
+                        f"Allowed values: {sorted(_VALID_RESOURCE_TYPES)}"
+                    )
+                command.extend(["--resource-type"] + rt_list)
 
             full_command = command.copy()
             # Add --quiet flag to specific commands to reduce context window usage
