@@ -1,4 +1,10 @@
-"""Output data schemas used by the run artifact parser."""
+"""Output contract schemas for get_job_run_error and get_job_run_warning.
+
+These are the final structured types returned to the MCP client after
+ErrorFetcher and WarningFetcher have parsed the job run artifacts.
+
+For the intermediate Admin API response shapes, see schemas/job_run.py.
+"""
 
 from pydantic import BaseModel
 

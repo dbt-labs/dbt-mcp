@@ -44,6 +44,7 @@ dependencies = [
   "httpx~=0.28.1",
   "filelock~=3.20.3",
   "starlette~=0.50.0",
+  "dbt-artifacts-parser~=0.13.1",
 ]
 [tool.uv]
 exclude-newer = "7 days"
