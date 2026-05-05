@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Improve input validation for dbt CLI tool parameters and reduce verbosity of argument logging.
-time: 2026-05-05T15:37:11.024363+02:00
