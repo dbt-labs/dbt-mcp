@@ -197,10 +197,10 @@ async def test_schema_validation_failure(mock_client, admin_config):
         ],
     }
 
-    # Return valid JSON that is missing the required "results" key.
-    # rr_artifact.parse() will fail strict validation and fall back to _AttrDict;
-    # accessing parsed.results then raises AttributeError (key absent), which the
-    # outer except-Exception in _parse_run_results catches → logs fallback.
+    # Return valid JSON that is missing the "results" key.
+    # rr_artifact.parse() fails strict validation and falls back to LenientRunResults,
+    # which succeeds with results=[] (the default). Empty errors → "No failures found"
+    # message with truncated logs still attached.
     mock_client.get_job_run_artifact = AsyncMock(
         return_value='{"metadata": {"some": "value"}, "invalid_field": true}'
     )
@@ -214,11 +214,11 @@ async def test_schema_validation_failure(mock_client, admin_config):
 
     result = await error_fetcher.analyze_run_errors()
 
-    # Should fallback to logs when schema validation fails
+    # Lenient fallback parses successfully with no results → "No failures found" + logs
     assert len(result["failed_steps"]) == 1
     step = result["failed_steps"][0]
     assert step["step_name"] == "Invoke dbt with `dbt build`"
-    assert "run_results.json not available" in step["results"][0]["message"]
+    assert "No failures found in run_results.json" in step["results"][0]["message"]
     assert "Model compilation failed" in step["results"][0]["truncated_logs"]
 
 

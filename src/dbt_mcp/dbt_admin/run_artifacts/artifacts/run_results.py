@@ -8,7 +8,7 @@ from typing import Any
 from dbt_artifacts_parser.parser import parse_run_results  # type: ignore[import-untyped]
 
 from dbt_mcp.dbt_admin.constants import RunResultsStatus
-from dbt_mcp.dbt_admin.run_artifacts.artifacts.lenient import _AttrDict
+from dbt_mcp.dbt_admin.run_artifacts.artifacts.lenient import LenientRunResults
 from dbt_mcp.dbt_admin.run_artifacts.schemas.output import OutputResultSchema
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ def parse(raw: dict[str, Any]) -> Any:
             type(e).__name__,
             str(e)[:200],
         )
-        return _AttrDict(raw)
+        return LenientRunResults.model_validate(raw)
 
 
 def get_target(run_results: Any) -> str | None:

@@ -1,117 +1,151 @@
-"""Unit tests for _AttrDict lenient fallback wrapper."""
+"""Unit tests for lenient Pydantic fallback schemas."""
 
-import pytest
+from pydantic import BaseModel
 
-from dbt_mcp.dbt_admin.run_artifacts.artifacts.lenient import _AttrDict, _wrap
-
-
-class TestAttrDict:
-    def test_attribute_access_present_key(self) -> None:
-        d = _AttrDict({"foo": "bar"})
-        assert d.foo == "bar"
-
-    def test_attribute_access_missing_key_raises(self) -> None:
-        d = _AttrDict({"foo": "bar"})
-        with pytest.raises(AttributeError):
-            _ = d.missing
-
-    def test_hasattr_false_for_missing_key(self) -> None:
-        d = _AttrDict({"foo": "bar"})
-        assert not hasattr(d, "missing")
-
-    def test_hasattr_true_for_present_key(self) -> None:
-        d = _AttrDict({"foo": "bar"})
-        assert hasattr(d, "foo")
-
-    def test_schema_alias_maps_schema_underscore(self) -> None:
-        """schema_ attribute should resolve to the 'schema' JSON key."""
-        d = _AttrDict({"schema": "my_schema"})
-        assert d.schema_ == "my_schema"
-
-    def test_nested_dict_wrapped_recursively(self) -> None:
-        d = _AttrDict({"node": {"name": "test"}})
-        assert isinstance(d.node, _AttrDict)
-        assert d.node.name == "test"
-
-    def test_nested_list_items_wrapped(self) -> None:
-        d = _AttrDict({"results": [{"status": "error"}]})
-        results = d.results
-        assert isinstance(results, list)
-        assert isinstance(results[0], _AttrDict)
-        assert results[0].status == "error"
-
-    def test_get_returns_wrapped_value(self) -> None:
-        d = _AttrDict({"key": {"nested": 1}})
-        val = d.get("key")
-        assert isinstance(val, _AttrDict)
-        assert val.nested == 1
-
-    def test_get_returns_default_for_missing(self) -> None:
-        d = _AttrDict({})
-        assert d.get("missing", "default") == "default"
-
-    def test_contains(self) -> None:
-        d = _AttrDict({"a": 1})
-        assert "a" in d
-        assert "b" not in d
-
-    def test_len(self) -> None:
-        d = _AttrDict({"a": 1, "b": 2})
-        assert len(d) == 2
-
-    def test_bool_true_for_nonempty(self) -> None:
-        assert bool(_AttrDict({"a": 1}))
-
-    def test_bool_false_for_empty(self) -> None:
-        assert not bool(_AttrDict({}))
-
-    def test_iter_yields_keys(self) -> None:
-        d = _AttrDict({"x": 1, "y": 2})
-        assert set(d) == {"x", "y"}
-
-    def test_items_is_reusable(self) -> None:
-        """items() must be re-iterable (list), not a single-use generator."""
-        d = _AttrDict({"a": 1})
-        items = d.items()
-        first_pass = list(items)
-        second_pass = list(items)
-        assert first_pass == second_pass
-
-    def test_values_is_reusable(self) -> None:
-        """values() must be re-iterable (list), not a single-use generator."""
-        d = _AttrDict({"a": 1})
-        vals = d.values()
-        first_pass = list(vals)
-        second_pass = list(vals)
-        assert first_pass == second_pass
-
-    def test_items_wraps_values(self) -> None:
-        d = _AttrDict({"node": {"name": "test"}})
-        pairs = dict(d.items())
-        assert isinstance(pairs["node"], _AttrDict)
-
-    def test_keys(self) -> None:
-        d = _AttrDict({"a": 1, "b": 2})
-        assert set(d.keys()) == {"a", "b"}
+from dbt_mcp.dbt_admin.run_artifacts.artifacts.lenient import (
+    LenientCatalog,
+    LenientManifest,
+    LenientRunResults,
+    LenientRunResultsArgs,
+    LenientRunResultsResult,
+    LenientSourceResult,
+    LenientSources,
+)
 
 
-class TestWrap:
-    def test_dict_becomes_attrdict(self) -> None:
-        result = _wrap({"key": "val"})
-        assert isinstance(result, _AttrDict)
+class TestLenientRunResultsResult:
+    def test_valid_result(self) -> None:
+        r = LenientRunResultsResult.model_validate(
+            {"status": "error", "unique_id": "model.proj.foo", "message": "boom"}
+        )
+        assert r.status == "error"
+        assert r.unique_id == "model.proj.foo"
 
-    def test_list_items_wrapped_recursively(self) -> None:
-        result = _wrap([{"key": "val"}, 42])
-        assert isinstance(result[0], _AttrDict)
-        assert result[1] == 42
+    def test_unknown_status_passes(self) -> None:
+        """'reused' and other undocumented statuses must not raise."""
+        r = LenientRunResultsResult.model_validate({"status": "reused"})
+        assert r.status == "reused"
 
-    def test_scalar_returned_as_is(self) -> None:
-        assert _wrap(42) == 42
-        assert _wrap("hello") == "hello"
-        assert _wrap(None) is None
+    def test_null_status_passes(self) -> None:
+        r = LenientRunResultsResult.model_validate({"status": None})
+        assert r.status is None
 
-    def test_nested_list_of_dicts(self) -> None:
-        result = _wrap([{"a": {"b": 1}}])
-        assert isinstance(result[0], _AttrDict)
-        assert isinstance(result[0].a, _AttrDict)
-        assert result[0].a.b == 1
+    def test_all_fields_optional(self) -> None:
+        r = LenientRunResultsResult.model_validate({})
+        assert r.status is None
+        assert r.unique_id is None
+        assert r.compiled_code is None
+        assert r.compiled_sql is None
+
+    def test_extra_fields_allowed(self) -> None:
+        r = LenientRunResultsResult.model_validate({"status": "warn", "timing": []})
+        assert r.status == "warn"
+
+    def test_compiled_sql_field(self) -> None:
+        """Older dbt versions emit compiled_sql; it must be directly accessible."""
+        r = LenientRunResultsResult.model_validate({"compiled_sql": "SELECT 1"})
+        assert r.compiled_sql == "SELECT 1"
+
+    def test_is_pydantic_model(self) -> None:
+        assert isinstance(LenientRunResultsResult.model_validate({}), BaseModel)
+
+
+class TestLenientRunResults:
+    def test_valid_run_results(self) -> None:
+        parsed = LenientRunResults.model_validate(
+            {
+                "results": [{"status": "error", "unique_id": "model.proj.foo"}],
+                "args": {"target": "prod"},
+            }
+        )
+        assert len(parsed.results) == 1
+        assert isinstance(parsed.results[0], LenientRunResultsResult)
+        assert parsed.results[0].status == "error"
+        assert isinstance(parsed.args, LenientRunResultsArgs)
+        assert parsed.args.target == "prod"
+
+    def test_null_results_coerced_to_empty_list(self) -> None:
+        parsed = LenientRunResults.model_validate({"results": None})
+        assert parsed.results == []
+
+    def test_missing_results_defaults_to_empty(self) -> None:
+        parsed = LenientRunResults.model_validate({})
+        assert parsed.results == []
+
+    def test_missing_args_is_none(self) -> None:
+        parsed = LenientRunResults.model_validate({})
+        assert parsed.args is None
+
+    def test_is_pydantic_model(self) -> None:
+        assert isinstance(LenientRunResults.model_validate({}), BaseModel)
+
+    def test_extra_fields_allowed(self) -> None:
+        parsed = LenientRunResults.model_validate({"elapsed_time": 1.5})
+        assert parsed.model_extra is not None
+        assert parsed.model_extra.get("elapsed_time") == 1.5
+
+
+class TestLenientSources:
+    def test_valid_sources(self) -> None:
+        parsed = LenientSources.model_validate(
+            {
+                "results": [
+                    {
+                        "status": "error",
+                        "unique_id": "source.proj.raw.users",
+                        "max_loaded_at_time_ago_in_s": 172800.0,
+                    }
+                ]
+            }
+        )
+        assert len(parsed.results) == 1
+        assert isinstance(parsed.results[0], LenientSourceResult)
+        assert parsed.results[0].status == "error"
+        assert parsed.results[0].max_loaded_at_time_ago_in_s == 172800.0
+
+    def test_null_results_coerced(self) -> None:
+        assert LenientSources.model_validate({"results": None}).results == []
+
+    def test_missing_results_defaults_to_empty(self) -> None:
+        assert LenientSources.model_validate({}).results == []
+
+    def test_is_pydantic_model(self) -> None:
+        assert isinstance(LenientSources.model_validate({}), BaseModel)
+
+
+class TestLenientCatalog:
+    def test_nodes_and_sources_populated(self) -> None:
+        parsed = LenientCatalog.model_validate(
+            {"nodes": {"node.a": {}}, "sources": {"source.b": {}}}
+        )
+        assert "node.a" in parsed.nodes
+        assert "source.b" in parsed.sources
+
+    def test_null_nodes_coerced_to_empty(self) -> None:
+        parsed = LenientCatalog.model_validate({"nodes": None, "sources": None})
+        assert parsed.nodes == {}
+        assert parsed.sources == {}
+
+    def test_missing_fields_default_to_empty(self) -> None:
+        parsed = LenientCatalog.model_validate({})
+        assert parsed.nodes == {}
+        assert parsed.sources == {}
+
+    def test_is_pydantic_model(self) -> None:
+        assert isinstance(LenientCatalog.model_validate({}), BaseModel)
+
+
+class TestLenientManifest:
+    def test_nodes_and_sources_populated(self) -> None:
+        parsed = LenientManifest.model_validate(
+            {"nodes": {"model.proj.foo": {}}, "sources": {}}
+        )
+        assert "model.proj.foo" in parsed.nodes
+
+    def test_null_fields_coerced(self) -> None:
+        parsed = LenientManifest.model_validate({"nodes": None, "sources": None})
+        assert parsed.nodes == {}
+        assert parsed.sources == {}
+
+    def test_is_pydantic_model(self) -> None:
+        assert isinstance(LenientManifest.model_validate({}), BaseModel)

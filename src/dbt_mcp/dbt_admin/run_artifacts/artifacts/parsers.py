@@ -21,7 +21,7 @@ class ArtifactType(str, Enum):
     CATALOG = "catalog.json"
 
 
-# Used by the DuckDB materialization layer added in Part 2 of this series.
+# TODO: Not used yet, will be wired into DuckDB extraction/materialization part
 ARTIFACT_PARSERS: dict[ArtifactType, Callable[[dict[str, Any]], Any]] = {
     ArtifactType.RUN_RESULTS: run_results.parse,
     ArtifactType.SOURCES: sources.parse,

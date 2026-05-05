@@ -8,7 +8,7 @@ from typing import Any
 from dbt_artifacts_parser.parser import parse_sources  # type: ignore[import-untyped]
 
 from dbt_mcp.dbt_admin.constants import RunResultsStatus
-from dbt_mcp.dbt_admin.run_artifacts.artifacts.lenient import _AttrDict
+from dbt_mcp.dbt_admin.run_artifacts.artifacts.lenient import LenientSources
 from dbt_mcp.dbt_admin.run_artifacts.schemas.output import OutputResultSchema
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ def parse(raw: dict[str, Any]) -> Any:
             type(e).__name__,
             str(e)[:200],
         )
-        return _AttrDict(raw)
+        return LenientSources.model_validate(raw)
 
 
 def to_freshness_error(result: Any) -> OutputResultSchema | None:

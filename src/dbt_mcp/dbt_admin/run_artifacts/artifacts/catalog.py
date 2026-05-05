@@ -2,18 +2,29 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from dbt_artifacts_parser.parser import parse_catalog  # type: ignore[import-untyped]
+
+from dbt_mcp.dbt_admin.run_artifacts.artifacts.lenient import LenientCatalog
+
+logger = logging.getLogger(__name__)
 
 
 def parse(raw: dict[str, Any]) -> Any:
     """Parse catalog.json using dbt-artifacts-parser (version-aware).
 
-    No lenient fallback — catalog parsing is not used in the current
-    error/warning path.  If strict parsing fails, the exception propagates
-    to the caller.
-
-    TODO: Add lenient fallback if catalog is wired into the extraction layer in Part 2.
+    Falls back to lenient ``_AttrDict``-based parsing when strict Pydantic
+    validation fails.
     """
-    return parse_catalog(catalog=raw)
+    try:
+        return parse_catalog(catalog=raw)
+    except Exception as e:
+        logger.warning(
+            "Strict catalog parsing failed (%s: %s); "
+            "falling back to lenient dict-based parsing.",
+            type(e).__name__,
+            str(e)[:200],
+        )
+        return LenientCatalog.model_validate(raw)
