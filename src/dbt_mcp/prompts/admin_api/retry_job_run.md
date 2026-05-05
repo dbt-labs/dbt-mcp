@@ -2,10 +2,6 @@ Retry a failed dbt job run from the point of failure.
 
 This tool allows you to restart a failed run, continuing from where it failed rather than starting completely over.
 
-## Parameters
-
-- **run_id** (required): The run ID to retry
-
 ## Returns
 
 New run object for the retry attempt with a new run ID and execution details.

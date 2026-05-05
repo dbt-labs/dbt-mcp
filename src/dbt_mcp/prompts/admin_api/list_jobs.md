@@ -2,11 +2,6 @@ List all jobs in a dbt platform account with optional filtering.
 
 This tool retrieves jobs from the dbt Admin API. Jobs are the configuration for scheduled or triggered dbt runs.
 
-## Parameters
-
-- **limit** (optional): Maximum number of results to return
-- **offset** (optional): Number of results to skip for pagination
-
 When a single project is configured, results are automatically scoped to that environment. Otherwise, all jobs in the account are returned — use `limit` to constrain large result sets.
 
 Returns a list of job objects with details like:

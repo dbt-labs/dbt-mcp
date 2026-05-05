@@ -1,7 +1,10 @@
 import asyncio
 import json
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from time import time
 
+from mcp.client.session import ClientSession
 from mcp.shared.memory import (
     create_connected_server_and_client_session as client_session,
 )
@@ -21,10 +24,16 @@ llm_client = OpenAI()
 messages = []
 
 
-async def main():
+@asynccontextmanager
+async def client_session_context() -> AsyncGenerator[ClientSession, None]:
     config = load_config()
     server = await create_dbt_mcp(config)
     async with client_session(server) as client:
+        yield client
+
+
+async def main():
+    async with client_session_context() as client:
         user_role = "user"
         available_tools = (await client.list_tools()).tools
         tools_str = "\n".join(

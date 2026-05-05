@@ -2,10 +2,6 @@ List all available artifacts for a completed dbt job run.
 
 This tool retrieves the list of artifact files generated during a run execution, such as manifest.json, catalog.json, and run_results.json.
 
-## Parameters
-
-- **run_id** (required): The run ID to list artifacts for
-
 ## Returns
 
 List of artifact file paths available for download. Common artifacts include:

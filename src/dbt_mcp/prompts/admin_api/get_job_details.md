@@ -2,10 +2,6 @@ Get detailed information for a specific dbt job.
 
 This tool retrieves comprehensive job configuration including execution settings, triggers, and scheduling information.
 
-## Parameters
-
-- **job_id** (required): The job ID to retrieve details for
-
 ## Returns
 
 Job object with detailed configuration including:

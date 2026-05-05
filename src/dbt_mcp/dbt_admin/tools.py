@@ -1,8 +1,9 @@
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Annotated, Any
 
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 from dbt_mcp.config.config_providers import (
     AdminApiConfig,
@@ -10,6 +11,22 @@ from dbt_mcp.config.config_providers import (
 )
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.dbt_admin.constants import STATUS_MAP, JobRunStatus
+from dbt_mcp.dbt_admin.param_descriptions import (
+    INCLUDE_WARNINGS_WITH_ERRORS,
+    JOB_DEFINITION_ID,
+    JOB_RUN_ID,
+    JOB_RUNS_JOB_DEFINITION_ID_FILTER,
+    JOB_RUNS_ORDER_BY,
+    JOB_RUN_STATUS,
+    PAGINATION_LIMIT,
+    PAGINATION_OFFSET,
+    TRIGGER_CAUSE,
+    TRIGGER_GIT_BRANCH,
+    TRIGGER_GIT_SHA,
+    TRIGGER_SCHEMA_OVERRIDE,
+    TRIGGER_STEPS_OVERRIDE,
+    WARNINGS_ONLY,
+)
 from dbt_mcp.dbt_admin.run_artifacts import ErrorFetcher, WarningFetcher
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
@@ -54,8 +71,8 @@ async def list_jobs(
     context: AdminToolContext,
     # TODO: add support for project_id in the future
     # project_id: Optional[int] = None,
-    limit: int | None = None,
-    offset: int | None = None,
+    limit: Annotated[int | None, Field(description=PAGINATION_LIMIT)] = None,
+    offset: Annotated[int | None, Field(description=PAGINATION_OFFSET)] = None,
 ) -> list[dict[str, Any]]:
     """List jobs in an account."""
     admin_api_config = await context.admin_api_config_provider.get_config()
@@ -78,7 +95,10 @@ async def list_jobs(
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def get_job_details(context: AdminToolContext, job_id: int) -> dict[str, Any]:
+async def get_job_details(
+    context: AdminToolContext,
+    job_id: Annotated[int, Field(description=JOB_DEFINITION_ID)],
+) -> dict[str, Any]:
     """Get details for a specific job."""
     admin_api_config = await context.admin_api_config_provider.get_config()
     return await context.admin_client.get_job_details(
@@ -95,12 +115,16 @@ async def get_job_details(context: AdminToolContext, job_id: int) -> dict[str, A
 )
 async def trigger_job_run(
     context: AdminToolContext,
-    job_id: int,
-    cause: str = "Triggered by dbt MCP",
-    git_branch: str | None = None,
-    git_sha: str | None = None,
-    schema_override: str | None = None,
-    steps_override: list[str] | None = None,
+    job_id: Annotated[int, Field(description=JOB_DEFINITION_ID)],
+    cause: Annotated[str, Field(description=TRIGGER_CAUSE)] = "Triggered by dbt MCP",
+    git_branch: Annotated[str | None, Field(description=TRIGGER_GIT_BRANCH)] = None,
+    git_sha: Annotated[str | None, Field(description=TRIGGER_GIT_SHA)] = None,
+    schema_override: Annotated[
+        str | None, Field(description=TRIGGER_SCHEMA_OVERRIDE)
+    ] = None,
+    steps_override: Annotated[
+        list[str] | None, Field(description=TRIGGER_STEPS_OVERRIDE)
+    ] = None,
 ) -> dict[str, Any]:
     """Trigger a job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
@@ -127,11 +151,13 @@ async def trigger_job_run(
 )
 async def list_jobs_runs(
     context: AdminToolContext,
-    job_id: int | None = None,
-    status: JobRunStatus | None = None,
-    limit: int | None = None,
-    offset: int | None = None,
-    order_by: str | None = None,
+    job_id: Annotated[
+        int | None, Field(description=JOB_RUNS_JOB_DEFINITION_ID_FILTER)
+    ] = None,
+    status: Annotated[JobRunStatus | None, Field(description=JOB_RUN_STATUS)] = None,
+    limit: Annotated[int | None, Field(description=PAGINATION_LIMIT)] = None,
+    offset: Annotated[int | None, Field(description=PAGINATION_OFFSET)] = None,
+    order_by: Annotated[str | None, Field(description=JOB_RUNS_ORDER_BY)] = None,
 ) -> list[dict[str, Any]]:
     """List runs in an account."""
     admin_api_config = await context.admin_api_config_provider.get_config()
@@ -161,7 +187,7 @@ async def list_jobs_runs(
 )
 async def get_job_run_details(
     context: AdminToolContext,
-    run_id: int,
+    run_id: Annotated[int, Field(description=JOB_RUN_ID)],
 ) -> dict[str, Any]:
     """Get details for a specific job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
@@ -177,7 +203,10 @@ async def get_job_run_details(
     destructive_hint=False,
     idempotent_hint=False,
 )
-async def cancel_job_run(context: AdminToolContext, run_id: int) -> dict[str, Any]:
+async def cancel_job_run(
+    context: AdminToolContext,
+    run_id: Annotated[int, Field(description=JOB_RUN_ID)],
+) -> dict[str, Any]:
     """Cancel a job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
     return await context.admin_client.cancel_job_run(
@@ -192,7 +221,10 @@ async def cancel_job_run(context: AdminToolContext, run_id: int) -> dict[str, An
     destructive_hint=False,
     idempotent_hint=False,
 )
-async def retry_job_run(context: AdminToolContext, run_id: int) -> dict[str, Any]:
+async def retry_job_run(
+    context: AdminToolContext,
+    run_id: Annotated[int, Field(description=JOB_RUN_ID)],
+) -> dict[str, Any]:
     """Retry a failed job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
     return await context.admin_client.retry_job_run(admin_api_config.account_id, run_id)
@@ -205,7 +237,10 @@ async def retry_job_run(context: AdminToolContext, run_id: int) -> dict[str, Any
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def list_job_run_artifacts(context: AdminToolContext, run_id: int) -> list[str]:
+async def list_job_run_artifacts(
+    context: AdminToolContext,
+    run_id: Annotated[int, Field(description=JOB_RUN_ID)],
+) -> list[str]:
     """List artifacts for a job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
     return await context.admin_client.list_job_run_artifacts(
@@ -222,9 +257,11 @@ async def list_job_run_artifacts(context: AdminToolContext, run_id: int) -> list
 )
 async def get_job_run_error(
     context: AdminToolContext,
-    run_id: int,
-    include_warnings: bool = False,
-    warning_only: bool = False,
+    run_id: Annotated[int, Field(description=JOB_RUN_ID)],
+    include_warnings: Annotated[
+        bool, Field(description=INCLUDE_WARNINGS_WITH_ERRORS)
+    ] = False,
+    warning_only: Annotated[bool, Field(description=WARNINGS_ONLY)] = False,
 ) -> dict[str, Any]:
     """Get focused error/warning information for a job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
