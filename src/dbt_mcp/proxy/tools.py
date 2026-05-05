@@ -140,7 +140,6 @@ async def register_proxied_tools(
 
     Proxied tools are hosted remotely, so their definitions aren't found in this repo.
     """
-    config = await config_provider.get_config()
     configured_proxied_tools: set[ToolName] = {
         t
         for t in proxied_tools
@@ -155,6 +154,7 @@ async def register_proxied_tools(
     }
     if not configured_proxied_tools:
         return
+    config = await config_provider.get_config()
     headers = config.headers_provider.get_headers()
     if config.prod_environment_id:
         headers["x-dbt-prod-environment-id"] = str(config.prod_environment_id)
