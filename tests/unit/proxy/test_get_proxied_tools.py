@@ -12,7 +12,6 @@ from dbt_mcp.errors.common import MissingHostError
 from dbt_mcp.oauth.token_provider import StaticTokenProvider
 from dbt_mcp.proxy.tools import get_proxied_tools, register_proxied_tools
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.toolsets import Toolset
 
 
 def make_config() -> ProxiedToolConfig:
@@ -36,9 +35,9 @@ async def test_register_proxied_tools_skips_get_config_when_all_proxied_toolsets
         dbt_mcp=MagicMock(),
         config_provider=mock_config_provider,
         disabled_tools=set(),
-        enabled_tools=None,
+        enabled_tools=set(),  # empty allowlist — no tools enabled regardless of future additions
         enabled_toolsets=set(),
-        disabled_toolsets={Toolset.SQL, Toolset.DISCOVERY, Toolset.DBT_LSP},
+        disabled_toolsets=set(),
     )
 
     mock_config_provider.get_config.assert_not_called()

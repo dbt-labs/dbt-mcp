@@ -170,7 +170,7 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
         yield None
     except Exception as e:
         logger.exception(f"Error in MCP server: {e}")
-        raise e
+        raise
     finally:
         logger.info("Shutting down MCP server")
         try:
