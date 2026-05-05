@@ -45,6 +45,10 @@ dependencies = [
   "filelock~=3.20.3",
   "starlette~=0.50.0",
 ]
+[tool.uv]
+exclude-newer = "7 days"
+exclude-newer-package = { dbt-protos = false, dbt-sl-sdk = false, dbtlabs-vortex = false }
+
 [dependency-groups]
 dev = [
   "ruff>=0.11.2",

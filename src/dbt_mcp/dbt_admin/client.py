@@ -82,9 +82,6 @@ class DbtAdminAPIClient:
         """Resolve prod and dev environments from a list of environment responses.
 
         Returns a tuple of (prod_environment, dev_environment).
-
-        Auto-detects prod based on deployment_type == "production".
-        Dev environment is auto-detected based on deployment_type == "development".
         """
         prod_environment: DbtPlatformEnvironment | None = None
         dev_environment: DbtPlatformEnvironment | None = None
@@ -102,14 +99,11 @@ class DbtAdminAPIClient:
                 break
 
         for environment in environments:
-            if (
-                environment.deployment_type
-                and environment.deployment_type.lower() == "development"
-            ):
+            if environment.type and environment.type.lower() == "development":
                 dev_environment = DbtPlatformEnvironment(
                     id=environment.id,
                     name=environment.name,
-                    deployment_type=environment.deployment_type,
+                    deployment_type=None,
                 )
                 break
 
