@@ -142,7 +142,7 @@ class JobRunFetcher:
                 )
             return None
         except Exception as e:
-            # src_artifact.parse() never raises (it falls back to _AttrDict internally),
+            # src_artifact.parse() never raises (it falls back to LenientSources internally),
             # but guard against unexpected AttributeError on missing keys or JSON errors.
             logger.debug(f"Error parsing sources.json: {e}")
             return None

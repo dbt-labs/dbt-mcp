@@ -8,7 +8,7 @@ from typing import Any
 from dbt_artifacts_parser.parser import parse_sources  # type: ignore[import-untyped]
 
 from dbt_mcp.dbt_admin.constants import RunResultsStatus
-from dbt_mcp.dbt_admin.run_artifacts.artifacts.lenient import _AttrDict
+from dbt_mcp.dbt_admin.run_artifacts.artifacts.lenient import LenientSources
 from dbt_mcp.dbt_admin.run_artifacts.schemas.output import OutputResultSchema
 
 logger = logging.getLogger(__name__)
@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 def parse(raw: dict[str, Any]) -> Any:
     """Parse sources.json using dbt-artifacts-parser (version-aware).
 
-    Falls back to lenient ``_AttrDict``-based parsing when strict Pydantic
-    validation fails.  This covers sources.json variants that omit required
+    Falls back to ``LenientSources`` when strict Pydantic validation fails.
+    This covers sources.json variants that omit required
     fields (e.g. ``error``) in result entries.
     """
     try:
@@ -30,12 +30,14 @@ def parse(raw: dict[str, Any]) -> Any:
             type(e).__name__,
             str(e)[:200],
         )
-        return _AttrDict(raw)
+        return LenientSources.model_validate(raw)
 
 
 def to_freshness_error(result: Any) -> OutputResultSchema | None:
     """Map a source freshness result to an error output, or None if not an error/fail."""
     status_val = getattr(result.status, "value", result.status)
+    # "fail" is not in the strict sources.json schema, so artifacts with that status reach
+    # here via the LenientSources fallback. Keep the check so those cases aren't silently dropped.
     if status_val not in [RunResultsStatus.ERROR.value, RunResultsStatus.FAIL.value]:
         return None
     unique_id = getattr(result, "unique_id", None)
