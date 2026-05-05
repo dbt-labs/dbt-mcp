@@ -12,5 +12,6 @@ We can pick any from the following and need to return a list of all the resource
 - exposure
 - snapshot
 - seed
+- function
 - default
 - all

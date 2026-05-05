@@ -30,7 +30,10 @@ logger = logging.getLogger(__name__)
 
 _VALID_RESOURCE_TYPES = frozenset(
     {
+        "all",
         "analysis",
+        "default",
+        "exposure",
         "function",
         "metric",
         "model",
