@@ -595,3 +595,118 @@ def test_clone_command_binary_state_path_logic(
 
     assert "--state" in mock_calls[0]
     assert "/some/state/path" in mock_calls[0]
+
+
+@pytest.mark.parametrize(
+    "injection_payload",
+    [
+        "--profiles-dir /tmp/custom",
+        "--project-dir /tmp/custom",
+        "--target custom",
+        "my_model --profiles-dir /tmp/custom",
+        "-x",
+    ],
+)
+def test_node_selection_rejects_flag_injection(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, injection_payload
+):
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: mock_process)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    with pytest.raises(InvalidParameterError, match="must not start with '-'"):
+        tools["run"](node_selection=injection_payload)
+
+
+@pytest.mark.parametrize(
+    "valid_selection",
+    [
+        "my_model",
+        "my_model my_other_model",
+        "+my_model",
+        "my_model+",
+        "1+my_model+1",
+        "tag:nightly",
+        "config.materialized:table",
+        "path/to/models/",
+        "source:my_source",
+        "@my_model",
+    ],
+)
+def test_node_selection_accepts_valid_tokens(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, valid_selection
+):
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: mock_process)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    tools["run"](node_selection=valid_selection)
+
+
+@pytest.mark.parametrize(
+    "injection_payload",
+    [
+        ["model", "--profiles-dir", "/tmp/custom"],
+        ["--target", "custom"],
+    ],
+)
+def test_resource_type_rejects_flag_injection(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, injection_payload
+):
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: mock_process)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    with pytest.raises(InvalidParameterError, match="invalid values"):
+        tools["ls"](resource_type=injection_payload)
+
+
+@pytest.mark.parametrize(
+    "valid_types",
+    [
+        ["model"],
+        ["model", "snapshot"],
+        ["source", "seed", "test"],
+        ["semantic_model", "metric", "saved_query"],
+    ],
+)
+def test_resource_type_accepts_valid_values(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, valid_types
+):
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: mock_process)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    tools["ls"](resource_type=valid_types)

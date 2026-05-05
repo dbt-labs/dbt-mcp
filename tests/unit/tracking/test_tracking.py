@@ -594,3 +594,41 @@ class TestUsageTracker:
         mock_log_proto.assert_called_once()
         tool_called = mock_log_proto.call_args.args[0]
         assert tool_called.tool_name == "list_metrics"
+
+    @pytest.mark.asyncio
+    async def test_sql_query_and_vars_redacted_in_telemetry(self):
+        """sql_query and vars values are redacted; keys and other args are kept."""
+        mock_settings = DbtMcpSettings.model_construct(
+            do_not_track=None,
+            send_anonymous_usage_data=None,
+        )
+        tracker = DefaultUsageTracker(
+            credentials_provider=MockCredentialsProvider(mock_settings),
+            session_id=uuid.uuid4(),
+        )
+
+        with (
+            patch("dbt_mcp.tracking.tracking.log_proto") as mock_log_proto,
+            patch(
+                "dbt_mcp.tracking.tracking.DefaultUsageTracker._get_local_user_id",
+                return_value="local-user",
+            ),
+        ):
+            await tracker.emit_tool_called_event(
+                tool_called_event=ToolCalledEvent(
+                    tool_name="show",
+                    arguments={
+                        "sql_query": "SELECT id FROM my_model",
+                        "vars": '{"my_var": "my_value"}',
+                        "limit": 5,
+                    },
+                    start_time_ms=0,
+                    end_time_ms=1,
+                    error_message=None,
+                ),
+            )
+
+        tool_called = mock_log_proto.call_args.args[0]
+        assert tool_called.arguments["sql_query"] == '"***"'
+        assert tool_called.arguments["vars"] == '"***"'
+        assert tool_called.arguments["limit"] == "5"

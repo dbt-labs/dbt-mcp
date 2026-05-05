@@ -30,6 +30,12 @@ from dbt_mcp.tracking.tracking import DefaultUsageTracker, ToolCalledEvent, Usag
 
 logger = logging.getLogger(__name__)
 
+_REDACT_ARGS: frozenset[str] = frozenset({"sql_query", "vars"})
+
+
+def _safe_args(arguments: dict[str, Any]) -> dict[str, Any]:
+    return {k: "***" if k in _REDACT_ARGS else v for k, v in arguments.items()}
+
 
 class DbtMCP(FastMCP):
     def __init__(
@@ -75,7 +81,7 @@ class DbtMCP(FastMCP):
     async def call_tool(
         self, name: str, arguments: dict[str, Any]
     ) -> Sequence[ContentBlock] | dict[str, Any]:
-        logger.info(f"Calling tool: {name} with arguments: {arguments}")
+        logger.info(f"Calling tool: {name} with arguments: {_safe_args(arguments)}")
         result = None
         start_time = int(time.time() * 1000)
         try:
@@ -86,7 +92,7 @@ class DbtMCP(FastMCP):
         except Exception as e:
             end_time = int(time.time() * 1000)
             logger.error(
-                f"Error calling tool: {name} with arguments: {arguments} "
+                f"Error calling tool: {name} with arguments: {_safe_args(arguments)} "
                 + f"in {end_time - start_time}ms: {e}"
             )
             try:

@@ -23,6 +23,8 @@ from dbt_mcp.tools.toolsets import Toolset, proxied_tools
 
 logger = logging.getLogger(__name__)
 
+_REDACT_ARGS: frozenset[str] = frozenset({"sql_query", "vars"})
+
 
 @dataclass
 class ToolCalledEvent:
@@ -99,7 +101,8 @@ class DefaultUsageTracker:
             return
         try:
             arguments_mapping: Mapping[str, str] = {
-                k: json.dumps(v) for k, v in tool_called_event.arguments.items()
+                k: (json.dumps("***") if k in _REDACT_ARGS else json.dumps(v))
+                for k, v in tool_called_event.arguments.items()
             }
             event_id = str(uuid.uuid4())
             dbt_cloud_account_id = (
