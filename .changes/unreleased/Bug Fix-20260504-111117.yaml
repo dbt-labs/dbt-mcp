@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Fix build/run/test tools returning urllib3 warnings instead of 'OK' on success when using externalbrowser auth
+time: 2026-05-04T11:11:17.317214+02:00
