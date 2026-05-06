@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from client.main import client_session_context
+from client.session import client_session_context
 from dbt_mcp.dbt_admin.param_descriptions import PAGINATION_LIMIT, PAGINATION_OFFSET
 from dbt_mcp.dbt_admin.tools import (
     ADMIN_TOOLS,
