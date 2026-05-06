@@ -3,6 +3,7 @@ import logging
 import time
 from typing import Protocol
 
+from dbt_mcp.errors.hints import MULTICELL_HINT, looks_like_ssl_error
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
 from dbt_mcp.oauth.expiry import INLINE_REFRESH_BUFFER_SECONDS
 from dbt_mcp.oauth.refresh import refresh_oauth_token
@@ -118,7 +119,9 @@ class OAuthTokenProvider:
                 )
                 self._refresh_token()
             except Exception as e:
-                logger.error(f"Error in background refresh worker: {e}")
+                logger.error("Error in background refresh worker: %s", e, exc_info=True)
+                if looks_like_ssl_error(e):
+                    logger.error(MULTICELL_HINT)
                 await self.refresh_strategy.wait_after_error()
 
 
