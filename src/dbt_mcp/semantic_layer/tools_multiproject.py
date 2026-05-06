@@ -1,7 +1,9 @@
 from dataclasses import dataclass
+from typing import Annotated
 
 from dbtsl.api.shared.query_params import GroupByParam
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 from dbt_mcp.config.config_providers import (
     MultiProjectConfigProvider,
@@ -14,6 +16,18 @@ from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.semantic_layer.client import (
     SemanticLayerClientProvider,
     SemanticLayerFetcher,
+)
+from dbt_mcp.semantic_layer.param_descriptions import (
+    QUERY_RESULT_LIMIT,
+    SEMANTIC_GROUP_BY,
+    SEMANTIC_LAYER_PROJECT_ID,
+    SEMANTIC_METRICS,
+    SEMANTIC_ORDER_BY,
+    SEMANTIC_SEARCH_DIMENSIONS,
+    SEMANTIC_SEARCH_ENTITIES,
+    SEMANTIC_SEARCH_METRICS,
+    SEMANTIC_SEARCH_SAVED_QUERIES,
+    SEMANTIC_WHERE,
 )
 from dbt_mcp.semantic_layer.tools import metrics_to_csv
 from dbt_mcp.semantic_layer.types import (
@@ -53,8 +67,8 @@ class MultiProjectSemanticLayerToolContext:
 )
 async def list_metrics(
     context: MultiProjectSemanticLayerToolContext,
-    project_id: int,
-    search: str | None = None,
+    project_id: Annotated[int, Field(description=SEMANTIC_LAYER_PROJECT_ID)],
+    search: Annotated[str | None, Field(description=SEMANTIC_SEARCH_METRICS)] = None,
 ) -> str:
     config = await context.semantic_layer_config_provider.get_config(project_id)
     response = await SemanticLayerFetcher(
@@ -72,8 +86,10 @@ async def list_metrics(
 )
 async def list_saved_queries(
     context: MultiProjectSemanticLayerToolContext,
-    project_id: int,
-    search: str | None = None,
+    project_id: Annotated[int, Field(description=SEMANTIC_LAYER_PROJECT_ID)],
+    search: Annotated[
+        str | None, Field(description=SEMANTIC_SEARCH_SAVED_QUERIES)
+    ] = None,
 ) -> list[SavedQueryToolResponse]:
     config = await context.semantic_layer_config_provider.get_config(project_id)
     return await SemanticLayerFetcher(
@@ -90,9 +106,9 @@ async def list_saved_queries(
 )
 async def get_dimensions(
     context: MultiProjectSemanticLayerToolContext,
-    project_id: int,
-    metrics: list[str],
-    search: str | None = None,
+    project_id: Annotated[int, Field(description=SEMANTIC_LAYER_PROJECT_ID)],
+    metrics: Annotated[list[str], Field(description=SEMANTIC_METRICS)],
+    search: Annotated[str | None, Field(description=SEMANTIC_SEARCH_DIMENSIONS)] = None,
 ) -> list[DimensionToolResponse]:
     config = await context.semantic_layer_config_provider.get_config(project_id)
     return await SemanticLayerFetcher(
@@ -109,9 +125,9 @@ async def get_dimensions(
 )
 async def get_entities(
     context: MultiProjectSemanticLayerToolContext,
-    project_id: int,
-    metrics: list[str],
-    search: str | None = None,
+    project_id: Annotated[int, Field(description=SEMANTIC_LAYER_PROJECT_ID)],
+    metrics: Annotated[list[str], Field(description=SEMANTIC_METRICS)],
+    search: Annotated[str | None, Field(description=SEMANTIC_SEARCH_ENTITIES)] = None,
 ) -> list[EntityToolResponse]:
     config = await context.semantic_layer_config_provider.get_config(project_id)
     return await SemanticLayerFetcher(
@@ -128,12 +144,16 @@ async def get_entities(
 )
 async def query_metrics(
     context: MultiProjectSemanticLayerToolContext,
-    project_id: int,
-    metrics: list[str],
-    group_by: list[GroupByParam] | None = None,
-    order_by: list[OrderByParam] | None = None,
-    where: str | None = None,
-    limit: int | None = None,
+    project_id: Annotated[int, Field(description=SEMANTIC_LAYER_PROJECT_ID)],
+    metrics: Annotated[list[str], Field(description=SEMANTIC_METRICS)],
+    group_by: Annotated[
+        list[GroupByParam] | None, Field(description=SEMANTIC_GROUP_BY)
+    ] = None,
+    order_by: Annotated[
+        list[OrderByParam] | None, Field(description=SEMANTIC_ORDER_BY)
+    ] = None,
+    where: Annotated[str | None, Field(description=SEMANTIC_WHERE)] = None,
+    limit: Annotated[int | None, Field(description=QUERY_RESULT_LIMIT)] = None,
 ) -> str:
     config = await context.semantic_layer_config_provider.get_config(project_id)
     result = await SemanticLayerFetcher(
@@ -161,12 +181,16 @@ async def query_metrics(
 )
 async def get_metrics_compiled_sql(
     context: MultiProjectSemanticLayerToolContext,
-    project_id: int,
-    metrics: list[str],
-    group_by: list[GroupByParam] | None = None,
-    order_by: list[OrderByParam] | None = None,
-    where: str | None = None,
-    limit: int | None = None,
+    project_id: Annotated[int, Field(description=SEMANTIC_LAYER_PROJECT_ID)],
+    metrics: Annotated[list[str], Field(description=SEMANTIC_METRICS)],
+    group_by: Annotated[
+        list[GroupByParam] | None, Field(description=SEMANTIC_GROUP_BY)
+    ] = None,
+    order_by: Annotated[
+        list[OrderByParam] | None, Field(description=SEMANTIC_ORDER_BY)
+    ] = None,
+    where: Annotated[str | None, Field(description=SEMANTIC_WHERE)] = None,
+    limit: Annotated[int | None, Field(description=QUERY_RESULT_LIMIT)] = None,
 ) -> str:
     config = await context.semantic_layer_config_provider.get_config(project_id)
     result = await SemanticLayerFetcher(

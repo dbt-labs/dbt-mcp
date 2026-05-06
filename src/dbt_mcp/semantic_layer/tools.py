@@ -3,15 +3,28 @@ import io
 import json
 import logging
 from dataclasses import dataclass
+from typing import Annotated
 
 from dbtsl.api.shared.query_params import GroupByParam
 from mcp.server.fastmcp import FastMCP
+from pydantic import Field
 
 from dbt_mcp.config.config_providers import ConfigProvider, SemanticLayerConfig
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.semantic_layer.client import (
     SemanticLayerClientProvider,
     SemanticLayerFetcher,
+)
+from dbt_mcp.semantic_layer.param_descriptions import (
+    QUERY_RESULT_LIMIT,
+    SEMANTIC_GROUP_BY,
+    SEMANTIC_METRICS,
+    SEMANTIC_ORDER_BY,
+    SEMANTIC_SEARCH_DIMENSIONS,
+    SEMANTIC_SEARCH_ENTITIES,
+    SEMANTIC_SEARCH_METRICS,
+    SEMANTIC_SEARCH_SAVED_QUERIES,
+    SEMANTIC_WHERE,
 )
 from dbt_mcp.semantic_layer.types import (
     DimensionToolResponse,
@@ -98,7 +111,7 @@ class SemanticLayerToolContext:
 )
 async def list_metrics(
     context: SemanticLayerToolContext,
-    search: str | None = None,
+    search: Annotated[str | None, Field(description=SEMANTIC_SEARCH_METRICS)] = None,
 ) -> str:
     config = await context.config_provider.get_config()
     response = await context.semantic_layer_fetcher.list_metrics(
@@ -116,7 +129,9 @@ async def list_metrics(
 )
 async def list_saved_queries(
     context: SemanticLayerToolContext,
-    search: str | None = None,
+    search: Annotated[
+        str | None, Field(description=SEMANTIC_SEARCH_SAVED_QUERIES)
+    ] = None,
 ) -> list[SavedQueryToolResponse]:
     config = await context.config_provider.get_config()
     return await context.semantic_layer_fetcher.list_saved_queries(
@@ -133,8 +148,8 @@ async def list_saved_queries(
 )
 async def get_dimensions(
     context: SemanticLayerToolContext,
-    metrics: list[str],
-    search: str | None = None,
+    metrics: Annotated[list[str], Field(description=SEMANTIC_METRICS)],
+    search: Annotated[str | None, Field(description=SEMANTIC_SEARCH_DIMENSIONS)] = None,
 ) -> list[DimensionToolResponse]:
     config = await context.config_provider.get_config()
     return await context.semantic_layer_fetcher.get_dimensions(
@@ -151,8 +166,8 @@ async def get_dimensions(
 )
 async def get_entities(
     context: SemanticLayerToolContext,
-    metrics: list[str],
-    search: str | None = None,
+    metrics: Annotated[list[str], Field(description=SEMANTIC_METRICS)],
+    search: Annotated[str | None, Field(description=SEMANTIC_SEARCH_ENTITIES)] = None,
 ) -> list[EntityToolResponse]:
     config = await context.config_provider.get_config()
     return await context.semantic_layer_fetcher.get_entities(
@@ -169,11 +184,15 @@ async def get_entities(
 )
 async def query_metrics(
     context: SemanticLayerToolContext,
-    metrics: list[str],
-    group_by: list[GroupByParam] | None = None,
-    order_by: list[OrderByParam] | None = None,
-    where: str | None = None,
-    limit: int | None = None,
+    metrics: Annotated[list[str], Field(description=SEMANTIC_METRICS)],
+    group_by: Annotated[
+        list[GroupByParam] | None, Field(description=SEMANTIC_GROUP_BY)
+    ] = None,
+    order_by: Annotated[
+        list[OrderByParam] | None, Field(description=SEMANTIC_ORDER_BY)
+    ] = None,
+    where: Annotated[str | None, Field(description=SEMANTIC_WHERE)] = None,
+    limit: Annotated[int | None, Field(description=QUERY_RESULT_LIMIT)] = None,
 ) -> str:
     config = await context.config_provider.get_config()
     result = await context.semantic_layer_fetcher.query_metrics(
@@ -199,11 +218,15 @@ async def query_metrics(
 )
 async def get_metrics_compiled_sql(
     context: SemanticLayerToolContext,
-    metrics: list[str],
-    group_by: list[GroupByParam] | None = None,
-    order_by: list[OrderByParam] | None = None,
-    where: str | None = None,
-    limit: int | None = None,
+    metrics: Annotated[list[str], Field(description=SEMANTIC_METRICS)],
+    group_by: Annotated[
+        list[GroupByParam] | None, Field(description=SEMANTIC_GROUP_BY)
+    ] = None,
+    order_by: Annotated[
+        list[OrderByParam] | None, Field(description=SEMANTIC_ORDER_BY)
+    ] = None,
+    where: Annotated[str | None, Field(description=SEMANTIC_WHERE)] = None,
+    limit: Annotated[int | None, Field(description=QUERY_RESULT_LIMIT)] = None,
 ) -> str:
     config = await context.config_provider.get_config()
     result = await context.semantic_layer_fetcher.get_metrics_compiled_sql(

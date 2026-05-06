@@ -13,7 +13,3 @@ Examples:
 - "What saved queries are available?"
 - "Show me the predefined reports"
 - "List all saved queries for revenue analysis"
-
-<parameters>
-search: Optional string used to filter saved queries by name, label, or description using partial matches
-</parameters>

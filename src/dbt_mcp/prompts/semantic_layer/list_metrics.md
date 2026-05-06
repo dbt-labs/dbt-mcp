@@ -8,6 +8,3 @@ When above the threshold, only metrics are returned. `metric_time` is a standard
 
 If the user is asking a data-related or business-related question, use this tool as a first step.
 
-<parameters>
-search: Optional string used to filter metrics by name using partial matches
-</parameters>
