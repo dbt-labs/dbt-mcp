@@ -3,7 +3,7 @@ Use these tools to interact with dbt resources (typically via dbt Platform):
 - Understand how the project is structured: what exists in the environment, how objects depend on one another, and where to look when something looks wrong or slow.
 - Reason over governed business meaning—named measures and breakdowns the project maintains—and answer questions with validated aggregates or the warehouse logic behind them when that helps.
 - Work with platform automation when available: see what runs on a schedule, inspect past outcomes, act on failures or reruns, and dig into logs and outputs.
-- Assist with engineering work on dbt projects: take action on the project, generate or modify project code, and reason about the underlying SQL.
+- Assist with engineering work on dbt projects: take action on the project and reason about the underlying SQL.
 
 Example data-oriented questions (users may not use dbt vocabulary):
 
