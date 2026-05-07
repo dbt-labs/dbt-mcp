@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class LenientRunResultsResult(BaseModel):
@@ -43,7 +43,7 @@ class LenientRunResultsArgs(BaseModel):
 class LenientRunResults(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    results: list[LenientRunResultsResult] = []
+    results: list[LenientRunResultsResult] = Field(default_factory=list)
     args: LenientRunResultsArgs | None = None
 
     @field_validator("results", mode="before")
@@ -63,7 +63,7 @@ class LenientSourceResult(BaseModel):
 class LenientSources(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    results: list[LenientSourceResult] = []
+    results: list[LenientSourceResult] = Field(default_factory=list)
 
     @field_validator("results", mode="before")
     @classmethod
@@ -76,8 +76,8 @@ class LenientCatalog(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    nodes: dict[str, Any] = {}
-    sources: dict[str, Any] = {}
+    nodes: dict[str, Any] = Field(default_factory=dict)
+    sources: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("nodes", "sources", mode="before")
     @classmethod
@@ -90,8 +90,8 @@ class LenientManifest(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    nodes: dict[str, Any] = {}
-    sources: dict[str, Any] = {}
+    nodes: dict[str, Any] = Field(default_factory=dict)
+    sources: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("nodes", "sources", mode="before")
     @classmethod
