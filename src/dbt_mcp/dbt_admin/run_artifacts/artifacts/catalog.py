@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from dbt_artifacts_parser.parser import parse_catalog  # type: ignore[import-untyped]
+from dbt_artifacts_parser.parser import parse_catalog
 
 from dbt_mcp.dbt_admin.run_artifacts.artifacts.lenient import LenientCatalog
 

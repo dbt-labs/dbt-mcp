@@ -20,7 +20,7 @@ from collections.abc import Callable
 from enum import Enum
 from typing import Any
 
-from dbt_artifacts_parser.parser import (  # type: ignore[import-untyped]
+from dbt_artifacts_parser.parser import (
     parse_catalog,
     parse_manifest,
     parse_run_results,

@@ -44,11 +44,11 @@ dependencies = [
   "httpx~=0.28.1",
   "filelock~=3.20.3",
   "starlette~=0.50.0",
-  "dbt-artifacts-parser~=0.13.1",
+  "dbt-artifacts-parser>=0.13.2",
 ]
 [tool.uv]
 exclude-newer = "7 days"
-exclude-newer-package = { dbt-protos = false, dbt-sl-sdk = false, dbtlabs-vortex = false }
+exclude-newer-package = { dbt-protos = false, dbt-sl-sdk = false, dbtlabs-vortex = false, dbt-artifacts-parser = false}
 
 [dependency-groups]
 dev = [

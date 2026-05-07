@@ -7,13 +7,14 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-04-28T02:31:46.651546Z"
+exclude-newer = "2026-04-30T00:37:31.270529Z"
 exclude-newer-span = "P7D"
 
 [options.exclude-newer-package]
 dbt-protos = false
 dbt-sl-sdk = false
 dbtlabs-vortex = false
+dbt-artifacts-parser = false
 
 [[package]]
 name = "adbc-driver-flightsql"
@@ -265,14 +266,14 @@ wheels = [
 
 [[package]]
 name = "dbt-artifacts-parser"
-version = "0.13.1"
+version = "0.13.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/64/bd/b0f90c3b973e3d2a6f37c9b279aff47cb7426265893517c3268ec3838d31/dbt_artifacts_parser-0.13.1.tar.gz", hash = "sha256:c7a3c4e309ae2d7d566a615e92043b0d346a77998203b0cc466234717b806e40", size = 260372, upload-time = "2026-04-13T23:27:15.188Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5f/90/5f0461e7de6b56e4d2663172f1c15b5aec7120de640edf774522da4383ec/dbt_artifacts_parser-0.13.2.tar.gz", hash = "sha256:abb798aa73ff8cc295b4ecf03ee02d6a3bc48ad79f7d093d4bb3ffef68e77fb4", size = 70231, upload-time = "2026-05-07T00:20:07.132Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/68/59/f33d851b116cf955dc38c2c8bffc2671f080e51ddddc5d4af0c5fa47e6c6/dbt_artifacts_parser-0.13.1-py3-none-any.whl", hash = "sha256:c341730fa34ebb38cc7d2de0282e8b713e2fc65fc6577f0d944f8abee8949dc4", size = 250502, upload-time = "2026-04-13T23:27:16.211Z" },
+    { url = "https://files.pythonhosted.org/packages/f8/d2/153780452af94cc9cccd99efd4bce007c645b7a523db8d3c1715e32614d6/dbt_artifacts_parser-0.13.2-py3-none-any.whl", hash = "sha256:9eca1e413f7eee522cc1556634b0b9effe790b70d8ffcc46ae2328b9868efaf1", size = 93230, upload-time = "2026-05-07T00:20:06.05Z" },
 ]
 
 [[package]]
@@ -311,7 +312,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "authlib", specifier = "~=1.6.7" },
-    { name = "dbt-artifacts-parser", specifier = "~=0.13.1" },
+    { name = "dbt-artifacts-parser", specifier = ">=0.13.2" },
     { name = "dbt-protos", specifier = "~=1.0.431" },
     { name = "dbt-sl-sdk", extras = ["sync"], specifier = "~=0.13.2" },
     { name = "dbtlabs-vortex", specifier = "~=0.2.0" },
