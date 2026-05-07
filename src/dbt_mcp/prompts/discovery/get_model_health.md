@@ -22,11 +22,6 @@ For all of the below, summarize whether the model is healthy, questionable, or u
 --- If the freshnessStatus is "warn", consider the model health questionable
 </instructions>
 
-<parameters>
-uniqueId: The unique identifier of the model (format: "model.project_name.model_name"). STRONGLY RECOMMENDED when available.
-name: The name of the dbt model. Only use this when uniqueId is unavailable.
-</parameters>
-
 <examples>
 1. PREFERRED METHOD - Using uniqueId (always use this when available):
    get_model_health(uniqueId="model.my_project.customer_orders")

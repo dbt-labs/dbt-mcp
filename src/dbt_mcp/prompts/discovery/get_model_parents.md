@@ -8,11 +8,6 @@ Returned parents include `resourceType`, `name`, and `description`. For upstream
 This is specifically for retrieving model parents from the production manifest. If you want development lineage, use `get_lineage_dev` instead.
 </instructions>
 
-<parameters>
-name: The name of the dbt model to retrieve parents for.
-uniqueId: The unique identifier of the model. If provided, this will be used instead of name for a more precise lookup. You can get the uniqueId values for all models from the get_all_models() tool.
-</parameters>
-
 <examples>
 1. Getting parents for a model by name:
    get_model_parents(name="customer_orders")
