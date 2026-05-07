@@ -12,16 +12,17 @@ from mcp.server.lowlevel.server import LifespanResultT
 from mcp.types import ContentBlock, TextContent, Tool
 
 from dbt_mcp.config.config import Config
-from dbt_mcp.errors.common import MissingHostError
 from dbt_mcp.dbt_admin.tools import register_admin_api_tools
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.dbt_codegen.tools import register_dbt_codegen_tools
 from dbt_mcp.discovery.tools import register_discovery_tools
 from dbt_mcp.discovery.tools_multiproject import register_multiproject_discovery_tools
+from dbt_mcp.errors.common import MissingHostError
 from dbt_mcp.lsp.providers.lsp_connection_provider import LSPConnectionProviderProtocol
 from dbt_mcp.lsp.tools import register_lsp_tools
 from dbt_mcp.mcp_server_metadata.tools import register_mcp_server_tools
 from dbt_mcp.product_docs.tools import register_product_docs_tools
+from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.proxy.tools import ProxiedToolsManager, register_proxied_tools
 from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
 from dbt_mcp.semantic_layer.tools import register_sl_tools
@@ -339,6 +340,7 @@ async def create_dbt_mcp(config: Config) -> FastMCP:
 
     tool_dispatcher = DbtMCP(
         name="dbt",
+        instructions=get_prompt("mcp/server_instructions").strip(),
         config=config,
         usage_tracker=DefaultUsageTracker(
             credentials_provider=config.credentials_provider.inner_provider,
