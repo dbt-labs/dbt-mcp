@@ -22,12 +22,12 @@ from dbt_mcp.discovery.client import (
     SourcesFetcher,
 )
 from dbt_mcp.discovery.param_descriptions import (
+    DISCOVERY_PROJECT_ID_DESCRIPTION,
     MACRO_INCLUDE_DEFAULT_DBT_PACKAGES,
     MACRO_PACKAGE_NAMES,
     MACRO_RETURN_PACKAGE_NAMES_ONLY,
     MODEL_PERF_INCLUDE_TESTS,
     MODEL_PERF_NUM_RUNS,
-    PROJECT_ID_FIELD,
     SOURCE_NAMES_FILTER,
     SOURCE_UNIQUE_IDS_FILTER,
 )
@@ -123,7 +123,7 @@ class MultiProjectDiscoveryToolContext:
 )
 async def get_mart_models(
     context: MultiProjectDiscoveryToolContext,
-    project_id: int = PROJECT_ID_FIELD,
+    project_id: Annotated[int, Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)],
 ) -> list[dict]:
     config = await context.config_provider.get_config(project_id=project_id)
     mart_models = await context.models_fetcher.fetch_models(
@@ -142,7 +142,7 @@ async def get_mart_models(
 )
 async def get_all_models(
     context: MultiProjectDiscoveryToolContext,
-    project_id: int = PROJECT_ID_FIELD,
+    project_id: Annotated[int, Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)],
 ) -> list[dict]:
     # TODO: push code into fetchers
     config = await context.config_provider.get_config(project_id=project_id)
@@ -158,7 +158,7 @@ async def get_all_models(
 )
 async def get_model_details(
     context: MultiProjectDiscoveryToolContext,
-    project_id: int = PROJECT_ID_FIELD,
+    project_id: Annotated[int, Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)],
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
@@ -180,7 +180,7 @@ async def get_model_details(
 )
 async def get_model_parents(
     context: MultiProjectDiscoveryToolContext,
-    project_id: int = PROJECT_ID_FIELD,
+    project_id: Annotated[int, Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)],
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
@@ -199,7 +199,7 @@ async def get_model_parents(
 )
 async def get_model_children(
     context: MultiProjectDiscoveryToolContext,
-    project_id: int = PROJECT_ID_FIELD,
+    project_id: Annotated[int, Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)],
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
@@ -218,7 +218,7 @@ async def get_model_children(
 )
 async def get_model_health(
     context: MultiProjectDiscoveryToolContext,
-    project_id: int = PROJECT_ID_FIELD,
+    project_id: Annotated[int, Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)],
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
@@ -239,7 +239,7 @@ async def get_model_health(
 )
 async def get_model_performance(
     context: MultiProjectDiscoveryToolContext,
-    project_id: int = PROJECT_ID_FIELD,
+    project_id: Annotated[int, Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)],
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
     num_runs: int = Field(
@@ -272,7 +272,7 @@ async def get_model_performance(
 )
 async def get_lineage(
     context: MultiProjectDiscoveryToolContext,
-    project_id: int = PROJECT_ID_FIELD,
+    project_id: Annotated[int, Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)],
     unique_id: str = UNIQUE_ID_REQUIRED_FIELD,
     types: list[LineageResourceType] | None = TYPES_FIELD,
     depth: int = DEPTH_FIELD,
@@ -292,7 +292,7 @@ async def get_lineage(
 )
 async def get_exposures(
     context: MultiProjectDiscoveryToolContext,
-    project_id: int = PROJECT_ID_FIELD,
+    project_id: Annotated[int, Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)],
 ) -> list[dict]:
     config = await context.config_provider.get_config(project_id=project_id)
     return await context.exposures_fetcher.fetch_exposures(config=config)
@@ -307,7 +307,7 @@ async def get_exposures(
 )
 async def get_exposure_details(
     context: MultiProjectDiscoveryToolContext,
-    project_id: int = PROJECT_ID_FIELD,
+    project_id: Annotated[int, Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)],
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
@@ -329,7 +329,7 @@ async def get_exposure_details(
 )
 async def get_all_sources(
     context: MultiProjectDiscoveryToolContext,
-    project_id: int = PROJECT_ID_FIELD,
+    project_id: Annotated[int, Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)],
     source_names: Annotated[
         list[str] | None, Field(description=SOURCE_NAMES_FILTER)
     ] = None,
@@ -352,7 +352,7 @@ async def get_all_sources(
 )
 async def get_source_details(
     context: MultiProjectDiscoveryToolContext,
-    project_id: int = PROJECT_ID_FIELD,
+    project_id: Annotated[int, Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)],
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
@@ -374,7 +374,7 @@ async def get_source_details(
 )
 async def get_all_macros(
     context: MultiProjectDiscoveryToolContext,
-    project_id: int = PROJECT_ID_FIELD,
+    project_id: Annotated[int, Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)],
     package_names: Annotated[
         list[str] | None, Field(description=MACRO_PACKAGE_NAMES)
     ] = None,
@@ -403,7 +403,7 @@ async def get_all_macros(
 )
 async def get_macro_details(
     context: MultiProjectDiscoveryToolContext,
-    project_id: int = PROJECT_ID_FIELD,
+    project_id: Annotated[int, Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)],
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
@@ -425,7 +425,7 @@ async def get_macro_details(
 )
 async def get_seed_details(
     context: MultiProjectDiscoveryToolContext,
-    project_id: int = PROJECT_ID_FIELD,
+    project_id: Annotated[int, Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)],
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
@@ -447,7 +447,7 @@ async def get_seed_details(
 )
 async def get_semantic_model_details(
     context: MultiProjectDiscoveryToolContext,
-    project_id: int = PROJECT_ID_FIELD,
+    project_id: Annotated[int, Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)],
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
@@ -469,7 +469,7 @@ async def get_semantic_model_details(
 )
 async def get_snapshot_details(
     context: MultiProjectDiscoveryToolContext,
-    project_id: int = PROJECT_ID_FIELD,
+    project_id: Annotated[int, Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)],
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
@@ -491,7 +491,7 @@ async def get_snapshot_details(
 )
 async def get_test_details(
     context: MultiProjectDiscoveryToolContext,
-    project_id: int = PROJECT_ID_FIELD,
+    project_id: Annotated[int, Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)],
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:

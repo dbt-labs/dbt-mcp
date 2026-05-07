@@ -1,13 +1,12 @@
 """JSON Schema parameter descriptions for Semantic Layer MCP tools."""
 
 from dbt_mcp.dbt_admin.param_descriptions import PAGINATION_LIMIT
+from dbt_mcp.tools.multiproject_params import MULTI_PROJECT_PROJECT_ID_DESCRIPTION
 
 # Reuse Admin API wording for semantic query row limits (single source of truth).
 QUERY_RESULT_LIMIT = PAGINATION_LIMIT
 
-SEMANTIC_LAYER_PROJECT_ID = (
-    "Numeric dbt Cloud project ID to use for this Semantic Layer call"
-)
+SEMANTIC_LAYER_PROJECT_ID = MULTI_PROJECT_PROJECT_ID_DESCRIPTION
 
 SEMANTIC_SEARCH_METRICS = "Filter metrics by substring match against the metric name"
 

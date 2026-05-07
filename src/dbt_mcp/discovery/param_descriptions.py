@@ -1,13 +1,8 @@
-"""JSON Schema parameter descriptions and Field() defaults for Discovery MCP tools."""
+"""JSON Schema parameter descriptions for Discovery MCP tools."""
 
-from pydantic import Field
+from dbt_mcp.tools.multiproject_params import MULTI_PROJECT_PROJECT_ID_DESCRIPTION
 
-DISCOVERY_PROJECT_ID_DESCRIPTION = (
-    "The dbt Cloud project ID to query. "
-    "Use list_projects_and_environments to discover available project IDs."
-)
-
-PROJECT_ID_FIELD = Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)
+DISCOVERY_PROJECT_ID_DESCRIPTION = MULTI_PROJECT_PROJECT_ID_DESCRIPTION
 
 SOURCE_NAMES_FILTER = (
     "Filter by top-level source names from the project `sources:` YAML "
