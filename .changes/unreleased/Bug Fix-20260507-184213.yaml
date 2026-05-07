@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: 'fix: list_tools no longer triggers host elicitation, preventing ''No tools'' in dbt Core (CLI-only) setups after v1.17.0'
+time: 2026-05-07T18:42:13.228292+02:00
