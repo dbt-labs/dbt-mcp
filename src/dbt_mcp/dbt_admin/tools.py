@@ -30,6 +30,7 @@ from dbt_mcp.dbt_admin.param_descriptions import (
 from dbt_mcp.dbt_admin.run_artifacts import ErrorFetcher, WarningFetcher
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
+from dbt_mcp.tools.multiproject_params import MULTI_PROJECT_PROJECT_ID_DESCRIPTION
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
@@ -58,6 +59,24 @@ async def list_projects(context: AdminToolContext) -> list[dict[str, Any]]:
     """List active projects in the account."""
     admin_api_config = await context.admin_api_config_provider.get_config()
     return await context.admin_client.list_projects(admin_api_config.account_id)
+
+
+@dbt_mcp_tool(
+    description=get_prompt("admin_api/list_environment_variables"),
+    title="List Environment Variables",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+)
+async def list_environment_variables(
+    context: AdminToolContext,
+    project_id: Annotated[int, Field(description=MULTI_PROJECT_PROJECT_ID_DESCRIPTION)],
+) -> dict[str, Any]:
+    """List all environment variables for a project."""
+    admin_api_config = await context.admin_api_config_provider.get_config()
+    return await context.admin_client.list_environment_variables(
+        admin_api_config.account_id, project_id
+    )
 
 
 @dbt_mcp_tool(
@@ -299,6 +318,7 @@ async def get_job_run_error(
 
 ADMIN_TOOLS = [
     list_projects,
+    list_environment_variables,
     list_jobs,
     get_job_details,
     trigger_job_run,

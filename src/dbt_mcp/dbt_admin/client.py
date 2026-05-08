@@ -263,6 +263,16 @@ class DbtAdminAPIClient:
             for p in data
         ]
 
+    async def list_environment_variables(
+        self, account_id: int, project_id: int
+    ) -> dict[str, Any]:
+        """List all environment variables for a project."""
+        result = await self._make_request(
+            "GET",
+            f"/api/v3/accounts/{account_id}/projects/{project_id}/environment-variables/environment/",
+        )
+        return result.get("data", {})
+
     async def trigger_job_run(
         self, account_id: int, job_id: int, cause: str, **kwargs: Any
     ) -> dict[str, Any]:

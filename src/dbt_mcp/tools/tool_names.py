@@ -53,6 +53,7 @@ class ToolName(Enum):
 
     # Admin API tools
     LIST_PROJECTS = "list_projects"
+    LIST_ENVIRONMENT_VARIABLES = "list_environment_variables"
     LIST_JOBS = "list_jobs"
     GET_JOB_DETAILS = "get_job_details"
     TRIGGER_JOB_RUN = "trigger_job_run"

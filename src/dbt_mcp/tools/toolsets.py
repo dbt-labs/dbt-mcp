@@ -93,6 +93,7 @@ toolsets = {
     },
     Toolset.ADMIN_API: {
         ToolName.LIST_PROJECTS,
+        ToolName.LIST_ENVIRONMENT_VARIABLES,
         ToolName.LIST_JOBS,
         ToolName.GET_JOB_DETAILS,
         ToolName.TRIGGER_JOB_RUN,

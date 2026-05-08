@@ -12,6 +12,7 @@ from dbt_mcp.dbt_admin.tools import (
     get_job_details,
     get_job_run_details,
     get_job_run_error,
+    list_environment_variables,
     list_job_run_artifacts,
     list_jobs,
     list_jobs_runs,
@@ -22,7 +23,7 @@ from dbt_mcp.dbt_admin.tools import (
 from dbt_mcp.mcp.server import register_multi_project_dbt_mcp
 from tests.mocks.config import mock_config
 
-NUM_ADMIN_TOOLS = 10
+NUM_ADMIN_TOOLS = 11
 
 
 @pytest.fixture
@@ -95,6 +96,23 @@ def mock_admin_client():
         return_value=["manifest.json", "catalog.json"]
     )
     client.get_job_run_artifact = AsyncMock(return_value={"nodes": {}})
+    client.list_environment_variables = AsyncMock(
+        return_value={
+            "DBT_ENV_SECRET_GIT_CREDENTIAL": {
+                "project": "xxxxxxxxx",
+                "environments": {
+                    "Development": "xxxxxxxxx",
+                    "Production": "xxxxxxxxx",
+                },
+            },
+            "DBT_ENV_CUSTOM_ENV_PARTNER_SHARE": {
+                "project": "placeholder",
+                "environments": {
+                    "Production": "enabled",
+                },
+            },
+        }
+    )
 
     return client
 
@@ -159,6 +177,15 @@ async def test_list_jobs_tool(admin_context):
 
     assert isinstance(result, list)
     admin_context.admin_client.list_jobs.assert_called_once()
+
+
+async def test_list_environment_variables_tool(admin_context):
+    result = await list_environment_variables.fn(admin_context, project_id=99)
+
+    assert isinstance(result, dict)
+    admin_context.admin_client.list_environment_variables.assert_called_once_with(
+        12345, 99
+    )
 
 
 async def test_get_job_details_tool(admin_context):
@@ -363,6 +390,7 @@ def test_admin_tools_list_contains_all_tools():
     """Test that ADMIN_TOOLS contains all expected tools."""
     expected_tool_names = {
         "list_projects",
+        "list_environment_variables",
         "list_jobs",
         "get_job_details",
         "trigger_job_run",

@@ -749,3 +749,42 @@ async def test_list_projects_no_semantic_layer(client):
     assert p["has_semantic_layer"] is False
     assert p["environments"] == []
     assert p["repository_full_name"] is None
+
+
+async def test_list_environment_variables(client):
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "data": {
+            "DBT_ENV_SECRET_GIT_CREDENTIAL": {
+                "project": "xxxxxxxxx",
+                "environments": {
+                    "Development": "xxxxxxxxx",
+                    "Production": "xxxxxxxxx",
+                },
+            },
+            "DBT_ENV_CUSTOM_ENV_PARTNER_SHARE": {
+                "project": "placeholder",
+                "environments": {
+                    "Production": "enabled",
+                },
+            },
+        }
+    }
+    mock_response.raise_for_status.return_value = None
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.list_environment_variables(12345, 99)
+
+    assert "DBT_ENV_SECRET_GIT_CREDENTIAL" in result
+    assert "DBT_ENV_CUSTOM_ENV_PARTNER_SHARE" in result
+    assert result["DBT_ENV_CUSTOM_ENV_PARTNER_SHARE"]["project"] == "placeholder"
+
+    headers = await client.get_headers()
+    mock_client.request.assert_called_once_with(
+        "GET",
+        "https://cloud.getdbt.com/api/v3/accounts/12345/projects/99/environment-variables/environment/",
+        headers=headers,
+        follow_redirects=True,
+    )
