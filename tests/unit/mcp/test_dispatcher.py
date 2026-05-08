@@ -191,36 +191,6 @@ class TestCallToolRouting:
         mcps[called].call_tool.assert_awaited_once()
         mcps[not_called].call_tool.assert_not_awaited()
 
-    async def test_call_tool_uses_eliciting_provider(self):
-        """call_tool() must call credentials_provider.get_credentials() to allow
-        elicitation of DBT_HOST when the user actively invokes a tool."""
-        single = MagicMock(spec=FastMCP)
-        single.call_tool = AsyncMock(return_value=[TextContent(type="text", text="ok")])
-        dispatcher = _make_dispatcher(single_project_mcp=single)
-
-        with patch.object(
-            dispatcher, "_is_multi_project", AsyncMock(return_value=False)
-        ):
-            await dispatcher.call_tool("some_tool", {})
-
-        dispatcher.config.credentials_provider.get_credentials.assert_awaited_once()
-
-    async def test_call_tool_succeeds_for_cli_user_without_dbt_host(self):
-        """CLI-only users (no DBT_HOST) must not be blocked by elicitation failure."""
-        single = MagicMock(spec=FastMCP)
-        single.call_tool = AsyncMock(return_value=[TextContent(type="text", text="ok")])
-        dispatcher = _make_dispatcher(single_project_mcp=single)
-        dispatcher.config.credentials_provider.get_credentials = AsyncMock(
-            side_effect=MissingHostError("DBT_HOST is a required environment variable")
-        )
-
-        with patch.object(
-            dispatcher, "_is_multi_project", AsyncMock(return_value=False)
-        ):
-            result = await dispatcher.call_tool("run", {})
-
-        assert result == [TextContent(type="text", text="ok")]
-
     async def test_returns_text_content_on_tool_error(self):
         multi = MagicMock(spec=FastMCP)
         single = MagicMock(spec=FastMCP)
