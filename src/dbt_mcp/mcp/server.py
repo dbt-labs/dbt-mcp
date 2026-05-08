@@ -82,6 +82,16 @@ class DbtMCP(FastMCP):
         self, name: str, arguments: dict[str, Any]
     ) -> Sequence[ContentBlock] | dict[str, Any]:
         logger.info(f"Calling tool: {name} with arguments: {_safe_args(arguments)}")
+        # Elicit DBT_HOST here (user is actively invoking a tool — blocking is
+        # acceptable). Intentionally not in list_tools(), which is a passive
+        # metadata query that must return immediately. MissingHostError is
+        # swallowed so CLI-only users without DBT_HOST are unaffected; any
+        # other error is also swallowed since the tool call itself will surface
+        # credential failures with a proper message.
+        try:
+            await self.config.credentials_provider.get_credentials()
+        except Exception:
+            pass
         result = None
         start_time = int(time.time() * 1000)
         try:
