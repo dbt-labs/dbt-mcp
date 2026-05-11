@@ -8,7 +8,12 @@ QUERY_RESULT_LIMIT = PAGINATION_LIMIT
 
 SEMANTIC_LAYER_PROJECT_ID = MULTI_PROJECT_PROJECT_ID_DESCRIPTION
 
-SEMANTIC_SEARCH_METRICS = "Filter metrics by substring match against the metric name"
+SEMANTIC_SEARCH_METRICS = (
+    "Filter metrics by substring match against the metric name. "
+    "Accepts either a single substring or a list of substrings; when a list "
+    "is provided, metrics matching any of the substrings are returned "
+    "(deduplicated)."
+)
 
 SEMANTIC_SEARCH_SAVED_QUERIES = (
     "Filter saved queries by substring match on name, label, or description"

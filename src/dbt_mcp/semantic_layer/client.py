@@ -70,6 +70,19 @@ def DEFAULT_RESULT_FORMATTER(table: pa.Table) -> str:
     return json.dumps(records, indent=2, cls=ExtendedJSONEncoder)
 
 
+def _dedupe_metric_items(items: Any) -> list[Any]:
+    """Preserve first-seen order while filtering out duplicate metric names."""
+    seen: set[str] = set()
+    out: list[Any] = []
+    for item in items:
+        name = item.get("name")
+        if name is None or name in seen:
+            continue
+        seen.add(name)
+        out.append(item)
+    return out
+
+
 class SemanticLayerClientProtocol(Protocol):
     def session(self) -> AbstractContextManager[Any]: ...
 
@@ -126,13 +139,35 @@ class SemanticLayerFetcher:
     async def list_metrics(
         self,
         config: SemanticLayerConfig,
-        search: str | None = None,
+        search: str | list[str] | None = None,
     ) -> ListMetricsResponse:
-        metrics_result = await submit_request(
-            config,
-            {"query": GRAPHQL_QUERIES["metrics"], "variables": {"search": search}},
+        # `search` may be a single substring or a list of substrings; for a list
+        # we fan out one GraphQL call per substring, then merge & dedupe by name.
+        search_terms: list[str | None]
+        if isinstance(search, list):
+            # Drop empty strings; an empty list becomes "no filter".
+            cleaned = [s for s in search if s]
+            search_terms = list(cleaned) if cleaned else [None]
+        else:
+            search_terms = [search]
+
+        cheap_results = await asyncio.gather(
+            *(
+                submit_request(
+                    config,
+                    {
+                        "query": GRAPHQL_QUERIES["metrics"],
+                        "variables": {"search": term},
+                    },
+                )
+                for term in search_terms
+            )
         )
-        metrics_count = len(metrics_result["data"]["metricsPaginated"]["items"])
+        cheap_items = _dedupe_metric_items(
+            item
+            for r in cheap_results
+            for item in r["data"]["metricsPaginated"]["items"]
+        )
         dimensionless_response = ListMetricsResponse(
             metrics=[
                 MetricToolResponse(
@@ -142,26 +177,39 @@ class SemanticLayerFetcher:
                     description=m.get("description"),
                     metadata=(m.get("config") or {}).get("meta"),
                 )
-                for m in metrics_result["data"]["metricsPaginated"]["items"]
+                for m in cheap_items
             ]
         )
-        if metrics_count and metrics_count <= config.metrics_related_max:
-            # Re-fetch with the same search filter using a single query that includes
-            # per-metric dimensions and entities. This avoids the N×2 parallel calls
-            # approach: the nested GQL fields return per-metric data accurately (not
-            # an intersection like dimensionsPaginated with multiple metrics would).
+
+        if cheap_items and len(cheap_items) <= config.metrics_related_max:
+            # Re-fetch with per-metric dimensions and entities. Same fan-out:
+            # the nested GQL fields return per-metric data accurately, unlike
+            # dimensionsPaginated with multiple metrics which would intersect.
+            # Fall back to the dimensionless response if the richer query
+            # times out or otherwise fails (one slow term would otherwise
+            # block the whole call via asyncio.gather).
             try:
-                full_result = await submit_request(
-                    config,
-                    {
-                        "query": GRAPHQL_QUERIES["metrics_with_related"],
-                        "variables": {"search": search},
-                    },
-                    timeout=5.0,
+                related_results = await asyncio.gather(
+                    *(
+                        submit_request(
+                            config,
+                            {
+                                "query": GRAPHQL_QUERIES["metrics_with_related"],
+                                "variables": {"search": term},
+                            },
+                            timeout=5.0,
+                        )
+                        for term in search_terms
+                    )
                 )
             except Exception as e:
                 logger.warning(f"Error fetching metrics with related: {e}")
                 return dimensionless_response
+            related_items = _dedupe_metric_items(
+                item
+                for r in related_results
+                for item in r["data"]["metricsPaginated"]["items"]
+            )
             return ListMetricsResponse(
                 metrics=[
                     MetricToolResponse(
@@ -173,7 +221,7 @@ class SemanticLayerFetcher:
                         dimensions=[d.get("name") for d in (m.get("dimensions") or [])],
                         entities=[e.get("name") for e in (m.get("entities") or [])],
                     )
-                    for m in full_result["data"]["metricsPaginated"]["items"]
+                    for m in related_items
                 ]
             )
         return dimensionless_response

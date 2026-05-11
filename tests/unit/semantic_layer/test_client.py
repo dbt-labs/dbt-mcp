@@ -421,6 +421,99 @@ async def test_list_metrics_at_threshold_returns_full_config(
     assert result.metrics[0].entities is not None
 
 
+@pytest.mark.asyncio
+@patch("dbt_mcp.semantic_layer.client.submit_request")
+async def test_list_metrics_search_list_fans_out_and_dedupes(
+    mock_submit_request, mock_client_provider, mock_config_provider
+):
+    """A list of search terms triggers one GraphQL call per term, then dedupes."""
+    revenue_item = {
+        "name": "revenue",
+        "type": "simple",
+        "label": "Revenue",
+        "description": None,
+        "config": None,
+    }
+    cost_item = {
+        "name": "cost",
+        "type": "simple",
+        "label": "Cost",
+        "description": None,
+        "config": None,
+    }
+
+    def dispatch(_, payload, **kwargs):
+        # Threshold is exceeded so only the cheap query fires; one call per term.
+        search = payload["variables"].get("search")
+        if search == "rev":
+            # Returns revenue plus the duplicate that the other term also matches.
+            return {"data": {"metricsPaginated": {"items": [revenue_item, cost_item]}}}
+        if search == "cost":
+            return {"data": {"metricsPaginated": {"items": [cost_item]}}}
+        raise AssertionError(f"Unexpected search term: {search!r}")
+
+    mock_submit_request.side_effect = dispatch
+    config = mock_config_provider.get_config.return_value
+    config.metrics_related_max = 1  # force the "cheap only" branch
+    fetcher = SemanticLayerFetcher(client_provider=mock_client_provider)
+
+    result = await fetcher.list_metrics(config=config, search=["rev", "cost"])
+
+    # One call per search term — fan-out.
+    assert mock_submit_request.call_count == 2
+    # Merged and deduped, order preserved by first-seen.
+    assert [m.name for m in result.metrics] == ["revenue", "cost"]
+
+
+@pytest.mark.asyncio
+@patch("dbt_mcp.semantic_layer.client.submit_request")
+async def test_list_metrics_search_list_below_threshold_fans_out_related(
+    mock_submit_request, mock_client_provider, mock_config_provider
+):
+    """When the deduped result is small enough, the with_related query also fans out."""
+
+    def dispatch(_, payload, **kwargs):
+        query = payload["query"]
+        # Both the cheap and the with_related queries get one call per term.
+        if "dimensions {" in query:
+            return MOCK_METRICS_WITH_RELATED_RESPONSE
+        if "metricsPaginated" in query:
+            return MOCK_METRICS_RESPONSE
+        raise AssertionError(f"Unexpected query: {query}")
+
+    mock_submit_request.side_effect = dispatch
+    config = mock_config_provider.get_config.return_value
+    fetcher = SemanticLayerFetcher(client_provider=mock_client_provider)
+
+    result = await fetcher.list_metrics(config=config, search=["a", "b"])
+
+    # 2 cheap + 2 with_related = 4 calls
+    assert mock_submit_request.call_count == 4
+    # Deduped to a single metric with related fields populated
+    assert len(result.metrics) == 1
+    assert result.metrics[0].dimensions == ["order_date"]
+    assert result.metrics[0].entities == ["customer"]
+
+
+@pytest.mark.asyncio
+@patch("dbt_mcp.semantic_layer.client.submit_request")
+async def test_list_metrics_empty_search_list_treated_as_no_filter(
+    mock_submit_request, fetcher, mock_config_provider
+):
+    """An empty list (or list of empty strings) behaves like search=None."""
+    mock_submit_request.side_effect = _make_query_dispatcher()
+    config = mock_config_provider.get_config.return_value
+
+    result = await fetcher.list_metrics(config=config, search=[])
+
+    # Single fan-out term (None), so cheap + related = 2 calls
+    assert mock_submit_request.call_count == 2
+    assert len(result.metrics) == 1
+    # The single GraphQL call received search=None
+    for call in mock_submit_request.call_args_list:
+        assert call.args[1]["variables"]["search"] is None
+
+
 @pytest.mark.parametrize(
     "input_where,expected",
     [
