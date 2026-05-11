@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+import logging
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from datetime import date, datetime, time, timedelta
@@ -29,14 +30,16 @@ from dbt_mcp.semantic_layer.types import (
     GetMetricsCompiledSqlError,
     GetMetricsCompiledSqlResult,
     GetMetricsCompiledSqlSuccess,
+    ListMetricsResponse,
     MetricToolResponse,
     OrderByParam,
     QueryMetricsError,
     QueryMetricsResult,
     QueryMetricsSuccess,
     SavedQueryToolResponse,
-    ListMetricsResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def DEFAULT_RESULT_FORMATTER(table: pa.Table) -> str:
@@ -130,18 +133,35 @@ class SemanticLayerFetcher:
             {"query": GRAPHQL_QUERIES["metrics"], "variables": {"search": search}},
         )
         metrics_count = len(metrics_result["data"]["metricsPaginated"]["items"])
+        dimensionless_response = ListMetricsResponse(
+            metrics=[
+                MetricToolResponse(
+                    name=m.get("name"),
+                    type=m.get("type"),
+                    label=m.get("label"),
+                    description=m.get("description"),
+                    metadata=(m.get("config") or {}).get("meta"),
+                )
+                for m in metrics_result["data"]["metricsPaginated"]["items"]
+            ]
+        )
         if metrics_count and metrics_count <= config.metrics_related_max:
             # Re-fetch with the same search filter using a single query that includes
             # per-metric dimensions and entities. This avoids the N×2 parallel calls
             # approach: the nested GQL fields return per-metric data accurately (not
             # an intersection like dimensionsPaginated with multiple metrics would).
-            full_result = await submit_request(
-                config,
-                {
-                    "query": GRAPHQL_QUERIES["metrics_with_related"],
-                    "variables": {"search": search},
-                },
-            )
+            try:
+                full_result = await submit_request(
+                    config,
+                    {
+                        "query": GRAPHQL_QUERIES["metrics_with_related"],
+                        "variables": {"search": search},
+                    },
+                    timeout=5.0,
+                )
+            except Exception as e:
+                logger.warning(f"Error fetching metrics with related: {e}")
+                return dimensionless_response
             return ListMetricsResponse(
                 metrics=[
                     MetricToolResponse(
@@ -156,18 +176,7 @@ class SemanticLayerFetcher:
                     for m in full_result["data"]["metricsPaginated"]["items"]
                 ]
             )
-        return ListMetricsResponse(
-            metrics=[
-                MetricToolResponse(
-                    name=m.get("name"),
-                    type=m.get("type"),
-                    label=m.get("label"),
-                    description=m.get("description"),
-                    metadata=(m.get("config") or {}).get("meta"),
-                )
-                for m in metrics_result["data"]["metricsPaginated"]["items"]
-            ]
-        )
+        return dimensionless_response
 
     async def list_saved_queries(
         self,
