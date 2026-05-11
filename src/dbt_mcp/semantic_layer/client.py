@@ -70,6 +70,12 @@ def DEFAULT_RESULT_FORMATTER(table: pa.Table) -> str:
     return json.dumps(records, indent=2, cls=ExtendedJSONEncoder)
 
 
+# Cap the number of substrings accepted by `list_metrics(search=[...])` so
+# an unbounded LLM-supplied list can't fan out into a burst of parallel
+# GraphQL requests against the Semantic Layer API.
+_MAX_SEARCH_TERMS = 20
+
+
 def _dedupe_metric_items(items: Any) -> list[Any]:
     """Preserve first-seen order while filtering out duplicate metric names."""
     seen: set[str] = set()
@@ -156,9 +162,20 @@ class SemanticLayerFetcher:
                     continue
                 seen_terms.add(term)
                 cleaned.append(term)
+            if len(cleaned) > _MAX_SEARCH_TERMS:
+                # Cap the fan-out so a runaway LLM call can't generate an
+                # unbounded burst of parallel GraphQL requests.
+                raise InvalidParameterError(
+                    f"`search` accepts at most {_MAX_SEARCH_TERMS} terms; "
+                    f"got {len(cleaned)}."
+                )
             search_terms = list(cleaned) if cleaned else [None]
         else:
-            search_terms = [search]
+            # Mirror the list-path normalization for parity: a single-string
+            # `search` is stripped, and an empty/whitespace-only string becomes
+            # no filter (search=None).
+            normalized = search.strip() if isinstance(search, str) else search
+            search_terms = [normalized if normalized else None]
 
         cheap_results = await asyncio.gather(
             *(

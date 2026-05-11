@@ -519,6 +519,46 @@ async def test_list_metrics_search_list_normalizes_and_dedupes_terms(
 
 @pytest.mark.asyncio
 @patch("dbt_mcp.semantic_layer.client.submit_request")
+async def test_list_metrics_single_string_search_is_normalized(
+    mock_submit_request, fetcher, mock_config_provider
+):
+    """A single-string search is stripped and empty/whitespace-only becomes no filter."""
+    mock_submit_request.side_effect = _make_query_dispatcher()
+    config = mock_config_provider.get_config.return_value
+
+    # Whitespace-padded string is stripped to "rev"
+    await fetcher.list_metrics(config=config, search="  rev  ")
+    for call in mock_submit_request.call_args_list:
+        assert call.args[1]["variables"]["search"] == "rev"
+    mock_submit_request.reset_mock()
+    mock_submit_request.side_effect = _make_query_dispatcher()
+
+    # Empty/whitespace-only string collapses to no filter
+    await fetcher.list_metrics(config=config, search="   ")
+    for call in mock_submit_request.call_args_list:
+        assert call.args[1]["variables"]["search"] is None
+
+
+@pytest.mark.asyncio
+@patch("dbt_mcp.semantic_layer.client.submit_request")
+async def test_list_metrics_search_list_caps_term_count(
+    mock_submit_request, fetcher, mock_config_provider
+):
+    """An overly long search list raises rather than firing unbounded parallel calls."""
+    from dbt_mcp.errors import InvalidParameterError
+    from dbt_mcp.semantic_layer.client import _MAX_SEARCH_TERMS
+
+    config = mock_config_provider.get_config.return_value
+    too_many = [f"term_{i}" for i in range(_MAX_SEARCH_TERMS + 1)]
+
+    with pytest.raises(InvalidParameterError, match=str(_MAX_SEARCH_TERMS)):
+        await fetcher.list_metrics(config=config, search=too_many)
+    # No GraphQL request was issued
+    mock_submit_request.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("dbt_mcp.semantic_layer.client.submit_request")
 async def test_list_metrics_empty_search_list_treated_as_no_filter(
     mock_submit_request, fetcher, mock_config_provider
 ):
