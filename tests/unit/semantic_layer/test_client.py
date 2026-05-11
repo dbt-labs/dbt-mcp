@@ -343,7 +343,7 @@ def _make_query_dispatcher():
     query by checking for the presence of nested 'dimensions {' in the query string.
     """
 
-    def dispatch(_, payload):
+    def dispatch(_, payload, **kwargs):
         query = payload.get("query", "")
         if "metricsPaginated" in query:
             if "dimensions {" in query:
