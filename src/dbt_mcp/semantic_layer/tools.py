@@ -64,6 +64,13 @@ def _build_csv(metrics: list[MetricToolResponse], columns: list[str]) -> str:
 
 
 def metrics_to_csv(response: ListMetricsResponse, max_response_chars: int = 0) -> str:
+    """Serialize metrics to CSV, optionally trimming verbose fields.
+
+    When trimming fires, a `# Note:` comment line is prepended to the CSV so
+    the LLM (the primary consumer) sees the explanation up front. Programmatic
+    consumers should strip leading `#`-prefixed lines before parsing — same
+    convention as pandas `comment='#'`.
+    """
     metrics = response.metrics
     if not metrics:
         return ""
