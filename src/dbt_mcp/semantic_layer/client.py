@@ -145,8 +145,17 @@ class SemanticLayerFetcher:
         # we fan out one GraphQL call per substring, then merge & dedupe by name.
         search_terms: list[str | None]
         if isinstance(search, list):
-            # Drop empty strings; an empty list becomes "no filter".
-            cleaned = [s for s in search if s]
+            # Strip whitespace, drop empty values, and dedupe identical terms
+            # (preserving first-seen order) so a whitespace-only or duplicated
+            # term can't broaden the fan-out into redundant or no-filter calls.
+            cleaned: list[str] = []
+            seen_terms: set[str] = set()
+            for raw in search:
+                term = raw.strip()
+                if not term or term in seen_terms:
+                    continue
+                seen_terms.add(term)
+                cleaned.append(term)
             search_terms = list(cleaned) if cleaned else [None]
         else:
             search_terms = [search]

@@ -497,6 +497,28 @@ async def test_list_metrics_search_list_below_threshold_fans_out_related(
 
 @pytest.mark.asyncio
 @patch("dbt_mcp.semantic_layer.client.submit_request")
+async def test_list_metrics_search_list_normalizes_and_dedupes_terms(
+    mock_submit_request, fetcher, mock_config_provider
+):
+    """Whitespace-only terms are dropped; identical terms are deduped before fan-out."""
+    mock_submit_request.side_effect = _make_query_dispatcher()
+    config = mock_config_provider.get_config.return_value
+
+    await fetcher.list_metrics(
+        config=config,
+        # "rev" appears twice (once whitespace-padded), "  " is empty after strip,
+        # so the dedupe should collapse this to a single search term "rev".
+        search=["rev", "  rev  ", "  ", "rev"],
+    )
+
+    # 1 cheap + 1 with_related = 2 calls total, never broadened to no-filter.
+    assert mock_submit_request.call_count == 2
+    for call in mock_submit_request.call_args_list:
+        assert call.args[1]["variables"]["search"] == "rev"
+
+
+@pytest.mark.asyncio
+@patch("dbt_mcp.semantic_layer.client.submit_request")
 async def test_list_metrics_empty_search_list_treated_as_no_filter(
     mock_submit_request, fetcher, mock_config_provider
 ):
