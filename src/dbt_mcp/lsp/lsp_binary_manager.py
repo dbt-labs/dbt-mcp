@@ -226,7 +226,7 @@ def get_lsp_binary_version(path: str) -> str:
     """
     version_file = Path(path).parent / ".version"
     if version_file.exists():
-        return version_file.read_text().strip()
+        return version_file.read_text(encoding="utf-8").strip()
     else:
         return subprocess.run(
             [path, "--version"], capture_output=True, text=True

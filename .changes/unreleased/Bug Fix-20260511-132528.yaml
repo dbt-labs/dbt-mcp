@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: 'Specify UTF-8 encoding for all text file reads/writes to fix UnicodeDecodeError on Windows (closes #765)'
+time: 2026-05-11T13:25:28.435703+02:00

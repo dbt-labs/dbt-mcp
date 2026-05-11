@@ -77,7 +77,8 @@ class DefaultUsageTracker:
                 self._local_user_id = str(uuid.uuid4())
                 with suppress(Exception):
                     Path(user_yaml_path).write_text(
-                        yaml.dump({"id": self._local_user_id})
+                        yaml.dump({"id": self._local_user_id}),
+                        encoding="utf-8",
                     )
         return self._local_user_id
 
