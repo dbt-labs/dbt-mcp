@@ -2,7 +2,8 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from dbt_mcp.mcp.server import register_multi_project_dbt_mcp
+from client.session import client_session_context
+from dbt_mcp.dbt_admin.param_descriptions import PAGINATION_LIMIT, PAGINATION_OFFSET
 from dbt_mcp.dbt_admin.tools import (
     ADMIN_TOOLS,
     AdminToolContext,
@@ -18,6 +19,7 @@ from dbt_mcp.dbt_admin.tools import (
     retry_job_run,
     trigger_job_run,
 )
+from dbt_mcp.mcp.server import register_multi_project_dbt_mcp
 from tests.mocks.config import mock_config
 
 NUM_ADMIN_TOOLS = 10
@@ -375,3 +377,17 @@ def test_admin_tools_list_contains_all_tools():
     actual_tool_names = {tool.fn.__name__ for tool in ADMIN_TOOLS}
     assert actual_tool_names == expected_tool_names
     assert len(ADMIN_TOOLS) == NUM_ADMIN_TOOLS
+
+
+async def test_admin_tools_list_jobs_params():
+    """Test that the list_jobs tool has the correct parameters."""
+    async with client_session_context() as client:
+        available_tools = (await client.list_tools()).tools
+        list_jobs_tool = next(
+            tool for tool in available_tools if tool.name == "list_jobs"
+        )
+        assert list_jobs_tool.inputSchema is not None
+        props = list_jobs_tool.inputSchema.get("properties")
+        assert props is not None
+        assert props["limit"]["description"] == PAGINATION_LIMIT
+        assert props["offset"]["description"] == PAGINATION_OFFSET

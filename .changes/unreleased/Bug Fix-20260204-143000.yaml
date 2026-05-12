@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Add helpful hint for SSL errors during OAuth, suggesting that multi-cell users set DBT_HOST to the full hostname (e.g. abc123.us1.dbt.com)
-time: 2026-02-04T14:30:00.000000+01:00

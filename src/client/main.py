@@ -2,16 +2,12 @@ import asyncio
 import json
 from time import time
 
-from mcp.shared.memory import (
-    create_connected_server_and_client_session as client_session,
-)
 from openai import OpenAI
 from openai.types.responses.response_input_param import FunctionCallOutput
 from openai.types.responses.response_output_message import ResponseOutputMessage
 
+from client.session import client_session_context
 from client.tools import map_tools
-from dbt_mcp.config.config import load_config
-from dbt_mcp.mcp.server import create_dbt_mcp
 
 LLM_MODEL = "gpt-4o-mini"
 TOOL_RESPONSE_TRUNCATION = 100  # set to None for no truncation
@@ -22,9 +18,7 @@ messages = []
 
 
 async def main():
-    config = load_config()
-    server = await create_dbt_mcp(config)
-    async with client_session(server) as client:
+    async with client_session_context() as client:
         user_role = "user"
         available_tools = (await client.list_tools()).tools
         tools_str = "\n".join(

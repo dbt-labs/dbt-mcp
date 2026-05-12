@@ -4,15 +4,6 @@ Trigger a dbt job run with optional parameter overrides.
 
 This tool starts a new run for a specified job with the ability to override default settings like Git branch, schema, or other execution parameters.
 
-## Parameters
-
-- **job_id** (required): The job ID to trigger
-- **cause** (optional, default: "Triggered by dbt MCP"): Description of why the job is being triggered
-- **git_branch** (optional): Override the Git branch to checkout
-- **git_sha** (optional): Override the Git SHA to checkout
-- **schema_override** (optional): Override the destination schema
-- **steps_override** (optional): Override the dbt commands to execute. Each element is a full dbt command string (e.g., `"dbt run --select my_model --full-refresh"`). When provided, the job's default steps are replaced entirely.
-
 ## Returns
 
 Run object with information about the newly triggered run including:

@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -15,6 +16,15 @@ from dbt_mcp.discovery.client import (
     PaginatedResourceFetcher,
     ResourceDetailsFetcher,
     SourcesFetcher,
+)
+from dbt_mcp.discovery.param_descriptions import (
+    MACRO_INCLUDE_DEFAULT_DBT_PACKAGES,
+    MACRO_PACKAGE_NAMES,
+    MACRO_RETURN_PACKAGE_NAMES_ONLY,
+    MODEL_PERF_INCLUDE_TESTS,
+    MODEL_PERF_NUM_RUNS,
+    SOURCE_NAMES_FILTER,
+    SOURCE_UNIQUE_IDS_FILTER,
 )
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
@@ -216,16 +226,13 @@ async def get_model_performance(
     unique_id: str | None = UNIQUE_ID_FIELD,
     num_runs: int = Field(
         default=1,
-        description="Number of historical runs to return. Default is 1 (latest run only). "
-        "Use values > 1 to analyze performance trends over time.",
+        description=MODEL_PERF_NUM_RUNS,
         ge=1,
         le=100,
     ),
     include_tests: bool = Field(
         default=False,
-        description="If True, include test execution history (name, status, executionTime) for each run. "
-        "Useful for analyzing test performance alongside model execution. "
-        "Default is False to reduce response size.",
+        description=MODEL_PERF_INCLUDE_TESTS,
     ),
 ) -> list[dict]:
     """Get model execution performance metrics from historical runs."""
@@ -302,8 +309,12 @@ async def get_exposure_details(
 )
 async def get_all_sources(
     context: DiscoveryToolContext,
-    source_names: list[str] | None = None,
-    unique_ids: list[str] | None = None,
+    source_names: Annotated[
+        list[str] | None, Field(description=SOURCE_NAMES_FILTER)
+    ] = None,
+    unique_ids: Annotated[
+        list[str] | None, Field(description=SOURCE_UNIQUE_IDS_FILTER)
+    ] = None,
 ) -> list[dict]:
     config = await context.config_provider.get_config()
     return await context.sources_fetcher.fetch_sources(
@@ -341,22 +352,15 @@ async def get_source_details(
 )
 async def get_all_macros(
     context: DiscoveryToolContext,
-    package_names: list[str] | None = Field(
-        default=None,
-        description="Optional list of package names to filter macros by "
-        "(e.g., ['my_project', 'my_package']).",
-    ),
-    return_package_names_only: bool = Field(
-        default=False,
-        description="If True, returns only the unique package names instead of "
-        "full macro details. Use this to discover available packages first, "
-        "then filter by specific packages to get macro details.",
-    ),
-    include_default_dbt_packages: bool = Field(
-        default=False,
-        description="If True, includes the default dbt macros that "
-        "are maintained by dbt Labs.",
-    ),
+    package_names: Annotated[
+        list[str] | None, Field(description=MACRO_PACKAGE_NAMES)
+    ] = None,
+    return_package_names_only: Annotated[
+        bool, Field(description=MACRO_RETURN_PACKAGE_NAMES_ONLY)
+    ] = False,
+    include_default_dbt_packages: Annotated[
+        bool, Field(description=MACRO_INCLUDE_DEFAULT_DBT_PACKAGES)
+    ] = False,
 ) -> list[dict] | list[str]:
     config = await context.config_provider.get_config()
     return await context.macros_fetcher.fetch_macros(

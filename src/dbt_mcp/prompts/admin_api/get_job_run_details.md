@@ -2,10 +2,6 @@ Get detailed information for a specific dbt job run.
 
 This tool retrieves comprehensive run information including execution details, steps, and artifacts.
 
-## Parameters
-
-- **run_id** (required): The run ID to retrieve details for
-
 ## Returns
 
 Run object with detailed execution information including:

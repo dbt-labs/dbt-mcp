@@ -2,10 +2,6 @@ Cancel a currently running or queued dbt run.
 
 This tool allows you to stop a run that is currently executing or waiting in the queue.
 
-## Parameters
-
-- **run_id** (required): The run ID to cancel
-
 ## Returns
 
 Updated run object showing the cancelled status and timing information.

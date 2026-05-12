@@ -1,8 +1,5 @@
 Get detailed information about one or more exposures by name or unique IDs.
 
-Parameters:
-- unique_id (optional): ID of exposure (e.g., ["exposure.project.exposure1", "exposure.project.exposure2"]) (more efficient - uses GraphQL filter)
-
 Returns a list of detailed information dictionaries, each including:
 - name: The name of the exposure
 - description: Detailed description of the exposure

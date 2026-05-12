@@ -2,12 +2,6 @@ Get focused error and/or warning information for a dbt job run.
 
 This tool retrieves and analyzes job runs to provide concise, actionable error and warning details optimized for troubleshooting and monitoring. Instead of verbose run details, it returns structured information with minimal token usage.
 
-## Parameters
-
-- run_id (required): The run ID to analyze for error/warning information
-- include_warnings (optional, default: False): If True, include warnings along with errors in the response
-- warning_only (optional, default: False): If True, only return warnings without errors (useful for analyzing successful runs)
-
 ## Returns
 
 ### Default Behavior (errors only)

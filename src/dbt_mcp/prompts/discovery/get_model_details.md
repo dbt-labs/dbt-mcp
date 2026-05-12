@@ -7,11 +7,6 @@ IMPORTANT: Use uniqueId when available.
 - If you obtained models via get_all_models(), you should always use the uniqueId from those results
 </instructions>
 
-<parameters>
-uniqueId: The unique identifier of the model (format: "model.project_name.model_name"). STRONGLY RECOMMENDED when available.
-name: The name of the dbt model. Only use this when uniqueId is unavailable.
-</parameters>
-
 <examples>
 1. PREFERRED METHOD - Using uniqueId (always use this when available):
    get_model_details(uniqueId="model.my_project.customer_orders")

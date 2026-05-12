@@ -1,9 +1,5 @@
 Get the name, description, and metadata of all dbt sources in the environment. Sources represent external data tables that your dbt models build upon.
 
-Parameters (all optional):
-- source_names: List of specific source names to filter by (e.g., ['raw_data', 'external_api'])
-- unique_ids: List of specific source table IDs to filter by
-
 Note:
   - source_names correspond to the top-level source grouping in the source YML config
   - unique_ids have the form `source.{YOUR-DBT-PROJECT}.{SOURCE-NAME}.{SOURCE-TABLE}`

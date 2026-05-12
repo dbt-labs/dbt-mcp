@@ -7,12 +7,13 @@ from dbt_mcp.gql.errors import raise_gql_error
 async def submit_request(
     sl_config: SemanticLayerConfig,
     payload: dict,
+    timeout: float = 30.0,
 ) -> dict:
     if "variables" not in payload:
         payload["variables"] = {}
     payload["variables"]["environmentId"] = sl_config.prod_environment_id
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.post(
             sl_config.url,
             json=payload,
