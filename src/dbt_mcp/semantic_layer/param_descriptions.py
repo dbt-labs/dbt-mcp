@@ -34,8 +34,10 @@ SEMANTIC_GROUP_BY = (
 )
 
 SEMANTIC_ORDER_BY = (
-    "Sort keys; each item has `name` and `descending` (default false); "
-    "order fields should appear in group_by when grouping"
+    "Sort keys; each item has `name`, `descending` (default false), and optional "
+    "`grain` for time dimensions (overrides the grain from group_by; falls back to "
+    "the matching group_by grain when omitted); items may be metric names or "
+    "group_by fields"
 )
 
 SEMANTIC_WHERE = (

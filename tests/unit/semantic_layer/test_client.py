@@ -8,10 +8,18 @@ import pyarrow as pa
 import pytest
 from dbtsl.error import RetryTimeoutError
 
+from dbtsl.api.shared.query_params import (
+    GroupByParam,
+    GroupByType,
+    OrderByGroupBy,
+    OrderByMetric,
+)
+
 from dbt_mcp.config.config_providers import SemanticLayerConfig
+from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.errors.semantic_layer import SemanticLayerQueryTimeoutError
 from dbt_mcp.semantic_layer.client import DEFAULT_RESULT_FORMATTER, SemanticLayerFetcher
-from dbt_mcp.semantic_layer.types import QueryMetricsError
+from dbt_mcp.semantic_layer.types import OrderByParam, QueryMetricsError
 
 
 def test_default_result_formatter_outputs_iso_dates() -> None:
@@ -829,3 +837,42 @@ async def test_get_metrics_compiled_sql_sdk_client_uses_fetcher_config_override(
     await fetcher.get_metrics_compiled_sql(config=override, metrics=["revenue"])
 
     mock_client_provider.get_client.assert_awaited_once_with(config=override)
+
+
+# Tests for _get_order_bys
+
+
+def test_get_order_bys_explicit_grain_takes_precedence(fetcher) -> None:
+    group_by = [
+        GroupByParam(name="metric_time", type=GroupByType.TIME_DIMENSION, grain="MONTH")
+    ]
+    order_by = [OrderByParam(name="metric_time", descending=True, grain="WEEK")]
+    result = fetcher._get_order_bys(order_by, group_by=group_by)
+    assert result == [OrderByGroupBy(name="metric_time", descending=True, grain="WEEK")]
+
+
+def test_get_order_bys_falls_back_to_group_by_grain(fetcher) -> None:
+    group_by = [
+        GroupByParam(name="metric_time", type=GroupByType.TIME_DIMENSION, grain="MONTH")
+    ]
+    order_by = [OrderByParam(name="metric_time", descending=False)]
+    result = fetcher._get_order_bys(order_by, group_by=group_by)
+    assert result == [
+        OrderByGroupBy(name="metric_time", descending=False, grain="MONTH")
+    ]
+
+
+def test_get_order_bys_metric_name(fetcher) -> None:
+    order_by = [OrderByParam(name="revenue", descending=True)]
+    result = fetcher._get_order_bys(order_by, metrics=["revenue"])
+    assert result == [OrderByMetric(name="revenue", descending=True)]
+
+
+def test_get_order_bys_unknown_name_raises(fetcher) -> None:
+    order_by = [OrderByParam(name="unknown", descending=False)]
+    with pytest.raises(InvalidParameterError):
+        fetcher._get_order_bys(order_by, metrics=["revenue"], group_by=[])
+
+
+def test_get_order_bys_none_returns_empty(fetcher) -> None:
+    assert fetcher._get_order_bys(None) == []
