@@ -15,6 +15,7 @@ class TestDbtCliIntegration(unittest.TestCase):
         """
         # Mock setup
         mock_process = MagicMock()
+        mock_process.returncode = 0
         mock_process.communicate.return_value = ("command output", None)
         mock_popen.return_value = mock_process
 
