@@ -285,6 +285,126 @@ def test_codegen_error_handling_general_error(monkeypatch: MonkeyPatch, mock_fas
     assert "Some other error occurred" in result
 
 
+def test_codegen_success_drops_stderr_noise(monkeypatch: MonkeyPatch, mock_fastmcp):
+    """A successful codegen run returns just stdout, ignoring stderr noise
+    (e.g. urllib3 deprecation warnings under externalbrowser auth)."""
+
+    class MockProcessSuccessWithStderrWarning:
+        returncode = 0
+
+        def communicate(self, timeout=None):
+            return (
+                "models:\n  - name: my_model",
+                "urllib3 v2.0 only supports OpenSSL 1.1.1+: NotOpenSSLWarning",
+            )
+
+    def mock_popen(args, **kwargs):
+        return MockProcessSuccessWithStderrWarning()
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, _ = mock_fastmcp
+    register_dbt_codegen_tools(
+        fastmcp,
+        mock_dbt_codegen_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    generate_source_tool = fastmcp.tools["generate_source"]
+
+    result = generate_source_tool(
+        schema_name="test_schema",
+        database_name=None,
+        table_names=None,
+        generate_columns=False,
+        include_descriptions=False,
+    )
+
+    # Stdout is preserved, stderr warning is dropped.
+    assert "my_model" in result
+    assert "urllib3" not in result
+
+
+def test_codegen_failure_surfaces_stderr(monkeypatch: MonkeyPatch, mock_fastmcp):
+    """A failed codegen run surfaces stderr in the error message even when
+    stdout is empty — some dbt errors only appear on stderr."""
+
+    class MockProcessFailureStderrOnly:
+        returncode = 1
+
+        def communicate(self, timeout=None):
+            return "", "Database Error: relation does not exist"
+
+    def mock_popen(args, **kwargs):
+        return MockProcessFailureStderrOnly()
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, _ = mock_fastmcp
+    register_dbt_codegen_tools(
+        fastmcp,
+        mock_dbt_codegen_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    generate_source_tool = fastmcp.tools["generate_source"]
+
+    result = generate_source_tool(
+        schema_name="test_schema",
+        database_name=None,
+        table_names=None,
+        generate_columns=False,
+        include_descriptions=False,
+    )
+
+    assert "Error running dbt-codegen macro" in result
+    assert "Database Error" in result
+
+
+def test_codegen_failure_with_no_output_surfaces_exit_code(
+    monkeypatch: MonkeyPatch, mock_fastmcp
+):
+    """A failed codegen run with no output on either stream must still surface
+    the exit code so the LLM can distinguish failure from an empty response."""
+
+    class MockProcessFailureNoOutput:
+        returncode = 2
+
+        def communicate(self, timeout=None):
+            return "", ""
+
+    def mock_popen(args, **kwargs):
+        return MockProcessFailureNoOutput()
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, _ = mock_fastmcp
+    register_dbt_codegen_tools(
+        fastmcp,
+        mock_dbt_codegen_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    generate_source_tool = fastmcp.tools["generate_source"]
+
+    result = generate_source_tool(
+        schema_name="test_schema",
+        database_name=None,
+        table_names=None,
+        generate_columns=False,
+        include_descriptions=False,
+    )
+
+    assert "Error running dbt-codegen macro" in result
+    assert "exit code 2" in result
+
+
 def test_codegen_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
     """Test timeout handling for long-running operations."""
 

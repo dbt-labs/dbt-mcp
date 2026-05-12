@@ -135,12 +135,25 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
                 args=args,
                 cwd=cwd_path,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                stderr=subprocess.PIPE,
                 stdin=subprocess.DEVNULL,
                 text=True,
             )
-            output, _ = process.communicate(timeout=config.dbt_cli_timeout)
-            return output or "OK"
+            stdout, stderr = process.communicate(timeout=config.dbt_cli_timeout)
+            # Use returncode as the success signal so noise on stderr (e.g.
+            # urllib3 deprecation warnings under externalbrowser auth) can't
+            # masquerade as the result of a successful command. On failure
+            # we surface stderr too, since some dbt errors only appear there.
+            if process.returncode == 0:
+                return stdout or "OK"
+            parts = []
+            if stdout:
+                parts.append(f"--- stdout ---\n{stdout.rstrip()}")
+            if stderr:
+                parts.append(f"--- stderr ---\n{stderr.rstrip()}")
+            if parts:
+                return "\n".join(parts)
+            return f"Command failed with exit code {process.returncode} (no output)"
         except subprocess.TimeoutExpired:
             return "Timeout: dbt command took too long to complete." + (
                 " Try using a specific selector to narrow down the results."

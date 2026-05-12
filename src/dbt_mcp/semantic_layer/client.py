@@ -410,18 +410,19 @@ class SemanticLayerFetcher:
         result: list[OrderBySpec] = []
         if order_by is None:
             return result
-        queried_group_by = {g.name: g for g in group_by} if group_by else {}
+        group_by_map = {g.name: g for g in group_by} if group_by else {}
         queried_metrics = set(metrics)
         for o in order_by:
             if o.name in queried_metrics:
                 result.append(OrderByMetric(name=o.name, descending=o.descending))
-            elif o.name in queried_group_by:
-                selected_group_by = queried_group_by[o.name]
+            elif o.name in group_by_map:
                 result.append(
                     OrderByGroupBy(
-                        name=selected_group_by.name,
+                        name=o.name,
                         descending=o.descending,
-                        grain=selected_group_by.grain,
+                        grain=o.grain
+                        if o.grain is not None
+                        else group_by_map[o.name].grain,
                     )
                 )
             else:

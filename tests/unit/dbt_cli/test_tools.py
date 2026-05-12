@@ -14,8 +14,10 @@ from tests.mocks.config import mock_dbt_cli_config
 @pytest.fixture
 def mock_process():
     class MockProcess:
+        returncode = 0
+
         def communicate(self, timeout=None):
-            return "command output", None
+            return "command output", ""
 
     return MockProcess()
 
@@ -513,6 +515,135 @@ def test_yml_selector_not_added_when_none(
     assert mock_calls
     args_list = mock_calls[0]
     assert "--selector" not in args_list
+
+
+def test_success_returns_ok_even_with_stderr_noise(
+    monkeypatch: MonkeyPatch, mock_fastmcp
+):
+    """A successful command (returncode=0) returns 'OK' even when stderr has
+    noise like urllib3 deprecation warnings — stderr is dropped on success."""
+
+    class MockProcessSuccessWithStderrWarning:
+        returncode = 0
+
+        def communicate(self, timeout=None):
+            return "", "urllib3 v2.0 only supports OpenSSL 1.1.1+: NotOpenSSLWarning"
+
+    def mock_popen(args, **kwargs):
+        return MockProcessSuccessWithStderrWarning()
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    assert tools["build"]() == "OK"
+
+
+def test_failure_surfaces_stderr_when_stdout_is_empty(
+    monkeypatch: MonkeyPatch, mock_fastmcp
+):
+    """A failed command (returncode!=0) surfaces stderr — some dbt errors
+    only appear there, e.g. authentication or connection problems."""
+
+    class MockProcessFailureStderrOnly:
+        returncode = 1
+
+        def communicate(self, timeout=None):
+            return "", "Database Error: could not connect to server"
+
+    def mock_popen(args, **kwargs):
+        return MockProcessFailureStderrOnly()
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    result = tools["build"]()
+
+    assert "Database Error" in result
+    assert result != "OK"
+
+
+def test_failure_with_no_output_surfaces_exit_code(
+    monkeypatch: MonkeyPatch, mock_fastmcp
+):
+    """A failed command with empty stdout AND stderr must NOT return 'OK' —
+    surface the exit code so the LLM can tell the call actually failed."""
+
+    class MockProcessFailureNoOutput:
+        returncode = 137  # e.g. OOM-killed
+
+        def communicate(self, timeout=None):
+            return "", ""
+
+    def mock_popen(args, **kwargs):
+        return MockProcessFailureNoOutput()
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    result = tools["build"]()
+
+    assert result != "OK"
+    assert "137" in result
+    assert "exit code" in result.lower()
+
+
+def test_failure_combines_stdout_and_stderr(monkeypatch: MonkeyPatch, mock_fastmcp):
+    """When both streams have content on failure, both are surfaced."""
+
+    class MockProcessFailureBothStreams:
+        returncode = 1
+
+        def communicate(self, timeout=None):
+            return "Compilation Error in model my_model", "Stack trace here"
+
+    def mock_popen(args, **kwargs):
+        return MockProcessFailureBothStreams()
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    result = tools["build"]()
+
+    assert "--- stdout ---" in result
+    assert "Compilation Error" in result
+    assert "--- stderr ---" in result
+    assert "Stack trace" in result
 
 
 def test_clone_command_binary_state_path_logic(

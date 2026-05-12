@@ -53,19 +53,32 @@ def create_dbt_codegen_tool_definitions(
                 args=args_list,
                 cwd=cwd_path,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                stderr=subprocess.PIPE,
                 stdin=subprocess.DEVNULL,
                 text=True,
             )
-            output, _ = process.communicate(timeout=config.dbt_cli_timeout)
+            stdout, stderr = process.communicate(timeout=config.dbt_cli_timeout)
 
-            # Return the output directly or handle errors
+            # Use returncode as the success signal so noise on stderr (e.g.
+            # urllib3 deprecation warnings under externalbrowser auth) can't
+            # masquerade as the result of a successful command. On failure
+            # we surface stderr too, since some dbt errors only appear there.
             if process.returncode != 0:
-                if "dbt found" in output and "resource" in output:
-                    return f"Error: dbt-codegen package may not be installed. Run 'dbt deps' to install it.\n{output}"
-                return f"Error running dbt-codegen macro: {output}"
+                parts = []
+                if stdout:
+                    parts.append(f"--- stdout ---\n{stdout.rstrip()}")
+                if stderr:
+                    parts.append(f"--- stderr ---\n{stderr.rstrip()}")
+                combined = "\n".join(parts)
+                detail = combined or f"exit code {process.returncode} (no output)"
+                if "dbt found" in combined and "resource" in combined:
+                    return (
+                        "Error: dbt-codegen package may not be installed. "
+                        f"Run 'dbt deps' to install it.\n{detail}"
+                    )
+                return f"Error running dbt-codegen macro: {detail}"
 
-            return output or "OK"
+            return stdout or "OK"
 
         except subprocess.TimeoutExpired:
             return f"Timeout: dbt-codegen operation took longer than {config.dbt_cli_timeout} seconds."
