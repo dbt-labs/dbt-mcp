@@ -64,6 +64,13 @@ def _build_csv(metrics: list[MetricToolResponse], columns: list[str]) -> str:
 
 
 def metrics_to_csv(response: ListMetricsResponse, max_response_chars: int = 0) -> str:
+    """Serialize metrics to CSV, optionally trimming verbose fields.
+
+    When trimming fires, a `# Note:` comment line is prepended to the CSV so
+    the LLM (the primary consumer) sees the explanation up front. Programmatic
+    consumers should strip leading `#`-prefixed lines before parsing — same
+    convention as pandas `comment='#'`.
+    """
     metrics = response.metrics
     if not metrics:
         return ""
@@ -80,9 +87,20 @@ def metrics_to_csv(response: ListMetricsResponse, max_response_chars: int = 0) -
 
     result = _build_csv(metrics, columns)
     if max_response_chars > 0 and len(result) > max_response_chars:
-        # Strip optional fields and rebuild
-        columns = [c for c in columns if c not in ("description", "metadata")]
-        result = _build_csv(metrics, columns)
+        # Strip optional fields and rebuild, then prepend a notice so the LLM
+        # knows fields were dropped and can re-query with `search` for details.
+        trimmed_columns = [c for c in columns if c not in ("description", "metadata")]
+        dropped = [c for c in ("description", "metadata") if c in columns]
+        result = _build_csv(metrics, trimmed_columns)
+        if dropped:
+            notice = (
+                f"# Note: {', '.join(repr(c) for c in dropped)} omitted because "
+                f"the response exceeded {max_response_chars} chars. "
+                "Call list_metrics again with the `search` parameter "
+                "(a name substring or list of substrings) to retrieve "
+                "these fields for a specific subset of metrics.\n"
+            )
+            result = notice + result
     return result
 
 
@@ -111,13 +129,21 @@ class SemanticLayerToolContext:
 )
 async def list_metrics(
     context: SemanticLayerToolContext,
-    search: Annotated[str | None, Field(description=SEMANTIC_SEARCH_METRICS)] = None,
+    search: Annotated[
+        str | list[str] | None, Field(description=SEMANTIC_SEARCH_METRICS)
+    ] = None,
 ) -> str:
     config = await context.config_provider.get_config()
     response = await context.semantic_layer_fetcher.list_metrics(
         config=config, search=search
     )
-    return metrics_to_csv(response, max_response_chars=config.max_response_chars)
+    # Only trim broad listings. Below the related-metrics threshold the
+    # response already includes per-metric dimensions/entities — meaning the
+    # caller asked about a small, specific set, so return full data even if
+    # verbose. Trimming there would drop the very fields they're after.
+    is_broad_listing = len(response.metrics) > config.metrics_related_max
+    max_chars = config.max_response_chars if is_broad_listing else 0
+    return metrics_to_csv(response, max_response_chars=max_chars)
 
 
 @dbt_mcp_tool(

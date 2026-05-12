@@ -23,11 +23,18 @@ def _make_dispatcher(
     """Build a DbtMCP dispatcher with lightweight mock internals."""
     from dbt_mcp.config.config import Config
     from dbt_mcp.config.credentials import CredentialsProvider
+    from dbt_mcp.config.elicitation import ElicitingCredentialsProvider
 
     if settings is None:
         settings = DbtMcpSettings.model_construct()
 
-    credentials_provider = MagicMock(spec=CredentialsProvider)
+    inner_credentials_provider = MagicMock(spec=CredentialsProvider)
+    inner_credentials_provider.get_credentials = AsyncMock(
+        return_value=(settings, StaticTokenProvider(token="test-token"))
+    )
+
+    credentials_provider = MagicMock(spec=ElicitingCredentialsProvider)
+    credentials_provider.inner_provider = inner_credentials_provider
     credentials_provider.get_credentials = AsyncMock(
         return_value=(settings, StaticTokenProvider(token="test-token"))
     )
@@ -72,15 +79,21 @@ class TestIsMultiProject:
 
     async def test_returns_false_when_credentials_raise(self):
         dispatcher = _make_dispatcher()
-        dispatcher.config.credentials_provider.get_credentials = AsyncMock(
-            side_effect=MissingHostError("DBT_HOST is a required environment variable")
+        dispatcher.config.credentials_provider.inner_provider.get_credentials = (
+            AsyncMock(
+                side_effect=MissingHostError(
+                    "DBT_HOST is a required environment variable"
+                )
+            )
         )
         assert await dispatcher._is_multi_project() is False
 
     async def test_raises_non_host_value_errors(self):
         dispatcher = _make_dispatcher()
-        dispatcher.config.credentials_provider.get_credentials = AsyncMock(
-            side_effect=ValueError("No decoded access token found in OAuth context")
+        dispatcher.config.credentials_provider.inner_provider.get_credentials = (
+            AsyncMock(
+                side_effect=ValueError("No decoded access token found in OAuth context")
+            )
         )
         with pytest.raises(ValueError, match="No decoded access token"):
             await dispatcher._is_multi_project()
@@ -114,6 +127,33 @@ class TestListToolsRouting:
         assert [t.name for t in tools] == [expected_tool]
         mcps[called].list_tools.assert_awaited_once()
         mcps[not_called].list_tools.assert_not_awaited()
+
+    async def test_list_tools_bypasses_eliciting_provider(self):
+        """list_tools() must use inner_provider only — never block on elicitation.
+
+        Regression test for: v1.17.x shows 'No tools' in Cursor for dbt Core
+        users because ElicitingCredentialsProvider.get_credentials() was called
+        during ListToolsRequest, causing a timeout via the elicitation prompt.
+        """
+        single = MagicMock(spec=FastMCP)
+        single.list_tools = AsyncMock(return_value=[_make_tool("single_tool")])
+        dispatcher = _make_dispatcher(single_project_mcp=single)
+
+        # Inner provider raises MissingHostError → is_multi = False → single-project
+        dispatcher.config.credentials_provider.inner_provider.get_credentials = (
+            AsyncMock(
+                side_effect=MissingHostError(
+                    "DBT_HOST is a required environment variable"
+                )
+            )
+        )
+
+        tools = await dispatcher.list_tools()
+
+        assert [t.name for t in tools] == ["single_tool"]
+        # The eliciting provider must never be called from list_tools
+        dispatcher.config.credentials_provider.get_credentials.assert_not_awaited()
+        dispatcher.config.credentials_provider.inner_provider.get_credentials.assert_awaited_once()
 
 
 class TestCallToolRouting:

@@ -8,7 +8,12 @@ QUERY_RESULT_LIMIT = PAGINATION_LIMIT
 
 SEMANTIC_LAYER_PROJECT_ID = MULTI_PROJECT_PROJECT_ID_DESCRIPTION
 
-SEMANTIC_SEARCH_METRICS = "Filter metrics by substring match against the metric name"
+SEMANTIC_SEARCH_METRICS = (
+    "Filter metrics by substring match against the metric name. "
+    "Accepts either a single substring or a list of substrings; when a list "
+    "is provided, metrics matching any of the substrings are returned "
+    "(deduplicated)."
+)
 
 SEMANTIC_SEARCH_SAVED_QUERIES = (
     "Filter saved queries by substring match on name, label, or description"
@@ -29,8 +34,10 @@ SEMANTIC_GROUP_BY = (
 )
 
 SEMANTIC_ORDER_BY = (
-    "Sort keys; each item has `name` and `descending` (default false); "
-    "order fields should appear in group_by when grouping"
+    "Sort keys; each item has `name`, `descending` (default false), and optional "
+    "`grain` for time dimensions (overrides the grain from group_by; falls back to "
+    "the matching group_by grain when omitted); items may be metric names or "
+    "group_by fields"
 )
 
 SEMANTIC_WHERE = (

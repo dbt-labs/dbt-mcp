@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Add optional grain field to order_by in query_metrics; when provided it takes precedence over the matching group_by grain, preserving backward-compatible fallback when omitted
+time: 2026-04-10T13:45:00.000000-07:00

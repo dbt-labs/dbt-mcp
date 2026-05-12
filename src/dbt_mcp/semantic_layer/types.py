@@ -9,7 +9,8 @@ from dbtsl.models.metric import MetricType
 @dataclass
 class OrderByParam:
     name: str
-    descending: bool
+    descending: bool = False
+    grain: str | None = None
 
 
 @dataclass

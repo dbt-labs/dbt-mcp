@@ -68,13 +68,20 @@ class MultiProjectSemanticLayerToolContext:
 async def list_metrics(
     context: MultiProjectSemanticLayerToolContext,
     project_id: Annotated[int, Field(description=SEMANTIC_LAYER_PROJECT_ID)],
-    search: Annotated[str | None, Field(description=SEMANTIC_SEARCH_METRICS)] = None,
+    search: Annotated[
+        str | list[str] | None, Field(description=SEMANTIC_SEARCH_METRICS)
+    ] = None,
 ) -> str:
     config = await context.semantic_layer_config_provider.get_config(project_id)
     response = await SemanticLayerFetcher(
         client_provider=context.client_provider,
     ).list_metrics(config=config, search=search)
-    return metrics_to_csv(response, max_response_chars=config.max_response_chars)
+    # See note in single-project list_metrics: only trim broad listings; below
+    # the related-metrics threshold the user is asking about a specific subset
+    # and should get full description/metadata even if verbose.
+    is_broad_listing = len(response.metrics) > config.metrics_related_max
+    max_chars = config.max_response_chars if is_broad_listing else 0
+    return metrics_to_csv(response, max_response_chars=max_chars)
 
 
 @dbt_mcp_tool(

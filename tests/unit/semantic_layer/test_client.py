@@ -8,10 +8,18 @@ import pyarrow as pa
 import pytest
 from dbtsl.error import RetryTimeoutError
 
+from dbtsl.api.shared.query_params import (
+    GroupByParam,
+    GroupByType,
+    OrderByGroupBy,
+    OrderByMetric,
+)
+
 from dbt_mcp.config.config_providers import SemanticLayerConfig
+from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.errors.semantic_layer import SemanticLayerQueryTimeoutError
 from dbt_mcp.semantic_layer.client import DEFAULT_RESULT_FORMATTER, SemanticLayerFetcher
-from dbt_mcp.semantic_layer.types import QueryMetricsError
+from dbt_mcp.semantic_layer.types import OrderByParam, QueryMetricsError
 
 
 def test_default_result_formatter_outputs_iso_dates() -> None:
@@ -421,6 +429,161 @@ async def test_list_metrics_at_threshold_returns_full_config(
     assert result.metrics[0].entities is not None
 
 
+@pytest.mark.asyncio
+@patch("dbt_mcp.semantic_layer.client.submit_request")
+async def test_list_metrics_search_list_fans_out_and_dedupes(
+    mock_submit_request, mock_client_provider, mock_config_provider
+):
+    """A list of search terms triggers one GraphQL call per term, then dedupes."""
+    revenue_item = {
+        "name": "revenue",
+        "type": "simple",
+        "label": "Revenue",
+        "description": None,
+        "config": None,
+    }
+    cost_item = {
+        "name": "cost",
+        "type": "simple",
+        "label": "Cost",
+        "description": None,
+        "config": None,
+    }
+
+    def dispatch(_, payload, **kwargs):
+        # Threshold is exceeded so only the cheap query fires; one call per term.
+        search = payload["variables"].get("search")
+        if search == "rev":
+            # Returns revenue plus the duplicate that the other term also matches.
+            return {"data": {"metricsPaginated": {"items": [revenue_item, cost_item]}}}
+        if search == "cost":
+            return {"data": {"metricsPaginated": {"items": [cost_item]}}}
+        raise AssertionError(f"Unexpected search term: {search!r}")
+
+    mock_submit_request.side_effect = dispatch
+    config = mock_config_provider.get_config.return_value
+    config.metrics_related_max = 1  # force the "cheap only" branch
+    fetcher = SemanticLayerFetcher(client_provider=mock_client_provider)
+
+    result = await fetcher.list_metrics(config=config, search=["rev", "cost"])
+
+    # One call per search term — fan-out.
+    assert mock_submit_request.call_count == 2
+    # Merged and deduped, order preserved by first-seen.
+    assert [m.name for m in result.metrics] == ["revenue", "cost"]
+
+
+@pytest.mark.asyncio
+@patch("dbt_mcp.semantic_layer.client.submit_request")
+async def test_list_metrics_search_list_below_threshold_fans_out_related(
+    mock_submit_request, mock_client_provider, mock_config_provider
+):
+    """When the deduped result is small enough, the with_related query also fans out."""
+
+    def dispatch(_, payload, **kwargs):
+        query = payload["query"]
+        # Both the cheap and the with_related queries get one call per term.
+        if "dimensions {" in query:
+            return MOCK_METRICS_WITH_RELATED_RESPONSE
+        if "metricsPaginated" in query:
+            return MOCK_METRICS_RESPONSE
+        raise AssertionError(f"Unexpected query: {query}")
+
+    mock_submit_request.side_effect = dispatch
+    config = mock_config_provider.get_config.return_value
+    fetcher = SemanticLayerFetcher(client_provider=mock_client_provider)
+
+    result = await fetcher.list_metrics(config=config, search=["a", "b"])
+
+    # 2 cheap + 2 with_related = 4 calls
+    assert mock_submit_request.call_count == 4
+    # Deduped to a single metric with related fields populated
+    assert len(result.metrics) == 1
+    assert result.metrics[0].dimensions == ["order_date"]
+    assert result.metrics[0].entities == ["customer"]
+
+
+@pytest.mark.asyncio
+@patch("dbt_mcp.semantic_layer.client.submit_request")
+async def test_list_metrics_search_list_normalizes_and_dedupes_terms(
+    mock_submit_request, fetcher, mock_config_provider
+):
+    """Whitespace-only terms are dropped; identical terms are deduped before fan-out."""
+    mock_submit_request.side_effect = _make_query_dispatcher()
+    config = mock_config_provider.get_config.return_value
+
+    await fetcher.list_metrics(
+        config=config,
+        # "rev" appears twice (once whitespace-padded), "  " is empty after strip,
+        # so the dedupe should collapse this to a single search term "rev".
+        search=["rev", "  rev  ", "  ", "rev"],
+    )
+
+    # 1 cheap + 1 with_related = 2 calls total, never broadened to no-filter.
+    assert mock_submit_request.call_count == 2
+    for call in mock_submit_request.call_args_list:
+        assert call.args[1]["variables"]["search"] == "rev"
+
+
+@pytest.mark.asyncio
+@patch("dbt_mcp.semantic_layer.client.submit_request")
+async def test_list_metrics_single_string_search_is_normalized(
+    mock_submit_request, fetcher, mock_config_provider
+):
+    """A single-string search is stripped and empty/whitespace-only becomes no filter."""
+    mock_submit_request.side_effect = _make_query_dispatcher()
+    config = mock_config_provider.get_config.return_value
+
+    # Whitespace-padded string is stripped to "rev"
+    await fetcher.list_metrics(config=config, search="  rev  ")
+    for call in mock_submit_request.call_args_list:
+        assert call.args[1]["variables"]["search"] == "rev"
+    mock_submit_request.reset_mock()
+    mock_submit_request.side_effect = _make_query_dispatcher()
+
+    # Empty/whitespace-only string collapses to no filter
+    await fetcher.list_metrics(config=config, search="   ")
+    for call in mock_submit_request.call_args_list:
+        assert call.args[1]["variables"]["search"] is None
+
+
+@pytest.mark.asyncio
+@patch("dbt_mcp.semantic_layer.client.submit_request")
+async def test_list_metrics_search_list_caps_term_count(
+    mock_submit_request, fetcher, mock_config_provider
+):
+    """An overly long search list raises rather than firing unbounded parallel calls."""
+    from dbt_mcp.errors import InvalidParameterError
+    from dbt_mcp.semantic_layer.client import _MAX_SEARCH_TERMS
+
+    config = mock_config_provider.get_config.return_value
+    too_many = [f"term_{i}" for i in range(_MAX_SEARCH_TERMS + 1)]
+
+    with pytest.raises(InvalidParameterError, match=str(_MAX_SEARCH_TERMS)):
+        await fetcher.list_metrics(config=config, search=too_many)
+    # No GraphQL request was issued
+    mock_submit_request.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("dbt_mcp.semantic_layer.client.submit_request")
+async def test_list_metrics_empty_search_list_treated_as_no_filter(
+    mock_submit_request, fetcher, mock_config_provider
+):
+    """An empty list (or list of empty strings) behaves like search=None."""
+    mock_submit_request.side_effect = _make_query_dispatcher()
+    config = mock_config_provider.get_config.return_value
+
+    result = await fetcher.list_metrics(config=config, search=[])
+
+    # Single fan-out term (None), so cheap + related = 2 calls
+    assert mock_submit_request.call_count == 2
+    assert len(result.metrics) == 1
+    # The single GraphQL call received search=None
+    for call in mock_submit_request.call_args_list:
+        assert call.args[1]["variables"]["search"] is None
+
+
 @pytest.mark.parametrize(
     "input_where,expected",
     [
@@ -674,3 +837,42 @@ async def test_get_metrics_compiled_sql_sdk_client_uses_fetcher_config_override(
     await fetcher.get_metrics_compiled_sql(config=override, metrics=["revenue"])
 
     mock_client_provider.get_client.assert_awaited_once_with(config=override)
+
+
+# Tests for _get_order_bys
+
+
+def test_get_order_bys_explicit_grain_takes_precedence(fetcher) -> None:
+    group_by = [
+        GroupByParam(name="metric_time", type=GroupByType.TIME_DIMENSION, grain="MONTH")
+    ]
+    order_by = [OrderByParam(name="metric_time", descending=True, grain="WEEK")]
+    result = fetcher._get_order_bys(order_by, group_by=group_by)
+    assert result == [OrderByGroupBy(name="metric_time", descending=True, grain="WEEK")]
+
+
+def test_get_order_bys_falls_back_to_group_by_grain(fetcher) -> None:
+    group_by = [
+        GroupByParam(name="metric_time", type=GroupByType.TIME_DIMENSION, grain="MONTH")
+    ]
+    order_by = [OrderByParam(name="metric_time", descending=False)]
+    result = fetcher._get_order_bys(order_by, group_by=group_by)
+    assert result == [
+        OrderByGroupBy(name="metric_time", descending=False, grain="MONTH")
+    ]
+
+
+def test_get_order_bys_metric_name(fetcher) -> None:
+    order_by = [OrderByParam(name="revenue", descending=True)]
+    result = fetcher._get_order_bys(order_by, metrics=["revenue"])
+    assert result == [OrderByMetric(name="revenue", descending=True)]
+
+
+def test_get_order_bys_unknown_name_raises(fetcher) -> None:
+    order_by = [OrderByParam(name="unknown", descending=False)]
+    with pytest.raises(InvalidParameterError):
+        fetcher._get_order_bys(order_by, metrics=["revenue"], group_by=[])
+
+
+def test_get_order_bys_none_returns_empty(fetcher) -> None:
+    assert fetcher._get_order_bys(None) == []

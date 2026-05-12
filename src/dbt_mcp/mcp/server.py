@@ -68,7 +68,7 @@ class DbtMCP(FastMCP):
             (
                 settings,
                 _,
-            ) = await self.config.credentials_provider.get_credentials()
+            ) = await self.config.credentials_provider.inner_provider.get_credentials()
         except MissingHostError as e:
             logger.warning(
                 "Could not resolve credentials — defaulting to single-project mode: %s",

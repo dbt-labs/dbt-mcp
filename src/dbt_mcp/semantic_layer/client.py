@@ -70,6 +70,25 @@ def DEFAULT_RESULT_FORMATTER(table: pa.Table) -> str:
     return json.dumps(records, indent=2, cls=ExtendedJSONEncoder)
 
 
+# Cap the number of substrings accepted by `list_metrics(search=[...])` so
+# an unbounded LLM-supplied list can't fan out into a burst of parallel
+# GraphQL requests against the Semantic Layer API.
+_MAX_SEARCH_TERMS = 20
+
+
+def _dedupe_metric_items(items: Any) -> list[Any]:
+    """Preserve first-seen order while filtering out duplicate metric names."""
+    seen: set[str] = set()
+    out: list[Any] = []
+    for item in items:
+        name = item.get("name")
+        if name is None or name in seen:
+            continue
+        seen.add(name)
+        out.append(item)
+    return out
+
+
 class SemanticLayerClientProtocol(Protocol):
     def session(self) -> AbstractContextManager[Any]: ...
 
@@ -126,13 +145,55 @@ class SemanticLayerFetcher:
     async def list_metrics(
         self,
         config: SemanticLayerConfig,
-        search: str | None = None,
+        search: str | list[str] | None = None,
     ) -> ListMetricsResponse:
-        metrics_result = await submit_request(
-            config,
-            {"query": GRAPHQL_QUERIES["metrics"], "variables": {"search": search}},
+        # `search` may be a single substring or a list of substrings; for a list
+        # we fan out one GraphQL call per substring, then merge & dedupe by name.
+        search_terms: list[str | None]
+        if isinstance(search, list):
+            # Strip whitespace, drop empty values, and dedupe identical terms
+            # (preserving first-seen order) so a whitespace-only or duplicated
+            # term can't broaden the fan-out into redundant or no-filter calls.
+            cleaned: list[str] = []
+            seen_terms: set[str] = set()
+            for raw in search:
+                term = raw.strip()
+                if not term or term in seen_terms:
+                    continue
+                seen_terms.add(term)
+                cleaned.append(term)
+            if len(cleaned) > _MAX_SEARCH_TERMS:
+                # Cap the fan-out so a runaway LLM call can't generate an
+                # unbounded burst of parallel GraphQL requests.
+                raise InvalidParameterError(
+                    f"`search` accepts at most {_MAX_SEARCH_TERMS} terms; "
+                    f"got {len(cleaned)}."
+                )
+            search_terms = list(cleaned) if cleaned else [None]
+        else:
+            # Mirror the list-path normalization for parity: a single-string
+            # `search` is stripped, and an empty/whitespace-only string becomes
+            # no filter (search=None).
+            normalized = search.strip() if isinstance(search, str) else search
+            search_terms = [normalized if normalized else None]
+
+        cheap_results = await asyncio.gather(
+            *(
+                submit_request(
+                    config,
+                    {
+                        "query": GRAPHQL_QUERIES["metrics"],
+                        "variables": {"search": term},
+                    },
+                )
+                for term in search_terms
+            )
         )
-        metrics_count = len(metrics_result["data"]["metricsPaginated"]["items"])
+        cheap_items = _dedupe_metric_items(
+            item
+            for r in cheap_results
+            for item in r["data"]["metricsPaginated"]["items"]
+        )
         dimensionless_response = ListMetricsResponse(
             metrics=[
                 MetricToolResponse(
@@ -142,26 +203,39 @@ class SemanticLayerFetcher:
                     description=m.get("description"),
                     metadata=(m.get("config") or {}).get("meta"),
                 )
-                for m in metrics_result["data"]["metricsPaginated"]["items"]
+                for m in cheap_items
             ]
         )
-        if metrics_count and metrics_count <= config.metrics_related_max:
-            # Re-fetch with the same search filter using a single query that includes
-            # per-metric dimensions and entities. This avoids the N×2 parallel calls
-            # approach: the nested GQL fields return per-metric data accurately (not
-            # an intersection like dimensionsPaginated with multiple metrics would).
+
+        if cheap_items and len(cheap_items) <= config.metrics_related_max:
+            # Re-fetch with per-metric dimensions and entities. Same fan-out:
+            # the nested GQL fields return per-metric data accurately, unlike
+            # dimensionsPaginated with multiple metrics which would intersect.
+            # Fall back to the dimensionless response if the richer query
+            # times out or otherwise fails (one slow term would otherwise
+            # block the whole call via asyncio.gather).
             try:
-                full_result = await submit_request(
-                    config,
-                    {
-                        "query": GRAPHQL_QUERIES["metrics_with_related"],
-                        "variables": {"search": search},
-                    },
-                    timeout=5.0,
+                related_results = await asyncio.gather(
+                    *(
+                        submit_request(
+                            config,
+                            {
+                                "query": GRAPHQL_QUERIES["metrics_with_related"],
+                                "variables": {"search": term},
+                            },
+                            timeout=5.0,
+                        )
+                        for term in search_terms
+                    )
                 )
             except Exception as e:
                 logger.warning(f"Error fetching metrics with related: {e}")
                 return dimensionless_response
+            related_items = _dedupe_metric_items(
+                item
+                for r in related_results
+                for item in r["data"]["metricsPaginated"]["items"]
+            )
             return ListMetricsResponse(
                 metrics=[
                     MetricToolResponse(
@@ -173,7 +247,7 @@ class SemanticLayerFetcher:
                         dimensions=[d.get("name") for d in (m.get("dimensions") or [])],
                         entities=[e.get("name") for e in (m.get("entities") or [])],
                     )
-                    for m in full_result["data"]["metricsPaginated"]["items"]
+                    for m in related_items
                 ]
             )
         return dimensionless_response
@@ -336,18 +410,19 @@ class SemanticLayerFetcher:
         result: list[OrderBySpec] = []
         if order_by is None:
             return result
-        queried_group_by = {g.name: g for g in group_by} if group_by else {}
+        group_by_map = {g.name: g for g in group_by} if group_by else {}
         queried_metrics = set(metrics)
         for o in order_by:
             if o.name in queried_metrics:
                 result.append(OrderByMetric(name=o.name, descending=o.descending))
-            elif o.name in queried_group_by:
-                selected_group_by = queried_group_by[o.name]
+            elif o.name in group_by_map:
                 result.append(
                     OrderByGroupBy(
-                        name=selected_group_by.name,
+                        name=o.name,
                         descending=o.descending,
-                        grain=selected_group_by.grain,
+                        grain=o.grain
+                        if o.grain is not None
+                        else group_by_map[o.name].grain,
                     )
                 )
             else:
