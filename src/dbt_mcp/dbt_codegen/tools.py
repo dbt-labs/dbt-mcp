@@ -53,19 +53,26 @@ def create_dbt_codegen_tool_definitions(
                 args=args_list,
                 cwd=cwd_path,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                stderr=subprocess.PIPE,
                 stdin=subprocess.DEVNULL,
                 text=True,
             )
-            output, _ = process.communicate(timeout=config.dbt_cli_timeout)
+            stdout, stderr = process.communicate(timeout=config.dbt_cli_timeout)
 
-            # Return the output directly or handle errors
+            # Use returncode as the success signal so noise on stderr (e.g.
+            # urllib3 deprecation warnings under externalbrowser auth) can't
+            # masquerade as the result of a successful command. On failure
+            # we surface stderr too, since some dbt errors only appear there.
             if process.returncode != 0:
-                if "dbt found" in output and "resource" in output:
-                    return f"Error: dbt-codegen package may not be installed. Run 'dbt deps' to install it.\n{output}"
-                return f"Error running dbt-codegen macro: {output}"
+                combined = "\n".join(s for s in (stdout, stderr) if s)
+                if "dbt found" in combined and "resource" in combined:
+                    return (
+                        "Error: dbt-codegen package may not be installed. "
+                        f"Run 'dbt deps' to install it.\n{combined}"
+                    )
+                return f"Error running dbt-codegen macro: {combined}"
 
-            return output or "OK"
+            return stdout or "OK"
 
         except subprocess.TimeoutExpired:
             return f"Timeout: dbt-codegen operation took longer than {config.dbt_cli_timeout} seconds."
