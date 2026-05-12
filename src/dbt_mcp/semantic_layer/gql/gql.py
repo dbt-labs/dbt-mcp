@@ -44,6 +44,27 @@ query GetEntities($environmentId: BigInt!, $metrics: [MetricInput!]!, $search: S
   }
 }
     """,
+    "metrics_with_related": """
+query GetMetricsWithRelated($environmentId: BigInt!, $search: String) {
+  metricsPaginated(environmentId: $environmentId, search: $search) {
+    items {
+      name
+      label
+      description
+      type
+      config {
+        meta
+      }
+      dimensions {
+        name
+      }
+      entities {
+        name
+      }
+    }
+  }
+}
+    """,
     "saved_queries": """
 query GetSavedQueries($environmentId: BigInt!, $search: String) {
   savedQueriesPaginated(environmentId: $environmentId, search: $search) {

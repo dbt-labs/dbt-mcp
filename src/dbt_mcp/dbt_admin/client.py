@@ -1,14 +1,22 @@
+from __future__ import annotations
+
 import logging
 from functools import cache
 from typing import Any
 
 import httpx
 
-from dbt_mcp.config.config_providers import (
-    AdminApiConfig,
-    ConfigProvider,
+from dbt_mcp.config.config_providers import AdminApiConfig, ConfigProvider
+from dbt_mcp.errors import (
+    AdminAPIError,
+    ArtifactRetrievalError,
+    InvalidParameterError,
+    NotFoundError,
 )
-from dbt_mcp.errors import AdminAPIError, ArtifactRetrievalError
+from dbt_mcp.oauth.dbt_platform import (
+    DbtPlatformEnvironment,
+    DbtPlatformEnvironmentResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,35 +27,128 @@ class DbtAdminAPIClient:
     def __init__(self, config_provider: ConfigProvider[AdminApiConfig]):
         self.config_provider = config_provider
 
-    async def get_config(self) -> AdminApiConfig:
-        return await self.config_provider.get_config()
-
     async def get_headers(self) -> dict[str, str]:
-        config = await self.get_config()
+        config = await self.config_provider.get_config()
         return {
             "Content-Type": "application/json",
             "Accept": "application/json",
         } | config.headers_provider.get_headers()
 
     async def _make_request(
-        self, method: str, endpoint: str, **kwargs
+        self, method: str, endpoint: str, **kwargs: Any
     ) -> dict[str, Any]:
         """Make a request to the dbt API."""
-        config = await self.get_config()
+        config = await self.config_provider.get_config()
         url = f"{config.url}{endpoint}"
         headers = await self.get_headers()
 
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.request(method, url, headers=headers, **kwargs)
+                response = await client.request(
+                    method,
+                    url,
+                    headers=headers,
+                    follow_redirects=True,
+                    **kwargs,
+                )
                 response.raise_for_status()
                 return response.json()
+        except httpx.HTTPStatusError as e:
+            if 400 <= e.response.status_code < 500:
+                raise InvalidParameterError(
+                    f"API request failed ({e.response.status_code}): {e}"
+                ) from e
+            raise AdminAPIError(f"API request failed: {e}") from e
         except httpx.HTTPError as e:
-            logger.error(f"API request failed: {e}")
-            raise AdminAPIError(f"API request failed: {e}")
+            raise AdminAPIError(f"API request failed: {e}") from e
+
+    async def get_account(self, account_id: int) -> dict[str, Any]:
+        """Get details for an account."""
+        result = await self._make_request(
+            "GET",
+            f"/api/v2/accounts/{account_id}/",
+        )
+        return result.get("data", {})
+
+    async def get_current_user(self) -> dict[str, Any]:
+        """Get details for the current authenticated user."""
+        result = await self._make_request("GET", "/api/v2/whoami/")
+        return result.get("data", {})
+
+    @staticmethod
+    def resolve_environments(
+        environments: list[DbtPlatformEnvironmentResponse],
+    ) -> tuple[DbtPlatformEnvironment | None, DbtPlatformEnvironment | None]:
+        """Resolve prod and dev environments from a list of environment responses.
+
+        Returns a tuple of (prod_environment, dev_environment).
+        """
+        prod_environment: DbtPlatformEnvironment | None = None
+        dev_environment: DbtPlatformEnvironment | None = None
+
+        for environment in environments:
+            if (
+                environment.deployment_type
+                and environment.deployment_type.lower() == "production"
+            ):
+                prod_environment = DbtPlatformEnvironment(
+                    id=environment.id,
+                    name=environment.name,
+                    deployment_type=environment.deployment_type,
+                )
+                break
+
+        for environment in environments:
+            if environment.type and environment.type.lower() == "development":
+                dev_environment = DbtPlatformEnvironment(
+                    id=environment.id,
+                    name=environment.name,
+                    deployment_type=None,
+                )
+                break
+
+        return prod_environment, dev_environment
+
+    async def fetch_project_environment_responses(
+        self,
+        project_id: int,
+        *,
+        page_size: int = 100,
+    ) -> list[DbtPlatformEnvironmentResponse]:
+        """Fetch all environments for a project using offset/limit pagination."""
+        offset = 0
+        environments: list[DbtPlatformEnvironmentResponse] = []
+        config = await self.config_provider.get_config()
+        while True:
+            result = await self._make_request(
+                "GET",
+                f"/api/v3/accounts/{config.account_id}/projects/{project_id}/environments/",
+                params={"state": 1, "offset": offset, "limit": page_size},
+            )
+            page_raw = result.get("data", [])
+            environments.extend(
+                DbtPlatformEnvironmentResponse(**row) for row in page_raw
+            )
+            if len(page_raw) < page_size:
+                break
+            offset += page_size
+        return environments
+
+    async def get_environments_for_project(
+        self,
+        project_id: int,
+        *,
+        page_size: int = 100,
+    ) -> tuple[DbtPlatformEnvironment | None, DbtPlatformEnvironment | None]:
+        """Fetch environments for a project and resolve prod/dev."""
+        raw = await self.fetch_project_environment_responses(
+            project_id,
+            page_size=page_size,
+        )
+        return self.resolve_environments(raw)
 
     @cache
-    async def list_jobs(self, account_id: int, **params) -> list[dict[str, Any]]:
+    async def list_jobs(self, account_id: int, **params: Any) -> list[dict[str, Any]]:
         """List jobs for an account."""
         params["include_related"] = "['most_recent_run','most_recent_completed_run']"
         result = await self._make_request(
@@ -105,6 +206,8 @@ class DbtAdminAPIClient:
                 ).get("finished_at")
                 if job.get("most_recent_completed_run")
                 else None,
+                "environment_id": job.get("environment_id"),
+                "project_id": job.get("project_id"),
                 "schedule": job.get("schedule").get("cron")
                 if job.get("schedule")
                 else None,
@@ -126,18 +229,42 @@ class DbtAdminAPIClient:
         )
         return result.get("data", {})
 
-    async def get_project_details(
-        self, account_id: int, project_id: int
-    ) -> dict[str, Any]:
-        """Get details for a specific project."""
+    async def list_projects(self, account_id: int) -> list[dict[str, Any]]:
+        """List active projects for an account."""
         result = await self._make_request(
             "GET",
-            f"/api/v3/accounts/{account_id}/projects/{project_id}/",
+            f"/api/v3/accounts/{account_id}/projects/",
+            params={
+                "state": 1,
+                "include_related": "['environments','repository']",
+            },
         )
-        return result.get("data", {})
+        data = result.get("data", [])
+        return [
+            {
+                "id": p["id"],
+                "name": p["name"],
+                "description": p.get("description"),
+                "dbt_project_subdirectory": p.get("dbt_project_subdirectory"),
+                "has_semantic_layer": p.get("semantic_layer_config_id") is not None,
+                "type": p.get("type"),
+                "environments": [
+                    {
+                        "id": e.get("id"),
+                        "name": e.get("name"),
+                        "type": (e.get("deployment_type") or "generic")
+                        if e.get("type") == "deployment"
+                        else e.get("type"),
+                    }
+                    for e in (p.get("environments") or [])
+                ],
+                "repository_full_name": (p.get("repository") or {}).get("full_name"),
+            }
+            for p in data
+        ]
 
     async def trigger_job_run(
-        self, account_id: int, job_id: int, cause: str, **kwargs
+        self, account_id: int, job_id: int, cause: str, **kwargs: Any
     ) -> dict[str, Any]:
         """Trigger a job run."""
         data = {"cause": cause, **kwargs}
@@ -146,7 +273,9 @@ class DbtAdminAPIClient:
         )
         return result.get("data", {})
 
-    async def list_jobs_runs(self, account_id: int, **params) -> list[dict[str, Any]]:
+    async def list_jobs_runs(
+        self, account_id: int, **params: Any
+    ) -> list[dict[str, Any]]:
         """List runs for an account."""
         params["include_related"] = "['job']"
         result = await self._make_request(
@@ -250,7 +379,7 @@ class DbtAdminAPIClient:
         if step:
             params["step"] = step
 
-        config = await self.get_config()
+        config = await self.config_provider.get_config()
         get_artifact_header = {
             "Accept": "*/*",
         } | config.headers_provider.get_headers()
@@ -264,6 +393,14 @@ class DbtAdminAPIClient:
                 )
                 response.raise_for_status()
                 return response.text
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                raise NotFoundError(
+                    f"Artifact '{artifact_path}' not found for run {run_id}"
+                ) from e
+            raise ArtifactRetrievalError(
+                f"Artifact '{artifact_path}' not available for run {run_id}"
+            ) from e
         except httpx.HTTPError as e:
             raise ArtifactRetrievalError(
                 f"Artifact '{artifact_path}' not available for run {run_id}"

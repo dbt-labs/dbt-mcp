@@ -6,13 +6,30 @@ from typing import Any, ClassVar, Literal, TypedDict
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
-from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
+from dbt_mcp.config.config_providers import DiscoveryConfig
 from dbt_mcp.discovery.graphql import load_query
 from dbt_mcp.errors import InvalidParameterError, ToolCallError
+from dbt_mcp.errors.common import NotFoundError
 from dbt_mcp.gql.errors import raise_gql_error
+from dbt_mcp.tools.parameters import LineageResourceType
 
 DEFAULT_PAGE_SIZE = 100
 DEFAULT_MAX_NODE_QUERY_LIMIT = 10000
+
+# dbt-labs first-party packages (from dbt-labs/dbt-adapters monorepo)
+# These are the only packages maintained directly by dbt Labs
+# See: https://github.com/dbt-labs/dbt-adapters
+DBT_BUILTIN_PACKAGES = frozenset(
+    {
+        "dbt",  # dbt-core
+        "dbt_postgres",  # dbt-postgres
+        "dbt_redshift",  # dbt-redshift
+        "dbt_snowflake",  # dbt-snowflake
+        "dbt_bigquery",  # dbt-bigquery
+        "dbt_spark",  # dbt-spark
+        "dbt_athena",  # dbt-athena
+    }
+)
 
 
 class GraphQLQueries:
@@ -302,27 +319,57 @@ class GraphQLQueries:
         }
     """)
 
+    GET_MACROS = textwrap.dedent("""
+        query GetMacros(
+            $environmentId: BigInt!,
+            $filter: AppliedResourcesFilter!,
+            $after: String,
+            $first: Int
+        ) {
+            environment(id: $environmentId) {
+                applied {
+                    resources(filter: $filter, after: $after, first: $first) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
+                        edges {
+                            node {
+                                ... on MacroDefinitionNode {
+                                    name
+                                    uniqueId
+                                    description
+                                    packageName
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    """)
+
     # Lineage query
     GET_FULL_LINEAGE = load_query("get_full_lineage.gql")
 
 
-class MetadataAPIClient:
-    def __init__(self, config_provider: ConfigProvider[DiscoveryConfig]):
-        self.config_provider = config_provider
+async def execute_query(
+    query: str,
+    variables: dict,
+    *,
+    config: DiscoveryConfig,
+) -> dict:
+    url = config.url
+    headers = config.headers_provider.get_headers()
 
-    async def execute_query(self, query: str, variables: dict) -> dict:
-        config = await self.config_provider.get_config()
-        url = config.url
-        headers = config.headers_provider.get_headers()
-
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                url=url,
-                json={"query": query, "variables": variables},
-                headers=headers,
-            )
-            response.raise_for_status()
-            return response.json()
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            url=url,
+            json={"query": query, "variables": variables},
+            headers=headers,
+        )
+        response.raise_for_status()
+        return response.json()
 
 
 class PageInfo(BaseModel):
@@ -335,22 +382,16 @@ class PageInfo(BaseModel):
 class PaginatedResourceFetcher:
     def __init__(
         self,
-        api_client: MetadataAPIClient,
         *,
         edges_path: tuple[str, ...],
         page_info_path: tuple[str, ...],
         page_size: int = DEFAULT_PAGE_SIZE,
         max_node_query_limit: int = DEFAULT_MAX_NODE_QUERY_LIMIT,
     ):
-        self.api_client = api_client
         self._edges_path = edges_path
         self._page_info_path = page_info_path
         self._page_size = page_size
         self._max_node_query_limit = max_node_query_limit
-
-    async def get_environment_id(self) -> int:
-        config = await self.api_client.config_provider.get_config()
-        return config.environment_id
 
     def _extract_path(self, payload: dict, path: tuple[str, ...]) -> Any:
         current = payload
@@ -389,8 +430,10 @@ class PaginatedResourceFetcher:
         self,
         query: str,
         variables: dict[str, Any],
+        *,
+        config: DiscoveryConfig,
     ) -> list[dict]:
-        environment_id = await self.get_environment_id()
+        environment_id = config.environment_id
         collected: list[dict] = []
         current_cursor: str | None = None
         while True:
@@ -402,7 +445,11 @@ class PaginatedResourceFetcher:
             request_variables["first"] = min(self._page_size, remaining_capacity)
             if current_cursor is not None:
                 request_variables["after"] = current_cursor
-            result = await self.api_client.execute_query(query, request_variables)
+            result = await execute_query(
+                query,
+                request_variables,
+                config=config,
+            )
             page_edges = self._parse_edges(result)
             collected.extend(page_edges)
             page_info_data = self._extract_path(result, self._page_info_path)
@@ -424,13 +471,16 @@ class SourceFilter(TypedDict, total=False):
     identifier: str
 
 
+class MacroFilter(TypedDict, total=False):
+    types: list[str]
+    uniqueIds: list[str] | None
+
+
 class ModelsFetcher:
     def __init__(
         self,
-        api_client: MetadataAPIClient,
         paginator: PaginatedResourceFetcher,
     ):
-        self.api_client = api_client
         self._paginator = paginator
 
     def _get_model_filters(
@@ -445,26 +495,36 @@ class ModelsFetcher:
                 "Either model_name or unique_id must be provided"
             )
 
-    async def fetch_models(self, model_filter: ModelFilter | None = None) -> list[dict]:
+    async def fetch_models(
+        self,
+        model_filter: ModelFilter | None = None,
+        *,
+        config: DiscoveryConfig,
+    ) -> list[dict]:
         return await self._paginator.fetch_paginated(
             GraphQLQueries.GET_MODELS,
             variables={
                 "modelsFilter": model_filter or {},
                 "sort": {"field": "queryUsageCount", "direction": "desc"},
             },
+            config=config,
         )
 
     async def fetch_model_parents(
-        self, model_name: str | None = None, unique_id: str | None = None
+        self,
+        model_name: str | None = None,
+        unique_id: str | None = None,
+        *,
+        config: DiscoveryConfig,
     ) -> list[dict]:
         model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
-            "environmentId": await self._paginator.get_environment_id(),
+            "environmentId": config.environment_id,
             "modelsFilter": model_filters,
             "first": 1,
         }
-        result = await self.api_client.execute_query(
-            GraphQLQueries.GET_MODEL_PARENTS, variables
+        result = await execute_query(
+            GraphQLQueries.GET_MODEL_PARENTS, variables, config=config
         )
         raise_gql_error(result)
         edges = result["data"]["environment"]["applied"]["models"]["edges"]
@@ -473,16 +533,22 @@ class ModelsFetcher:
         return edges[0]["node"]["parents"]
 
     async def fetch_model_children(
-        self, model_name: str | None = None, unique_id: str | None = None
+        self,
+        model_name: str | None = None,
+        unique_id: str | None = None,
+        *,
+        config: DiscoveryConfig,
     ) -> list[dict]:
         model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
-            "environmentId": await self._paginator.get_environment_id(),
+            "environmentId": config.environment_id,
             "modelsFilter": model_filters,
             "first": 1,
         }
-        result = await self.api_client.execute_query(
-            GraphQLQueries.GET_MODEL_CHILDREN, variables
+        result = await execute_query(
+            GraphQLQueries.GET_MODEL_CHILDREN,
+            variables,
+            config=config,
         )
         raise_gql_error(result)
         edges = result["data"]["environment"]["applied"]["models"]["edges"]
@@ -491,16 +557,20 @@ class ModelsFetcher:
         return edges[0]["node"]["children"]
 
     async def fetch_model_health(
-        self, model_name: str | None = None, unique_id: str | None = None
+        self,
+        model_name: str | None = None,
+        unique_id: str | None = None,
+        *,
+        config: DiscoveryConfig,
     ) -> list[dict]:
         model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
-            "environmentId": await self._paginator.get_environment_id(),
+            "environmentId": config.environment_id,
             "modelsFilter": model_filters,
             "first": 1,
         }
-        result = await self.api_client.execute_query(
-            GraphQLQueries.GET_MODEL_HEALTH, variables
+        result = await execute_query(
+            GraphQLQueries.GET_MODEL_HEALTH, variables, config=config
         )
         raise_gql_error(result)
         edges = result["data"]["environment"]["applied"]["models"]["edges"]
@@ -512,35 +582,31 @@ class ModelsFetcher:
 class ExposuresFetcher:
     def __init__(
         self,
-        api_client: MetadataAPIClient,
         paginator: PaginatedResourceFetcher,
     ):
-        self.api_client = api_client
         self._paginator = paginator
 
-    async def fetch_exposures(self) -> list[dict]:
+    async def fetch_exposures(self, *, config: DiscoveryConfig) -> list[dict]:
         return await self._paginator.fetch_paginated(
             GraphQLQueries.GET_EXPOSURES,
             variables={},
+            config=config,
         )
 
 
 class SourcesFetcher:
     def __init__(
         self,
-        api_client: MetadataAPIClient,
         paginator: PaginatedResourceFetcher,
     ):
-        self.api_client = api_client
         self._paginator = paginator
-
-    async def get_environment_id(self) -> int:
-        return await self._paginator.get_environment_id()
 
     async def fetch_sources(
         self,
         source_names: list[str] | None = None,
         unique_ids: list[str] | None = None,
+        *,
+        config: DiscoveryConfig,
     ) -> list[dict]:
         source_filter: SourceFilter = {}
         if source_names is not None:
@@ -551,7 +617,79 @@ class SourcesFetcher:
         return await self._paginator.fetch_paginated(
             GraphQLQueries.GET_SOURCES,
             variables={"sourcesFilter": source_filter},
+            config=config,
         )
+
+
+class MacrosFetcher:
+    def __init__(
+        self,
+        paginator: PaginatedResourceFetcher,
+    ):
+        self._paginator = paginator
+
+    async def fetch_macros(
+        self,
+        package_names: list[str] | None = None,
+        return_package_names_only: bool = False,
+        include_default_dbt_packages: bool = False,
+        *,
+        config: DiscoveryConfig,
+    ) -> list[dict] | list[str]:
+        """Fetch all macros with optional filtering.
+
+        Args:
+            package_names: Optional list of package names to filter by.
+            return_package_names_only: If True, returns only unique package names
+                instead of full macro details. Useful for discovering available
+                packages before drilling down.
+            include_default_dbt_packages: If True, includes the default dbt macros that
+                are maintained by dbt Labs.
+            config: Discovery API connection and environment.
+
+        Returns:
+            List of macros with name, uniqueId, description, and packageName,
+            or list of unique package names if return_package_names_only is True.
+        """
+        macro_filter: MacroFilter = {"types": ["Macro"]}
+
+        macros = await self._paginator.fetch_paginated(
+            GraphQLQueries.GET_MACROS,
+            variables={"filter": macro_filter},
+            config=config,
+        )
+
+        # Filter out dbt-labs first-party macros unless include_default_dbt_packages is True
+        if not include_default_dbt_packages:
+            macros = [
+                m
+                for m in macros
+                if not self._is_dbt_builtin_package(m.get("packageName", ""))
+            ]
+
+        # Filter by package names if specified
+        if package_names is not None:
+            package_names_lower = [p.lower() for p in package_names]
+            macros = [
+                m
+                for m in macros
+                if m.get("packageName", "").lower() in package_names_lower
+            ]
+
+        # Return only unique package names if requested
+        if return_package_names_only:
+            unique_packages = sorted(
+                {name for m in macros if (name := m.get("packageName"))}
+            )
+            return unique_packages
+
+        return macros
+
+    def _is_dbt_builtin_package(self, package_name: str) -> bool:
+        """Check if a package is dbt core or a dbt-labs first-party adapter."""
+        if not package_name:
+            return False
+        return package_name.lower() in DBT_BUILTIN_PACKAGES
 
 
 class AppliedResourceType(StrEnum):
@@ -598,23 +736,16 @@ class ResourceDetailsFetcher:
         AppliedResourceType.SEMANTIC_MODEL: "SemanticModel",
     }
 
-    def __init__(
-        self,
-        api_client: MetadataAPIClient,
-    ):
-        self.api_client = api_client
-
     async def fetch_details(
         self,
         resource_type: AppliedResourceType,
+        config: DiscoveryConfig,
         name: str | None = None,
         unique_id: str | None = None,
     ) -> list[dict]:
         normalized_name = name.strip().lower() if name else None
         normalized_unique_id = unique_id.strip().lower() if unique_id else None
-        environment_id = (
-            await self.api_client.config_provider.get_config()
-        ).environment_id
+        environment_id = config.environment_id
         if not normalized_name and not normalized_unique_id:
             raise InvalidParameterError("Either name or unique_id must be provided")
         if (
@@ -628,13 +759,15 @@ class ResourceDetailsFetcher:
         if not normalized_unique_id:
             assert normalized_name is not None, "Name must be provided"
             packages_result = await asyncio.gather(
-                self.api_client.execute_query(
+                execute_query(
                     self.GET_PACKAGES_QUERY,
                     variables={"resource": "macro", "environmentId": environment_id},
+                    config=config,
                 ),
-                self.api_client.execute_query(
+                execute_query(
                     self.GET_PACKAGES_QUERY,
                     variables={"resource": "model", "environmentId": environment_id},
+                    config=config,
                 ),
             )
             raise_gql_error(packages_result[0])
@@ -662,7 +795,7 @@ class ResourceDetailsFetcher:
             },
             "first": len(unique_ids),
         }
-        get_details_result = await self.api_client.execute_query(query, variables)
+        get_details_result = await execute_query(query, variables, config=config)
         raise_gql_error(get_details_result)
         edges = get_details_result["data"]["environment"]["applied"]["resources"][
             "edges"
@@ -672,44 +805,30 @@ class ResourceDetailsFetcher:
         return [e["node"] for e in edges]
 
 
-class LineageResourceType(StrEnum):
-    """Resource types supported by the lineage API."""
-
-    MODEL = "Model"
-    SOURCE = "Source"
-    SEED = "Seed"
-    SNAPSHOT = "Snapshot"
-    EXPOSURE = "Exposure"
-    METRIC = "Metric"
-    SEMANTIC_MODEL = "SemanticModel"
-    SAVED_QUERY = "SavedQuery"
-    TEST = "Test"
-
-
 class LineageFetcher:
     """Fetcher for lineage data. Returns nodes connected to the target."""
-
-    def __init__(self, api_client: MetadataAPIClient):
-        self.api_client = api_client
 
     async def fetch_lineage(
         self,
         unique_id: str,
         depth: int,
         types: list[LineageResourceType] | None = None,
+        *,
+        config: DiscoveryConfig,
     ) -> list[dict]:
         """Fetch lineage graph filtered to nodes connected to unique_id.
 
         Args:
             unique_id: The dbt unique ID of the resource to get lineage for.
+            depth: how many levels to traverse (0 = infinite, 1 = immediate neighbors only, higher = deeper)
             types: List of resource types to include. If None, includes all types.
+            config: Discovery API connection and environment.
 
         Returns:
             List of nodes connected to unique_id (upstream + downstream).
         """
-        if depth <= 0:
-            raise ToolCallError("Depth must be greater than 0")
-        config = await self.api_client.config_provider.get_config()
+        if depth < 0:
+            raise ToolCallError("Depth must be greater than or equal to 0")
         type_filter = [
             t.value for t in (types if types is not None else LineageResourceType)
         ]
@@ -719,8 +838,8 @@ class LineageFetcher:
             # uniqueId removed - not used by GraphQL
         }
 
-        result = await self.api_client.execute_query(
-            GraphQLQueries.GET_FULL_LINEAGE, variables
+        result = await execute_query(
+            GraphQLQueries.GET_FULL_LINEAGE, variables, config=config
         )
         raise_gql_error(result)
 
@@ -738,8 +857,11 @@ class LineageFetcher:
         self, nodes: list[dict], target_id: str, depth: int
     ) -> list[dict]:
         """Return only nodes connected to target_id (upstream and downstream).
-
         Uses BFS to find all nodes reachable from target in both directions.
+        Args:
+            nodes: List of all nodes in the lineage graph.
+            target_id: The unique ID of the target node.
+            depth: how many levels to traverse (0 = infinite, 1 = immediate neighbors only, higher = deeper)
         """
         node_map = {
             n["uniqueId"]: n
@@ -764,8 +886,8 @@ class LineageFetcher:
             if not node:
                 continue
 
-            # Stop traversing beyond the depth limit
-            if current_depth >= depth:
+            # Stop traversing beyond the depth limit, depth=0 means infinite
+            if depth > 0 and current_depth >= depth:
                 continue
 
             # Traverse upstream (parents)
@@ -797,14 +919,13 @@ class ModelPerformanceFetcher:
 
     def __init__(
         self,
-        api_client: MetadataAPIClient,
         resource_details_fetcher: ResourceDetailsFetcher,
     ):
-        self.api_client = api_client
         self._resource_details_fetcher = resource_details_fetcher
 
     async def fetch_performance(
         self,
+        config: DiscoveryConfig,
         name: str | None = None,
         unique_id: str | None = None,
         num_runs: int = 1,
@@ -825,6 +946,7 @@ class ModelPerformanceFetcher:
             InvalidParameterError: If neither name nor unique_id provided
             ToolCallError: If model not found or API error
         """
+        environment_id = config.environment_id
         if not name and not unique_id:
             raise InvalidParameterError("Either 'name' or 'unique_id' must be provided")
 
@@ -835,32 +957,33 @@ class ModelPerformanceFetcher:
             details = await self._resource_details_fetcher.fetch_details(
                 resource_type=AppliedResourceType.MODEL,
                 name=name,
+                config=config,
             )
             if not details:
-                raise ToolCallError(f"Model not found: {name}")
+                raise NotFoundError(f"Model not found: {name}")
             # Model name can map to multiple unique_ids - require disambiguation
             # For example, if multiple dbt packages define a model with the same name
             if len(details) > 1:
                 matches = ", ".join(
                     sorted(d.get("uniqueId", "") for d in details if d.get("uniqueId"))
                 )
-                raise ToolCallError(
+                raise NotFoundError(
                     f"Multiple models found for name '{name}'. "
                     "Please provide the unique_id instead. "
                     f"Matches: {matches}"
                 )
             resolved_unique_id = details[0]["uniqueId"]
 
-        config = await self.api_client.config_provider.get_config()
         variables = {
-            "environmentId": config.environment_id,
+            "environmentId": environment_id,
             "uniqueId": resolved_unique_id,
             "lastRunCount": num_runs,
         }
 
-        result = await self.api_client.execute_query(
+        result = await execute_query(
             self.GET_MODEL_PERFORMANCE_QUERY,
             variables,
+            config=config,
         )
         raise_gql_error(result)
 

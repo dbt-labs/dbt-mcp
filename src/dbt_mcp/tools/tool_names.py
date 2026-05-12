@@ -13,7 +13,8 @@ class ToolName(Enum):
     RUN = "run"
     TEST = "test"
     SHOW = "show"
-    GET_MODEL_LINEAGE_DEV = "get_model_lineage_dev"
+    CLONE = "clone"
+    GET_LINEAGE_DEV = "get_lineage_dev"
     GET_NODE_DETAILS_DEV = "get_node_details_dev"
 
     # Semantic Layer tools
@@ -38,6 +39,7 @@ class ToolName(Enum):
     GET_EXPOSURES = "get_exposures"
     GET_EXPOSURE_DETAILS = "get_exposure_details"
     GET_RELATED_MODELS = "get_related_models"
+    GET_ALL_MACROS = "get_all_macros"
     GET_MACRO_DETAILS = "get_macro_details"
     GET_SEED_DETAILS = "get_seed_details"
     GET_SEMANTIC_MODEL_DETAILS = "get_semantic_model_details"
@@ -50,16 +52,15 @@ class ToolName(Enum):
     EXECUTE_SQL = "execute_sql"
 
     # Admin API tools
+    LIST_PROJECTS = "list_projects"
     LIST_JOBS = "list_jobs"
     GET_JOB_DETAILS = "get_job_details"
-    GET_PROJECT_DETAILS = "get_project_details"
     TRIGGER_JOB_RUN = "trigger_job_run"
     LIST_JOBS_RUNS = "list_jobs_runs"
     GET_JOB_RUN_DETAILS = "get_job_run_details"
     CANCEL_JOB_RUN = "cancel_job_run"
     RETRY_JOB_RUN = "retry_job_run"
     LIST_JOB_RUN_ARTIFACTS = "list_job_run_artifacts"
-    GET_JOB_RUN_ARTIFACT = "get_job_run_artifact"
     GET_JOB_RUN_ERROR = "get_job_run_error"
 
     # dbt-codegen tools
@@ -72,8 +73,13 @@ class ToolName(Enum):
     FUSION_COMPILE_SQL = "fusion.compile_sql"
     FUSION_GET_COLUMN_LINEAGE = "fusion.get_column_lineage"
 
+    # Product Docs tools (docs.getdbt.com)
+    SEARCH_PRODUCT_DOCS = "search_product_docs"
+    GET_PRODUCT_DOC_PAGES = "get_product_doc_pages"
+
     # MCP Server tools
     GET_MCP_SERVER_VERSION = "get_mcp_server_version"
+    GET_MCP_SERVER_BRANCH = "get_mcp_server_branch"
 
     @classmethod
     def get_all_tool_names(cls) -> set[str]:

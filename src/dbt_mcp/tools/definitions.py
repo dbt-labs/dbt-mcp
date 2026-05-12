@@ -22,6 +22,7 @@ class GenericToolDefinition[NameEnum: Enum]:
     # We haven't strictly defined our tool contracts yet.
     # So we're setting this to False by default for now.
     structured_output: bool | None = False
+    meta: dict[str, Any] | None = None
 
     def get_name(self) -> NameEnum:
         return self.name_enum((self.name or self.fn.__name__).lower())
@@ -34,6 +35,7 @@ class GenericToolDefinition[NameEnum: Enum]:
             description=self.description,
             annotations=self.annotations,
             structured_output=self.structured_output,
+            meta=self.meta,
         )
 
     def adapt_context(
@@ -50,6 +52,7 @@ class GenericToolDefinition[NameEnum: Enum]:
             title=self.title,
             annotations=self.annotations,
             structured_output=self.structured_output,
+            meta=self.meta,
         )
 
 
@@ -68,6 +71,7 @@ def generic_dbt_mcp_tool[NameEnum: Enum](
     idempotent_hint: bool = False,
     open_world_hint: bool = True,
     structured_output: bool | None = False,
+    meta: dict[str, Any] | None = None,
 ) -> Callable[[Callable], GenericToolDefinition[NameEnum]]:
     """Decorator to define a tool definition for dbt MCP"""
 
@@ -86,6 +90,7 @@ def generic_dbt_mcp_tool[NameEnum: Enum](
                 openWorldHint=open_world_hint,
             ),
             structured_output=structured_output,
+            meta=meta,
         )
 
     return decorator

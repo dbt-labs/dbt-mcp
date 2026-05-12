@@ -2,10 +2,6 @@ Get detailed information for a specific dbt Cloud project.
 
 This tool retrieves comprehensive project configuration including repository connections, environment settings, and project metadata.
 
-## Parameters
-
-- **project_id** (required): The project ID to retrieve details for
-
 ## Returns
 
 Project object with detailed configuration including:

@@ -3,13 +3,8 @@ Retrieves the child models (downstream dependencies) of a specific dbt model. Th
 
 You can provide either a name or a uniqueId, if known, to identify the model. Using uniqueId is more precise and guarantees a unique match, which is especially useful when models might have the same name in different projects.
 
-This is specifically for retrieving model children from the production manifest. If you want development lineage, use `get_model_lineage_dev` instead.
+This is specifically for retrieving model children from the production manifest. If you want development lineage, use `get_lineage_dev` instead.
 </instructions>
-
-<parameters>
-name: The name of the dbt model to retrieve children for.
-uniqueId: The unique identifier of the model. If provided, this will be used instead of name for a more precise lookup. You can get the uniqueId values for all models from the get_all_models() tool.
-</parameters>
 
 <examples>
 1. Getting children for a model by name:

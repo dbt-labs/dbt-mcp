@@ -1,9 +1,8 @@
+from mcp.server.fastmcp import FastMCP
 from mcp.types import Tool
 from openai.types.responses import (
     FunctionToolParam,
 )
-
-from dbt_mcp.mcp.server import DbtMCP
 
 
 def map_tools(mcp_tools: list[Tool]) -> list[FunctionToolParam]:
@@ -19,6 +18,6 @@ def map_tools(mcp_tools: list[Tool]) -> list[FunctionToolParam]:
     ]
 
 
-async def get_tools(dbt_mcp: DbtMCP) -> list[FunctionToolParam]:
+async def get_tools(dbt_mcp: FastMCP) -> list[FunctionToolParam]:
     mcp_tools = await dbt_mcp.list_tools()
     return map_tools(mcp_tools)

@@ -13,15 +13,6 @@ class OrderByParam:
 
 
 @dataclass
-class MetricToolResponse:
-    name: str
-    type: MetricType
-    label: str | None = None
-    description: str | None = None
-    metadata: dict[str, Any] | None = None
-
-
-@dataclass
 class DimensionToolResponse:
     name: str
     type: DimensionType
@@ -36,6 +27,22 @@ class EntityToolResponse:
     name: str
     type: EntityType
     description: str | None = None
+
+
+@dataclass
+class MetricToolResponse:
+    name: str
+    type: MetricType
+    label: str | None = None
+    description: str | None = None
+    metadata: dict[str, Any] | None = None
+    dimensions: list[str] | None = None
+    entities: list[str] | None = None
+
+
+@dataclass
+class ListMetricsResponse:
+    metrics: list[MetricToolResponse]
 
 
 @dataclass

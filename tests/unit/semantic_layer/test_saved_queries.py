@@ -1,21 +1,24 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+from dbt_mcp.config.config_providers import SemanticLayerConfig
 from dbt_mcp.semantic_layer.client import SemanticLayerFetcher
 from dbt_mcp.semantic_layer.types import SavedQueryToolResponse
 
 
 class TestSavedQueries:
     @pytest.fixture
-    def mock_config_provider(self):
-        """Create a mock config provider."""
-        config_provider = AsyncMock()
-        config_provider.get_config.return_value = MagicMock(
-            prod_environment_id=123,
-            token="test-token",
-            host="test-host",
+    def mock_config(self):
+        token_p = MagicMock()
+        token_p.get_token.return_value = "test-token"
+        headers_p = MagicMock()
+        headers_p.get_headers.return_value = {}
+        return SemanticLayerConfig(
             url="https://test-host/api/graphql",
+            host="test-host",
+            prod_environment_id=123,
+            token_provider=token_p,
+            headers_provider=headers_p,
         )
-        return config_provider
 
     @pytest.fixture
     def mock_client_provider(self):
@@ -24,17 +27,16 @@ class TestSavedQueries:
         return client_provider
 
     @pytest.fixture
-    def fetcher(self, mock_config_provider, mock_client_provider):
+    def fetcher(self, mock_client_provider):
         """Create a SemanticLayerFetcher instance with mocked dependencies."""
         return SemanticLayerFetcher(
-            config_provider=mock_config_provider,
             client_provider=mock_client_provider,
         )
 
     @pytest.mark.asyncio
     @patch("dbt_mcp.semantic_layer.client.submit_request")
     async def test_list_saved_queries_no_filter(
-        self, mock_submit_request, fetcher, mock_config_provider
+        self, mock_submit_request, fetcher, mock_config
     ):
         """Test listing saved queries without a search filter."""
         # Mock GraphQL response
@@ -68,7 +70,7 @@ class TestSavedQueries:
         }
 
         # Call the method
-        result = await fetcher.list_saved_queries()
+        result = await fetcher.list_saved_queries(config=mock_config)
 
         # Assertions
         assert len(result) == 2
@@ -85,7 +87,7 @@ class TestSavedQueries:
     @pytest.mark.asyncio
     @patch("dbt_mcp.semantic_layer.client.submit_request")
     async def test_list_saved_queries_with_search(
-        self, mock_submit_request, fetcher, mock_config_provider
+        self, mock_submit_request, fetcher, mock_config
     ):
         """Test listing saved queries with a search filter."""
         # Mock GraphQL response - only revenue query matches search
@@ -105,7 +107,7 @@ class TestSavedQueries:
         }
 
         # Call the method with search filter
-        result = await fetcher.list_saved_queries(search="revenue")
+        result = await fetcher.list_saved_queries(config=mock_config, search="revenue")
 
         # Should return the matched query
         assert len(result) == 1
@@ -119,7 +121,7 @@ class TestSavedQueries:
     @pytest.mark.asyncio
     @patch("dbt_mcp.semantic_layer.client.submit_request")
     async def test_list_saved_queries_empty_result(
-        self, mock_submit_request, fetcher, mock_config_provider
+        self, mock_submit_request, fetcher, mock_config
     ):
         """Test listing saved queries when no queries exist."""
         # Mock empty GraphQL response
@@ -128,7 +130,7 @@ class TestSavedQueries:
         }
 
         # Call the method
-        result = await fetcher.list_saved_queries()
+        result = await fetcher.list_saved_queries(config=mock_config)
 
         # Should return empty list
         assert result == []
@@ -136,7 +138,7 @@ class TestSavedQueries:
     @pytest.mark.asyncio
     @patch("dbt_mcp.semantic_layer.client.submit_request")
     async def test_list_saved_queries_missing_attributes(
-        self, mock_submit_request, fetcher, mock_config_provider
+        self, mock_submit_request, fetcher, mock_config
     ):
         """Test listing saved queries when some attributes are missing."""
         # Mock GraphQL response with missing attributes
@@ -154,7 +156,7 @@ class TestSavedQueries:
         }
 
         # Call the method
-        result = await fetcher.list_saved_queries()
+        result = await fetcher.list_saved_queries(config=mock_config)
 
         # Should handle missing attributes gracefully
         assert len(result) == 1

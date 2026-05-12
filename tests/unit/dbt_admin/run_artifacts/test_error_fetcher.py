@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from dbt_mcp.dbt_admin.run_artifacts.parser import ErrorFetcher
-from dbt_mcp.errors import ArtifactRetrievalError
+from dbt_mcp.errors import ArtifactRetrievalError, NotFoundError
 
 
 @pytest.mark.parametrize(
@@ -195,3 +195,48 @@ async def test_schema_validation_failure(mock_client, admin_config):
     assert step["step_name"] == "Invoke dbt with `dbt build`"
     assert "run_results.json not available" in step["results"][0]["message"]
     assert "Model compilation failed" in step["results"][0]["truncated_logs"]
+
+
+async def test_not_found_error_treated_as_missing_artifact(mock_client, admin_config):
+    """Regression test: NotFoundError (404) from get_job_run_artifact must be caught.
+
+    In v1.15, get_job_run_artifact started raising NotFoundError for 404 responses
+    instead of ArtifactRetrievalError. If _fetch_run_results_artifact only catches
+    ArtifactRetrievalError, the NotFoundError propagates into asyncio.gather and
+    causes every failed step to be silently dropped, returning {"failed_steps": []}.
+    """
+    run_details = {
+        "id": 500,
+        "status": 20,
+        "is_cancelled": False,
+        "finished_at": "2024-01-01T12:00:00Z",
+        "run_steps": [
+            {
+                "index": 1,
+                "name": "Invoke dbt with `dbt run`",
+                "status": 20,
+                "finished_at": "2024-01-01T12:00:00Z",
+                "logs": "Error in model my_model",
+            }
+        ],
+    }
+
+    mock_client.get_job_run_artifact = AsyncMock(
+        side_effect=NotFoundError("Artifact not found for run 500")
+    )
+
+    error_fetcher = ErrorFetcher(
+        run_id=500,
+        run_details=run_details,
+        client=mock_client,
+        admin_api_config=admin_config,
+    )
+
+    result = await error_fetcher.analyze_run_errors()
+
+    # Should fall back to logs rather than returning empty failed_steps
+    assert len(result["failed_steps"]) == 1
+    step = result["failed_steps"][0]
+    assert step["step_name"] == "Invoke dbt with `dbt run`"
+    assert "run_results.json not available" in step["results"][0]["message"]
+    assert "Error in model my_model" in step["results"][0]["truncated_logs"]

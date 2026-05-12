@@ -1,3 +1,4 @@
+import logging
 import os
 from unittest.mock import patch
 
@@ -7,7 +8,11 @@ from dbt_mcp.config.config import (
     DbtMcpSettings,
     load_config,
 )
-from dbt_mcp.config.settings import DEFAULT_DBT_CLI_TIMEOUT
+from dbt_mcp.config.settings import (
+    DEFAULT_DBT_CLI_TIMEOUT,
+    HostPrefixResult,
+    parse_host_prefix,
+)
 from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.tools.tool_names import ToolName
 
@@ -57,7 +62,28 @@ class TestDbtMcpSettings:
             assert settings.disable_semantic_layer is False, "disable_semantic_layer"
             assert settings.disable_discovery is False, "disable_discovery"
             assert settings.disable_sql is None, "disable_sql"
-            assert settings.disable_tools == [], "disable_tools"
+            assert settings.disable_tools is None, "disable_tools"
+            assert settings.sl_metrics_related_max == 10
+
+    def test_sl_metrics_related_max_env_var(self):
+        env_vars = {"DBT_MCP_SL_METRICS_RELATED_MAX": "25"}
+        with patch.dict(os.environ, env_vars, clear=True):
+            settings = DbtMcpSettings(_env_file=None)
+            assert settings.sl_metrics_related_max == 25
+
+    def test_sl_metrics_max_response_chars_default(self):
+        settings = DbtMcpSettings(DBT_HOST=None, _env_file=None)
+        assert settings.sl_metrics_max_response_chars == 16000
+
+    def test_sl_metrics_max_response_chars_from_env(self, monkeypatch):
+        monkeypatch.setenv("DBT_MCP_SL_MAX_RESPONSE_CHARS", "8000")
+        settings = DbtMcpSettings(DBT_HOST=None, _env_file=None)
+        assert settings.sl_metrics_max_response_chars == 8000
+
+    def test_sl_metrics_max_response_chars_zero_allowed(self, monkeypatch):
+        monkeypatch.setenv("DBT_MCP_SL_MAX_RESPONSE_CHARS", "0")
+        settings = DbtMcpSettings(DBT_HOST=None, _env_file=None)
+        assert settings.sl_metrics_max_response_chars == 0
 
     def test_usage_tracking_disabled_by_env_vars(self):
         env_vars = {
@@ -153,6 +179,39 @@ class TestDbtMcpSettings:
                 settings = DbtMcpSettings(_env_file=None)
                 assert settings.disable_tools == expected
 
+    def test_invalid_tool_names_are_skipped_with_warning(self, caplog):
+        """Test that invalid tool names are logged as warnings and skipped."""
+
+        # Test with mix of valid and invalid tool names
+        with patch.dict(
+            os.environ, {"DISABLE_TOOLS": "build,invalid_tool,compile,another_invalid"}
+        ):
+            with caplog.at_level(logging.WARNING):
+                settings = DbtMcpSettings(_env_file=None)
+            # Only valid tools should be in the list
+            assert settings.disable_tools == [ToolName.BUILD, ToolName.COMPILE]
+            # Warnings should be logged for invalid tools
+            assert (
+                "Ignoring invalid tool name in DISABLE_TOOLS: 'invalid_tool'"
+                in caplog.text
+            )
+            assert (
+                "Ignoring invalid tool name in DISABLE_TOOLS: 'another_invalid'"
+                in caplog.text
+            )
+
+    def test_all_invalid_tool_names_returns_empty_list(self, caplog):
+        """Test that all invalid tool names result in empty list (allowlist mode)."""
+        import logging
+
+        with patch.dict(os.environ, {"DBT_MCP_ENABLE_TOOLS": "invalid1,invalid2"}):
+            with caplog.at_level(logging.WARNING):
+                settings = DbtMcpSettings(_env_file=None)
+            # Result should be empty list (not None) - indicating allowlist mode
+            assert settings.enable_tools == []
+            # Warnings should be logged
+            assert "Ignoring invalid tool name" in caplog.text
+
     def test_actual_host_property(self):
         with patch.dict(os.environ, {"DBT_HOST": "host1.com"}):
             settings = DbtMcpSettings(_env_file=None)
@@ -183,14 +242,56 @@ class TestDbtMcpSettings:
                 settings.actual_prod_environment_id == 123
             )  # DBT_PROD_ENV_ID takes precedence
 
-    def test_auto_disable_platform_features_logging(self):
+    def test_parse_host_prefix_detects_mismatch(self):
+        result = parse_host_prefix("xy999.us1.dbt.com", "ab123")
+        assert result == HostPrefixResult(
+            base_host="us1.dbt.com",
+            prefix_embedded=False,
+            mismatched_prefix="xy999",
+        )
+
+    def test_parse_host_prefix_returns_no_mismatch_when_prefix_matches(self):
+        result = parse_host_prefix("ab123.us1.dbt.com", "ab123")
+        assert result == HostPrefixResult(
+            base_host="us1.dbt.com",
+            prefix_embedded=True,
+            mismatched_prefix=None,
+        )
+
+    def test_parse_host_prefix_returns_no_mismatch_for_short_host(self):
+        result = parse_host_prefix("us1.dbt.com", "ab123")
+        assert result == HostPrefixResult(
+            base_host="us1.dbt.com",
+            prefix_embedded=False,
+            mismatched_prefix=None,
+        )
+
+    def test_base_host_mismatch_logs_warning_and_returns_host_unchanged(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        """base_host logs a warning and returns the host unchanged on prefix mismatch."""
+        settings = DbtMcpSettings.model_construct(
+            dbt_host="xy999.us1.dbt.com",
+            host_prefix="ab123",
+            multicell_account_prefix=None,
+        )
+
+        with caplog.at_level(logging.WARNING, logger="dbt_mcp.config.settings"):
+            result = settings.base_host
+
+        assert result == "xy999.us1.dbt.com"
+        assert "appears to contain a different account prefix" in caplog.text
+        assert "'xy999'" in caplog.text
+        assert "'ab123'" in caplog.text
+
+    def test_auto_disable_cli_features_only(self):
         with patch.dict(os.environ, {}, clear=True):
             settings = DbtMcpSettings(_env_file=None)
-            # When DBT_HOST is missing, platform features should be disabled
-            assert settings.disable_admin_api is True
-            assert settings.disable_sql is True
-            assert settings.disable_semantic_layer is True
-            assert settings.disable_discovery is True
+            # Platform features are NOT auto-disabled (elicitation handles missing DBT_HOST)
+            assert settings.disable_admin_api is False
+            assert settings.disable_semantic_layer is False
+            assert settings.disable_discovery is False
+            # CLI features ARE still auto-disabled when project dir / dbt path invalid
             assert settings.disable_dbt_cli is True
             assert settings.disable_dbt_codegen is True
 
@@ -287,10 +388,12 @@ class TestLoadConfig:
 
         config = self._load_config_with_env(env_vars)
 
-        assert config.proxied_tool_config_provider is None
+        # Platform providers are always created (resolve lazily via elicitation)
+        assert config.discovery_config_provider is not None
+        assert config.semantic_layer_config_provider is not None
+        assert config.admin_api_config_provider is not None
+        # CLI config still gated on concrete paths
         assert config.dbt_cli_config is None
-        assert config.discovery_config_provider is None
-        assert config.semantic_layer_config_provider is None
 
     def test_invalid_environment_variable_types(self):
         # Test invalid integer types

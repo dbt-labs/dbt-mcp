@@ -1,9 +1,47 @@
 from __future__ import annotations
-from typing import Literal, cast
+from typing import cast
 
 from pydantic import BaseModel, Field
 
 from dbt_mcp.dbt_cli.models.manifest import Manifest
+from dbt_mcp.tools.parameters import LineageResourceType
+
+# These resource types are not supported in the CLI
+UNALLOWED_RESOURCE_TYPES = {
+    LineageResourceType.SEMANTIC_MODEL,
+    LineageResourceType.SAVED_QUERY,
+}
+
+
+def _resource_types_to_prefix(resource: LineageResourceType) -> tuple[str, ...]:
+    """Convert LineageResourceType to tuple of unique_id prefixes."""
+    if resource in UNALLOWED_RESOURCE_TYPES:
+        raise ValueError(
+            f"Resource types '{', '.join(UNALLOWED_RESOURCE_TYPES)}' are not supported for lineage in dbt CLI."
+        )
+    if resource == LineageResourceType.TEST:
+        return ("test.", "unit_test.")
+
+    return (f"{resource.lower()}.",)
+
+
+def _get_include_prefixes(
+    types: list[LineageResourceType] | None,
+) -> tuple[str, ...] | None:
+    """Convert types list to tuple of prefixes to include. None means include all."""
+    if types is None:
+        return None
+    prefixes: list[str] = []
+    for t in types:
+        prefixes.extend(_resource_types_to_prefix(t))
+    return tuple(prefixes)
+
+
+def _should_include(node_id: str, include_prefixes: tuple[str, ...] | None) -> bool:
+    """Check if a node should be included based on its prefix."""
+    if include_prefixes is None:
+        return True
+    return node_id.startswith(include_prefixes)
 
 
 class Descendant(BaseModel):
@@ -25,48 +63,50 @@ class ModelLineage(BaseModel):
     def from_manifest(
         cls,
         manifest: Manifest,
-        model_id: str,
-        direction: Literal["parents", "children", "both"] = "both",
-        exclude_prefixes: tuple[str, ...] = ("test.", "unit_test."),
-        *,
-        recursive: bool = False,
+        unique_id: str,
+        types: list[LineageResourceType] | None = None,
+        depth: int = 5,
     ) -> ModelLineage:
         """
         Build a ModelLineage instance from a dbt manifest mapping.
 
         - manifest: Manifest object containing at least 'parent_map' and/or 'child_map'
-        - model_id: the model id to start from
-        - recursive: whether to traverse recursively
-        - direction: one of 'parents', 'children', or 'both'
-        - exclude_prefixes: tuple of prefixes to exclude from descendants, defaults to ("test.", "unit_test.")
-            Descendants only. Give () to include all.
+        - unique_id: the fully-qualified unique ID to start from
+        - types: list of resource types to include. If None, includes all types.
+        - depth: how many levels to traverse (0 = infinite, 1 = immediate neighbors only, higher = deeper)
 
         The returned ModelLineage contains lists of Ancestor and/or Descendant
         objects.
         """
+        if depth < 0:
+            raise ValueError("Depth must be 0 (infinite) or a positive integer.")
         parent_map = manifest.parent_map
         child_map = manifest.child_map
+        include_prefixes = _get_include_prefixes(types)
 
         parents: list[Ancestor] = []
         children: list[Descendant] = []
-        model_id = get_uid_from_name(manifest, model_id)
 
         def _build_node(
             node_id: str,
             map_data: dict[str, list[str]],
             key: str,
             path: set[str],
+            current_depth: int,
         ) -> Ancestor | Descendant | None:
             if node_id in path:
                 return None
 
             next_nodes: list[Ancestor | Descendant] = []
-            for next_id in map_data.get(node_id, []):
-                if next_id.startswith(exclude_prefixes):
-                    continue
-                child_node = _build_node(next_id, map_data, key, path | {node_id})
-                if child_node:
-                    next_nodes.append(child_node)
+            if depth == 0 or current_depth < depth:
+                for next_id in map_data.get(node_id, []):
+                    if not _should_include(next_id, include_prefixes):
+                        continue
+                    child_node = _build_node(
+                        next_id, map_data, key, path | {node_id}, current_depth + 1
+                    )
+                    if child_node:
+                        next_nodes.append(child_node)
             if key == "parents":
                 return Ancestor(
                     model_id=node_id, parents=cast(list[Ancestor], next_nodes)
@@ -75,52 +115,30 @@ class ModelLineage(BaseModel):
                 model_id=node_id, children=cast(list[Descendant], next_nodes)
             )
 
-        if direction in ("both", "parents"):
-            for item_id in parent_map.get(model_id, []):
-                if recursive and item_id.startswith(exclude_prefixes):
-                    continue
+        for item_id in parent_map.get(unique_id, []):
+            if not _should_include(item_id, include_prefixes):
+                continue
 
-                if recursive:
-                    p_node = _build_node(item_id, parent_map, "parents", {model_id})
-                    if p_node:
-                        parents.append(cast(Ancestor, p_node))
-                else:
-                    parents.append(Ancestor(model_id=item_id))
+            if depth == 0 or depth > 1:
+                p_node = _build_node(item_id, parent_map, "parents", {unique_id}, 1)
+                if p_node:
+                    parents.append(cast(Ancestor, p_node))
+            else:
+                parents.append(Ancestor(model_id=item_id))
 
-        if direction in ("both", "children"):
-            for item_id in child_map.get(model_id, []):
-                if recursive and item_id.startswith(exclude_prefixes):
-                    continue
+        for item_id in child_map.get(unique_id, []):
+            if not _should_include(item_id, include_prefixes):
+                continue
 
-                if recursive:
-                    c_node = _build_node(item_id, child_map, "children", {model_id})
-                    if c_node:
-                        children.append(cast(Descendant, c_node))
-                else:
-                    children.append(Descendant(model_id=item_id))
+            if depth == 0 or depth > 1:
+                c_node = _build_node(item_id, child_map, "children", {unique_id}, 1)
+                if c_node:
+                    children.append(cast(Descendant, c_node))
+            else:
+                children.append(Descendant(model_id=item_id))
+
         return cls(
-            model_id=model_id,
+            model_id=unique_id,
             parents=parents,
             children=children,
         )
-
-
-def get_uid_from_name(manifest: Manifest, model_id: str) -> str:
-    """
-    Given a dbt manifest mapping and a model name, return the unique_id
-    corresponding to that model name, or None if not found.
-    """
-    # using the parent and child map so it include sources/exposures
-    if model_id in manifest.child_map or model_id in manifest.parent_map:
-        return model_id
-    # fallback: look through eveything for the identifier
-    for uid, node in manifest.nodes.items():
-        if node.name == model_id:
-            return uid
-    for uid, source in manifest.sources.items():
-        if source.identifier == model_id:
-            return uid
-    for uid, exposure in manifest.exposures.items():
-        if exposure.name == model_id:
-            return uid
-    raise ValueError(f"Model name '{model_id}' not found in manifest.")

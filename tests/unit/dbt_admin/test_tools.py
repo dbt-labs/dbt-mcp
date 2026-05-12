@@ -2,13 +2,14 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from client.session import client_session_context
+from dbt_mcp.dbt_admin.param_descriptions import PAGINATION_LIMIT, PAGINATION_OFFSET
 from dbt_mcp.dbt_admin.tools import (
     ADMIN_TOOLS,
     AdminToolContext,
     JobRunStatus,
     cancel_job_run,
     get_job_details,
-    get_job_run_artifact,
     get_job_run_details,
     get_job_run_error,
     list_job_run_artifacts,
@@ -18,7 +19,10 @@ from dbt_mcp.dbt_admin.tools import (
     retry_job_run,
     trigger_job_run,
 )
+from dbt_mcp.mcp.server import register_multi_project_dbt_mcp
 from tests.mocks.config import mock_config
+
+NUM_ADMIN_TOOLS = 10
 
 
 @pytest.fixture
@@ -112,7 +116,7 @@ async def test_register_admin_api_tools_all_tools(mock_register_tools, mock_fast
         fastmcp,
         mock_config.admin_api_config_provider,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -121,7 +125,7 @@ async def test_register_admin_api_tools_all_tools(mock_register_tools, mock_fast
     mock_register_tools.assert_called_once()
     args, kwargs = mock_register_tools.call_args
     tool_definitions = kwargs["tool_definitions"]
-    assert len(tool_definitions) == 11
+    assert len(tool_definitions) == NUM_ADMIN_TOOLS
 
 
 @patch("dbt_mcp.dbt_admin.tools.register_tools")
@@ -135,18 +139,18 @@ async def test_register_admin_api_tools_with_disabled_tools(
         fastmcp,
         mock_config.admin_api_config_provider,
         disabled_tools=set(disable_tools),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
 
-    # Should still call register_tools with all 11 tool definitions
+    # Should still call register_tools with all 12 tool definitions
     # The exclude_tools parameter is passed to register_tools to handle filtering
     mock_register_tools.assert_called_once()
     args, kwargs = mock_register_tools.call_args
     tool_definitions = kwargs["tool_definitions"]
     disabled_tools = kwargs["disabled_tools"]
-    assert len(tool_definitions) == 11
+    assert len(tool_definitions) == NUM_ADMIN_TOOLS
     assert disabled_tools == set(disable_tools)
 
 
@@ -216,17 +220,6 @@ async def test_list_job_run_artifacts_tool(admin_context):
     )
 
 
-async def test_get_job_run_artifact_tool(admin_context):
-    result = await get_job_run_artifact.fn(
-        admin_context, run_id=100, artifact_path="manifest.json", step=1
-    )
-
-    assert result is not None
-    admin_context.admin_client.get_job_run_artifact.assert_called_once_with(
-        12345, 100, "manifest.json", 1
-    )
-
-
 async def test_tools_handle_exceptions():
     # Create a context with a failing client
     mock_admin_client = Mock()
@@ -257,6 +250,13 @@ async def test_tools_with_no_optional_parameters(admin_context):
     admin_context.admin_client.get_job_run_details.assert_called_with(12345, 100)
 
 
+async def test_admin_tools_registered_in_multi_project_mcp(mock_fastmcp):
+    fastmcp, tools = mock_fastmcp
+    await register_multi_project_dbt_mcp(fastmcp, mock_config)
+    admin_tool_names = {tool.fn.__name__ for tool in ADMIN_TOOLS}
+    assert admin_tool_names.issubset(tools.keys())
+
+
 async def test_trigger_job_run_with_all_optional_params(admin_context):
     result = await trigger_job_run.fn(
         admin_context,
@@ -275,6 +275,45 @@ async def test_trigger_job_run_with_all_optional_params(admin_context):
         git_branch="feature-branch",
         git_sha="abc123",
         schema_override="custom_schema",
+    )
+
+
+async def test_trigger_job_run_with_steps_override(admin_context):
+    steps = ["dbt run --select my_model+ --full-refresh"]
+    result = await trigger_job_run.fn(
+        admin_context,
+        job_id=1,
+        cause="Selective build",
+        steps_override=steps,
+    )
+
+    assert isinstance(result, dict)
+    admin_context.admin_client.trigger_job_run.assert_called_once_with(
+        12345, 1, "Selective build", steps_override=steps
+    )
+
+
+async def test_trigger_job_run_steps_override_empty_list_is_passed_through(
+    admin_context,
+):
+    result = await trigger_job_run.fn(
+        admin_context,
+        job_id=1,
+        cause="Empty override",
+        steps_override=[],
+    )
+
+    assert isinstance(result, dict)
+    admin_context.admin_client.trigger_job_run.assert_called_once_with(
+        12345, 1, "Empty override", steps_override=[]
+    )
+
+
+async def test_trigger_job_run_steps_override_none_not_passed(admin_context):
+    await trigger_job_run.fn(admin_context, job_id=1, cause="No override")
+
+    admin_context.admin_client.trigger_job_run.assert_called_once_with(
+        12345, 1, "No override"
     )
 
 
@@ -323,19 +362,32 @@ async def test_get_job_run_error_tool(mock_error_fetcher_class, admin_context):
 def test_admin_tools_list_contains_all_tools():
     """Test that ADMIN_TOOLS contains all expected tools."""
     expected_tool_names = {
+        "list_projects",
         "list_jobs",
         "get_job_details",
-        "get_project_details",
         "trigger_job_run",
         "list_jobs_runs",
         "get_job_run_details",
         "cancel_job_run",
         "retry_job_run",
         "list_job_run_artifacts",
-        "get_job_run_artifact",
         "get_job_run_error",
     }
 
     actual_tool_names = {tool.fn.__name__ for tool in ADMIN_TOOLS}
     assert actual_tool_names == expected_tool_names
-    assert len(ADMIN_TOOLS) == 11
+    assert len(ADMIN_TOOLS) == NUM_ADMIN_TOOLS
+
+
+async def test_admin_tools_list_jobs_params():
+    """Test that the list_jobs tool has the correct parameters."""
+    async with client_session_context() as client:
+        available_tools = (await client.list_tools()).tools
+        list_jobs_tool = next(
+            tool for tool in available_tools if tool.name == "list_jobs"
+        )
+        assert list_jobs_tool.inputSchema is not None
+        props = list_jobs_tool.inputSchema.get("properties")
+        assert props is not None
+        assert props["limit"]["description"] == PAGINATION_LIMIT
+        assert props["offset"]["description"] == PAGINATION_OFFSET

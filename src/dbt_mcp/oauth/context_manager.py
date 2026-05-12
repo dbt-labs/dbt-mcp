@@ -21,7 +21,7 @@ class DbtPlatformContextManager:
         if not self.config_location.exists():
             return None
         try:
-            content = self.config_location.read_text()
+            content = self.config_location.read_text(encoding="utf-8")
             if not content.strip():
                 return None
             parsed_content = yaml.safe_load(content)
@@ -61,5 +61,6 @@ class DbtPlatformContextManager:
         """Write context to file with proper locking."""
         self._ensure_config_location_exists()
         self.config_location.write_text(
-            yaml.dump(context.model_dump(), default_flow_style=False)
+            yaml.dump(context.model_dump(), default_flow_style=False),
+            encoding="utf-8",
         )

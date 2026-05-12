@@ -2,12 +2,6 @@ Retrieves the lineage graph for a dbt resource.
 
 Returns all nodes connected to the specified resource, including both upstream dependencies (ancestors) and downstream dependents (descendants).
 
-**Parameters:**
-- `unique_id`: **Required** - Full unique ID of the resource (e.g., "model.my_project.customers")
-- `types`: *Optional* - List of resource types to include in results. If not provided, includes all types.
-  - Valid types: `Model`, `Source`, `Seed`, `Snapshot`, `Exposure`, `Metric`, `SemanticModel`, `SavedQuery`, `Test`
-- `depth`: *Optional* - The depth of the lineage graph to return (default: 5). Controls how many levels upstream and downstream to traverse from the target node.
-
 **Returns:**
 A list of all nodes in the connected subgraph, where each node contains:
 - `uniqueId`: The resource's unique identifier

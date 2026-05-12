@@ -1,44 +1,36 @@
 import logging
 import shutil
-import socket
-import time
-from enum import Enum
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
-from authlib.integrations.requests_client import OAuth2Session
-from filelock import FileLock
 from pydantic import Field, field_validator, model_validator
 from pydantic_core.core_schema import ValidationInfo
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from dbt_mcp.config.dbt_project import DbtProjectYaml
 from dbt_mcp.config.dbt_yaml import try_read_yaml
-from dbt_mcp.config.headers import (
-    TokenProvider,
-)
-from dbt_mcp.oauth.client_id import OAUTH_CLIENT_ID
-from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
-from dbt_mcp.oauth.dbt_platform import (
-    DbtPlatformContext,
-    dbt_platform_context_from_token_response,
-)
-from dbt_mcp.oauth.login import login
-from dbt_mcp.oauth.token_provider import (
-    OAuthTokenProvider,
-    StaticTokenProvider,
-)
 from dbt_mcp.tools.tool_names import ToolName
 
 logger = logging.getLogger(__name__)
 
-OAUTH_REDIRECT_STARTING_PORT = 6785
 DEFAULT_DBT_CLI_TIMEOUT = 60
 
 
-class AuthenticationMethod(Enum):
-    OAUTH = "oauth"
-    ENV_VAR = "env_var"
+class DbtMcpLogSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="",
+        case_sensitive=False,
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    file_logging: bool = Field(False, alias="DBT_MCP_SERVER_FILE_LOGGING")
+    log_level: str | int | None = Field(None, alias="DBT_MCP_LOG_LEVEL")
+
+    def __repr__(self):
+        return f"DbtMcpLogSettings(file_logging={self.file_logging}, log_level={self.log_level})"
 
 
 class DbtMcpSettings(BaseSettings):
@@ -59,9 +51,14 @@ class DbtMcpSettings(BaseSettings):
     dbt_user_id: int | None = Field(None, alias="DBT_USER_ID")
     dbt_account_id: int | None = Field(None, alias="DBT_ACCOUNT_ID")
     dbt_token: str | None = Field(None, alias="DBT_TOKEN")
-    multicell_account_prefix: str | None = Field(None, alias="MULTICELL_ACCOUNT_PREFIX")
+    multicell_account_prefix: str | None = Field(
+        None, alias="MULTICELL_ACCOUNT_PREFIX"
+    )  # legacy support
     host_prefix: str | None = Field(None, alias="DBT_HOST_PREFIX")
     dbt_lsp_path: str | None = Field(None, alias="DBT_LSP_PATH")
+    dbt_project_ids: Annotated[list[int] | None, NoDecode] = Field(
+        None, alias="DBT_PROJECT_IDS"
+    )
 
     # dbt CLI settings
     dbt_project_dir: str | None = Field(None, alias="DBT_PROJECT_DIR")
@@ -82,6 +79,7 @@ class DbtMcpSettings(BaseSettings):
         None, alias="DISABLE_TOOLS"
     )
     disable_lsp: bool | None = Field(None, alias="DISABLE_LSP")
+    disable_product_docs: bool = Field(False, alias="DISABLE_PRODUCT_DOCS")
     disable_mcp_server_metadata: bool = Field(True, alias="DISABLE_MCP_SERVER_METADATA")
 
     # Enable tool settings (allowlist)
@@ -95,6 +93,7 @@ class DbtMcpSettings(BaseSettings):
     enable_discovery: bool = Field(False, alias="DBT_MCP_ENABLE_DISCOVERY")
     enable_lsp: bool = Field(False, alias="DBT_MCP_ENABLE_LSP")
     enable_sql: bool = Field(False, alias="DBT_MCP_ENABLE_SQL")
+    enable_product_docs: bool = Field(False, alias="DBT_MCP_ENABLE_PRODUCT_DOCS")
     enable_mcp_server_metadata: bool = Field(
         False, alias="DBT_MCP_ENABLE_MCP_SERVER_METADATA"
     )
@@ -105,9 +104,13 @@ class DbtMcpSettings(BaseSettings):
         None, alias="DBT_SEND_ANONYMOUS_USAGE_STATS"
     )
 
-    # Developer settings
-    file_logging: bool = Field(False, alias="DBT_MCP_SERVER_FILE_LOGGING")
-    log_level: str | int | None = Field(None, alias="DBT_MCP_LOG_LEVEL")
+    # Semantic layer settings
+    sl_metrics_related_max: int = Field(
+        10, alias="DBT_MCP_SL_METRICS_RELATED_MAX", ge=0
+    )
+    sl_metrics_max_response_chars: int = Field(
+        16000, alias="DBT_MCP_SL_MAX_RESPONSE_CHARS", ge=0
+    )
 
     def __repr__(self):
         """Custom repr to bring most important settings to front. Redact sensitive info."""
@@ -123,6 +126,7 @@ class DbtMcpSettings(BaseSettings):
             f"disable_discovery={self.disable_discovery}, "
             f"disable_admin_api={self.disable_admin_api}, "
             f"disable_sql={self.disable_sql}, "
+            f"disable_product_docs={self.disable_product_docs}, "
             f"disable_tools={self.disable_tools}, "
             f"disable_lsp={self.disable_lsp}, "
             # enable settings
@@ -133,6 +137,7 @@ class DbtMcpSettings(BaseSettings):
             f"enable_dbt_codegen={self.enable_dbt_codegen}, "
             f"enable_discovery={self.enable_discovery}, "
             f"enable_lsp={self.enable_lsp}, "
+            f"enable_product_docs={self.enable_product_docs}, "
             f"enable_sql={self.enable_sql}, "
             # everything else
             f"dbt_prod_env_id={self.dbt_prod_env_id}, "
@@ -140,8 +145,7 @@ class DbtMcpSettings(BaseSettings):
             f"dbt_user_id={self.dbt_user_id}, "
             f"dbt_account_id={self.dbt_account_id}, "
             f"dbt_token={'***redacted***' if self.dbt_token else None}, "
-            f"send_anonymous_usage_data={self.send_anonymous_usage_data}, "
-            f"file_logging={self.file_logging})"
+            f"send_anonymous_usage_data={self.send_anonymous_usage_data})"
         )
 
     @property
@@ -170,6 +174,29 @@ class DbtMcpSettings(BaseSettings):
         if self.multicell_account_prefix is not None:
             return self.multicell_account_prefix
         return None
+
+    @property
+    def base_host(self) -> str | None:
+        """Returns actual_host with the account prefix stripped if it's already embedded.
+
+        Prevents double-prefixing when DBT_HOST already contains the account prefix
+        (e.g. 'ab123.us1.dbt.com') and a prefix env var is also set to 'ab123'.
+        Returns None if and only if actual_host is None.
+        On mismatch (host has a different embedded prefix), logs a warning and returns
+        the host unchanged to avoid silently stripping the wrong label.
+        """
+        host = self.actual_host
+        if host is None:
+            return None
+        result = parse_host_prefix(host, self.actual_host_prefix)
+        if result.mismatched_prefix is not None:
+            logger.warning(
+                f"DBT_HOST ('{host}') appears to contain a different account prefix "
+                f"('{result.mismatched_prefix}') than the configured prefix '{self.actual_host_prefix}'. "
+                "This may result in incorrect URL construction."
+            )
+            return host
+        return result.base_host
 
     @property
     def dbt_project_yml(self) -> DbtProjectYaml | None:
@@ -258,30 +285,47 @@ class DbtMcpSettings(BaseSettings):
 
     @field_validator("disable_tools", mode="before")
     @classmethod
-    def parse_disable_tools(cls, env_var: str | None) -> list[ToolName]:
+    def parse_disable_tools(cls, env_var: str | None) -> list[ToolName] | None:
         return _parse_tool_list(env_var, "DISABLE_TOOLS")
 
     @field_validator("enable_tools", mode="before")
     @classmethod
-    def parse_enable_tools(cls, env_var: str | None) -> list[ToolName]:
+    def parse_enable_tools(cls, env_var: str | None) -> list[ToolName] | None:
         return _parse_tool_list(env_var, "DBT_MCP_ENABLE_TOOLS")
+
+    @field_validator("dbt_project_ids", mode="before")
+    @classmethod
+    def parse_project_ids(cls, v: str | list | None) -> list[int] | None:
+        if v is None:
+            return None
+        if isinstance(v, list):
+            if not v:
+                raise ValueError("DBT_PROJECT_IDS must contain at least one project id")
+            return [int(i) for i in v]
+        project_ids = [int(i.strip()) for i in str(v).split(",") if i.strip()]
+        if not project_ids:
+            raise ValueError("DBT_PROJECT_IDS must contain at least one project id")
+        return project_ids
 
     @model_validator(mode="after")
     def auto_disable(self) -> "DbtMcpSettings":
         """Auto-disable features based on required settings."""
-        # platform features
-        if (
-            not self.actual_host
-        ):  # host is the only truly required setting for platform features
-            # object.__setattr__ is used in case we want to set values on a frozen model
-            object.__setattr__(self, "disable_semantic_layer", True)
-            object.__setattr__(self, "disable_discovery", True)
-            object.__setattr__(self, "disable_admin_api", True)
-            object.__setattr__(self, "disable_sql", True)
-
-            logger.warning(
-                "Platform features have been automatically disabled due to missing DBT_HOST."
-            )
+        # Warn once at startup if DBT_HOST already embeds the account prefix
+        host = self.actual_host
+        prefix = self.actual_host_prefix
+        if host and prefix:
+            result = parse_host_prefix(host, prefix)
+            if result.prefix_embedded:
+                prefix_env_var = (
+                    "DBT_HOST_PREFIX"
+                    if self.host_prefix is not None
+                    else "MULTICELL_ACCOUNT_PREFIX"
+                )
+                logger.warning(
+                    f"DBT_HOST ('{host}') already contains the account prefix '{prefix}'. "
+                    "The prefix will be stripped to avoid URL duplication. "
+                    f"Consider setting DBT_HOST='{result.base_host}' and keeping {prefix_env_var}='{prefix}'."
+                )
 
         # CLI features
         cli_errors = validate_dbt_cli_settings(self)
@@ -294,22 +338,26 @@ class DbtMcpSettings(BaseSettings):
         return self
 
 
-def _parse_tool_list(env_var: str | None, field_name: str) -> list[ToolName]:
+def _parse_tool_list(env_var: str | None, field_name: str) -> list[ToolName] | None:
     """Parse comma-separated tool names from environment variable.
+
+    Invalid tool names are logged as warnings and skipped, allowing the
+    application to continue with valid tool names only.
+
+    The distinction between None and empty list is important:
+    - None: env var not set -> default behavior (all tools enabled)
+    - Empty list: env var set but no valid tools -> allowlist mode with nothing allowed
 
     Args:
         env_var: Comma-separated tool names
         field_name: Name of the field for error messages
 
     Returns:
-        List of validated ToolName enums
-
-    Raises:
-        ValueError: If any tool names are invalid
+        None if env var not set, otherwise list of validated ToolName enums
+        (invalid names are skipped)
     """
-    if not env_var:
-        return []
-    errors: list[str] = []
+    if env_var is None:
+        return None
     tool_names: list[ToolName] = []
     for tool_name in env_var.split(","):
         tool_name_stripped = tool_name.strip()
@@ -318,157 +366,65 @@ def _parse_tool_list(env_var: str | None, field_name: str) -> list[ToolName]:
         try:
             tool_names.append(ToolName(tool_name_stripped.lower()))
         except ValueError:
-            errors.append(
-                f"Invalid tool name in {field_name}: {tool_name_stripped}. "
+            logger.warning(
+                f"Ignoring invalid tool name in {field_name}: '{tool_name_stripped}'. "
                 "Must be a valid tool name."
             )
-    if errors:
-        raise ValueError("\n".join(errors))
     return tool_names
 
 
-def _find_available_port(*, start_port: int, max_attempts: int = 20) -> int:
-    """
-    Return the first available port on 127.0.0.1 starting at start_port.
+@dataclass(frozen=True)
+class HostPrefixResult:
+    base_host: str  # Host with first label stripped; matches configured prefix when prefix_embedded=True, or suggested base host on mismatch
+    prefix_embedded: bool  # True if configured prefix was at start of host
+    mismatched_prefix: (
+        str | None
+    )  # Set if host has 4+ labels with different first label
 
-    Raises RuntimeError if no port is found within the attempted range.
-    """
-    for candidate_port in range(start_port, start_port + max_attempts):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            try:
-                sock.bind(("127.0.0.1", candidate_port))
-            except OSError:
-                continue
-            return candidate_port
-    raise RuntimeError(
-        "No available port found starting at "
-        f"{start_port} after {max_attempts} attempts."
+
+def parse_host_prefix(host: str, prefix: str | None) -> HostPrefixResult:
+    if prefix and host.startswith(f"{prefix}."):
+        return HostPrefixResult(
+            base_host=host.removeprefix(f"{prefix}."),
+            prefix_embedded=True,
+            mismatched_prefix=None,
+        )
+    labels = host.split(".")
+    if prefix and len(labels) >= 4 and labels[0] != prefix:
+        return HostPrefixResult(
+            base_host=".".join(labels[1:]),
+            prefix_embedded=False,
+            mismatched_prefix=labels[0],
+        )
+    return HostPrefixResult(
+        base_host=host,
+        prefix_embedded=False,
+        mismatched_prefix=None,
     )
 
 
-def get_dbt_profiles_path(dbt_profiles_dir: str | None = None) -> Path:
-    # Respect DBT_PROFILES_DIR if set; otherwise default to ~/.dbt/mcp.yml
-    if dbt_profiles_dir:
-        return Path(dbt_profiles_dir).expanduser()
-    else:
-        return Path.home() / ".dbt"
+def _build_dbt_platform_url(actual_host: str, actual_host_prefix: str | None) -> str:
+    """Build the dbt Platform base URL, prepending the account prefix when needed.
 
-
-def _is_context_complete(dbt_ctx: DbtPlatformContext | None) -> bool:
-    """Check if the context has all required fields (regardless of token expiry).
-
-    Note: dev_environment is optional since not all projects have a development
-    environment configured. prod_environment is required for semantic layer
-    and other core features.
+    Handles three cases:
+    - Prefix set, not yet in host: prepend it (e.g. 'us1.dbt.com' + 'ab123' → 'https://ab123.us1.dbt.com')
+    - Prefix set, already in host: use host as-is (no double prefix)
+    - No prefix: use host as-is
     """
-    return bool(
-        dbt_ctx
-        and dbt_ctx.account_id
-        and dbt_ctx.host_prefix
-        and dbt_ctx.prod_environment
-        and dbt_ctx.decoded_access_token
-    )
-
-
-def _is_token_valid(dbt_ctx: DbtPlatformContext) -> bool:
-    """Check if the access token is still valid (not expired)."""
-    if not dbt_ctx.decoded_access_token:
-        return False
-    expires_at = dbt_ctx.decoded_access_token.access_token_response.expires_at
-    return expires_at > time.time() + 120  # 2 minutes buffer
-
-
-def _try_refresh_token(
-    dbt_ctx: DbtPlatformContext,
-    dbt_platform_url: str,
-    dbt_platform_context_manager: DbtPlatformContextManager,
-) -> DbtPlatformContext | None:
-    """
-    Attempt to refresh the access token using the refresh token.
-    Returns the updated context if successful, None otherwise.
-    """
-    if not dbt_ctx.decoded_access_token:
-        return None
-
-    refresh_token = dbt_ctx.decoded_access_token.access_token_response.refresh_token
-    if not refresh_token:
-        return None
-
-    try:
-        logger.info("Access token expired, attempting refresh using refresh token")
-        token_url = f"{dbt_platform_url}/oauth/token"
-        oauth_client = OAuth2Session(
-            client_id=OAUTH_CLIENT_ID,
-            token_endpoint=token_url,
-        )
-        token_response = oauth_client.refresh_token(
-            url=token_url,
-            refresh_token=refresh_token,
-        )
-        new_context = dbt_platform_context_from_token_response(
-            token_response, dbt_platform_url
-        )
-        # Merge the new token with the existing context (preserves account/env info)
-        updated_context = dbt_ctx.override(new_context)
-        dbt_platform_context_manager.write_context_to_file(updated_context)
-        logger.info("Successfully refreshed access token at startup")
-        return updated_context
-    except Exception as e:
-        logger.warning(f"Failed to refresh token at startup: {e}")
-        return None
-
-
-async def get_dbt_platform_context(
-    *,
-    dbt_user_dir: Path,
-    dbt_platform_url: str,
-    dbt_platform_context_manager: DbtPlatformContextManager,
-) -> DbtPlatformContext:
-    # Some MCP hosts (Claude Desktop) tend to run multiple MCP servers instances.
-    # We need to lock so that only one can run the oauth flow.
-    with FileLock(dbt_user_dir / "mcp.lock"):
-        dbt_ctx = dbt_platform_context_manager.read_context()
-
-        # If context is complete, check token validity
-        if _is_context_complete(dbt_ctx):
-            assert dbt_ctx is not None  # for type checker
-            # If token is still valid, use context directly
-            if _is_token_valid(dbt_ctx):
-                return dbt_ctx
-            # Token expired, try to refresh
-            refreshed_ctx = _try_refresh_token(
-                dbt_ctx, dbt_platform_url, dbt_platform_context_manager
-            )
-            if refreshed_ctx:
-                return refreshed_ctx
-
-        # Fall back to full OAuth login flow
-        selected_port = _find_available_port(start_port=OAUTH_REDIRECT_STARTING_PORT)
-        return await login(
-            dbt_platform_url=dbt_platform_url,
-            port=selected_port,
-            dbt_platform_context_manager=dbt_platform_context_manager,
-        )
-
-
-def get_dbt_host(
-    settings: DbtMcpSettings, dbt_platform_context: DbtPlatformContext
-) -> str:
-    actual_host = settings.actual_host
-    if not actual_host:
-        raise ValueError("DBT_HOST is a required environment variable")
-    host_prefix_with_period = f"{dbt_platform_context.host_prefix}."
-    if not actual_host.startswith(host_prefix_with_period):
+    result = parse_host_prefix(actual_host, actual_host_prefix)
+    if result.mismatched_prefix is not None:
         raise ValueError(
-            f"The DBT_HOST environment variable is expected to start with the {dbt_platform_context.host_prefix} custom subdomain."
+            f"DBT_HOST ('{actual_host}') appears to already contain an account prefix "
+            f"('{result.mismatched_prefix}') that differs from the configured prefix '{actual_host_prefix}'. "
+            f"Set DBT_HOST to the base host (e.g. '{result.base_host}') "
+            "or update your prefix env var."
         )
-    # We have to remove the custom subdomain prefix
-    # so that the metadata and semantic-layer URLs can be constructed correctly.
-    return actual_host.removeprefix(host_prefix_with_period)
+    if actual_host_prefix and not result.prefix_embedded:
+        return f"https://{actual_host_prefix}.{actual_host}"
+    return f"https://{actual_host}"
 
 
-def validate_settings(settings: DbtMcpSettings):
+def validate_settings(settings: DbtMcpSettings) -> None:
     errors: list[str] = []
     errors.extend(validate_dbt_platform_settings(settings))
     errors.extend(validate_dbt_cli_settings(settings))
@@ -476,9 +432,8 @@ def validate_settings(settings: DbtMcpSettings):
         raise ValueError("Errors found in configuration:\n\n" + "\n".join(errors))
 
 
-def validate_dbt_platform_settings(
-    settings: DbtMcpSettings,
-) -> list[str]:
+def validate_dbt_platform_settings(settings: DbtMcpSettings) -> list[str]:
+    """Validate platform settings."""
     errors: list[str] = []
     if (
         not settings.disable_semantic_layer
@@ -490,9 +445,19 @@ def validate_dbt_platform_settings(
             errors.append(
                 "DBT_HOST environment variable is required when semantic layer, discovery, SQL or admin API tools are enabled."
             )
-        if not settings.actual_prod_environment_id:
+        if (
+            settings.actual_prod_environment_id is None
+            and settings.dbt_project_ids is None
+        ):
             errors.append(
-                "DBT_PROD_ENV_ID environment variable is required when semantic layer, discovery, SQL or admin API tools are enabled."
+                "DBT_PROD_ENV_ID or DBT_PROJECT_IDS environment variable is required when semantic layer, discovery, SQL or admin API tools are enabled."
+            )
+        if (
+            settings.actual_prod_environment_id is not None
+            and settings.dbt_project_ids is not None
+        ):
+            errors.append(
+                "DBT_PROD_ENV_ID and DBT_PROJECT_IDS environment variables cannot be set at the same time."
             )
         if not settings.dbt_token:
             errors.append(
@@ -545,69 +510,3 @@ def validate_dbt_cli_settings(settings: DbtMcpSettings) -> list[str]:
                     f"DBT_PATH executable can't be found: {settings.dbt_path}"
                 )
     return errors
-
-
-class CredentialsProvider:
-    def __init__(self, settings: DbtMcpSettings):
-        self.settings = settings
-        self.token_provider: TokenProvider | None = None
-        self.authentication_method: AuthenticationMethod | None = None
-
-    def _log_settings(self) -> None:
-        settings = self.settings.model_dump()
-        if settings.get("dbt_token") is not None:
-            settings["dbt_token"] = "***redacted***"
-        logger.info(f"Settings: {settings}")
-
-    async def get_credentials(self) -> tuple[DbtMcpSettings, TokenProvider]:
-        if self.token_provider is not None:
-            # If token provider is already set, just return the cached values
-            return self.settings, self.token_provider
-        # Load settings from environment variables using pydantic_settings
-        dbt_platform_errors = validate_dbt_platform_settings(self.settings)
-        if dbt_platform_errors:
-            dbt_user_dir = get_dbt_profiles_path(
-                dbt_profiles_dir=self.settings.dbt_profiles_dir
-            )
-            config_location = dbt_user_dir / "mcp.yml"
-            dbt_platform_url = f"https://{self.settings.actual_host}"
-            dbt_platform_context_manager = DbtPlatformContextManager(config_location)
-            dbt_platform_context = await get_dbt_platform_context(
-                dbt_platform_context_manager=dbt_platform_context_manager,
-                dbt_user_dir=dbt_user_dir,
-                dbt_platform_url=dbt_platform_url,
-            )
-
-            # Override settings with settings attained from login or mcp.yml
-            self.settings.dbt_user_id = dbt_platform_context.user_id
-            self.settings.dbt_dev_env_id = (
-                dbt_platform_context.dev_environment.id
-                if dbt_platform_context.dev_environment
-                else None
-            )
-            self.settings.dbt_prod_env_id = (
-                dbt_platform_context.prod_environment.id
-                if dbt_platform_context.prod_environment
-                else None
-            )
-            self.settings.dbt_account_id = dbt_platform_context.account_id
-            self.settings.host_prefix = dbt_platform_context.host_prefix
-            self.settings.dbt_host = get_dbt_host(self.settings, dbt_platform_context)
-            if not dbt_platform_context.decoded_access_token:
-                raise ValueError("No decoded access token found in OAuth context")
-            self.settings.dbt_token = dbt_platform_context.decoded_access_token.access_token_response.access_token
-
-            self.token_provider = OAuthTokenProvider(
-                access_token_response=dbt_platform_context.decoded_access_token.access_token_response,
-                dbt_platform_url=dbt_platform_url,
-                context_manager=dbt_platform_context_manager,
-            )
-            validate_settings(self.settings)
-            self.authentication_method = AuthenticationMethod.OAUTH
-            self._log_settings()
-            return self.settings, self.token_provider
-        self.token_provider = StaticTokenProvider(token=self.settings.dbt_token)
-        validate_settings(self.settings)
-        self.authentication_method = AuthenticationMethod.ENV_VAR
-        self._log_settings()
-        return self.settings, self.token_provider

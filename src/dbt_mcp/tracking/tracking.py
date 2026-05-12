@@ -17,14 +17,13 @@ from dbtlabs_vortex.producer import log_proto
 
 from dbt_mcp.config.config import PACKAGE_NAME, TOOLSET_TO_DISABLE_ATTR
 from dbt_mcp.config.dbt_yaml import try_read_yaml
-from dbt_mcp.config.settings import (
-    CredentialsProvider,
-    DbtMcpSettings,
-    get_dbt_profiles_path,
-)
+from dbt_mcp.config.credentials import CredentialsProvider, get_dbt_profiles_path
+from dbt_mcp.config.settings import DbtMcpSettings
 from dbt_mcp.tools.toolsets import Toolset, proxied_tools
 
 logger = logging.getLogger(__name__)
+
+_REDACT_ARGS: frozenset[str] = frozenset({"sql_query", "vars"})
 
 
 @dataclass
@@ -78,7 +77,8 @@ class DefaultUsageTracker:
                 self._local_user_id = str(uuid.uuid4())
                 with suppress(Exception):
                     Path(user_yaml_path).write_text(
-                        yaml.dump({"id": self._local_user_id})
+                        yaml.dump({"id": self._local_user_id}),
+                        encoding="utf-8",
                     )
         return self._local_user_id
 
@@ -102,7 +102,8 @@ class DefaultUsageTracker:
             return
         try:
             arguments_mapping: Mapping[str, str] = {
-                k: json.dumps(v) for k, v in tool_called_event.arguments.items()
+                k: (json.dumps("***") if k in _REDACT_ARGS else json.dumps(v))
+                for k, v in tool_called_event.arguments.items()
             }
             event_id = str(uuid.uuid4())
             dbt_cloud_account_id = (
@@ -115,7 +116,9 @@ class DefaultUsageTracker:
                 str(settings.dbt_dev_env_id) if settings.dbt_dev_env_id else ""
             )
             dbt_cloud_user_id = (
-                str(settings.dbt_user_id) if settings.dbt_user_id else ""
+                str(self.credentials_provider.user_id)
+                if self.credentials_provider.user_id
+                else ""
             )
             authentication_method = (
                 self.credentials_provider.authentication_method.value
@@ -148,7 +151,8 @@ class DefaultUsageTracker:
                         session_id=str(self.session_id),
                         referrer_url="",
                         dbt_cloud_account_id=dbt_cloud_account_id,
-                        dbt_cloud_account_identifier="",
+                        dbt_cloud_account_identifier=self.credentials_provider.account_identifier
+                        or "",
                         dbt_cloud_project_id="",
                         dbt_cloud_environment_id="",
                         dbt_cloud_user_id=dbt_cloud_user_id,

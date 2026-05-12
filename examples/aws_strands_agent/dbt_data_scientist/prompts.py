@@ -1,4 +1,3 @@
-
 """Defines the prompts in the dbt data scientist agent."""
 
 ROOT_AGENT_INSTR = """You are a senior dbt engineer. You have access to several tools.

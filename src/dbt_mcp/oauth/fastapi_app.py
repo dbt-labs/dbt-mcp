@@ -2,7 +2,6 @@ import logging
 from typing import cast
 from urllib.parse import quote
 
-import requests
 from authlib.integrations.requests_client import OAuth2Session
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
@@ -10,19 +9,27 @@ from fastapi.staticfiles import StaticFiles
 from starlette.types import Receive, Scope, Send
 from uvicorn import Server
 
+from dbt_mcp.config.config_providers import (
+    AdminApiConfig,
+    StaticConfigProvider,
+)
+from dbt_mcp.config.headers import AdminApiHeadersProvider
+from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
+from dbt_mcp.errors.hints import with_multicell_hint
 from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
 from dbt_mcp.oauth.dbt_platform import (
-    DbtPlatformAccount,
     DbtPlatformContext,
-    DbtPlatformEnvironment,
-    DbtPlatformEnvironmentResponse,
     DbtPlatformProject,
-    GetEnvironmentsRequest,
-    SelectedProjectRequest,
+    SelectedProjectsRequest,
     dbt_platform_context_from_token_response,
 )
 from dbt_mcp.oauth.token import (
     DecodedAccessToken,
+)
+from dbt_mcp.oauth.token_provider import StaticTokenProvider
+from dbt_mcp.project.project_resolver import (
+    get_all_accounts,
+    get_all_projects_for_account,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,74 +61,6 @@ class NoCacheStaticFiles(StaticFiles):
 
         # Call the parent class with our modified send function
         await super().__call__(scope, receive, send_wrapper)
-
-
-def _get_all_accounts(
-    *,
-    dbt_platform_url: str,
-    headers: dict[str, str],
-) -> list[DbtPlatformAccount]:
-    accounts_response = requests.get(
-        url=f"{dbt_platform_url}/api/v3/accounts/",
-        headers=headers,
-    )
-    accounts_response.raise_for_status()
-    return [
-        DbtPlatformAccount(**account) for account in accounts_response.json()["data"]
-    ]
-
-
-def _get_all_projects_for_account(
-    *,
-    dbt_platform_url: str,
-    account: DbtPlatformAccount,
-    headers: dict[str, str],
-    page_size: int = 100,
-) -> list[DbtPlatformProject]:
-    """Fetch all projects for an account using offset/page_size pagination."""
-    offset = 0
-    projects: list[DbtPlatformProject] = []
-    while True:
-        projects_response = requests.get(
-            f"{dbt_platform_url}/api/v3/accounts/{account.id}/projects/?state=1&offset={offset}&limit={page_size}",
-            headers=headers,
-        )
-        projects_response.raise_for_status()
-        page = projects_response.json()["data"]
-        projects.extend(
-            DbtPlatformProject(**project, account_name=account.name) for project in page
-        )
-        if len(page) < page_size:
-            break
-        offset += page_size
-    return projects
-
-
-def _get_all_environments_for_project(
-    *,
-    dbt_platform_url: str,
-    account_id: int,
-    project_id: int,
-    headers: dict[str, str],
-    page_size: int = 100,
-) -> list[DbtPlatformEnvironmentResponse]:
-    """Fetch all environments for a project using offset/page_size pagination."""
-    offset = 0
-    environments: list[DbtPlatformEnvironmentResponse] = []
-    while True:
-        environments_response = requests.get(
-            f"{dbt_platform_url}/api/v3/accounts/{account_id}/projects/{project_id}/environments/?state=1&offset={offset}&limit={page_size}",
-            headers=headers,
-        )
-        environments_response.raise_for_status()
-        page = environments_response.json()["data"]
-        environments.extend(
-            DbtPlatformEnvironmentResponse(**environment) for environment in page
-        )
-        if len(page) < page_size:
-            break
-        offset += page_size
-    return environments
 
 
 def create_app(
@@ -184,6 +123,8 @@ def create_app(
             logger.exception("OAuth callback failed")
             default_msg = "An unexpected error occurred during authentication"
             error_message = str(e) if str(e) else default_msg
+            # Add hint for SSL errors (common with multi-cell misconfiguration)
+            error_message = with_multicell_hint(error_message)
             return error_redirect("oauth_failed", error_message)
 
     @app.post("/shutdown")
@@ -195,7 +136,7 @@ def create_app(
         return {"ok": True}
 
     @app.get("/projects")
-    def projects() -> list[DbtPlatformProject]:
+    async def projects() -> list[DbtPlatformProject]:
         if app.state.decoded_access_token is None:
             raise RuntimeError("Access token missing; OAuth flow not completed")
         access_token = app.state.decoded_access_token.access_token_response.access_token
@@ -203,14 +144,14 @@ def create_app(
             "Accept": "application/json",
             "Authorization": f"Bearer {access_token}",
         }
-        accounts = _get_all_accounts(
+        accounts = await get_all_accounts(
             dbt_platform_url=dbt_platform_url,
             headers=headers,
         )
         projects: list[DbtPlatformProject] = []
         for account in [a for a in accounts if a.state == 1 and not a.locked]:
             projects.extend(
-                _get_all_projects_for_account(
+                await get_all_projects_for_account(
                     dbt_platform_url=dbt_platform_url,
                     account=account,
                     headers=headers,
@@ -223,38 +164,11 @@ def create_app(
         logger.info("Selected project received")
         return dbt_platform_context_manager.read_context() or DbtPlatformContext()
 
-    @app.post("/environments")
-    def get_deployment_environments(
-        request: GetEnvironmentsRequest,
-    ) -> list[DbtPlatformEnvironmentResponse]:
-        """Get all deployment environments for a project, excluding development environments."""
-        logger.info("Getting environments for project %s", request.project_id)
-        if app.state.decoded_access_token is None:
-            raise RuntimeError("Access token missing; OAuth flow not completed")
-        access_token = app.state.decoded_access_token.access_token_response.access_token
-        headers = {
-            "Accept": "application/json",
-            "Authorization": f"Bearer {access_token}",
-        }
-        environments = _get_all_environments_for_project(
-            dbt_platform_url=dbt_platform_url,
-            account_id=request.account_id,
-            project_id=request.project_id,
-            headers=headers,
-            page_size=100,
-        )
-        # Filter out development environments since this is for selecting production
-        return [
-            env
-            for env in environments
-            if not (env.type and env.type.lower() == "development")
-        ]
-
-    @app.post("/selected_project")
-    def set_selected_project(
-        selected_project_request: SelectedProjectRequest,
+    @app.post("/selected_projects")
+    async def set_selected_projects(
+        selected_projects_request: SelectedProjectsRequest,
     ) -> DbtPlatformContext:
-        logger.info("Selected project received")
+        logger.info("Selected projects received")
         if app.state.decoded_access_token is None:
             raise RuntimeError("Access token missing; OAuth flow not completed")
         access_token = app.state.decoded_access_token.access_token_response.access_token
@@ -262,70 +176,58 @@ def create_app(
             "Accept": "application/json",
             "Authorization": f"Bearer {access_token}",
         }
-        accounts = _get_all_accounts(
+        accounts = await get_all_accounts(
             dbt_platform_url=dbt_platform_url,
             headers=headers,
         )
         account = next(
-            (a for a in accounts if a.id == selected_project_request.account_id), None
+            (a for a in accounts if a.id == selected_projects_request.account_id),
+            None,
         )
         if account is None:
-            raise ValueError(f"Account {selected_project_request.account_id} not found")
-        environments = _get_all_environments_for_project(
-            dbt_platform_url=dbt_platform_url,
-            account_id=selected_project_request.account_id,
-            project_id=selected_project_request.project_id,
-            headers=headers,
-            page_size=100,
+            raise ValueError(
+                f"Account {selected_projects_request.account_id} not found"
+            )
+
+        admin_client = DbtAdminAPIClient(
+            StaticConfigProvider(
+                config=AdminApiConfig(
+                    url=dbt_platform_url,
+                    headers_provider=AdminApiHeadersProvider(
+                        token_provider=StaticTokenProvider(access_token)
+                    ),
+                    account_id=selected_projects_request.account_id,
+                    prod_environment_id=None,
+                )
+            )
         )
 
         prod_environment = None
         dev_environment = None
-
-        # If a specific prod_environment_id was provided, use it
-        if selected_project_request.prod_environment_id:
-            for environment in environments:
-                if environment.id == selected_project_request.prod_environment_id:
-                    prod_environment = DbtPlatformEnvironment(
-                        id=environment.id,
-                        name=environment.name,
-                        deployment_type=environment.deployment_type or "production",
-                    )
-                    break
+        selected_project_ids = None
+        if len(selected_projects_request.project_ids) == 1:
+            # Single project: auto-detect environments and route to single-project
+            # tools (no project_id param) by leaving selected_project_ids unset.
+            environments = await admin_client.fetch_project_environment_responses(
+                selected_projects_request.project_ids[0],
+                page_size=100,
+            )
+            prod_environment, dev_environment = DbtAdminAPIClient.resolve_environments(
+                environments
+            )
         else:
-            # Fall back to auto-detection based on deployment_type
-            for environment in environments:
-                if (
-                    environment.deployment_type
-                    and environment.deployment_type.lower() == "production"
-                ):
-                    prod_environment = DbtPlatformEnvironment(
-                        id=environment.id,
-                        name=environment.name,
-                        deployment_type=environment.deployment_type,
-                    )
-                    break
-
-        # Always try to auto-detect dev environment
-        for environment in environments:
-            if (
-                environment.deployment_type
-                and environment.deployment_type.lower() == "development"
-            ):
-                dev_environment = DbtPlatformEnvironment(
-                    id=environment.id,
-                    name=environment.name,
-                    deployment_type=environment.deployment_type,
-                )
-                break
+            # Multiple projects: set selected_project_ids so the dispatcher routes
+            # to multi-project tools (with project_id param).
+            selected_project_ids = selected_projects_request.project_ids
 
         dbt_platform_context = dbt_platform_context_manager.update_context(
             new_dbt_platform_context=DbtPlatformContext(
                 decoded_access_token=app.state.decoded_access_token,
-                dev_environment=dev_environment,
-                prod_environment=prod_environment,
                 host_prefix=account.host_prefix,
                 account_id=account.id,
+                selected_project_ids=selected_project_ids,
+                prod_environment=prod_environment,
+                dev_environment=dev_environment,
             ),
         )
         app.state.dbt_platform_context = dbt_platform_context

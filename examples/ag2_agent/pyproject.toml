@@ -1,0 +1,9 @@
+[project]
+name = "ag2-agent"
+version = "0.1.0"
+description = "AG2 multi-agent integration with dbt-mcp"
+readme = "README.md"
+requires-python = ">=3.12, <3.14"
+dependencies = [
+    "ag2[openai,mcp]>=0.11.0",
+]

@@ -1,4 +1,5 @@
 {
+  "js/ts.tsdk.path": "ui/node_modules/typescript/lib",
   "python.testing.pytestArgs": [
     "tests",
     "evals"

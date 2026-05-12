@@ -19,6 +19,7 @@ class Toolset(Enum):
     ADMIN_API = "admin_api"
     DBT_CODEGEN = "dbt_codegen"
     DBT_LSP = "dbt_lsp"
+    PRODUCT_DOCS = "product_docs"
     MCP_SERVER_METADATA = "mcp_server_metadata"
 
 
@@ -69,6 +70,7 @@ toolsets = {
         ToolName.GET_EXPOSURES,
         ToolName.GET_EXPOSURE_DETAILS,
         ToolName.GET_RELATED_MODELS,
+        ToolName.GET_ALL_MACROS,
         ToolName.GET_MACRO_DETAILS,
         ToolName.GET_SEED_DETAILS,
         ToolName.GET_SEMANTIC_MODEL_DETAILS,
@@ -85,20 +87,20 @@ toolsets = {
         ToolName.RUN,
         ToolName.TEST,
         ToolName.SHOW,
-        ToolName.GET_MODEL_LINEAGE_DEV,
+        ToolName.CLONE,
+        ToolName.GET_LINEAGE_DEV,
         ToolName.GET_NODE_DETAILS_DEV,
     },
     Toolset.ADMIN_API: {
+        ToolName.LIST_PROJECTS,
         ToolName.LIST_JOBS,
         ToolName.GET_JOB_DETAILS,
-        ToolName.GET_PROJECT_DETAILS,
         ToolName.TRIGGER_JOB_RUN,
         ToolName.LIST_JOBS_RUNS,
         ToolName.GET_JOB_RUN_DETAILS,
         ToolName.CANCEL_JOB_RUN,
         ToolName.RETRY_JOB_RUN,
         ToolName.LIST_JOB_RUN_ARTIFACTS,
-        ToolName.GET_JOB_RUN_ARTIFACT,
         ToolName.GET_JOB_RUN_ERROR,
     },
     Toolset.DBT_CODEGEN: {
@@ -111,8 +113,13 @@ toolsets = {
         ToolName.FUSION_COMPILE_SQL,
         ToolName.FUSION_GET_COLUMN_LINEAGE,
     },
+    Toolset.PRODUCT_DOCS: {
+        ToolName.SEARCH_PRODUCT_DOCS,
+        ToolName.GET_PRODUCT_DOC_PAGES,
+    },
     Toolset.MCP_SERVER_METADATA: {
         ToolName.GET_MCP_SERVER_VERSION,
+        ToolName.GET_MCP_SERVER_BRANCH,
     },
 }
 

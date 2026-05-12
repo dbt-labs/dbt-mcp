@@ -2,12 +2,6 @@ Download a specific artifact file from a dbt job run.
 
 This tool retrieves the content of a specific artifact file generated during run execution, such as manifest.json, catalog.json, or compiled SQL files.
 
-## Parameters
-
-- **run_id** (required): The run ID containing the artifact
-- **artifact_path** (required): The path to the specific artifact file
-- **step** (optional): The step index to retrieve artifacts from (default: last step)
-
 ## Common Artifact Paths
 
 - **manifest.json**: Complete dbt project metadata, models, and lineage

@@ -18,7 +18,8 @@ and entity are referenced differently. For categorical dimensions,
 use `{{ Dimension('<name>') }}` and for time dimensions add the grain
 like `{{ TimeDimension('<name>', '<grain>') }}`. For entities,
 use `{{ Entity('<name>') }}`. When referencing dates in the `where`
-parameter, only use the format `yyyy-mm-dd`.
+parameter, only use the format `yyyy-mm-dd`. Pass the `where` value as a
+plain string — do not wrap it in additional quotes.
 
 Don't call this tool if the user's question cannot be answered with the provided
 metrics, dimensions, and entities. Instead, clarify what metrics, dimensions,
@@ -145,10 +146,3 @@ Parameters:
 </example>
 </examples>
 
-<parameters>
-metrics: List of metric names (strings) to query for.
-group_by: Optional list of objects with name (string), type ("dimension" or "time_dimension"), and grain (string or null for time dimensions only).
-order_by: Optional list of objects with name (string) and descending (boolean, default false).
-where: Optional SQL WHERE clause (string) to filter results.
-limit: Optional limit (integer) for number of results.
-</parameters>

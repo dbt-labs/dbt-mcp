@@ -3,10 +3,28 @@
 from dbt_mcp.errors.base import ToolCallError
 
 
+class ConfigurationError(ToolCallError):
+    """Exception raised when there is an error in the configuration."""
+
+    pass
+
+
 class InvalidParameterError(ToolCallError):
     """Exception raised when invalid or missing parameters are provided.
 
     This is a cross-cutting error used by multiple tool types.
     """
+
+    pass
+
+
+class NotFoundError(ToolCallError):
+    """Exception raised when a resource is not found."""
+
+    pass
+
+
+class MissingHostError(ConfigurationError):
+    """Raised when DBT_HOST is required but not configured."""
 
     pass

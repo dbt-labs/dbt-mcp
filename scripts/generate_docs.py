@@ -4,6 +4,7 @@ import re
 import sys
 from pathlib import Path
 
+from dbt_mcp.tools.readme_mappings import HUMAN_DESCRIPTIONS, TOOLSET_DESCRIPTIONS
 from dbt_mcp.tools.toolsets import toolsets
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -26,7 +27,7 @@ def format_toolset_heading(toolset_value: str) -> str:
     text = toolset_value.replace("_", " ").title()
 
     # Uppercase common acronyms
-    text = re.sub(r"\b(Sql|Api|Cli|Lsp)\b", lambda m: m.group(1).upper(), text)
+    text = re.sub(r"\b(Sql|Api|Cli|Lsp|Mcp)\b", lambda m: m.group(1).upper(), text)
 
     # "dbt" stylized as lowercase
     text = re.sub(r"\bDbt\b", "dbt", text)
@@ -41,10 +42,15 @@ def generate_readme_tools_section() -> str:
     for toolset, tool_names in toolsets.items():
         heading = format_toolset_heading(toolset.value)
         lines.append(f"### {heading}")
+        desc = TOOLSET_DESCRIPTIONS.get(toolset)
+        if desc:
+            lines.append("")
+            lines.append(desc)
 
-        sorted_tools = sorted([tool.value for tool in tool_names])
+        sorted_tools = sorted(tool_names, key=lambda t: t.value)
         for tool in sorted_tools:
-            lines.append(f"- `{tool}`")
+            desc = HUMAN_DESCRIPTIONS.get(tool, "")
+            lines.append(f"- `{tool.value}`: {desc}")
 
         lines.append("")  # Empty line after each section
 
@@ -138,24 +144,28 @@ def update_d2_diagram(check_only: bool = False) -> bool:
     updated_content = re.sub(
         pattern, new_tools_section, diagram_content, flags=re.DOTALL
     )
-    is_up_to_date = diagram_content == updated_content
+    content_changed = diagram_content != updated_content
 
     if check_only:
-        if is_up_to_date:
+        if not content_changed:
             logger.info("✓ diagram.d2 tools section is up to date")
         else:
             logger.error("✗ diagram.d2 tools section is out of date")
-        return is_up_to_date
+        return not content_changed
     else:
         DIAGRAM_PATH.write_text(updated_content)
-        status = "was already up to date" if is_up_to_date else "updated successfully"
+        status = "updated successfully" if content_changed else "was already up to date"
         logger.info(f"diagram.d2 tools section {status}")
         return True
 
 
 def update_all(check_only: bool = False) -> bool:
     """
-    Update both README.md and diagram.d2.
+    Update README.md and diagram.d2.
+
+    Note: PNG generation is handled separately by the 'd2' task in Taskfile.yml,
+    which uses Task's built-in file caching (sources/generates) to skip regeneration
+    when diagram.d2 hasn't changed. Refer to `task docs:diagram`.
 
     Args:
         check_only: If True, only check if updates are needed without writing.
@@ -166,14 +176,14 @@ def update_all(check_only: bool = False) -> bool:
     readme_ok = update_readme(check_only)
     diagram_ok = update_d2_diagram(check_only)
 
-    if check_only and not (readme_ok and diagram_ok):
-        logger.error("\nRun: uv run scripts/generate_docs.py")
+    all_ok = readme_ok and diagram_ok
+    if check_only and not all_ok:
+        logger.error("\nRun: task docs:generate to update the documentation.")
 
-    return readme_ok and diagram_ok
+    return all_ok
 
 
 def main():
-    """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Generate or validate documentation from toolsets"
     )

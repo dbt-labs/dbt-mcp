@@ -8,6 +8,8 @@ from dbt_mcp.dbt_admin.client import (
     AdminAPIError,
     ArtifactRetrievalError,
     DbtAdminAPIClient,
+    InvalidParameterError,
+    NotFoundError,
 )
 
 
@@ -71,7 +73,7 @@ def create_mock_httpx_client(mock_response):
 
 
 async def test_client_initialization(client):
-    config = await client.get_config()
+    config = await client.config_provider.get_config()
     assert config.account_id == 12345
     assert config.headers_provider.get_headers() == {
         "Authorization": "Bearer test_token"
@@ -96,14 +98,34 @@ async def test_make_request_success(client):
     assert result == {"data": "test"}
     headers = await client.get_headers()
     mock_client.request.assert_called_once_with(
-        "GET", "https://cloud.getdbt.com/test/endpoint", headers=headers
+        "GET",
+        "https://cloud.getdbt.com/test/endpoint",
+        headers=headers,
+        follow_redirects=True,
     )
 
 
-async def test_make_request_failure(client):
+async def test_make_request_4xx_raises_invalid_parameter(client):
     mock_response = MagicMock()
     mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
-        "404 Not Found", request=MagicMock(), response=MagicMock()
+        "400 Bad Request",
+        request=MagicMock(),
+        response=MagicMock(status_code=400),
+    )
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        with pytest.raises(InvalidParameterError):
+            await client._make_request("POST", "/test/endpoint")
+
+
+async def test_make_request_5xx_raises_admin_api_error(client):
+    mock_response = MagicMock()
+    mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "500 Internal Server Error",
+        request=MagicMock(),
+        response=MagicMock(status_code=500),
     )
 
     mock_client = create_mock_httpx_client(mock_response)
@@ -136,6 +158,8 @@ async def test_list_jobs(client):
                     "started_at": "2024-01-01T00:00:00Z",
                     "finished_at": "2024-01-01T00:04:00Z",
                 },
+                "environment_id": 42,
+                "project_id": 7,
                 "schedule": {"cron": "0 9 * * *"},
                 "next_run": "2024-01-02T09:00:00Z",
             }
@@ -152,6 +176,8 @@ async def test_list_jobs(client):
     assert result[0]["id"] == 1
     assert result[0]["name"] == "test_job"
     assert result[0]["most_recent_run_id"] == 100
+    assert result[0]["environment_id"] == 42
+    assert result[0]["project_id"] == 7
     assert result[0]["schedule"] == "0 9 * * *"
 
     headers = await client.get_headers()
@@ -159,6 +185,7 @@ async def test_list_jobs(client):
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/jobs/",
         headers=headers,
+        follow_redirects=True,
         params={
             "project_id": 1,
             "limit": 10,
@@ -213,6 +240,7 @@ async def test_get_job_details(client):
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/jobs/1/",
         headers=headers,
+        follow_redirects=True,
         params={"include_related": "['most_recent_run','most_recent_completed_run']"},
     )
 
@@ -235,6 +263,7 @@ async def test_trigger_job_run(client):
         "POST",
         "https://cloud.getdbt.com/api/v2/accounts/12345/jobs/1/run/",
         headers=headers,
+        follow_redirects=True,
         json={
             "cause": "Manual trigger",
             "git_branch": "main",
@@ -333,6 +362,7 @@ async def test_list_jobs_runs(client):
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/",
         headers=headers,
+        follow_redirects=True,
         params={
             "job_definition_id": 1,
             "status": "success",
@@ -407,6 +437,7 @@ async def test_get_job_run_details(client):
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/",
         headers=headers,
+        follow_redirects=True,
         params={"include_related": "['run_steps']"},
     )
 
@@ -427,6 +458,7 @@ async def test_cancel_job_run(client):
         "POST",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/cancel/",
         headers=headers,
+        follow_redirects=True,
     )
 
 
@@ -446,6 +478,7 @@ async def test_retry_job_run(client):
         "POST",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/retry/",
         headers=headers,
+        follow_redirects=True,
     )
 
 
@@ -476,6 +509,7 @@ async def test_list_job_run_artifacts(client):
         "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/artifacts/",
         headers=headers,
+        follow_redirects=True,
     )
 
 
@@ -535,14 +569,183 @@ async def test_get_job_run_artifact_no_step_param(client):
     )
 
 
-async def test_get_job_run_artifact_request_exception(client):
+async def test_get_job_run_artifact_404_raises_not_found(client):
     mock_response = MagicMock()
+    mock_response.status_code = 404
     mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
-        "404 Not Found", request=MagicMock(), response=MagicMock()
+        "404 Not Found",
+        request=MagicMock(),
+        response=MagicMock(status_code=404),
+    )
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        with pytest.raises(NotFoundError, match="not found for run"):
+            await client.get_job_run_artifact(12345, 100, "nonexistent.json")
+
+
+async def test_get_job_run_artifact_server_error_raises_artifact_retrieval(client):
+    mock_response = MagicMock()
+    mock_response.status_code = 500
+    mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "500 Internal Server Error",
+        request=MagicMock(),
+        response=MagicMock(status_code=500),
     )
 
     mock_client = create_mock_httpx_client(mock_response)
 
     with patch("httpx.AsyncClient", return_value=mock_client):
         with pytest.raises(ArtifactRetrievalError):
-            await client.get_job_run_artifact(12345, 100, "nonexistent.json")
+            await client.get_job_run_artifact(12345, 100, "manifest.json")
+
+
+async def test_list_projects(client):
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "data": [
+            {
+                "id": 1,
+                "name": "My Project",
+                "description": "A test project",
+                "dbt_project_subdirectory": "dbt/",
+                "semantic_layer_config_id": 42,
+                "type": 0,
+                "environments": [
+                    {
+                        "id": 10,
+                        "name": "Production",
+                        "type": "deployment",
+                        "deployment_type": "production",
+                    },
+                    {
+                        "id": 11,
+                        "name": "Staging",
+                        "type": "deployment",
+                        "deployment_type": "staging",
+                    },
+                    {
+                        "id": 12,
+                        "name": "Generic",
+                        "type": "deployment",
+                        "deployment_type": None,
+                    },
+                    {
+                        "id": 13,
+                        "name": "Dev",
+                        "type": "development",
+                        "deployment_type": None,
+                    },
+                ],
+                "repository": {"full_name": "my-org/my-repo"},
+            }
+        ]
+    }
+    mock_response.raise_for_status.return_value = None
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.list_projects(12345)
+
+    assert len(result) == 1
+    p = result[0]
+    assert p["id"] == 1
+    assert p["name"] == "My Project"
+    assert p["description"] == "A test project"
+    assert p["dbt_project_subdirectory"] == "dbt/"
+    assert p["has_semantic_layer"] is True
+    assert p["type"] == 0
+    assert p["environments"] == [
+        {"id": 10, "name": "Production", "type": "production"},
+        {"id": 11, "name": "Staging", "type": "staging"},
+        {"id": 12, "name": "Generic", "type": "generic"},
+        {"id": 13, "name": "Dev", "type": "development"},
+    ]
+    assert p["repository_full_name"] == "my-org/my-repo"
+
+    headers = await client.get_headers()
+    mock_client.request.assert_called_once_with(
+        "GET",
+        "https://cloud.getdbt.com/api/v3/accounts/12345/projects/",
+        headers=headers,
+        follow_redirects=True,
+        params={
+            "state": 1,
+            "include_related": "['environments','repository']",
+        },
+    )
+
+
+async def test_get_account(client):
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "data": {"id": 12345, "name": "Test Account", "identifier": "ab123"}
+    }
+    mock_response.raise_for_status.return_value = None
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.get_account(12345)
+
+    assert result == {"id": 12345, "name": "Test Account", "identifier": "ab123"}
+    headers = await client.get_headers()
+    mock_client.request.assert_called_once_with(
+        "GET",
+        "https://cloud.getdbt.com/api/v2/accounts/12345/",
+        headers=headers,
+        follow_redirects=True,
+    )
+
+
+async def test_get_current_user(client):
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "data": {"user": {"id": 789, "email": "user@example.com"}}
+    }
+    mock_response.raise_for_status.return_value = None
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.get_current_user()
+
+    assert result == {"user": {"id": 789, "email": "user@example.com"}}
+    headers = await client.get_headers()
+    mock_client.request.assert_called_once_with(
+        "GET",
+        "https://cloud.getdbt.com/api/v2/whoami/",
+        headers=headers,
+        follow_redirects=True,
+    )
+
+
+async def test_list_projects_no_semantic_layer(client):
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "data": [
+            {
+                "id": 2,
+                "name": "Bare Project",
+                "description": None,
+                "dbt_project_subdirectory": None,
+                "semantic_layer_config_id": None,
+                "type": 1,
+                "environments": [],
+                "repository": None,
+            }
+        ]
+    }
+    mock_response.raise_for_status.return_value = None
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.list_projects(12345)
+
+    p = result[0]
+    assert p["has_semantic_layer"] is False
+    assert p["environments"] == []
+    assert p["repository_full_name"] is None

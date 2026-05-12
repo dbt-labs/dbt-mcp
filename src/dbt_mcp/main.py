@@ -8,7 +8,9 @@ from dbt_mcp.mcp.server import create_dbt_mcp
 
 def main() -> None:
     config = load_config()
+
     server = asyncio.run(create_dbt_mcp(config))
+
     transport = validate_transport(os.environ.get("MCP_TRANSPORT", "stdio"))
     server.run(transport=transport)
 

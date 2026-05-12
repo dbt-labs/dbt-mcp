@@ -1,98 +1,95 @@
 import copy
 from typing import Any
+from unittest.mock import patch
 
-import pytest
 
 from dbt_mcp.config.config_providers import (
-    ConfigProvider,
-    DefaultDiscoveryConfigProvider,
     DiscoveryConfig,
 )
-from dbt_mcp.config.settings import CredentialsProvider, DbtMcpSettings
+from dbt_mcp.discovery import client as discovery_client
 from dbt_mcp.discovery.client import (
-    MetadataAPIClient,
     ModelsFetcher,
     PaginatedResourceFetcher,
+    execute_query as real_execute_query,
 )
 
 
-class CountingMetadataAPIClient(MetadataAPIClient):
-    def __init__(self, config_provider: ConfigProvider[DiscoveryConfig]) -> None:
-        super().__init__(config_provider)
+class CountingExecuteQuery:
+    """Wraps the module-level execute_query to count calls and capture payloads."""
+
+    def __init__(self) -> None:
         self.request_calls = 0
         self.request_payloads: list[dict] = []
 
-    async def execute_query(
-        self, query: str, variables: dict[str, Any]
+    async def __call__(
+        self,
+        query: str,
+        variables: dict[str, Any],
+        *,
+        config: DiscoveryConfig,
     ) -> dict[str, Any]:
         self.request_calls += 1
         self.request_payloads.append(
             copy.deepcopy({"query": query, "variables": variables})
         )
-        return await super().execute_query(query, variables)
-
-
-@pytest.fixture
-def api_client() -> CountingMetadataAPIClient:
-    settings = DbtMcpSettings()  # type: ignore
-    credentials_provider = CredentialsProvider(settings)
-    config_provider = DefaultDiscoveryConfigProvider(credentials_provider)
-    return CountingMetadataAPIClient(config_provider)
+        return await real_execute_query(query, variables, config=config)
 
 
 async def test_models_fetcher_paginates_without_has_next_page(
-    api_client: CountingMetadataAPIClient,
+    discovery_config: DiscoveryConfig,
 ):
+    counter = CountingExecuteQuery()
     paginator = PaginatedResourceFetcher(
-        api_client,
         edges_path=("data", "environment", "applied", "models", "edges"),
         page_info_path=("data", "environment", "applied", "models", "pageInfo"),
         page_size=1,
         max_node_query_limit=5,
     )
-    models_fetcher = ModelsFetcher(api_client, paginator=paginator)
+    models_fetcher = ModelsFetcher(paginator=paginator)
 
-    results = await models_fetcher.fetch_models()
+    with patch.object(discovery_client, "execute_query", counter):
+        results = await models_fetcher.fetch_models(config=discovery_config)
 
     assert isinstance(results, list)
-    assert api_client.request_calls == len(api_client.request_payloads) > 0
+    assert counter.request_calls == len(counter.request_payloads) > 0
 
-    first_request = api_client.request_payloads[0]["variables"]
+    first_request = counter.request_payloads[0]["variables"]
     assert first_request["first"] == 1
     assert "after" not in first_request
 
-    if len(results) <= 1 or api_client.request_calls <= 1:
+    if len(results) <= 1 or counter.request_calls <= 1:
         raise Exception("Not enough models returned to exercise pagination")
 
-    second_request = api_client.request_payloads[1]["variables"]
+    second_request = counter.request_payloads[1]["variables"]
     assert second_request["first"] == 1
     assert isinstance(second_request.get("after"), str)
 
 
 async def test_models_fetcher_paginates_until_has_next_false(
-    api_client: CountingMetadataAPIClient,
+    discovery_config: DiscoveryConfig,
 ):
+    counter = CountingExecuteQuery()
     paginator = PaginatedResourceFetcher(
-        api_client,
         edges_path=("data", "environment", "applied", "models", "edges"),
         page_info_path=("data", "environment", "applied", "models", "pageInfo"),
         page_size=1,
         max_node_query_limit=5,
     )
-    models_fetcher = ModelsFetcher(api_client, paginator=paginator)
+    models_fetcher = ModelsFetcher(paginator=paginator)
 
-    results = await models_fetcher.fetch_models()
+    with patch.object(discovery_client, "execute_query", counter):
+        results = await models_fetcher.fetch_models(config=discovery_config)
 
     assert isinstance(results, list)
-    assert api_client.request_calls == len(api_client.request_payloads) > 0
+    assert counter.request_calls == len(counter.request_payloads) > 0
 
-    first_request = api_client.request_payloads[0]["variables"]
+    first_request = counter.request_payloads[0]["variables"]
     assert first_request["first"] == 1
     assert "after" not in first_request
 
-    if len(results) <= 1 or api_client.request_calls <= 1:
+    if len(results) <= 1 or counter.request_calls <= 1:
         raise Exception("Not enough models returned to exercise pagination")
 
-    second_request = api_client.request_payloads[1]["variables"]
+    second_request = counter.request_payloads[1]["variables"]
     assert second_request["first"] == 1
     assert isinstance(second_request.get("after"), str)

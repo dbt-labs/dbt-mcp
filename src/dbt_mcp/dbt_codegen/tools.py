@@ -186,7 +186,7 @@ def register_dbt_codegen_tools(
     config: DbtCodegenConfig,
     *,
     disabled_tools: set[ToolName],
-    enabled_tools: set[ToolName],
+    enabled_tools: set[ToolName] | None,
     enabled_toolsets: set[Toolset],
     disabled_toolsets: set[Toolset],
 ) -> None:

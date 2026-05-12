@@ -4,6 +4,7 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -67,6 +68,13 @@ def env_setup(tmp_path: Path, monkeypatch):
             "DBT_HOST": "http://localhost:8000",  # so platform doesn't get auto-disabled
         }
 
+        # Clear env vars that might interfere with tests from the user's environment
+        # Save original values so we can restore them after the test
+        env_vars_to_clear = ["DBT_MCP_ENABLE_TOOLS", "DISABLE_TOOLS"]
+        original_values = {k: os.environ.get(k) for k in env_vars_to_clear}
+        for var_to_clear in env_vars_to_clear:
+            os.environ.pop(var_to_clear, None)
+
         env_vars = default_env_vars | (env_vars or {})
 
         class Helpers:
@@ -100,13 +108,22 @@ def env_setup(tmp_path: Path, monkeypatch):
         if files:
             for rel, content in files.items():
                 helpers.write_file(rel, content)
-        try:
-            yield project_dir, helpers
-        finally:
-            # in case multiple tests are run in the same context
-            helpers.unset_env(*env_vars.keys())
-            shutil.rmtree(project_dir, ignore_errors=True)
-            dbt_path.unlink(missing_ok=True)
+        with patch(
+            "dbt_mcp.mcp.server.DbtMCP._is_multi_project",
+            new_callable=AsyncMock,
+            return_value=False,
+        ):
+            try:
+                yield project_dir, helpers
+            finally:
+                # in case multiple tests are run in the same context
+                helpers.unset_env(*env_vars.keys())
+                # Restore any env vars we cleared at the start
+                for k, v in original_values.items():
+                    if v is not None:
+                        os.environ[k] = v
+                shutil.rmtree(project_dir, ignore_errors=True)
+                dbt_path.unlink(missing_ok=True)
 
     yield _make
 
@@ -114,9 +131,11 @@ def env_setup(tmp_path: Path, monkeypatch):
 class MockFastMCP:
     def __init__(self):
         self.tools = {}
+        self.tool_kwargs = {}
 
     def add_tool(self, fn: Callable[..., Any], **kwargs):
         self.tools[fn.__name__] = fn
+        self.tool_kwargs[fn.__name__] = kwargs
 
     def tool(self, **kwargs):
         def decorator(func):

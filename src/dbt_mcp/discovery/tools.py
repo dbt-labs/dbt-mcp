@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -9,42 +10,37 @@ from dbt_mcp.discovery.client import (
     AppliedResourceType,
     ExposuresFetcher,
     LineageFetcher,
-    LineageResourceType,
-    MetadataAPIClient,
+    MacrosFetcher,
     ModelPerformanceFetcher,
     ModelsFetcher,
     PaginatedResourceFetcher,
     ResourceDetailsFetcher,
     SourcesFetcher,
 )
+from dbt_mcp.discovery.param_descriptions import (
+    MACRO_INCLUDE_DEFAULT_DBT_PACKAGES,
+    MACRO_PACKAGE_NAMES,
+    MACRO_RETURN_PACKAGE_NAMES_ONLY,
+    MODEL_PERF_INCLUDE_TESTS,
+    MODEL_PERF_NUM_RUNS,
+    SOURCE_NAMES_FILTER,
+    SOURCE_UNIQUE_IDS_FILTER,
+)
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
+from dbt_mcp.tools.fields import (
+    DEPTH_FIELD,
+    NAME_FIELD,
+    TYPES_FIELD,
+    UNIQUE_ID_FIELD,
+    UNIQUE_ID_REQUIRED_FIELD,
+)
+from dbt_mcp.tools.parameters import LineageResourceType
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
-
-UNIQUE_ID_FIELD = Field(
-    default=None,
-    description="Fully-qualified unique ID of the resource. "
-    "This will follow the format `<resource_type>.<package_name>.<resource_name>` "
-    "(e.g. `model.analytics.stg_orders`). "
-    "Strongly preferred over the `name` parameter for deterministic lookups.",
-)
-NAME_FIELD = Field(
-    default=None,
-    description="The name of the resource. "
-    "This is not required if `unique_id` is provided. "
-    "Only use name when `unique_id` is unknown.",
-)
-TYPES_FIELD = Field(
-    default=None,
-    description="List of resource types to include in lineage results. "
-    "If not provided, includes all types. "
-    "Valid types: Model, Source, Seed, Snapshot, Exposure, Metric, SemanticModel, SavedQuery, Test.",
-)
-DEPTH_FIELD = Field(default=5, description="The depth of the lineage graph to return.")
 
 
 @dataclass
@@ -52,24 +48,24 @@ class DiscoveryToolContext:
     models_fetcher: ModelsFetcher
     exposures_fetcher: ExposuresFetcher
     sources_fetcher: SourcesFetcher
+    macros_fetcher: MacrosFetcher
     resource_details_fetcher: ResourceDetailsFetcher
     lineage_fetcher: LineageFetcher
     model_performance_fetcher: ModelPerformanceFetcher
 
-    def __init__(self, config_provider: ConfigProvider[DiscoveryConfig]):
-        api_client = MetadataAPIClient(config_provider=config_provider)
+    def __init__(
+        self,
+        config_provider: ConfigProvider[DiscoveryConfig],
+    ):
+        self.config_provider = config_provider
         self.models_fetcher = ModelsFetcher(
-            api_client=api_client,
             paginator=PaginatedResourceFetcher(
-                api_client=api_client,
                 edges_path=("data", "environment", "applied", "models", "edges"),
                 page_info_path=("data", "environment", "applied", "models", "pageInfo"),
             ),
         )
         self.exposures_fetcher = ExposuresFetcher(
-            api_client=api_client,
             paginator=PaginatedResourceFetcher(
-                api_client=api_client,
                 edges_path=("data", "environment", "definition", "exposures", "edges"),
                 page_info_path=(
                     "data",
@@ -81,9 +77,7 @@ class DiscoveryToolContext:
             ),
         )
         self.sources_fetcher = SourcesFetcher(
-            api_client=api_client,
             paginator=PaginatedResourceFetcher(
-                api_client,
                 edges_path=("data", "environment", "applied", "sources", "edges"),
                 page_info_path=(
                     "data",
@@ -94,10 +88,21 @@ class DiscoveryToolContext:
                 ),
             ),
         )
-        self.resource_details_fetcher = ResourceDetailsFetcher(api_client=api_client)
-        self.lineage_fetcher = LineageFetcher(api_client=api_client)
+        self.macros_fetcher = MacrosFetcher(
+            paginator=PaginatedResourceFetcher(
+                edges_path=("data", "environment", "applied", "resources", "edges"),
+                page_info_path=(
+                    "data",
+                    "environment",
+                    "applied",
+                    "resources",
+                    "pageInfo",
+                ),
+            ),
+        )
+        self.resource_details_fetcher = ResourceDetailsFetcher()
+        self.lineage_fetcher = LineageFetcher()
         self.model_performance_fetcher = ModelPerformanceFetcher(
-            api_client=api_client,
             resource_details_fetcher=self.resource_details_fetcher,
         )
 
@@ -109,9 +114,12 @@ class DiscoveryToolContext:
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def get_mart_models(context: DiscoveryToolContext) -> list[dict]:
+async def get_mart_models(
+    context: DiscoveryToolContext,
+) -> list[dict]:
     mart_models = await context.models_fetcher.fetch_models(
-        model_filter={"modelingLayer": "marts"}
+        model_filter={"modelingLayer": "marts"},
+        config=await context.config_provider.get_config(),
     )
     return [m for m in mart_models if m["name"] != "metricflow_time_spine"]
 
@@ -123,8 +131,11 @@ async def get_mart_models(context: DiscoveryToolContext) -> list[dict]:
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def get_all_models(context: DiscoveryToolContext) -> list[dict]:
-    return await context.models_fetcher.fetch_models()
+async def get_all_models(
+    context: DiscoveryToolContext,
+) -> list[dict]:
+    config = await context.config_provider.get_config()
+    return await context.models_fetcher.fetch_models(config=config)
 
 
 @dbt_mcp_tool(
@@ -139,10 +150,12 @@ async def get_model_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.MODEL,
         unique_id=unique_id,
         name=name,
+        config=config,
     )
 
 
@@ -158,7 +171,10 @@ async def get_model_parents(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    return await context.models_fetcher.fetch_model_parents(name, unique_id)
+    config = await context.config_provider.get_config()
+    return await context.models_fetcher.fetch_model_parents(
+        model_name=name, unique_id=unique_id, config=config
+    )
 
 
 @dbt_mcp_tool(
@@ -173,7 +189,10 @@ async def get_model_children(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    return await context.models_fetcher.fetch_model_children(name, unique_id)
+    config = await context.config_provider.get_config()
+    return await context.models_fetcher.fetch_model_children(
+        name, unique_id, config=config
+    )
 
 
 @dbt_mcp_tool(
@@ -188,7 +207,10 @@ async def get_model_health(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
-    return await context.models_fetcher.fetch_model_health(name, unique_id)
+    config = await context.config_provider.get_config()
+    return await context.models_fetcher.fetch_model_health(
+        name, unique_id, config=config
+    )
 
 
 @dbt_mcp_tool(
@@ -204,27 +226,24 @@ async def get_model_performance(
     unique_id: str | None = UNIQUE_ID_FIELD,
     num_runs: int = Field(
         default=1,
-        description="Number of historical runs to return. Default is 1 (latest run only). "
-        "Use values > 1 to analyze performance trends over time.",
+        description=MODEL_PERF_NUM_RUNS,
         ge=1,
         le=100,
     ),
     include_tests: bool = Field(
         default=False,
-        description="If True, include test execution history (name, status, executionTime) for each run. "
-        "Useful for analyzing test performance alongside model execution. "
-        "Default is False to reduce response size.",
+        description=MODEL_PERF_INCLUDE_TESTS,
     ),
 ) -> list[dict]:
     """Get model execution performance metrics from historical runs."""
-    results = await context.model_performance_fetcher.fetch_performance(
+    config = await context.config_provider.get_config()
+    return await context.model_performance_fetcher.fetch_performance(
+        config=config,
         name=name,
         unique_id=unique_id,
         num_runs=num_runs,
         include_tests=include_tests,
     )
-
-    return results
 
 
 @dbt_mcp_tool(
@@ -236,12 +255,13 @@ async def get_model_performance(
 )
 async def get_lineage(
     context: DiscoveryToolContext,
-    unique_id: str,
+    unique_id: str = UNIQUE_ID_REQUIRED_FIELD,
     types: list[LineageResourceType] | None = TYPES_FIELD,
     depth: int = DEPTH_FIELD,
 ) -> list[dict]:
+    config = await context.config_provider.get_config()
     return await context.lineage_fetcher.fetch_lineage(
-        unique_id=unique_id, types=types, depth=depth
+        unique_id=unique_id, types=types, depth=depth, config=config
     )
 
 
@@ -252,8 +272,11 @@ async def get_lineage(
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def get_exposures(context: DiscoveryToolContext) -> list[dict]:
-    return await context.exposures_fetcher.fetch_exposures()
+async def get_exposures(
+    context: DiscoveryToolContext,
+) -> list[dict]:
+    config = await context.config_provider.get_config()
+    return await context.exposures_fetcher.fetch_exposures(config=config)
 
 
 @dbt_mcp_tool(
@@ -268,10 +291,12 @@ async def get_exposure_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.EXPOSURE,
         unique_id=unique_id,
         name=name,
+        config=config,
     )
 
 
@@ -284,10 +309,17 @@ async def get_exposure_details(
 )
 async def get_all_sources(
     context: DiscoveryToolContext,
-    source_names: list[str] | None = None,
-    unique_ids: list[str] | None = None,
+    source_names: Annotated[
+        list[str] | None, Field(description=SOURCE_NAMES_FILTER)
+    ] = None,
+    unique_ids: Annotated[
+        list[str] | None, Field(description=SOURCE_UNIQUE_IDS_FILTER)
+    ] = None,
 ) -> list[dict]:
-    return await context.sources_fetcher.fetch_sources(source_names, unique_ids)
+    config = await context.config_provider.get_config()
+    return await context.sources_fetcher.fetch_sources(
+        source_names, unique_ids, config=config
+    )
 
 
 @dbt_mcp_tool(
@@ -302,10 +334,40 @@ async def get_source_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SOURCE,
         unique_id=unique_id,
         name=name,
+        config=config,
+    )
+
+
+@dbt_mcp_tool(
+    description=get_prompt("discovery/get_all_macros"),
+    title="Get All Macros",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+)
+async def get_all_macros(
+    context: DiscoveryToolContext,
+    package_names: Annotated[
+        list[str] | None, Field(description=MACRO_PACKAGE_NAMES)
+    ] = None,
+    return_package_names_only: Annotated[
+        bool, Field(description=MACRO_RETURN_PACKAGE_NAMES_ONLY)
+    ] = False,
+    include_default_dbt_packages: Annotated[
+        bool, Field(description=MACRO_INCLUDE_DEFAULT_DBT_PACKAGES)
+    ] = False,
+) -> list[dict] | list[str]:
+    config = await context.config_provider.get_config()
+    return await context.macros_fetcher.fetch_macros(
+        package_names=package_names,
+        return_package_names_only=return_package_names_only,
+        include_default_dbt_packages=include_default_dbt_packages,
+        config=config,
     )
 
 
@@ -321,10 +383,12 @@ async def get_macro_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.MACRO,
         unique_id=unique_id,
         name=name,
+        config=config,
     )
 
 
@@ -340,10 +404,12 @@ async def get_seed_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SEED,
         unique_id=unique_id,
         name=name,
+        config=config,
     )
 
 
@@ -359,10 +425,12 @@ async def get_semantic_model_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SEMANTIC_MODEL,
         unique_id=unique_id,
         name=name,
+        config=config,
     )
 
 
@@ -378,10 +446,12 @@ async def get_snapshot_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SNAPSHOT,
         unique_id=unique_id,
         name=name,
+        config=config,
     )
 
 
@@ -397,10 +467,12 @@ async def get_test_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.TEST,
         unique_id=unique_id,
         name=name,
+        config=config,
     )
 
 
@@ -417,6 +489,7 @@ DISCOVERY_TOOLS = [
     get_exposure_details,
     get_all_sources,
     get_source_details,
+    get_all_macros,
     get_macro_details,
     get_seed_details,
     get_semantic_model_details,
@@ -430,7 +503,7 @@ def register_discovery_tools(
     discovery_config_provider: ConfigProvider[DiscoveryConfig],
     *,
     disabled_tools: set[ToolName],
-    enabled_tools: set[ToolName],
+    enabled_tools: set[ToolName] | None,
     enabled_toolsets: set[Toolset],
     disabled_toolsets: set[Toolset],
 ) -> None:

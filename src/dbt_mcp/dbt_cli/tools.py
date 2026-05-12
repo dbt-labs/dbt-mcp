@@ -2,31 +2,63 @@ import json
 import os
 import subprocess
 from collections.abc import Iterable
-from typing import Any, Literal
+from typing import Any
+import logging
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from dbt_mcp.config.config import DbtCliConfig
-from dbt_mcp.dbt_cli.binary_type import get_color_disable_flag
+from dbt_mcp.dbt_cli.binary_type import BinaryType, get_color_disable_flag
 from dbt_mcp.dbt_cli.models.lineage_types import ModelLineage
 from dbt_mcp.dbt_cli.models.manifest import Manifest
+from dbt_mcp.errors.common import InvalidParameterError
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.annotations import create_tool_annotations
 from dbt_mcp.tools.definitions import ToolDefinition
+from dbt_mcp.tools.fields import (
+    DEPTH_FIELD,
+    TYPES_FIELD,
+    UNIQUE_ID_REQUIRED_FIELD,
+)
+from dbt_mcp.tools.parameters import LineageResourceType
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
+
+logger = logging.getLogger(__name__)
+
+_VALID_RESOURCE_TYPES = frozenset(
+    {
+        "all",
+        "analysis",
+        "default",
+        "exposure",
+        "function",
+        "metric",
+        "model",
+        "saved_query",
+        "seed",
+        "semantic_model",
+        "snapshot",
+        "source",
+        "test",
+        "unit_test",
+    }
+)
 
 
 def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition]:
     def _run_dbt_command(
         command: list[str],
-        selector: str | None = None,
+        node_selection: str | None = None,
         resource_type: list[str] | None = None,
         is_selectable: bool = False,
         is_full_refresh: bool | None = False,
         vars: str | None = None,
+        sample: str | None = None,
+        yml_selector: str | None = None,
+        state_path: str | None = None,
     ) -> str:
         try:
             # Commands that should always be quiet to reduce output verbosity
@@ -38,20 +70,50 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
                 "run",
                 "test",
                 "list",
+                "clone",
             ]
+            if (
+                # dbt CLI (Cloud CLI) does not support --state
+                config.binary_type != BinaryType.DBT_CLOUD_CLI
+                and state_path
+                and isinstance(state_path, str)
+            ):
+                command.extend(["--state", state_path])
+            elif state_path and config.binary_type == BinaryType.DBT_CLOUD_CLI:
+                raise InvalidParameterError(
+                    "--state is not supported by dbt CLI (Cloud/Platform)."
+                )
 
             if is_full_refresh is True:
                 command.append("--full-refresh")
 
+            if sample and isinstance(sample, str):
+                command.extend(["--sample", sample])
+
             if vars and isinstance(vars, str):
                 command.extend(["--vars", vars])
 
-            if selector:
-                selector_params = str(selector).split(" ")
+            if node_selection and isinstance(node_selection, str):
+                selector_params = node_selection.split()
+                if any(t.startswith("-") for t in selector_params):
+                    raise InvalidParameterError(
+                        "node_selection contains an invalid token. Tokens must not start with '-'."
+                    )
                 command.extend(["--select"] + selector_params)
 
-            if isinstance(resource_type, Iterable):
-                command.extend(["--resource-type"] + resource_type)
+            if yml_selector and isinstance(yml_selector, str):
+                command.extend(["--selector", yml_selector])
+
+            if isinstance(resource_type, Iterable) and not isinstance(
+                resource_type, str
+            ):
+                rt_list = list(resource_type)
+                if invalid := [v for v in rt_list if v not in _VALID_RESOURCE_TYPES]:
+                    raise InvalidParameterError(
+                        f"resource_type contains invalid values: {invalid}. "
+                        f"Allowed values: {sorted(_VALID_RESOURCE_TYPES)}"
+                    )
+                command.extend(["--resource-type"] + rt_list)
 
             full_command = command.copy()
             # Add --quiet flag to specific commands to reduce context window usage
@@ -87,8 +149,11 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             )
 
     def build(
-        selector: str | None = Field(
-            default=None, description=get_prompt("dbt_cli/args/selectors")
+        node_selection: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/node_selection")
+        ),
+        yml_selector: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/yml_selector")
         ),
         is_full_refresh: bool | None = Field(
             default=None, description=get_prompt("dbt_cli/args/full_refresh")
@@ -96,24 +161,41 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         vars: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/vars")
         ),
+        sample: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/sample")
+        ),
     ) -> str:
         return _run_dbt_command(
             ["build"],
-            selector,
+            node_selection,
             is_selectable=True,
             is_full_refresh=is_full_refresh,
             vars=vars,
+            sample=sample,
+            yml_selector=yml_selector,
         )
 
-    def compile() -> str:
-        return _run_dbt_command(["compile"])
+    def compile(
+        node_selection: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/node_selection")
+        ),
+        yml_selector: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/yml_selector")
+        ),
+    ) -> str:
+        return _run_dbt_command(
+            ["compile"], node_selection, is_selectable=True, yml_selector=yml_selector
+        )
 
     def docs() -> str:
         return _run_dbt_command(["docs", "generate"])
 
     def ls(
-        selector: str | None = Field(
-            default=None, description=get_prompt("dbt_cli/args/selectors")
+        node_selection: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/node_selection")
+        ),
+        yml_selector: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/yml_selector")
         ),
         resource_type: list[str] | None = Field(
             default=None,
@@ -122,17 +204,21 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
     ) -> str:
         return _run_dbt_command(
             ["list"],
-            selector,
+            node_selection,
             resource_type=resource_type,
             is_selectable=True,
+            yml_selector=yml_selector,
         )
 
     def parse() -> str:
         return _run_dbt_command(["parse"])
 
     def run(
-        selector: str | None = Field(
-            default=None, description=get_prompt("dbt_cli/args/selectors")
+        node_selection: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/node_selection")
+        ),
+        yml_selector: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/yml_selector")
         ),
         is_full_refresh: bool | None = Field(
             default=None, description=get_prompt("dbt_cli/args/full_refresh")
@@ -140,24 +226,38 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         vars: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/vars")
         ),
+        sample: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/sample")
+        ),
     ) -> str:
         return _run_dbt_command(
             ["run"],
-            selector,
+            node_selection,
             is_selectable=True,
             is_full_refresh=is_full_refresh,
             vars=vars,
+            sample=sample,
+            yml_selector=yml_selector,
         )
 
     def test(
-        selector: str | None = Field(
-            default=None, description=get_prompt("dbt_cli/args/selectors")
+        node_selection: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/node_selection")
+        ),
+        yml_selector: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/yml_selector")
         ),
         vars: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/vars")
         ),
     ) -> str:
-        return _run_dbt_command(["test"], selector, is_selectable=True, vars=vars)
+        return _run_dbt_command(
+            ["test"],
+            node_selection,
+            is_selectable=True,
+            vars=vars,
+            yml_selector=yml_selector,
+        )
 
     def show(
         sql_query: str = Field(description=get_prompt("dbt_cli/args/sql_query")),
@@ -181,29 +281,54 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         args.extend(["--output", "json"])
         return _run_dbt_command(args)
 
+    def clone(
+        node_selection: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/node_selection")
+        ),
+        yml_selector: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/yml_selector")
+        ),
+        is_full_refresh: bool | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/full_refresh")
+        ),
+        vars: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/vars")
+        ),
+        # Only applies to Core / Fusion CLI
+        state_path: str | None = Field(
+            default=None, description=get_prompt("dbt_cli/args/state_path")
+        ),
+    ) -> str:
+        return _run_dbt_command(
+            ["clone"],
+            node_selection,
+            is_selectable=True,
+            is_full_refresh=is_full_refresh,
+            vars=vars,
+            yml_selector=yml_selector,
+            state_path=state_path,
+        )
+
     def _get_manifest() -> Manifest:
         """Helper function to load the dbt manifest.json file."""
         _run_dbt_command(["parse"])  # Ensure manifest is generated
         cwd_path = config.project_dir if os.path.isabs(config.project_dir) else None
         manifest_path = os.path.join(cwd_path or ".", "target", "manifest.json")
-        with open(manifest_path) as f:
+        with open(manifest_path, encoding="utf-8") as f:
             manifest_data = json.load(f)
         return Manifest(**manifest_data)
 
-    def get_model_lineage_dev(
-        model_id: str,
-        direction: Literal["parents", "children", "both"] = "both",
-        exclude_prefixes: tuple[str, ...] = ("test.", "unit_test."),
-        *,
-        recursive: bool,
+    def get_lineage_dev(
+        unique_id: str = UNIQUE_ID_REQUIRED_FIELD,
+        types: list[LineageResourceType] | None = TYPES_FIELD,
+        depth: int = DEPTH_FIELD,
     ) -> dict[str, Any]:
         manifest = _get_manifest()
         model_lineage = ModelLineage.from_manifest(
             manifest,
-            model_id,
-            direction=direction,
-            exclude_prefixes=exclude_prefixes,
-            recursive=recursive,
+            unique_id=unique_id,
+            types=types,
+            depth=depth,
         )
         return model_lineage.model_dump()
 
@@ -256,7 +381,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ]
         output = _run_dbt_command(
             ["list", "--output", "json", "--output-keys", *output_keys],
-            selector=node_id,
+            node_selection=node_id,
             is_selectable=True,
         )
 
@@ -371,9 +496,19 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             ),
         ),
         ToolDefinition(
-            name="get_model_lineage_dev",
-            fn=get_model_lineage_dev,
-            description=get_prompt("dbt_cli/get_model_lineage_dev"),
+            fn=clone,
+            description=get_prompt("dbt_cli/clone"),
+            annotations=create_tool_annotations(
+                title="dbt clone",
+                read_only_hint=False,
+                destructive_hint=True,
+                idempotent_hint=False,
+            ),
+        ),
+        ToolDefinition(
+            name="get_lineage_dev",
+            fn=get_lineage_dev,
+            description=get_prompt("dbt_cli/get_lineage_dev"),
             annotations=create_tool_annotations(
                 title="Get Model Lineage (Dev)",
                 read_only_hint=True,
@@ -400,7 +535,7 @@ def register_dbt_cli_tools(
     config: DbtCliConfig,
     *,
     disabled_tools: set[ToolName],
-    enabled_tools: set[ToolName],
+    enabled_tools: set[ToolName] | None,
     enabled_toolsets: set[Toolset],
     disabled_toolsets: set[Toolset],
 ) -> None:

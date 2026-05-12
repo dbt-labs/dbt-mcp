@@ -1,9 +1,13 @@
+import inspect
 import subprocess
 
 import pytest
 from pytest import MonkeyPatch
 
+from dbt_mcp.errors.common import InvalidParameterError
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
+from dbt_mcp.config.config import DbtCliConfig
+from dbt_mcp.dbt_cli.binary_type import BinaryType
 from tests.mocks.config import mock_dbt_cli_config
 
 
@@ -106,7 +110,7 @@ def test_show_command_limit_logic(
         fastmcp,
         mock_dbt_cli_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -139,7 +143,7 @@ def test_run_command_adds_quiet_flag_to_verbose_commands(
         mock_fastmcp_obj,
         mock_dbt_cli_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -173,14 +177,14 @@ def test_run_command_correctly_formatted(
         fastmcp,
         mock_dbt_cli_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
     run_tool = tools["run"]
 
-    # Run the command with a selector
-    run_tool(selector="my_model")
+    # Run the command with a selection
+    run_tool(node_selection="my_model")
 
     # Verify the command is correctly formatted
     assert mock_calls
@@ -213,7 +217,7 @@ def test_show_command_correctly_formatted(
         mock_fastmcp_obj,
         mock_dbt_cli_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -250,7 +254,7 @@ def test_list_command_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
         mock_fastmcp_obj,
         mock_dbt_cli_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -261,13 +265,13 @@ def test_list_command_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
     assert "Timeout: dbt command took too long to complete" in result
     assert "Try using a specific selector to narrow down the results" in result
 
-    # Test with selector - should still timeout
-    result = list_tool(selector="my_model", resource_type=["model"])
+    # Test with selection - should still timeout
+    result = list_tool(node_selection="my_model", resource_type=["model"])
     assert "Timeout: dbt command took too long to complete" in result
     assert "Try using a specific selector to narrow down the results" in result
 
 
-@pytest.mark.parametrize("command_name", ["run", "build"])
+@pytest.mark.parametrize("command_name", ["run", "build", "clone"])
 def test_full_refresh_flag_added_to_command(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, command_name
 ):
@@ -284,7 +288,7 @@ def test_full_refresh_flag_added_to_command(
         fastmcp,
         mock_dbt_cli_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -314,7 +318,7 @@ def test_vars_flag_added_to_command(
         fastmcp,
         mock_dbt_cli_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -326,6 +330,66 @@ def test_vars_flag_added_to_command(
     args_list = mock_calls[0]
     assert "--vars" in args_list
     assert "environment: production" in args_list
+
+
+@pytest.mark.parametrize("command_name", ["run", "build"])
+def test_sample_flag_added_to_command(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, command_name
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    tool = tools[command_name]
+
+    tool(sample="3 days")
+
+    assert mock_calls
+    args_list = mock_calls[0]
+    assert "--sample" in args_list
+    assert "3 days" in args_list
+
+
+def test_sample_not_added_when_none(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    build_tool = tools["build"]
+
+    build_tool()
+
+    assert mock_calls
+    args_list = mock_calls[0]
+    assert "--sample" not in args_list
 
 
 def test_vars_not_added_when_none(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp):
@@ -342,7 +406,7 @@ def test_vars_not_added_when_none(monkeypatch: MonkeyPatch, mock_process, mock_f
         fastmcp,
         mock_dbt_cli_config,
         disabled_tools=set(),
-        enabled_tools=set(),
+        enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
@@ -353,3 +417,296 @@ def test_vars_not_added_when_none(monkeypatch: MonkeyPatch, mock_process, mock_f
     assert mock_calls
     args_list = mock_calls[0]
     assert "--vars" not in args_list
+
+
+def test_compile_supports_selection(
+    monkeypatch: MonkeyPatch,
+    mock_process,
+    mock_fastmcp,
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    compile_tool = tools["compile"]
+
+    assert "node_selection" in inspect.signature(compile_tool).parameters
+
+    compile_tool(node_selection="my_model")
+    assert "--select" in mock_calls[0]
+    assert "my_model" in mock_calls[0]
+
+
+@pytest.mark.parametrize(
+    "command_name", ["build", "run", "test", "compile", "ls", "clone"]
+)
+def test_yml_selector_flag_added_to_command(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, command_name
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    tool = tools[command_name]
+
+    assert "yml_selector" in inspect.signature(tool).parameters
+
+    tool(yml_selector="nightly")
+
+    assert mock_calls
+    args_list = mock_calls[0]
+    assert "--selector" in args_list
+    assert "nightly" in args_list
+    assert "--select" not in args_list
+
+
+def test_yml_selector_not_added_when_none(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    build_tool = tools["build"]
+
+    build_tool()
+
+    assert mock_calls
+    args_list = mock_calls[0]
+    assert "--selector" not in args_list
+
+
+def test_clone_command_binary_state_path_logic(
+    monkeypatch: MonkeyPatch,
+    mock_process,
+    mock_fastmcp,
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+
+    # Case 1: DBT_CORE (--state should be added)
+    core_cli_config = DbtCliConfig(
+        project_dir="/test/project",
+        dbt_path="/path/to/dbt",
+        dbt_cli_timeout=10,
+        binary_type=BinaryType.DBT_CORE,
+    )
+    register_dbt_cli_tools(
+        fastmcp,
+        core_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    clone_tool = tools["clone"]
+    clone_tool(state_path="/some/state/path")
+
+    assert "--state" in mock_calls[0]
+    assert "/some/state/path" in mock_calls[0]
+
+    # Case 2: DBT_CLOUD_CLI (--state should NOT be added)
+    mock_calls.clear()
+    cloud_cli_config = DbtCliConfig(
+        project_dir="/test/project",
+        dbt_path="/path/to/dbt",
+        dbt_cli_timeout=10,
+        binary_type=BinaryType.DBT_CLOUD_CLI,
+    )
+    register_dbt_cli_tools(
+        fastmcp,
+        cloud_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    clone_tool = tools["clone"]
+
+    with pytest.raises(InvalidParameterError) as excinfo:
+        clone_tool(state_path="/some/state/path")
+
+    assert "--state is not supported" in str(excinfo.value)
+
+    # Case 3: FUSION (--state should be added)
+    mock_calls.clear()
+    fusion_cli_config = DbtCliConfig(
+        project_dir="/test/project",
+        dbt_path="/path/to/dbt",
+        dbt_cli_timeout=10,
+        binary_type=BinaryType.FUSION,
+    )
+    register_dbt_cli_tools(
+        fastmcp,
+        fusion_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    clone_tool = tools["clone"]
+    clone_tool(state_path="/some/state/path")
+
+    assert "--state" in mock_calls[0]
+    assert "/some/state/path" in mock_calls[0]
+
+
+@pytest.mark.parametrize(
+    "injection_payload",
+    [
+        "--profiles-dir /tmp/custom",
+        "--project-dir /tmp/custom",
+        "--target custom",
+        "my_model --profiles-dir /tmp/custom",
+        "-x",
+    ],
+)
+def test_node_selection_rejects_flag_injection(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, injection_payload
+):
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: mock_process)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    with pytest.raises(InvalidParameterError, match="must not start with '-'"):
+        tools["run"](node_selection=injection_payload)
+
+
+@pytest.mark.parametrize(
+    "valid_selection",
+    [
+        "my_model",
+        "my_model my_other_model",
+        "+my_model",
+        "my_model+",
+        "1+my_model+1",
+        "tag:nightly",
+        "config.materialized:table",
+        "path/to/models/",
+        "source:my_source",
+        "@my_model",
+    ],
+)
+def test_node_selection_accepts_valid_tokens(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, valid_selection
+):
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: mock_process)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    tools["run"](node_selection=valid_selection)
+
+
+@pytest.mark.parametrize(
+    "injection_payload",
+    [
+        ["model", "--profiles-dir", "/tmp/custom"],
+        ["--target", "custom"],
+    ],
+)
+def test_resource_type_rejects_flag_injection(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, injection_payload
+):
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: mock_process)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    with pytest.raises(InvalidParameterError, match="invalid values"):
+        tools["ls"](resource_type=injection_payload)
+
+
+@pytest.mark.parametrize(
+    "valid_types",
+    [
+        ["model"],
+        ["model", "snapshot"],
+        ["source", "seed", "test"],
+        ["semantic_model", "metric", "saved_query"],
+    ],
+)
+def test_resource_type_accepts_valid_values(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, valid_types
+):
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: mock_process)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    tools["ls"](resource_type=valid_types)

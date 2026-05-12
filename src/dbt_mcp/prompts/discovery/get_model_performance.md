@@ -32,13 +32,6 @@ When `include_tests=True`, each run will include a `tests` array containing:
 Example unique_id format: model.analytics.stg_orders
 </instructions>
 
-<parameters>
-unique_id: The unique identifier of the model (format: "model.project_name.model_name"). STRONGLY RECOMMENDED when available.
-name: The name of the dbt model. Only use this when unique_id is unavailable.
-num_runs: Number of historical runs to return (1-100). Default is 1 (latest run only). Use values > 1 to analyze performance trends over time.
-include_tests: If True, include test execution history for each run. Default is False to reduce response size. Set to True when analyzing test performance or debugging test failures.
-</parameters>
-
 <examples>
 1. PREFERRED METHOD - Get latest run performance using unique_id:
    get_model_performance(unique_id="model.analytics.stg_orders")

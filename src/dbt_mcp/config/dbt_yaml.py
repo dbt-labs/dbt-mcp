@@ -11,9 +11,9 @@ def try_read_yaml(file_path: Path) -> dict | None:
         alternate_suffix = ".yaml" if suffix == ".yml" else ".yml"
         alternate_path = file_path.with_suffix(alternate_suffix)
         if file_path.exists():
-            return yaml.safe_load(file_path.read_text())
+            return yaml.safe_load(file_path.read_text(encoding="utf-8"))
         if alternate_path.exists():
-            return yaml.safe_load(alternate_path.read_text())
+            return yaml.safe_load(alternate_path.read_text(encoding="utf-8"))
     except Exception:
         return None
     return None

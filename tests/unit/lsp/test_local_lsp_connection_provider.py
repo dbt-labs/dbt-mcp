@@ -16,7 +16,7 @@ def lsp_binary_info(tmp_path) -> LspBinaryInfo:
     """Create a test LSP binary info."""
     binary_path = tmp_path / "dbt-lsp"
     binary_path.touch()
-    return LspBinaryInfo(path=str(binary_path), version="1.0.0")
+    return LspBinaryInfo(cmd=[str(binary_path)], version="1.0.0")
 
 
 @pytest.fixture
@@ -50,7 +50,7 @@ class TestLocalLSPConnectionProvider:
 
             # Verify connection was created with correct arguments
             mock_conn_class.assert_called_once_with(
-                binary_path=lsp_binary_info.path,
+                cmd=lsp_binary_info.cmd,
                 args=[],
                 cwd=project_dir,
             )

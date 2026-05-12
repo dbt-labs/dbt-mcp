@@ -5,6 +5,7 @@ With [task](https://taskfile.dev/) installed, simply run `task` to see the list 
 ## Setup
 
 1. Clone the repository:
+
 ```shell
 git clone https://github.com/dbt-labs/dbt-mcp.git
 cd dbt-mcp
@@ -17,16 +18,38 @@ cd dbt-mcp
 4. Run `task install`
 
 5. Configure environment variables:
-    ```shell
-    cp .env.example .env
-    ```
-    Then edit `.env` with your specific environment variables (see [our docs](https://docs.getdbt.com/docs/dbt-ai/setup-local-mcp) to determine the values).
+
+   ```shell
+   cp .env.example .env
+   ```
+
+   Then edit `.env` with your specific environment variables (see [our docs](https://docs.getdbt.com/docs/dbt-ai/setup-local-mcp) to determine the values).
 
 6. Run `task client` to chat with dbt MCP in your terminal.
 
+## LLM-Assisted Contributions
+
+We welcome contributions made with the help of AI coding assistants and LLMs. If you use LLMs, use them responsibly.
+
+In practice, this means:
+
+- **Review what was generated.** Don't submit code you haven't read and understood. LLMs can produce plausible-looking but incorrect logic, especially around edge cases.
+- **Verify accuracy.** Check that generated code, logic, tool descriptions, and prompts are correct — inaccurate descriptions directly affect how AI assistants use these tools, and subtle logic errors may not be caught by tests alone.
+- **Run the checks.** LLM-generated code must still pass `task check` and `task test:unit` before submitting a PR.
+- **Show your work.** For non-trivial changes, include evidence of testing in your PR description (e.g., screenshots, logs, or a description of what you ran and observed). The burden of validation is on the author, not the reviewer.
+
+The bar for contribution quality is the same regardless of how the code was written.
+
 ## Style
 
-Refer to `./cursor/rules` for standards and stylistic guidelines.
+- Import modules at the top of Python files. Only import in the middle of code when strictly necessary, and document why.
+- Never add unused parameters to a function, even with a default value.
+- Only use default arguments when there is a reason to do so.
+- Avoid `while True`. While-loops should have a termination condition in the `while` statement, not just in the loop body.
+- Always use `*` in function parameter lists when there are adjacent parameters with the same type.
+- Avoid putting code in `__init__.py` files.
+- Always include type annotations for function inputs and outputs.
+- Always prefer Pydantic models or dataclasses to dictionaries.
 
 ## Testing
 
@@ -36,7 +59,14 @@ This repo has automated tests which can be run with `task test:unit`.
 
 ### Integration Testing
 
-The integration tests exercise system interactions greater than just the unit tests. They require a dbt Platform environment that is setup with semantic layer, developer license, and PAT. These tests can be run with `task test:integration`.
+The integration tests exercise system interactions greater than just the unit tests. They require a dbt Platform environment that is set up with semantic layer, developer license, and PAT. These tests can be run with `task test:integration`.
+
+Integration tests must:
+
+- Issue real HTTP requests against configured services — do not monkeypatch or stub network calls inside `tests/integration`.
+- Build clients through the standard config providers so they pull credentials and endpoints from the environment.
+- If request observations are needed, subclass the client to record metadata while still calling the real implementation.
+- Use unit tests for mocking.
 
 For dbt Labs employees, a staging environment has been set up. Credentials for this environment can be found by searching for `dbt MCP Integration Test Credentials` in 1Password.
 
@@ -85,6 +115,63 @@ Or, if you would like to test with Oauth, use a configuration like this:
 
 For improved debugging, you can set the `DBT_MCP_SERVER_FILE_LOGGING=true` environment variable to log to a `./dbt-mcp.log` file.
 
+## Adding Tools
+
+Tools are defined using the `@dbt_mcp_tool` decorator and registered with the MCP server via `register_tools()`.
+
+### Steps to add a new tool
+
+1. **Add a `ToolName` entry** in `src/dbt_mcp/tools/tool_names.py`
+2. **Map it to a toolset** in `src/dbt_mcp/tools/toolsets.py` (e.g., `DISCOVERY`, `SEMANTIC_LAYER`, `SQL`)
+3. **Write a prompt file** in `src/dbt_mcp/prompts/<category>/` describing the tool
+4. **Define the tool function** in the appropriate `tools.py` module:
+   ```python
+   @dbt_mcp_tool(
+       description=get_prompt("category/tool_name"),
+       title="My Tool",
+       read_only_hint=True,
+       destructive_hint=False,
+       idempotent_hint=True,
+   )
+   async def my_tool(context: MyToolContext, param: str) -> dict:
+       return await context.fetcher.do_something(param)
+   ```
+5. **Add it to the tool list** (e.g., `DISCOVERY_TOOLS`) in the same module
+6. The registration function (e.g., `register_discovery_tools`) handles context binding and registration
+
+### Adding a tool with interactive UI (MCP Apps)
+
+MCP Apps are tools that have an associated interactive UI rendered by the host (e.g., Claude, VS Code). They build on top of regular tools with two additions:
+
+1. **Use `structured_output` and `meta`** to link the tool to a UI resource:
+   ```python
+   @dbt_mcp_tool(
+       description=get_prompt("category/tool_name"),
+       title="My Visualization",
+       read_only_hint=True,
+       structured_output=True,
+       meta={"ui": {"resourceUri": "ui://dbt-mcp/my-app"}},
+   )
+   async def my_viz_tool(context: MyToolContext, param: str) -> MyResult:
+       ...
+   ```
+   `structured_output=True` is required so the host can pass structured JSON to the UI. The return type should be a Pydantic model.
+
+2. **Register an MCP resource** at the matching `ui://` URI to serve the HTML app:
+   ```python
+   @dbt_mcp.resource(
+       uri="ui://dbt-mcp/my-app",
+       name="My App",
+       mime_type="text/html;profile=mcp-app",
+   )
+   def get_my_app_ui() -> str:
+       return Path("packages/my-app/dist/index.html").read_text()
+   ```
+
+3. **Build a frontend** in `packages/` using `@modelcontextprotocol/ext-apps`. The app receives tool results via the `ontoolresult` callback and must be bundled as a single HTML file (e.g., using `vite-plugin-singlefile`) or reference external resources via CSP `resourceDomains`.
+
+The `ui://` URI convention is `ui://<server-name>/<resource-name>`. The `meta` field is passed through the full tool registration pipeline (`@dbt_mcp_tool` → `GenericToolDefinition` → `adapt_context` → `register_tools` → `FastMCP.add_tool`).
+
 ## Signed Commits
 
 Before committing changes, ensure that you have set up [signed commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
@@ -99,12 +186,14 @@ Every PR requires a changelog entry. [Install changie](https://changie.dev/) and
 The dbt-mcp server runs with `stdio` transport by default which does not allow for Python debugger support. For debugging with breakpoints, use `streamable-http` transport.
 
 ### Option 1: MCP Inspector Only (No Breakpoints)
+
 1. Run `task inspector` - this starts both the server and inspector automatically
 2. Open MCP Inspector UI
 3. Use "STDIO" Transport Type to connect
 4. Test tools interactively in the inspector UI (uses `stdio` transport, no debugger support)
 
 ### Option 2: VS Code Debugger with Breakpoints (Recommended for Debugging)
+
 1. Set breakpoints in your code
 2. Press `F5` or select "debug dbt-mcp" from the Run menu
 3. Open MCP Inspector UI via `npx @modelcontextprotocol/inspector`
@@ -112,6 +201,7 @@ The dbt-mcp server runs with `stdio` transport by default which does not allow f
 5. Call tools from Inspector - your breakpoints will trigger
 
 ### Option 3: Manual Debugging with `task dev`
+
 1. Run `task dev` - this starts the server with `streamable-http` transport on `http://localhost:8000`
 2. Set breakpoints in your code
 3. Attach your debugger manually (see [debugpy documentation](https://github.com/microsoft/debugpy#debugpy) for examples)
@@ -128,27 +218,32 @@ If you encounter any problems, you can try running `task run` to see errors in y
 Only people in the `CODEOWNERS` file should trigger a new release with these steps:
 
 1. Consider these guidelines when choosing a version number:
-  - Major
-    - Removing a tool or toolset
-    - Changing the behavior of existing environment variables or configurations
-  - Minor
-    - Changes to config system related to the function signature of the register functions (e.g. `register_discovery_tools`)
-    - Adding optional parameters to a tool function signature
-    - Adding a new tool or toolset
-    - Removing or adding non-optional parameters from tool function signatures
-  - Patch
-    - Bug and security fixes - only major security and bug fixes will be back-ported to prior minor and major versions
-    - Dependency updates which don’t change behavior
-    - Minor enhancements
-    - Editing a tool or parameter description prompt
-    - Adding an allowed environment variable with the `DBT_MCP_` prefix
+
+- Major
+  - Removing a tool or toolset without replacement, or in a way that would result in agents behaving much differently.
+  - Changing the behavior of existing environment variables or configurations
+- Minor
+  - Changes to config system related to the function signature of the register functions (e.g. `register_discovery_tools`)
+  - Adding optional parameters to a tool function signature
+  - Adding a new tool or toolset
+  - Removing or adding non-optional parameters from tool function signatures
+  - Renaming a tool
+  - Removing a tool which overlaps or provides similar functionality as other tool(s)
+- Patch
+  - Bug and security fixes - only major security and bug fixes will be back-ported to prior minor and major versions
+  - Dependency updates which don’t change behavior
+  - Minor enhancements
+  - Editing a tool or parameter description prompt
+  - Adding an allowed environment variable with the `DBT_MCP_` prefix
+
 2. Trigger the [Create release PR Action](https://github.com/dbt-labs/dbt-mcp/actions/workflows/create-release-pr.yml).
-  - If the release is NOT a pre-release, select `auto` (default) to automatically determine the version bump based on changelog entries, or manually pick patch, minor or major if needed
-  - If the release is a pre-release, set the bump and the pre-release suffix. We support alpha.N, beta.N and rc.N.
-    - use alpha for early releases of experimental features that specific people might want to test. Significant changes can be expected between alpha and the official release.
-    - use beta for releases that are mostly stable but still in development. It can be used to gather feedback from a group of peopleon how a specific feature should work.
-    - use rc for releases that are mostly stable and already feature complete. Only bugfixes and minor changes are expected between rc and the official release.
-  - Picking the prerelease suffix will depend on whether the last release was the stable release or a pre-release:
+
+- If the release is NOT a pre-release, select `auto` (default) to automatically determine the version bump based on changelog entries, or manually pick patch, minor or major if needed
+- If the release is a pre-release, set the bump and the pre-release suffix. We support alpha.N, beta.N and rc.N.
+  - use alpha for early releases of experimental features that specific people might want to test. Significant changes can be expected between alpha and the official release.
+  - use beta for releases that are mostly stable but still in development. It can be used to gather feedback from a group of peopleon how a specific feature should work.
+  - use rc for releases that are mostly stable and already feature complete. Only bugfixes and minor changes are expected between rc and the official release.
+- Picking the prerelease suffix will depend on whether the last release was the stable release or a pre-release:
 
 | Last Stable | Last Pre-release | Bump  | Pre-release Suffix | Resulting Version |
 | ----------- | ---------------- | ----- | ------------------ | ----------------- |
