@@ -64,7 +64,12 @@ def create_dbt_codegen_tool_definitions(
             # masquerade as the result of a successful command. On failure
             # we surface stderr too, since some dbt errors only appear there.
             if process.returncode != 0:
-                combined = "\n".join(s for s in (stdout, stderr) if s)
+                parts = []
+                if stdout:
+                    parts.append(f"--- stdout ---\n{stdout.rstrip()}")
+                if stderr:
+                    parts.append(f"--- stderr ---\n{stderr.rstrip()}")
+                combined = "\n".join(parts)
                 detail = combined or f"exit code {process.returncode} (no output)"
                 if "dbt found" in combined and "resource" in combined:
                     return (

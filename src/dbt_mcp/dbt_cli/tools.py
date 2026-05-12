@@ -146,9 +146,13 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             # we surface stderr too, since some dbt errors only appear there.
             if process.returncode == 0:
                 return stdout or "OK"
-            combined = "\n".join(s for s in (stdout, stderr) if s)
-            if combined:
-                return combined
+            parts = []
+            if stdout:
+                parts.append(f"--- stdout ---\n{stdout.rstrip()}")
+            if stderr:
+                parts.append(f"--- stderr ---\n{stderr.rstrip()}")
+            if parts:
+                return "\n".join(parts)
             return f"Command failed with exit code {process.returncode} (no output)"
         except subprocess.TimeoutExpired:
             return "Timeout: dbt command took too long to complete." + (

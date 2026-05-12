@@ -640,7 +640,9 @@ def test_failure_combines_stdout_and_stderr(monkeypatch: MonkeyPatch, mock_fastm
 
     result = tools["build"]()
 
+    assert "--- stdout ---" in result
     assert "Compilation Error" in result
+    assert "--- stderr ---" in result
     assert "Stack trace" in result
 
 
