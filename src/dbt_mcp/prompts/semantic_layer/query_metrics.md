@@ -8,8 +8,9 @@ and get_entities tools to get information about which metrics, dimensions,
 and entities to use.
 
 When using the `order_by` parameter, you must ensure that the dimension or
-entity also appears in the `group_by` parameter. For time dimensions, include
-the same `grain` in `order_by` as in `group_by`. When fulfilling a lookback
+entity also appears in the `group_by` parameter. For time dimensions, you may
+specify a `grain` in `order_by` independently from `group_by`; if omitted, it
+defaults to the grain of the matching `group_by` entry. When fulfilling a lookback
 query, prefer using order_by and limit instead of using the where parameter.
 A lookback query requires that the `order_by` parameter includes a descending
 order for a time dimension.
