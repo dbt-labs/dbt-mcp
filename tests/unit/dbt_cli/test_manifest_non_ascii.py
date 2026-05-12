@@ -11,8 +11,10 @@ from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 @pytest.fixture
 def mock_process():
     class MockProcess:
+        returncode = 0
+
         def communicate(self, timeout=None):
-            return "command output", None
+            return "command output", ""
 
     return MockProcess()
 

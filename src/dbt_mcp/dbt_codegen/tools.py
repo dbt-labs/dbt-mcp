@@ -65,12 +65,13 @@ def create_dbt_codegen_tool_definitions(
             # we surface stderr too, since some dbt errors only appear there.
             if process.returncode != 0:
                 combined = "\n".join(s for s in (stdout, stderr) if s)
+                detail = combined or f"exit code {process.returncode} (no output)"
                 if "dbt found" in combined and "resource" in combined:
                     return (
                         "Error: dbt-codegen package may not be installed. "
-                        f"Run 'dbt deps' to install it.\n{combined}"
+                        f"Run 'dbt deps' to install it.\n{detail}"
                     )
-                return f"Error running dbt-codegen macro: {combined}"
+                return f"Error running dbt-codegen macro: {detail}"
 
             return stdout or "OK"
 

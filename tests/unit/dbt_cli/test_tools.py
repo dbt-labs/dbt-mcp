@@ -580,6 +580,40 @@ def test_failure_surfaces_stderr_when_stdout_is_empty(
     assert result != "OK"
 
 
+def test_failure_with_no_output_surfaces_exit_code(
+    monkeypatch: MonkeyPatch, mock_fastmcp
+):
+    """A failed command with empty stdout AND stderr must NOT return 'OK' —
+    surface the exit code so the LLM can tell the call actually failed."""
+
+    class MockProcessFailureNoOutput:
+        returncode = 137  # e.g. OOM-killed
+
+        def communicate(self, timeout=None):
+            return "", ""
+
+    def mock_popen(args, **kwargs):
+        return MockProcessFailureNoOutput()
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    result = tools["build"]()
+
+    assert result != "OK"
+    assert "137" in result
+    assert "exit code" in result.lower()
+
+
 def test_failure_combines_stdout_and_stderr(monkeypatch: MonkeyPatch, mock_fastmcp):
     """When both streams have content on failure, both are surfaced."""
 

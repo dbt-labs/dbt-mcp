@@ -147,7 +147,9 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             if process.returncode == 0:
                 return stdout or "OK"
             combined = "\n".join(s for s in (stdout, stderr) if s)
-            return combined or "OK"
+            if combined:
+                return combined
+            return f"Command failed with exit code {process.returncode} (no output)"
         except subprocess.TimeoutExpired:
             return "Timeout: dbt command took too long to complete." + (
                 " Try using a specific selector to narrow down the results."

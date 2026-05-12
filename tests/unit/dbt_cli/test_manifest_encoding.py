@@ -10,8 +10,10 @@ from tests.mocks.config import mock_dbt_cli_config
 @pytest.fixture
 def mock_process():
     class MockProcess:
+        returncode = 0
+
         def communicate(self, timeout=None):
-            return "command output", None
+            return "command output", ""
 
     return MockProcess()
 
