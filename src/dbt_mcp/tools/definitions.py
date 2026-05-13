@@ -14,10 +14,10 @@ from dbt_mcp.tools.tool_names import ToolName
 @dataclass
 class GenericToolDefinition[NameEnum: Enum]:
     fn: Callable[..., Any]
-    title: str
+    title: str  # Human-friendly title for the tool
     description: str
     name_enum: type[NameEnum]
-    name: str | None = None
+    name: str | None = None  # Machine-friendly name for the tool
     annotations: ToolAnnotations | None = None
     structured_output: bool = True
     meta: dict[str, Any] | None = None
