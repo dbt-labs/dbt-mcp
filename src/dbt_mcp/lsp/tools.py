@@ -70,9 +70,9 @@ async def list_lsp_tools(
     return [
         ToolDefinition(
             fn=call_with_lsp_client(get_column_lineage),
+            title="Get Column Lineage",
             description=get_prompt("lsp/get_column_lineage"),
             annotations=create_tool_annotations(
-                title="get_column_lineage",
                 read_only_hint=False,
                 destructive_hint=False,
                 idempotent_hint=True,

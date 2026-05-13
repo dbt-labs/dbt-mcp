@@ -429,6 +429,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
     return [
         ToolDefinition(
             fn=build,
+            title="dbt build",
             description=get_prompt("dbt_cli/build"),
             annotations=create_tool_annotations(
                 title="dbt build",
@@ -439,6 +440,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=compile,
+            title="dbt compile",
             description=get_prompt("dbt_cli/compile"),
             annotations=create_tool_annotations(
                 title="dbt compile",
@@ -449,6 +451,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=docs,
+            title="dbt docs",
             description=get_prompt("dbt_cli/docs"),
             annotations=create_tool_annotations(
                 title="dbt docs",
@@ -460,6 +463,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ToolDefinition(
             name="list",
             fn=ls,
+            title="dbt list",
             description=get_prompt("dbt_cli/list"),
             annotations=create_tool_annotations(
                 title="dbt list",
@@ -470,6 +474,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=parse,
+            title="dbt parse",
             description=get_prompt("dbt_cli/parse"),
             annotations=create_tool_annotations(
                 title="dbt parse",
@@ -480,6 +485,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=run,
+            title="dbt run",
             description=get_prompt("dbt_cli/run"),
             annotations=create_tool_annotations(
                 title="dbt run",
@@ -490,6 +496,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=test,
+            title="dbt test",
             description=get_prompt("dbt_cli/test"),
             annotations=create_tool_annotations(
                 title="dbt test",
@@ -500,6 +507,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=show,
+            title="dbt show",
             description=get_prompt("dbt_cli/show"),
             annotations=create_tool_annotations(
                 title="dbt show",
@@ -510,6 +518,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=clone,
+            title="dbt clone",
             description=get_prompt("dbt_cli/clone"),
             annotations=create_tool_annotations(
                 title="dbt clone",
@@ -521,6 +530,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ToolDefinition(
             name="get_lineage_dev",
             fn=get_lineage_dev,
+            title="Get Model Lineage (Dev)",
             description=get_prompt("dbt_cli/get_lineage_dev"),
             annotations=create_tool_annotations(
                 title="Get Model Lineage (Dev)",
@@ -532,6 +542,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ToolDefinition(
             name="get_node_details_dev",
             fn=get_node_details_dev,
+            title="Get Node Details (Dev)",
             description=get_prompt("dbt_cli/get_node_details_dev"),
             annotations=create_tool_annotations(
                 title="Get Node Details (Dev)",
