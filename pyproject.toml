@@ -48,7 +48,7 @@ dependencies = [
 ]
 [tool.uv]
 exclude-newer = "7 days"
-exclude-newer-package = { dbt-protos = false, dbt-sl-sdk = false, dbtlabs-vortex = false, dbt-artifacts-parser = false}
+exclude-newer-package = { dbt-protos = false, dbt-sl-sdk = false, dbtlabs-vortex = false }
 
 [dependency-groups]
 dev = [
