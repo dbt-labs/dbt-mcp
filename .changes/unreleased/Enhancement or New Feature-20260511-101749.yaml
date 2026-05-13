@@ -1,3 +1,0 @@
-kind: Enhancement or New Feature
-body: 'list_metrics now accepts a list of substrings in the search parameter (results are unioned and deduplicated, fetched in parallel) and prefixes its CSV with a # Note: line whenever description/metadata are trimmed because the response exceeded DBT_MCP_SL_MAX_RESPONSE_CHARS. Trimming is also now scoped to broad listings (result count above metrics_related_max) so a narrow result set always returns full description and metadata.'
-time: 2026-05-11T10:17:49.495415+02:00
