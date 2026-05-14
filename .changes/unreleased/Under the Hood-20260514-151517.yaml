@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: Add in-memory DuckDB artifact store with extraction layer for structured artifact querying
+time: 2026-05-14T15:15:17.615904-07:00
