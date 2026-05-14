@@ -1,3 +1,0 @@
-kind: Under the Hood
-body: Silence asyncio DeprecationWarning in LSP connection unit tests by binding a fresh event loop and using loop.create_future() instead of bare asyncio.Future().
-time: 2026-05-13T08:55:13.549958-05:00

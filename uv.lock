@@ -14,7 +14,6 @@ exclude-newer-span = "P7D"
 dbt-protos = false
 dbt-sl-sdk = false
 dbtlabs-vortex = false
-dbt-artifacts-parser = false
 
 [[package]]
 name = "adbc-driver-flightsql"
