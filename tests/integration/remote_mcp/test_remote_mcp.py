@@ -2,6 +2,8 @@ import csv
 import io
 from itertools import dropwhile
 
+from mcp.types import ContentBlock, TextContent
+
 from dbt_mcp.config.config import load_config
 from dbt_mcp.mcp.server import create_dbt_mcp
 from remote_mcp.session import session_context
@@ -14,11 +16,13 @@ async def test_local_mcp_list_metrics_returns_valid_response() -> None:
         name="list_metrics",
         arguments={},
     )
-    assert isinstance(result, list)
-    assert len(result) == 1
-    content = result[0]
-    assert hasattr(content, "text")
-    csv_text = content.text  # type: ignore[union-attr]
+    # call_tool returns (content_list, structured_dict) when structured_output=True
+    content_list: list[ContentBlock]
+    content_list, _ = result  # type: ignore[assignment]
+    assert len(content_list) == 1
+    content = content_list[0]
+    assert isinstance(content, TextContent)
+    csv_text = content.text
     # Drop only the leading block of `#`-prefixed comment lines (pandas-style
     # convention); the tool may prepend a `# Note: ...` line when
     # description/metadata are trimmed for broad listings. `dropwhile` stops at

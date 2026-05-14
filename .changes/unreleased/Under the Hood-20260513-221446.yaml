@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: Fix test_local_mcp_list_metrics_returns_valid_response integration test
+time: 2026-05-13T22:14:46.582981-07:00
