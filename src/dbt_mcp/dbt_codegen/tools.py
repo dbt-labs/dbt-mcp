@@ -163,9 +163,9 @@ def create_dbt_codegen_tool_definitions(
     return [
         ToolDefinition(
             fn=generate_source,
+            title="Generate Source",
             description=get_prompt("dbt_codegen/generate_source"),
             annotations=create_tool_annotations(
-                title="dbt-codegen generate_source",
                 read_only_hint=True,
                 destructive_hint=False,
                 idempotent_hint=True,
@@ -173,9 +173,9 @@ def create_dbt_codegen_tool_definitions(
         ),
         ToolDefinition(
             fn=generate_model_yaml,
+            title="Generate Model YAML",
             description=get_prompt("dbt_codegen/generate_model_yaml"),
             annotations=create_tool_annotations(
-                title="dbt-codegen generate_model_yaml",
                 read_only_hint=True,
                 destructive_hint=False,
                 idempotent_hint=True,
@@ -183,9 +183,9 @@ def create_dbt_codegen_tool_definitions(
         ),
         ToolDefinition(
             fn=generate_staging_model,
+            title="Generate Staging Model",
             description=get_prompt("dbt_codegen/generate_staging_model"),
             annotations=create_tool_annotations(
-                title="dbt-codegen generate_staging_model",
                 read_only_hint=True,
                 destructive_hint=False,
                 idempotent_hint=True,

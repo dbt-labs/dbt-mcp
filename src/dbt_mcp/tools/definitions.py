@@ -14,14 +14,12 @@ from dbt_mcp.tools.tool_names import ToolName
 @dataclass
 class GenericToolDefinition[NameEnum: Enum]:
     fn: Callable[..., Any]
+    title: str  # Human-friendly title for the tool
     description: str
     name_enum: type[NameEnum]
-    name: str | None = None
-    title: str | None = None
+    name: str | None = None  # Machine-friendly name for the tool
     annotations: ToolAnnotations | None = None
-    # We haven't strictly defined our tool contracts yet.
-    # So we're setting this to False by default for now.
-    structured_output: bool | None = False
+    structured_output: bool = True
     meta: dict[str, Any] | None = None
 
     def get_name(self) -> NameEnum:
@@ -62,15 +60,16 @@ class ToolDefinition(GenericToolDefinition[ToolName]):
 
 
 def generic_dbt_mcp_tool[NameEnum: Enum](
+    *,
     description: str,
+    title: str,
     name_enum: type[NameEnum],
     name: str | None = None,
-    title: str | None = None,
     read_only_hint: bool = False,
     destructive_hint: bool = True,
     idempotent_hint: bool = False,
     open_world_hint: bool = True,
-    structured_output: bool | None = False,
+    structured_output: bool = True,
     meta: dict[str, Any] | None = None,
 ) -> Callable[[Callable], GenericToolDefinition[NameEnum]]:
     """Decorator to define a tool definition for dbt MCP"""
