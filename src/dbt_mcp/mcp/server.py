@@ -9,7 +9,7 @@ from typing import Any
 from dbtlabs_vortex.producer import shutdown
 from mcp.server.fastmcp import FastMCP
 from mcp.server.lowlevel.server import LifespanResultT
-from mcp.types import ContentBlock, TextContent, Tool
+from mcp.types import CallToolResult, ContentBlock, TextContent, Tool
 
 from dbt_mcp.config.config import Config
 from dbt_mcp.dbt_admin.tools import register_admin_api_tools
@@ -79,9 +79,11 @@ class DbtMCP(FastMCP):
             settings.dbt_project_ids is not None and len(settings.dbt_project_ids) > 0
         )
 
-    async def call_tool(
+    async def call_tool(  # type: ignore[override]
         self, name: str, arguments: dict[str, Any]
-    ) -> Sequence[ContentBlock] | dict[str, Any]:
+    ) -> Sequence[ContentBlock] | dict[str, Any] | CallToolResult:
+        # Return type includes CallToolResult on error to satisfy outputSchema check
+        # Parent class, FastMCP.call_tool does not include this type
         logger.info(f"Calling tool: {name} with arguments: {_safe_args(arguments)}")
         result = None
         start_time = int(time.time() * 1000)
@@ -108,12 +110,10 @@ class DbtMCP(FastMCP):
                 )
             except Exception:
                 logger.debug("Usage tracking failed — skipping", exc_info=True)
-            return [
-                TextContent(
-                    type="text",
-                    text=str(e),
-                )
-            ]
+            return CallToolResult(
+                content=[TextContent(type="text", text=str(e))],
+                isError=True,
+            )
         end_time = int(time.time() * 1000)
         logger.info(f"Tool {name} called successfully in {end_time - start_time}ms")
         try:

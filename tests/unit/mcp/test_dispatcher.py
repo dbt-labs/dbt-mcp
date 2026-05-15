@@ -5,7 +5,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from mcp.server.fastmcp import FastMCP
-from mcp.types import TextContent, Tool
+from mcp.types import CallToolResult, TextContent, Tool
 
 from dbt_mcp.errors.common import MissingHostError
 from dbt_mcp.config.settings import DbtMcpSettings
@@ -191,7 +191,7 @@ class TestCallToolRouting:
         mcps[called].call_tool.assert_awaited_once()
         mcps[not_called].call_tool.assert_not_awaited()
 
-    async def test_returns_text_content_on_tool_error(self):
+    async def test_returns_error_result_on_tool_error(self):
         multi = MagicMock(spec=FastMCP)
         single = MagicMock(spec=FastMCP)
         single.call_tool = AsyncMock(side_effect=RuntimeError("something broke"))
@@ -204,9 +204,11 @@ class TestCallToolRouting:
         ):
             result = await dispatcher.call_tool("bad_tool", {})
 
-        assert len(result) == 1
-        assert isinstance(result[0], TextContent)
-        assert "something broke" in result[0].text
+        assert isinstance(result, CallToolResult)
+        assert result.isError is True
+        assert len(result.content) == 1
+        assert isinstance(result.content[0], TextContent)
+        assert "something broke" in result.content[0].text
 
     async def test_tracking_failure_does_not_crash_call_tool(self):
         single = MagicMock(spec=FastMCP)
@@ -224,9 +226,11 @@ class TestCallToolRouting:
             result = await dispatcher.call_tool("some_tool", {})
 
         # Tool error is returned cleanly despite tracking also failing
-        assert len(result) == 1
-        assert isinstance(result[0], TextContent)
-        assert "DBT_HOST" in result[0].text
+        assert isinstance(result, CallToolResult)
+        assert result.isError is True
+        assert len(result.content) == 1
+        assert isinstance(result.content[0], TextContent)
+        assert "DBT_HOST" in result.content[0].text
         # Tracking was attempted (and failed, but didn't crash)
         dispatcher.usage_tracker.emit_tool_called_event.assert_awaited_once()
 
