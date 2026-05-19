@@ -11,7 +11,7 @@ If the response includes `truncated: true`, there are more values than the curre
 
 <examples>
 <example>
-Question: "I want to filter revenue by country — what countries are available?"
+Question: "I want to filter revenue for a specific country — what countries are available?"
 Thinking step-by-step:
    - The user wants to know valid values for a country dimension
    - I should scope to the "revenue" metric for accurate results
