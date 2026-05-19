@@ -1,17 +1,27 @@
-from dbt_mcp.config.credentials import CredentialsProvider
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from dbt_mcp.config.headers import (
     SemanticLayerHeadersProvider,
 )
-from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.errors import NotFoundError
 
-from .base import ConfigProvider, MultiProjectConfigProvider, SemanticLayerConfig
+from .base import (
+    ConfigProvider,
+    CredentialsProviderProtocol,
+    MultiProjectConfigProvider,
+    SemanticLayerConfig,
+)
+
+if TYPE_CHECKING:
+    from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 
 
 class DefaultSemanticLayerConfigProvider(ConfigProvider[SemanticLayerConfig]):
     def __init__(
         self,
-        credentials_provider: CredentialsProvider,
+        credentials_provider: CredentialsProviderProtocol,
         *,
         metrics_related_max: int = 10,
         max_response_chars: int = 16000,
@@ -50,7 +60,7 @@ class MultiProjectSemanticLayerConfigProvider(
 ):
     def __init__(
         self,
-        credentials_provider: CredentialsProvider,
+        credentials_provider: CredentialsProviderProtocol,
         admin_client: DbtAdminAPIClient,
         *,
         metrics_related_max: int = 10,

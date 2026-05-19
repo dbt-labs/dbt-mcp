@@ -1,17 +1,12 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from dbt_mcp.config.headers import AdminApiHeadersProvider
 
-from .base import AdminApiConfig, ConfigProvider
-
-if TYPE_CHECKING:
-    from dbt_mcp.config.credentials import CredentialsProvider
+from .base import AdminApiConfig, ConfigProvider, CredentialsProviderProtocol
 
 
 class DefaultAdminApiConfigProvider(ConfigProvider[AdminApiConfig]):
-    def __init__(self, credentials_provider: CredentialsProvider):
+    def __init__(self, credentials_provider: CredentialsProviderProtocol):
         self.credentials_provider = credentials_provider
 
     async def get_config(self) -> AdminApiConfig:

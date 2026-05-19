@@ -1,12 +1,13 @@
+from __future__ import annotations
+
 from dbt_mcp.config.headers import ProxiedToolHeadersProvider
-from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.errors.common import MissingHostError
 
-from .base import ConfigProvider, ProxiedToolConfig
+from .base import ConfigProvider, CredentialsProviderProtocol, ProxiedToolConfig
 
 
 class DefaultProxiedToolConfigProvider(ConfigProvider[ProxiedToolConfig]):
-    def __init__(self, credentials_provider: CredentialsProvider):
+    def __init__(self, credentials_provider: CredentialsProviderProtocol):
         self.credentials_provider = credentials_provider
 
     async def get_config(self) -> ProxiedToolConfig:

@@ -6,14 +6,18 @@ from dbt_mcp.config.headers import DiscoveryHeadersProvider
 from dbt_mcp.errors import NotFoundError
 
 if TYPE_CHECKING:
-    from dbt_mcp.config.credentials import CredentialsProvider
     from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 
-from .base import ConfigProvider, DiscoveryConfig, MultiProjectConfigProvider
+from .base import (
+    ConfigProvider,
+    CredentialsProviderProtocol,
+    DiscoveryConfig,
+    MultiProjectConfigProvider,
+)
 
 
 class DefaultDiscoveryConfigProvider(ConfigProvider[DiscoveryConfig]):
-    def __init__(self, credentials_provider: CredentialsProvider):
+    def __init__(self, credentials_provider: CredentialsProviderProtocol):
         self.credentials_provider = credentials_provider
 
     async def get_config(self) -> DiscoveryConfig:
@@ -35,7 +39,7 @@ class MultiProjectDiscoveryConfigProvider(MultiProjectConfigProvider[DiscoveryCo
     def __init__(
         self,
         *,
-        credentials_provider: CredentialsProvider,
+        credentials_provider: CredentialsProviderProtocol,
         admin_client: DbtAdminAPIClient,
     ):
         self.credentials_provider = credentials_provider

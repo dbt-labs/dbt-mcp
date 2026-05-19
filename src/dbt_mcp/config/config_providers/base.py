@@ -1,11 +1,27 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Protocol
 
 from dbt_mcp.config.headers import (
     HeadersProvider,
     ProxiedToolHeadersProvider,
     TokenProvider,
 )
+
+if TYPE_CHECKING:
+    from dbt_mcp.config.settings import DbtMcpSettings
+
+
+class CredentialsProviderProtocol(Protocol):
+    """Structural interface for credential providers.
+
+    Both CredentialsProvider and ElicitingCredentialsProvider satisfy this
+    protocol. Config providers accept this protocol so either can be injected.
+    """
+
+    async def get_credentials(self) -> tuple[DbtMcpSettings, TokenProvider]: ...
 
 
 class ConfigProvider[ConfigType](ABC):
