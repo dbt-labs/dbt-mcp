@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Add get_dimension_values tool to Semantic Layer toolset to retrieve distinct values for a dimension
+time: 2026-05-19T14:14:00.872546+02:00

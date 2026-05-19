@@ -1,0 +1,88 @@
+graph LR
+    %% Styling
+    classDef default stroke-width:2px,rx:8
+
+    mcp[dbt MCP server]
+
+    %% Tools subgraph
+    subgraph tools[Tools]
+        direction TB
+
+        subgraph cli[dbt CLI - local executable]
+            cli_build[build]
+            cli_compile[compile]
+            cli_docs[docs]
+            cli_ls[ls]
+            cli_parse[parse]
+            cli_run[run]
+            cli_test[test]
+            cli_show[show]
+        end
+
+        subgraph discovery[Discovery - Metadata API]
+            disc_mart[get_mart_models]
+            disc_all[get_all_models]
+            disc_details[get_model_details]
+            disc_parents[get_model_parents]
+            disc_children[get_model_children]
+            disc_health[get_model_health]
+            disc_exp[get_exposures]
+            disc_exp_det[get_exposure_details]
+        end
+
+        subgraph sl[dbt Semantic Layer]
+            sl_metrics[list_metrics]
+            sl_dims[get_dimensions]
+            sl_ent[get_entities]
+            sl_query[query_metrics]
+            sl_sql[get_metrics_compiled_sql]
+        end
+
+        subgraph sql[SQL tools]
+            sql_text[text_to_sql]
+            sql_exec[execute_sql]
+        end
+
+        subgraph admin[Admin API tools]
+            admin_list[list_jobs]
+            admin_details[get_job_details]
+            admin_trigger[trigger_job_run]
+            admin_runs[list_jobs_runs]
+            admin_run_det[get_job_run_details]
+            admin_cancel[cancel_job_run]
+            admin_retry[retry_job_run]
+            admin_artifacts[list_job_run_artifacts]
+            admin_artifact[get_job_run_artifact]
+            admin_error[get_job_run_error]
+        end
+
+        subgraph codegen[dbt-codegen tools]
+            code_source[generate_source]
+            code_yaml[generate_model_yaml]
+            code_staging[generate_staging_model]
+        end
+    end
+
+    %% MCP Clients
+    subgraph clients[MCP Clients]
+        direction TB
+        client_claude[Claude]
+        client_cursor[Cursor]
+        client_any[Any MCP client]
+    end
+
+    %% Other components
+    other_mcp[Other MCP servers]
+    other_tools[Other tools]
+
+    %% Connections
+    mcp --> cli
+    mcp --> discovery
+    mcp --> sl
+    mcp --> sql
+    mcp --> admin
+    mcp --> codegen
+
+    clients --> mcp
+    clients --> other_mcp
+    other_mcp --> other_tools
