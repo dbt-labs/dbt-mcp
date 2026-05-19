@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Fix unstructured tool errors being masked as 'outputSchema defined but no structured output returned'
+time: 2026-05-14T15:46:49.572423-07:00

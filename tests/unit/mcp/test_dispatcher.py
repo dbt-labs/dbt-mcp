@@ -191,7 +191,7 @@ class TestCallToolRouting:
         mcps[called].call_tool.assert_awaited_once()
         mcps[not_called].call_tool.assert_not_awaited()
 
-    async def test_returns_text_content_on_tool_error(self):
+    async def test_raises_on_tool_error(self):
         multi = MagicMock(spec=FastMCP)
         single = MagicMock(spec=FastMCP)
         single.call_tool = AsyncMock(side_effect=RuntimeError("something broke"))
@@ -202,13 +202,10 @@ class TestCallToolRouting:
         with patch.object(
             dispatcher, "_is_multi_project", AsyncMock(return_value=False)
         ):
-            result = await dispatcher.call_tool("bad_tool", {})
+            with pytest.raises(RuntimeError, match="something broke"):
+                await dispatcher.call_tool("bad_tool", {})
 
-        assert len(result) == 1
-        assert isinstance(result[0], TextContent)
-        assert "something broke" in result[0].text
-
-    async def test_tracking_failure_does_not_crash_call_tool(self):
+    async def test_tracking_failure_does_not_suppress_tool_error(self):
         single = MagicMock(spec=FastMCP)
         single.call_tool = AsyncMock(
             side_effect=MissingHostError("DBT_HOST is a required environment variable")
@@ -221,13 +218,10 @@ class TestCallToolRouting:
         with patch.object(
             dispatcher, "_is_multi_project", AsyncMock(return_value=False)
         ):
-            result = await dispatcher.call_tool("some_tool", {})
+            with pytest.raises(MissingHostError, match="DBT_HOST"):
+                await dispatcher.call_tool("some_tool", {})
 
-        # Tool error is returned cleanly despite tracking also failing
-        assert len(result) == 1
-        assert isinstance(result[0], TextContent)
-        assert "DBT_HOST" in result[0].text
-        # Tracking was attempted (and failed, but didn't crash)
+        # Tracking was attempted (and failed, but didn't suppress the tool error)
         dispatcher.usage_tracker.emit_tool_called_event.assert_awaited_once()
 
 

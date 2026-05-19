@@ -9,7 +9,7 @@ from typing import Any
 from dbtlabs_vortex.producer import shutdown
 from mcp.server.fastmcp import FastMCP
 from mcp.server.lowlevel.server import LifespanResultT
-from mcp.types import ContentBlock, TextContent, Tool
+from mcp.types import ContentBlock, Tool
 
 from dbt_mcp.config.config import Config
 from dbt_mcp.dbt_admin.tools import register_admin_api_tools
@@ -108,12 +108,8 @@ class DbtMCP(FastMCP):
                 )
             except Exception:
                 logger.debug("Usage tracking failed — skipping", exc_info=True)
-            return [
-                TextContent(
-                    type="text",
-                    text=str(e),
-                )
-            ]
+            raise
+
         end_time = int(time.time() * 1000)
         logger.info(f"Tool {name} called successfully in {end_time - start_time}ms")
         try:
