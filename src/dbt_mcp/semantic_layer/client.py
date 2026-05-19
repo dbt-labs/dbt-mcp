@@ -372,7 +372,10 @@ class SemanticLayerFetcher:
                     metrics=metrics or [],
                     group_by=dimension,
                 )
-            raw: list[Any] = raw_table.column(dimension).to_pylist()
+            raw: list[str] = [
+                str(v) if v is not None else ""
+                for v in raw_table.column(dimension).to_pylist()
+            ]
             truncated = len(raw) > limit
             return DimensionValuesResponse(values=raw[:limit], truncated=truncated)
         except Exception as e:

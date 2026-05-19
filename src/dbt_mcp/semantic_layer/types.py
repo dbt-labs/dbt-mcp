@@ -88,5 +88,5 @@ GetMetricsCompiledSqlResult = GetMetricsCompiledSqlSuccess | GetMetricsCompiledS
 
 @dataclass
 class DimensionValuesResponse:
-    values: list[Any]
+    values: list[str]
     truncated: bool
