@@ -372,9 +372,9 @@ class SemanticLayerFetcher:
                     metrics=metrics or [],
                     group_by=dimension,
                 )
+            # SDK doesn't support server-side limiting; truncation is applied client-side.
             raw: list[str] = [
-                str(v) if v is not None else ""
-                for v in raw_table.column(dimension).to_pylist()
+                str(v) for v in raw_table.column(dimension).to_pylist() if v is not None
             ]
             truncated = len(raw) > limit
             return DimensionValuesResponse(values=raw[:limit], truncated=truncated)

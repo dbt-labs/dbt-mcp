@@ -1,3 +1,3 @@
 kind: Bug Fix
-body: 'Fix get_dimension_values: widen values type to list[Any], add error handling, add limit >= 1 validation'
+body: 'Fix get_dimension_values: stringify dimension values to maintain list[str] type, omit nulls, add error handling, add limit >= 1 validation'
 time: 2026-05-19T14:21:46.951552+02:00
