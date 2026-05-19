@@ -33,6 +33,7 @@ graph LR
         subgraph sl[dbt Semantic Layer]
             sl_metrics[list_metrics]
             sl_dims[get_dimensions]
+            sl_dim_vals[get_dimension_values]
             sl_ent[get_entities]
             sl_query[query_metrics]
             sl_sql[get_metrics_compiled_sql]

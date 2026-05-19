@@ -215,7 +215,9 @@ async def get_dimension_values(
     context: SemanticLayerToolContext,
     dimension: Annotated[str, Field(description=SEMANTIC_DIMENSION)],
     metrics: Annotated[list[str] | None, Field(description=SEMANTIC_METRICS)] = None,
-    limit: Annotated[int, Field(description=SEMANTIC_DIMENSION_VALUES_LIMIT)] = 100,
+    limit: Annotated[
+        int, Field(ge=1, description=SEMANTIC_DIMENSION_VALUES_LIMIT)
+    ] = 100,
 ) -> DimensionValuesResponse:
     config = await context.config_provider.get_config()
     return await context.semantic_layer_fetcher.get_dimension_values(

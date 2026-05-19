@@ -364,16 +364,19 @@ class SemanticLayerFetcher:
         metrics: list[str] | None = None,
         limit: int = 100,
     ) -> DimensionValuesResponse:
-        sl_client = await self.client_provider.get_client(config=config)
-        with sl_client.session():
-            raw_table: Any = await asyncio.to_thread(
-                sl_client.dimension_values,
-                metrics=metrics or [],
-                group_by=dimension,
-            )
-        raw: list[Any] = raw_table.column(dimension).to_pylist()
-        truncated = len(raw) > limit
-        return DimensionValuesResponse(values=raw[:limit], truncated=truncated)
+        try:
+            sl_client = await self.client_provider.get_client(config=config)
+            with sl_client.session():
+                raw_table: Any = await asyncio.to_thread(
+                    sl_client.dimension_values,
+                    metrics=metrics or [],
+                    group_by=dimension,
+                )
+            raw: list[Any] = raw_table.column(dimension).to_pylist()
+            truncated = len(raw) > limit
+            return DimensionValuesResponse(values=raw[:limit], truncated=truncated)
+        except Exception as e:
+            raise RuntimeError(self._format_semantic_layer_error(e)) from e
 
     def _format_semantic_layer_error(self, error: Exception) -> str:
         """Format semantic layer errors by cleaning up common error message patterns."""

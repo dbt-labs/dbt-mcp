@@ -965,6 +965,36 @@ async def test_get_dimension_values_truncates_at_limit(mock_client_provider):
 
 
 @pytest.mark.asyncio
+async def test_get_dimension_values_exact_limit_not_truncated(mock_client_provider):
+    mock_sl_client = MagicMock()
+    session_ctx = MagicMock()
+    mock_sl_client.session.return_value = session_ctx
+    session_ctx.__enter__ = MagicMock(return_value=mock_sl_client)
+    session_ctx.__exit__ = MagicMock(return_value=False)
+    mock_sl_client.dimension_values.return_value = pa.table({"status": ["a", "b", "c"]})
+    mock_client_provider.get_client.return_value = mock_sl_client
+
+    token_p = MagicMock()
+    token_p.get_token.return_value = "tok"
+    headers_p = MagicMock()
+    headers_p.get_headers.return_value = {}
+    config = SemanticLayerConfig(
+        url="https://test-host/api/graphql",
+        host="test-host",
+        prod_environment_id=123,
+        token_provider=token_p,
+        headers_provider=headers_p,
+    )
+    fetcher = SemanticLayerFetcher(client_provider=mock_client_provider)
+    result = await fetcher.get_dimension_values(
+        config=config, dimension="status", limit=3
+    )
+
+    assert result.values == ["a", "b", "c"]
+    assert result.truncated is False
+
+
+@pytest.mark.asyncio
 async def test_get_dimension_values_no_metrics_passes_empty_list(mock_client_provider):
     mock_sl_client = MagicMock()
     session_ctx = MagicMock()
