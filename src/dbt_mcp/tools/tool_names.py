@@ -22,6 +22,7 @@ class ToolName(Enum):
     LIST_SAVED_QUERIES = "list_saved_queries"
     GET_DIMENSIONS = "get_dimensions"
     GET_ENTITIES = "get_entities"
+    GET_DIMENSION_VALUES = "get_dimension_values"
     QUERY_METRICS = "query_metrics"
     GET_METRICS_COMPILED_SQL = "get_metrics_compiled_sql"
 
