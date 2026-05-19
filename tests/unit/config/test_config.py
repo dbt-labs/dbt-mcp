@@ -8,6 +8,8 @@ from dbt_mcp.config.config import (
     DbtMcpSettings,
     load_config,
 )
+from dbt_mcp.config.credentials import CredentialsProvider
+from dbt_mcp.config.elicitation import ElicitingCredentialsProvider
 from dbt_mcp.config.settings import (
     DEFAULT_DBT_CLI_TIMEOUT,
     HostPrefixResult,
@@ -556,3 +558,103 @@ class TestLoadConfig:
         config = self._load_config_with_env(env_vars)
         assert config.discovery_config_provider is not None
         assert config.credentials_provider is not None
+
+
+class TestAnyPlatformToolsetActive:
+    """Tests for DbtMcpSettings.any_platform_toolset_active property.
+
+    Uses model_construct() to test the property in isolation without
+    validators, env var loading, or filesystem checks.
+    """
+
+    @pytest.mark.parametrize(
+        "kwargs, expected",
+        [
+            pytest.param(
+                {},
+                True,
+                id="default_mode_all_active",
+            ),
+            pytest.param(
+                {"enable_dbt_cli": True},
+                False,
+                id="cli_only_allowlist",
+            ),
+            pytest.param(
+                {"enable_semantic_layer": True},
+                True,
+                id="platform_allowlist",
+            ),
+            pytest.param(
+                {"enable_dbt_cli": True, "enable_discovery": True},
+                True,
+                id="mixed_allowlist",
+            ),
+            pytest.param(
+                {
+                    "disable_semantic_layer": True,
+                    "disable_discovery": True,
+                    "disable_admin_api": True,
+                    "disable_sql": True,
+                },
+                False,
+                id="all_platform_disabled",
+            ),
+            pytest.param(
+                {"enable_tools": ["get_all_models"]},
+                False,
+                id="individual_tool_no_toolset",
+            ),
+        ],
+    )
+    def test_any_platform_toolset_active(self, kwargs, expected):
+        settings = DbtMcpSettings.model_construct(**kwargs)
+        assert settings.any_platform_toolset_active is expected
+
+
+class TestProviderWiring(TestLoadConfig):
+    """Tests that load_config() passes the correct credentials provider to each provider.
+
+    Extends TestLoadConfig to reuse _load_config_with_env and setup_method.
+    """
+
+    def test_platform_providers_get_eliciting_wrapper_default_mode(self):
+        """Default mode -- platform providers get ElicitingCredentialsProvider."""
+        config = self._load_config_with_env({})
+        assert isinstance(
+            config.discovery_config_provider.credentials_provider,
+            ElicitingCredentialsProvider,
+        )
+        assert isinstance(
+            config.semantic_layer_config_provider.credentials_provider,
+            ElicitingCredentialsProvider,
+        )
+        assert isinstance(
+            config.admin_api_config_provider.credentials_provider,
+            ElicitingCredentialsProvider,
+        )
+
+    def test_platform_providers_get_inner_when_cli_only(self):
+        """CLI-only allowlist -- platform providers get raw CredentialsProvider."""
+        config = self._load_config_with_env({"DBT_MCP_ENABLE_DBT_CLI": "true"})
+        assert isinstance(
+            config.discovery_config_provider.credentials_provider,
+            CredentialsProvider,
+        )
+        assert not isinstance(
+            config.discovery_config_provider.credentials_provider,
+            ElicitingCredentialsProvider,
+        )
+
+    def test_proxied_tools_always_get_inner(self):
+        """Proxied tools never get eliciting wrapper regardless of mode."""
+        config = self._load_config_with_env({})
+        assert config.proxied_tool_config_provider is not None
+        assert isinstance(
+            config.proxied_tool_config_provider.credentials_provider,
+            CredentialsProvider,
+        )
+        assert not isinstance(
+            config.proxied_tool_config_provider.credentials_provider,
+            ElicitingCredentialsProvider,
+        )
