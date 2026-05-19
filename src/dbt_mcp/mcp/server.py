@@ -63,21 +63,16 @@ class DbtMCP(FastMCP):
             asyncio.Task[LSPConnectionProviderProtocol] | None
         ) = None
 
-    async def _is_multi_project(self) -> bool:
-        try:
-            (
-                settings,
-                _,
-            ) = await self.config.credentials_provider.inner_provider.get_credentials()
-        except MissingHostError as e:
-            logger.warning(
-                "Could not resolve credentials — defaulting to single-project mode: %s",
-                e,
-            )
-            return False
-        return bool(
-            settings.dbt_project_ids is not None and len(settings.dbt_project_ids) > 0
-        )
+    def _is_multi_project(self) -> bool:
+        """Check multi-project mode from settings. No credential fetch.
+
+        Note: dbt_project_ids may be populated later by the OAuth flow
+        in CredentialsProvider.get_credentials(). Users who rely on OAuth-derived project IDs
+        without setting DBT_PROJECT_IDS env var will see single-project
+        mode until the first platform tool call triggers OAuth.
+        """
+        project_ids = self.config.credentials_provider.settings.dbt_project_ids
+        return bool(project_ids is not None and len(project_ids) > 0)
 
     async def call_tool(
         self, name: str, arguments: dict[str, Any]
@@ -86,7 +81,7 @@ class DbtMCP(FastMCP):
         result = None
         start_time = int(time.time() * 1000)
         try:
-            if await self._is_multi_project():
+            if self._is_multi_project():
                 result = await self.multi_project_mcp.call_tool(name, arguments)
             else:
                 result = await self.single_project_mcp.call_tool(name, arguments)
@@ -127,7 +122,7 @@ class DbtMCP(FastMCP):
         return result
 
     async def list_tools(self) -> list[Tool]:
-        if await self._is_multi_project():
+        if self._is_multi_project():
             return await self.multi_project_mcp.list_tools()
         return await self.single_project_mcp.list_tools()
 
@@ -143,7 +138,7 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
         # this avoids anyio cancel scope violations (see issue #498)
         if (
             server.config.proxied_tool_config_provider
-            and not await server._is_multi_project()
+            and not server._is_multi_project()
         ):
             try:
                 logger.info("Registering proxied tools")

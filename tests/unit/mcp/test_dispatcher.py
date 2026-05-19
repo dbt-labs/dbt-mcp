@@ -1,5 +1,6 @@
 """Unit tests for DbtMCP tool dispatcher routing."""
 
+import inspect
 import logging
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -34,6 +35,7 @@ def _make_dispatcher(
     )
 
     credentials_provider = MagicMock(spec=ElicitingCredentialsProvider)
+    credentials_provider.settings = settings
     credentials_provider.inner_provider = inner_credentials_provider
     credentials_provider.get_credentials = AsyncMock(
         return_value=(settings, StaticTokenProvider(token="test-token"))
@@ -62,41 +64,21 @@ def _make_tool(name: str) -> Tool:
 
 
 class TestIsMultiProject:
-    async def test_returns_true_when_project_ids_set(self):
-        settings = DbtMcpSettings.model_construct(dbt_project_ids=[1, 2, 3])
+    def test_is_sync(self):
+        assert not inspect.iscoroutinefunction(DbtMCP._is_multi_project)
+
+    @pytest.mark.parametrize(
+        "project_ids, expected",
+        [
+            pytest.param([1, 2, 3], True, id="set"),
+            pytest.param(None, False, id="none"),
+            pytest.param([], False, id="empty"),
+        ],
+    )
+    def test_returns_expected(self, project_ids, expected):
+        settings = DbtMcpSettings.model_construct(dbt_project_ids=project_ids)
         dispatcher = _make_dispatcher(settings=settings)
-        assert await dispatcher._is_multi_project() is True
-
-    async def test_returns_false_when_project_ids_none(self):
-        settings = DbtMcpSettings.model_construct(dbt_project_ids=None)
-        dispatcher = _make_dispatcher(settings=settings)
-        assert await dispatcher._is_multi_project() is False
-
-    async def test_returns_false_when_project_ids_empty(self):
-        settings = DbtMcpSettings.model_construct(dbt_project_ids=[])
-        dispatcher = _make_dispatcher(settings=settings)
-        assert await dispatcher._is_multi_project() is False
-
-    async def test_returns_false_when_credentials_raise(self):
-        dispatcher = _make_dispatcher()
-        dispatcher.config.credentials_provider.inner_provider.get_credentials = (
-            AsyncMock(
-                side_effect=MissingHostError(
-                    "DBT_HOST is a required environment variable"
-                )
-            )
-        )
-        assert await dispatcher._is_multi_project() is False
-
-    async def test_raises_non_host_value_errors(self):
-        dispatcher = _make_dispatcher()
-        dispatcher.config.credentials_provider.inner_provider.get_credentials = (
-            AsyncMock(
-                side_effect=ValueError("No decoded access token found in OAuth context")
-            )
-        )
-        with pytest.raises(ValueError, match="No decoded access token"):
-            await dispatcher._is_multi_project()
+        assert dispatcher._is_multi_project() is expected
 
 
 class TestListToolsRouting:
@@ -120,7 +102,7 @@ class TestListToolsRouting:
             multi_project_mcp=multi, single_project_mcp=single
         )
         with patch.object(
-            dispatcher, "_is_multi_project", AsyncMock(return_value=is_multi)
+            dispatcher, "_is_multi_project", MagicMock(return_value=is_multi)
         ):
             tools = await dispatcher.list_tools()
 
@@ -128,32 +110,22 @@ class TestListToolsRouting:
         mcps[called].list_tools.assert_awaited_once()
         mcps[not_called].list_tools.assert_not_awaited()
 
-    async def test_list_tools_bypasses_eliciting_provider(self):
-        """list_tools() must use inner_provider only — never block on elicitation.
+    async def test_list_tools_does_not_fetch_credentials(self):
+        """list_tools() must not trigger credential fetching — prevents #759 regression.
 
-        Regression test for: v1.17.x shows 'No tools' in Cursor for dbt Core
-        users because ElicitingCredentialsProvider.get_credentials() was called
-        during ListToolsRequest, causing a timeout via the elicitation prompt.
+        Previously _is_multi_project() called get_credentials() which could block
+        on elicitation, causing a 17-second timeout in Cursor.
         """
         single = MagicMock(spec=FastMCP)
         single.list_tools = AsyncMock(return_value=[_make_tool("single_tool")])
         dispatcher = _make_dispatcher(single_project_mcp=single)
 
-        # Inner provider raises MissingHostError → is_multi = False → single-project
-        dispatcher.config.credentials_provider.inner_provider.get_credentials = (
-            AsyncMock(
-                side_effect=MissingHostError(
-                    "DBT_HOST is a required environment variable"
-                )
-            )
-        )
-
         tools = await dispatcher.list_tools()
 
         assert [t.name for t in tools] == ["single_tool"]
-        # The eliciting provider must never be called from list_tools
-        dispatcher.config.credentials_provider.get_credentials.assert_not_awaited()
-        dispatcher.config.credentials_provider.inner_provider.get_credentials.assert_awaited_once()
+        # Neither provider's get_credentials should be called from list_tools
+        dispatcher.config.credentials_provider.get_credentials.assert_not_called()
+        dispatcher.config.credentials_provider.inner_provider.get_credentials.assert_not_called()
 
 
 class TestCallToolRouting:
@@ -183,7 +155,7 @@ class TestCallToolRouting:
             multi_project_mcp=multi, single_project_mcp=single
         )
         with patch.object(
-            dispatcher, "_is_multi_project", AsyncMock(return_value=is_multi)
+            dispatcher, "_is_multi_project", MagicMock(return_value=is_multi)
         ):
             result = await dispatcher.call_tool("some_tool", {"arg": "val"})
 
@@ -200,7 +172,7 @@ class TestCallToolRouting:
             multi_project_mcp=multi, single_project_mcp=single
         )
         with patch.object(
-            dispatcher, "_is_multi_project", AsyncMock(return_value=False)
+            dispatcher, "_is_multi_project", MagicMock(return_value=False)
         ):
             with pytest.raises(RuntimeError, match="something broke"):
                 await dispatcher.call_tool("bad_tool", {})
@@ -216,7 +188,7 @@ class TestCallToolRouting:
             side_effect=MissingHostError("tracking credentials missing")
         )
         with patch.object(
-            dispatcher, "_is_multi_project", AsyncMock(return_value=False)
+            dispatcher, "_is_multi_project", MagicMock(return_value=False)
         ):
             with pytest.raises(MissingHostError, match="DBT_HOST"):
                 await dispatcher.call_tool("some_tool", {})
@@ -239,7 +211,7 @@ class TestAppLifespanLogging:
         server.config.enable_tools = None
         server.config.enabled_toolsets = set()
         server.config.disabled_toolsets = set()
-        server._is_multi_project = AsyncMock(return_value=False)
+        server._is_multi_project = MagicMock(return_value=False)
 
         with patch(
             "dbt_mcp.mcp.server.register_proxied_tools", side_effect=AssertionError()
@@ -273,7 +245,7 @@ class TestArgLogging:
 
         with (
             patch.object(
-                dispatcher, "_is_multi_project", AsyncMock(return_value=False)
+                dispatcher, "_is_multi_project", MagicMock(return_value=False)
             ),
             caplog.at_level(logging.INFO, logger="dbt_mcp.mcp.server"),
         ):
