@@ -84,3 +84,9 @@ class GetMetricsCompiledSqlError:
 
 
 GetMetricsCompiledSqlResult = GetMetricsCompiledSqlSuccess | GetMetricsCompiledSqlError
+
+
+@dataclass
+class DimensionValuesResponse:
+    values: list[str]
+    truncated: bool

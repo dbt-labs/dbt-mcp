@@ -21,6 +21,7 @@ HUMAN_DESCRIPTIONS: dict[ToolName, str] = {
     ToolName.LIST_SAVED_QUERIES: "Retrieves all saved queries.",
     ToolName.GET_DIMENSIONS: "Gets dimensions for specified metrics.",
     ToolName.GET_ENTITIES: "Gets entities for specified metrics.",
+    ToolName.GET_DIMENSION_VALUES: "Gets distinct values for a dimension; option to scope to specific metrics.",
     ToolName.QUERY_METRICS: "Executes metric queries with filtering and grouping options.",
     ToolName.GET_METRICS_COMPILED_SQL: "Returns compiled SQL for metrics without executing the query.",
     # Discovery tools

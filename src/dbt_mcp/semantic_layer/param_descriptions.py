@@ -44,3 +44,14 @@ SEMANTIC_WHERE = (
     "Semantic Layer filter; use {{ Dimension('name') }}, "
     "{{ TimeDimension('name', 'grain') }}, {{ Entity('name') }}; dates as yyyy-mm-dd"
 )
+
+SEMANTIC_DIMENSION = (
+    "The dimension name to retrieve values for "
+    "(e.g. `customer__country`, `order__status`)"
+)
+
+SEMANTIC_DIMENSION_VALUES_LIMIT = (
+    "Maximum number of distinct values to return (default 100). "
+    "If the result is truncated, the response `truncated` field will be True — "
+    "increase this limit to retrieve more values."
+)
