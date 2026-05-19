@@ -904,7 +904,9 @@ async def test_get_dimension_values_returns_values(mock_client_provider):
     mock_sl_client.session.return_value = session_ctx
     session_ctx.__enter__ = MagicMock(return_value=mock_sl_client)
     session_ctx.__exit__ = MagicMock(return_value=False)
-    mock_sl_client.dimension_values.return_value = ["US", "UK", "FR"]
+    mock_sl_client.dimension_values.return_value = pa.table(
+        {"customer__country": ["US", "UK", "FR"]}
+    )
     mock_client_provider.get_client.return_value = mock_sl_client
 
     token_p = MagicMock()
@@ -937,7 +939,9 @@ async def test_get_dimension_values_truncates_at_limit(mock_client_provider):
     mock_sl_client.session.return_value = session_ctx
     session_ctx.__enter__ = MagicMock(return_value=mock_sl_client)
     session_ctx.__exit__ = MagicMock(return_value=False)
-    mock_sl_client.dimension_values.return_value = ["a", "b", "c", "d", "e"]
+    mock_sl_client.dimension_values.return_value = pa.table(
+        {"status": ["a", "b", "c", "d", "e"]}
+    )
     mock_client_provider.get_client.return_value = mock_sl_client
 
     token_p = MagicMock()
@@ -967,7 +971,9 @@ async def test_get_dimension_values_no_metrics_passes_empty_list(mock_client_pro
     mock_sl_client.session.return_value = session_ctx
     session_ctx.__enter__ = MagicMock(return_value=mock_sl_client)
     session_ctx.__exit__ = MagicMock(return_value=False)
-    mock_sl_client.dimension_values.return_value = ["active", "inactive"]
+    mock_sl_client.dimension_values.return_value = pa.table(
+        {"customer__status": ["active", "inactive"]}
+    )
     mock_client_provider.get_client.return_value = mock_sl_client
 
     token_p = MagicMock()

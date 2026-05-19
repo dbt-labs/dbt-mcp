@@ -117,7 +117,7 @@ class SemanticLayerClientProtocol(Protocol):
         self,
         metrics: list[str],
         group_by: str,
-    ) -> list[str]: ...
+    ) -> Any: ...
 
 
 class SemanticLayerClientProvider(Protocol):
@@ -366,11 +366,12 @@ class SemanticLayerFetcher:
     ) -> DimensionValuesResponse:
         sl_client = await self.client_provider.get_client(config=config)
         with sl_client.session():
-            raw = await asyncio.to_thread(
+            raw_table: Any = await asyncio.to_thread(
                 sl_client.dimension_values,
                 metrics=metrics or [],
                 group_by=dimension,
             )
+        raw: list[Any] = raw_table.column(0).to_pylist()
         truncated = len(raw) > limit
         return DimensionValuesResponse(values=raw[:limit], truncated=truncated)
 
