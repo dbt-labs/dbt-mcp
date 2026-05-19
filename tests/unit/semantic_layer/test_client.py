@@ -19,7 +19,11 @@ from dbt_mcp.config.config_providers import SemanticLayerConfig
 from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.errors.semantic_layer import SemanticLayerQueryTimeoutError
 from dbt_mcp.semantic_layer.client import DEFAULT_RESULT_FORMATTER, SemanticLayerFetcher
-from dbt_mcp.semantic_layer.types import OrderByParam, QueryMetricsError
+from dbt_mcp.semantic_layer.types import (
+    DimensionValuesResponse,
+    OrderByParam,
+    QueryMetricsError,
+)
 
 
 def test_default_result_formatter_outputs_iso_dates() -> None:
@@ -876,3 +880,18 @@ def test_get_order_bys_unknown_name_raises(fetcher) -> None:
 
 def test_get_order_bys_none_returns_empty(fetcher) -> None:
     assert fetcher._get_order_bys(None) == []
+
+
+# Tests for DimensionValuesResponse
+
+
+def test_dimension_values_response_creation() -> None:
+    response = DimensionValuesResponse(values=["value1", "value2"], truncated=False)
+    assert response.values == ["value1", "value2"]
+    assert response.truncated is False
+
+
+def test_dimension_values_response_truncated() -> None:
+    response = DimensionValuesResponse(values=["a", "b", "c"], truncated=True)
+    assert len(response.values) == 3
+    assert response.truncated is True
