@@ -168,6 +168,40 @@ class DbtMcpSettings(BaseSettings):
         return True
 
     @property
+    def any_platform_toolset_active(self) -> bool:
+        """Whether any platform toolset is active under the current config mode.
+
+        Three modes (mirrors register.py:should_register_tool and config.py
+        enabled_toolsets/disabled_toolsets computation):
+        1. Allowlist mode (any ENABLE_* flag set): only explicitly enabled
+           platform toolsets count.
+        2. Denylist/default mode: platform toolsets active unless disabled.
+
+        Platform toolsets: semantic_layer, discovery, admin_api, sql.
+        Local toolsets: dbt_cli, dbt_codegen, lsp, product_docs, mcp_server_metadata.
+        """
+        has_any_enable = self.enable_tools is not None or any((
+            self.enable_semantic_layer, self.enable_discovery,
+            self.enable_admin_api, self.enable_sql,
+            self.enable_dbt_cli, self.enable_dbt_codegen,
+            self.enable_lsp, self.enable_product_docs,
+            self.enable_mcp_server_metadata,
+        ))
+        if has_any_enable:
+            return any((
+                self.enable_semantic_layer,
+                self.enable_discovery,
+                self.enable_admin_api,
+                self.enable_sql,
+            ))
+        return any((
+            not self.disable_semantic_layer,
+            not self.disable_discovery,
+            not self.disable_admin_api,
+            not self.actual_disable_sql,
+        ))
+
+    @property
     def actual_host_prefix(self) -> str | None:
         if self.host_prefix is not None:
             return self.host_prefix

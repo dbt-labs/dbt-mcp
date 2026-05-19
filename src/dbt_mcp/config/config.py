@@ -107,7 +107,16 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
     settings = DbtMcpSettings()  # type: ignore
 
     inner_credentials = CredentialsProvider(settings)
-    credentials_provider = ElicitingCredentialsProvider(inner_credentials)
+    eliciting_credentials = ElicitingCredentialsProvider(inner_credentials)
+
+    # Platform providers get eliciting wrapper when platform toolsets are active.
+    # CLI-only users get raw credentials — defense-in-depth alongside register.py's
+    # allowlist gating which already prevents platform tool calls for these users.
+    platform_credentials = (
+        eliciting_credentials
+        if settings.any_platform_toolset_active
+        else inner_credentials
+    )
 
     # Set default warn error options if not provided
     if settings.dbt_warn_error_options is None:
@@ -127,7 +136,8 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         if getattr(settings, attr_name, False)
     }
 
-    # Proxied tools still gated on explicit opt-in flag
+    # Proxied tools stay on inner_credentials — lifespan-time registration,
+    # request_ctx is None, elicitation impossible by design
     proxied_tool_config_provider = None
     if enable_proxied_tools:
         proxied_tool_config_provider = DefaultProxiedToolConfigProvider(
@@ -135,26 +145,26 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         )
 
     admin_api_config_provider = DefaultAdminApiConfigProvider(
-        credentials_provider=inner_credentials,
+        credentials_provider=platform_credentials,
     )
     admin_client = DbtAdminAPIClient(admin_api_config_provider)
     multi_project_discovery_config_provider = MultiProjectDiscoveryConfigProvider(
-        credentials_provider=inner_credentials,
+        credentials_provider=platform_credentials,
         admin_client=admin_client,
     )
     multi_project_semantic_layer_config_provider = (
         MultiProjectSemanticLayerConfigProvider(
-            credentials_provider=inner_credentials,
+            credentials_provider=platform_credentials,
             admin_client=admin_client,
             metrics_related_max=settings.sl_metrics_related_max,
             max_response_chars=settings.sl_metrics_max_response_chars,
         )
     )
     discovery_config_provider = DefaultDiscoveryConfigProvider(
-        credentials_provider=inner_credentials,
+        credentials_provider=platform_credentials,
     )
     semantic_layer_config_provider = DefaultSemanticLayerConfigProvider(
-        credentials_provider=inner_credentials,
+        credentials_provider=platform_credentials,
         metrics_related_max=settings.sl_metrics_related_max,
         max_response_chars=settings.sl_metrics_max_response_chars,
     )
@@ -211,6 +221,6 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         multi_project_semantic_layer_config_provider=multi_project_semantic_layer_config_provider,
         semantic_layer_config_provider=semantic_layer_config_provider,
         admin_api_config_provider=admin_api_config_provider,
-        credentials_provider=credentials_provider,
+        credentials_provider=eliciting_credentials,
         lsp_config=lsp_config,
     )
