@@ -18,4 +18,4 @@ class ArtifactValidationError(ArtifactSearchError):
 
 
 class ArtifactNotLoadedError(ToolCallError):
-    """Raised when querying before any artifacts have been loaded (client error)."""
+    """Raised when querying a table that has not been loaded or does not exist (client error)."""

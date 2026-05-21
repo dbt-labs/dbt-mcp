@@ -25,7 +25,11 @@ logger = logging.getLogger(__name__)
 
 
 def _json(data: Any) -> str:
-    """Serialize ``data`` to a JSON string; returns empty string for falsy values."""
+    """Serialize ``data`` to a JSON string.
+
+    Returns empty string for ``None``, empty strings, and empty collections.
+    Falsy scalars (``0``, ``False``) are serialized as their JSON representation.
+    """
     if data is None:
         return ""
     if isinstance(data, str):
