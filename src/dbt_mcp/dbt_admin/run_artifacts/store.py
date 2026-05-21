@@ -5,6 +5,7 @@ fetched by the Admin API client.
 """
 
 import logging
+import re
 import time
 from typing import Any
 
@@ -19,6 +20,7 @@ from dbt_mcp.dbt_admin.run_artifacts.tables import TABLES, TableConfig
 from dbt_mcp.errors.artifact_search import (
     ArtifactNotLoadedError,
     ArtifactQueryError,
+    ArtifactSearchError,
     ArtifactValidationError,
 )
 
@@ -56,8 +58,16 @@ class ArtifactStore:
 
     def __init__(self) -> None:
         self.conn = duckdb.connect()
-        self.conn.execute("INSTALL fts;")
-        self.conn.execute("LOAD fts;")
+        try:
+            self.conn.execute("LOAD fts;")
+        except duckdb.Error:
+            try:
+                self.conn.execute("INSTALL fts;")
+                self.conn.execute("LOAD fts;")
+            except duckdb.Error as e:
+                raise ArtifactSearchError(
+                    f"Failed to load the DuckDB FTS extension: {e}"
+                ) from e
         self._loaded_tables: set[str] = set()
         self._tables_created: bool = False
         self._pending_index_tables: set[str] = set()
@@ -277,7 +287,7 @@ class ArtifactStore:
             )
 
         for col in config.index_columns:
-            idx_name = f"idx_{config.table_name[:4]}_{col}"
+            idx_name = f"idx_{config.table_name}_{col}"
             self.conn.execute(
                 f"CREATE INDEX IF NOT EXISTS {idx_name} "
                 f'ON {config.table_name}("{col}");'
@@ -327,7 +337,10 @@ class ArtifactStore:
 
     def query(self, sql: str) -> list[dict[str, Any]]:
         """Execute a read-only SQL query. Results capped at 500 rows."""
-        tokens = sql.strip().upper().split()
+        sanitized = _strip_sql_comments(sql)
+        if ";" in sanitized:
+            raise ArtifactQueryError("Multi-statement queries are not allowed.")
+        tokens = sanitized.strip().upper().split()
         for token in tokens:
             if token in READONLY_BLOCKED:
                 raise ArtifactQueryError(
@@ -389,6 +402,13 @@ class ArtifactStore:
             raise ArtifactNotLoadedError(
                 f"Unknown table '{table_name}'. Available: {available}"
             )
+
+
+def _strip_sql_comments(sql: str) -> str:
+    """Remove SQL block (/* */) and line (--) comments."""
+    sql = re.sub(r"/\*.*?\*/", " ", sql, flags=re.DOTALL)
+    sql = re.sub(r"--[^\n]*", " ", sql)
+    return sql
 
 
 def _serialize(val: Any) -> Any:

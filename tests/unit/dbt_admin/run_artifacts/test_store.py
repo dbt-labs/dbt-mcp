@@ -133,11 +133,13 @@ class TestQuery:
             with pytest.raises(ArtifactQueryError, match="Blocked keyword"):
                 store.query(f"{keyword} something")
 
-    def test_mutating_keywords_blocked_anywhere_in_query(
-        self, store: ArtifactStore
-    ) -> None:
-        with pytest.raises(ArtifactQueryError, match="Blocked keyword"):
+    def test_multi_statement_query_blocked(self, store: ArtifactStore) -> None:
+        with pytest.raises(ArtifactQueryError, match="Multi-statement"):
             store.query("SELECT 1; DROP TABLE nodes")
+
+    def test_comment_bypass_blocked(self, store: ArtifactStore) -> None:
+        with pytest.raises(ArtifactQueryError, match="Multi-statement"):
+            store.query("SELECT 1;/**/DROP TABLE nodes")
 
     def test_invalid_sql_raises(self, store: ArtifactStore) -> None:
         with pytest.raises(ArtifactQueryError, match="Query failed"):
