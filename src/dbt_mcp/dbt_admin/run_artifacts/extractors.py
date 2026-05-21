@@ -409,7 +409,7 @@ def extract_from_catalog(data: dict[str, Any]) -> dict[str, list[tuple]]:
                     col.get("name") or col_name,
                     col.get("index"),
                     col.get("type"),
-                    col.get("comment") or "",
+                    col.get("comment"),
                 )
             )
 
