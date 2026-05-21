@@ -141,6 +141,11 @@ class TestQuery:
         with pytest.raises(ArtifactQueryError, match="Multi-statement"):
             store.query("SELECT 1;/**/DROP TABLE nodes")
 
+    def test_trailing_semicolon_is_allowed(self, store: ArtifactStore) -> None:
+        store._ensure_tables_created()
+        result = store.query("SELECT 1 AS n;")
+        assert result == [{"n": 1}]
+
     def test_invalid_sql_raises(self, store: ArtifactStore) -> None:
         with pytest.raises(ArtifactQueryError, match="Query failed"):
             store.query("SELECT * FROM table_that_does_not_exist_xyz")
