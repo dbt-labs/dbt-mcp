@@ -337,10 +337,12 @@ class ArtifactStore:
 
     def query(self, sql: str) -> list[dict[str, Any]]:
         """Execute a read-only SQL query. Results capped at 500 rows."""
-        sanitized = _strip_sql_comments(sql)
+        sanitized = _strip_sql_comments(sql).strip()
+        if sanitized.endswith(";"):
+            sanitized = sanitized[:-1]
         if ";" in sanitized:
             raise ArtifactQueryError("Multi-statement queries are not allowed.")
-        tokens = sanitized.strip().upper().split()
+        tokens = sanitized.upper().split()
         for token in tokens:
             if token in READONLY_BLOCKED:
                 raise ArtifactQueryError(
@@ -371,14 +373,19 @@ class ArtifactStore:
 
         fts_table = f"fts_main_{table_name}"
         sql = f"""
-            SELECT t.*, {fts_table}.match_bm25(t.id, ?) AS fts_score
+            WITH scored AS (
+                SELECT id, {fts_table}.match_bm25(id, ?) AS fts_score
+                FROM "{table_name}"
+            )
+            SELECT t.*, s.fts_score
             FROM "{table_name}" t
-            WHERE {fts_table}.match_bm25(t.id, ?) IS NOT NULL
-            ORDER BY fts_score DESC
+            JOIN scored s ON t.id = s.id
+            WHERE s.fts_score IS NOT NULL
+            ORDER BY s.fts_score DESC
             LIMIT ?
         """
         try:
-            result = self.conn.execute(sql, [query_text, query_text, limit])
+            result = self.conn.execute(sql, [query_text, limit])
             columns = [desc[0] for desc in result.description]
             rows = result.fetchall()
             return [
