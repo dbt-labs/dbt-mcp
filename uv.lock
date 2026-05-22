@@ -7,7 +7,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-05-15T18:09:10.948732Z"
+exclude-newer = "2026-05-15T18:20:03.187033Z"
 exclude-newer-span = "P7D"
 
 [options.exclude-newer-package]
@@ -313,7 +313,7 @@ requires-dist = [
     { name = "authlib", specifier = "~=1.6.7" },
     { name = "dbt-artifacts-parser", specifier = ">=0.13.2" },
     { name = "dbt-protos", specifier = "~=1.0.431" },
-    { name = "dbt-sl-sdk", extras = ["sync"], specifier = "~=0.13.2" },
+    { name = "dbt-sl-sdk", extras = ["sync"], specifier = "~=0.13.3" },
     { name = "dbtlabs-vortex", specifier = "~=0.2.0" },
     { name = "fastapi", specifier = "~=0.128.0" },
     { name = "filelock", specifier = "~=3.20.3" },
