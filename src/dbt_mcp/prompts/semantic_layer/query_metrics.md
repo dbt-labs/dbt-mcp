@@ -94,12 +94,12 @@ Thinking step-by-step:
   - I should first limit results to verify the query works
 Parameters (initial query):
     metrics=["average_order_value"]
-    group_by=[{"name": "product_category", "type": "dimension", "grain": null}]
+    group_by=[{"name": "product_category", "type": "dimension"}]
     where="{{ Dimension('order_value') }} > 100"
     limit=10
 Follow-up Query (after verifying results):
     metrics=["average_order_value"]
-    group_by=[{"name": "product_category", "type": "dimension", "grain": null}]
+    group_by=[{"name": "product_category", "type": "dimension"}]
     where="{{ Dimension('order_value') }} > 100"
     limit=null
 </example>
@@ -144,7 +144,7 @@ Response to user:
     If user agrees, then:
 Parameters:
     metrics=["net_promoter_score"]
-    group_by=[{"name": "region", "type": "dimension", "grain": null}]
+    group_by=[{"name": "region", "type": "dimension"}]
     order_by=[{"name": "net_promoter_score", "descending": true}]
     limit=10
 </example>
