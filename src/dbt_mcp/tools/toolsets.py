@@ -21,6 +21,7 @@ class Toolset(Enum):
     DBT_LSP = "dbt_lsp"
     PRODUCT_DOCS = "product_docs"
     MCP_SERVER_METADATA = "mcp_server_metadata"
+    ARTIFACT_SEARCH = "artifact_search"
 
 
 proxied_tools: set[
@@ -120,6 +121,14 @@ toolsets = {
     Toolset.MCP_SERVER_METADATA: {
         ToolName.GET_MCP_SERVER_VERSION,
         ToolName.GET_MCP_SERVER_BRANCH,
+    },
+    Toolset.ARTIFACT_SEARCH: {
+        ToolName.LOAD_ARTIFACTS,
+        ToolName.CLEAR_ARTIFACT_STORE,
+        ToolName.LIST_ARTIFACT_TABLES,
+        ToolName.DESCRIBE_ARTIFACT_TABLE,
+        ToolName.QUERY_ARTIFACTS,
+        ToolName.SEARCH_ARTIFACTS,
     },
 }
 

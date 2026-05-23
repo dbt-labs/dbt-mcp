@@ -170,11 +170,11 @@ class TestSearch:
 
     def test_table_without_fts_columns_raises(self, store: ArtifactStore) -> None:
         store._ensure_tables_created()
-        store._loaded_tables.add("node_columns")  # node_columns has no fts_columns
+        store._loaded_tables.add("edges")  # edges has no fts_columns
         with pytest.raises(
             ArtifactQueryError, match="does not support full-text search"
         ):
-            store.search(table_name="node_columns", query_text="anything")
+            store.search(table_name="edges", query_text="anything")
 
     def test_bm25_returns_matching_rows_with_score(self, store: ArtifactStore) -> None:
         store._ensure_tables_created()

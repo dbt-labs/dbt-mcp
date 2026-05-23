@@ -90,7 +90,7 @@ NODE_COLUMNS = TableConfig(
             UNIQUE (run_id, unique_id, column_name)
         )
     """,
-    fts_columns=[],
+    fts_columns=["column_name", "description"],
     index_columns=["unique_id"],
 )
 

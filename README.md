@@ -117,6 +117,16 @@ These tools provide information about the MCP server itself.
 - `get_mcp_server_branch`: Returns the current git branch of the running dbt MCP server.
 - `get_mcp_server_version`: Returns the current version of the dbt MCP server.
 
+### Artifact Search
+
+Tools for loading dbt job run artifacts into an in-memory DuckDB and querying them via SQL or full-text search.
+- `clear_artifact_store`: Drops all loaded artifact tables and resets the in-memory store to empty.
+- `describe_artifact_table`: Shows column names and types for a loaded artifact table.
+- `list_artifact_tables`: Lists all loaded artifact tables with row counts.
+- `load_artifacts`: Fetches dbt job run artifacts from dbt Platform and loads them into an in-memory DuckDB for querying.
+- `query_artifacts`: Executes a read-only SQL query against loaded artifact data (SELECT only, results capped at 500 rows).
+- `search_artifacts`: Full-text BM25 keyword search on a loaded artifact table.
+
 
 ## Examples
 

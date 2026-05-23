@@ -77,6 +77,14 @@ class ToolName(Enum):
     SEARCH_PRODUCT_DOCS = "search_product_docs"
     GET_PRODUCT_DOC_PAGES = "get_product_doc_pages"
 
+    # Artifact Search tools
+    LOAD_ARTIFACTS = "load_artifacts"
+    CLEAR_ARTIFACT_STORE = "clear_artifact_store"
+    LIST_ARTIFACT_TABLES = "list_artifact_tables"
+    DESCRIBE_ARTIFACT_TABLE = "describe_artifact_table"
+    QUERY_ARTIFACTS = "query_artifacts"
+    SEARCH_ARTIFACTS = "search_artifacts"
+
     # MCP Server tools
     GET_MCP_SERVER_VERSION = "get_mcp_server_version"
     GET_MCP_SERVER_BRANCH = "get_mcp_server_branch"

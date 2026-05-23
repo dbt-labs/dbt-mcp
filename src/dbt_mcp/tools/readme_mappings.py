@@ -66,6 +66,13 @@ HUMAN_DESCRIPTIONS: dict[ToolName, str] = {
     ToolName.GET_COLUMN_LINEAGE: "Traces column-level lineage locally (requires dbt-lsp via dbt Labs VSCE).",
     ToolName.FUSION_COMPILE_SQL: "Compiles SQL in project context via dbt Platform.",
     ToolName.FUSION_GET_COLUMN_LINEAGE: "Traces column-level lineage via dbt Platform.",
+    # Artifact Search tools
+    ToolName.LOAD_ARTIFACTS: "Fetches dbt job run artifacts from dbt Platform and loads them into an in-memory DuckDB for querying.",
+    ToolName.CLEAR_ARTIFACT_STORE: "Drops all loaded artifact tables and resets the in-memory store to empty.",
+    ToolName.LIST_ARTIFACT_TABLES: "Lists all loaded artifact tables with row counts.",
+    ToolName.DESCRIBE_ARTIFACT_TABLE: "Shows column names and types for a loaded artifact table.",
+    ToolName.QUERY_ARTIFACTS: "Executes a read-only SQL query against loaded artifact data (SELECT only, results capped at 500 rows).",
+    ToolName.SEARCH_ARTIFACTS: "Full-text BM25 keyword search on a loaded artifact table.",
     # MCP Server tools
     ToolName.GET_MCP_SERVER_VERSION: "Returns the current version of the dbt MCP server.",
     # Product docs tools
@@ -84,6 +91,7 @@ TOOLSET_DESCRIPTIONS: dict[Toolset, str] = {
     Toolset.DBT_LSP: "A set of tools that leverage the Fusion engine for advanced SQL compilation and column-level lineage analysis.",
     Toolset.MCP_SERVER_METADATA: "These tools provide information about the MCP server itself.",
     Toolset.PRODUCT_DOCS: "Tools for searching and fetching content from the official dbt documentation at docs.getdbt.com.",
+    Toolset.ARTIFACT_SEARCH: "Tools for loading dbt job run artifacts into an in-memory DuckDB and querying them via SQL or full-text search.",
 }
 
 

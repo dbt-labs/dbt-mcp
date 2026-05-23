@@ -40,6 +40,7 @@ async def test_toolsets_match_server_tools(env_setup):
             env_vars={
                 "DISABLE_DBT_CODEGEN": "false",
                 "DISABLE_MCP_SERVER_METADATA": "false",
+                "DISABLE_ARTIFACT_SEARCH": "false",
             }
         ),
         patch(
