@@ -612,11 +612,22 @@ class TestAnyPlatformToolsetActive:
         assert settings.any_platform_toolset_active is expected
 
 
-class TestProviderWiring(TestLoadConfig):
-    """Tests that load_config() passes the correct credentials provider to each provider.
+class TestProviderWiring:
+    """Tests that load_config() passes the correct credentials provider to each provider."""
 
-    Extends TestLoadConfig to reuse _load_config_with_env and setup_method.
-    """
+    def _load_config_with_env(self, env_vars):
+        with (
+            patch.dict(os.environ, env_vars),
+            patch("dbt_mcp.config.config.DbtMcpSettings") as mock_settings_class,
+            patch(
+                "dbt_mcp.config.config.detect_binary_type",
+                return_value=BinaryType.DBT_CORE,
+            ),
+        ):
+            with patch.dict(os.environ, env_vars, clear=True):
+                settings_instance = DbtMcpSettings(_env_file=None)
+            mock_settings_class.return_value = settings_instance
+            return load_config()
 
     def test_platform_providers_get_eliciting_wrapper_default_mode(self):
         """Default mode -- platform providers get ElicitingCredentialsProvider."""
