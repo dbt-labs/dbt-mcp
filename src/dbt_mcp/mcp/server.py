@@ -65,7 +65,7 @@ class DbtMCP(FastMCP):
 
     def _is_multi_project(self) -> bool:
         project_ids = self.config.credentials_provider.settings.dbt_project_ids
-        return bool(project_ids is not None and len(project_ids) > 0)
+        return project_ids is not None and len(project_ids) > 0
 
     async def call_tool(
         self, name: str, arguments: dict[str, Any]

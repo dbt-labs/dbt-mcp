@@ -132,6 +132,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         if getattr(settings, attr_name, False)
     }
 
+    # Proxied tools run at lifespan time where request_ctx is None
     proxied_tool_config_provider = None
     if enable_proxied_tools:
         proxied_tool_config_provider = DefaultProxiedToolConfigProvider(
