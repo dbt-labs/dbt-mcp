@@ -169,26 +169,38 @@ class DbtMcpSettings(BaseSettings):
 
     @property
     def any_platform_toolset_active(self) -> bool:
-        has_any_enable = self.enable_tools is not None or any((
-            self.enable_semantic_layer, self.enable_discovery,
-            self.enable_admin_api, self.enable_sql,
-            self.enable_dbt_cli, self.enable_dbt_codegen,
-            self.enable_lsp, self.enable_product_docs,
-            self.enable_mcp_server_metadata,
-        ))
-        if has_any_enable:
-            return any((
+        # enable_tools (individual tool names) triggers allowlist mode but
+        # doesn't resolve to toolsets — provider-level errors handle that path
+        has_any_enable = self.enable_tools is not None or any(
+            (
                 self.enable_semantic_layer,
                 self.enable_discovery,
                 self.enable_admin_api,
                 self.enable_sql,
-            ))
-        return any((
-            not self.disable_semantic_layer,
-            not self.disable_discovery,
-            not self.disable_admin_api,
-            not self.actual_disable_sql,
-        ))
+                self.enable_dbt_cli,
+                self.enable_dbt_codegen,
+                self.enable_lsp,
+                self.enable_product_docs,
+                self.enable_mcp_server_metadata,
+            )
+        )
+        if has_any_enable:
+            return any(
+                (
+                    self.enable_semantic_layer,
+                    self.enable_discovery,
+                    self.enable_admin_api,
+                    self.enable_sql,
+                )
+            )
+        return any(
+            (
+                not self.disable_semantic_layer,
+                not self.disable_discovery,
+                not self.disable_admin_api,
+                not self.actual_disable_sql,
+            )
+        )
 
     @property
     def actual_host_prefix(self) -> str | None:

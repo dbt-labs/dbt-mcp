@@ -634,6 +634,22 @@ class TestProviderWiring:
             ElicitingCredentialsProvider,
         )
 
+    def test_platform_providers_get_inner_when_all_platform_disabled(self):
+        config = _load_config_with_env({
+            "DISABLE_SEMANTIC_LAYER": "true",
+            "DISABLE_DISCOVERY": "true",
+            "DISABLE_ADMIN_API": "true",
+            "DISABLE_SQL": "true",
+        })
+        assert isinstance(
+            config.discovery_config_provider.credentials_provider,
+            CredentialsProvider,
+        )
+        assert not isinstance(
+            config.discovery_config_provider.credentials_provider,
+            ElicitingCredentialsProvider,
+        )
+
     def test_proxied_tools_always_get_inner(self):
         config = _load_config_with_env({})
         assert config.proxied_tool_config_provider is not None
