@@ -132,7 +132,8 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         if getattr(settings, attr_name, False)
     }
 
-    # Proxied tools run at lifespan time where request_ctx is None
+    # Proxied tools run at lifespan time where request_ctx is None —
+    # elicitation needs a request context, so these always use raw credentials.
     proxied_tool_config_provider = None
     if enable_proxied_tools:
         proxied_tool_config_provider = DefaultProxiedToolConfigProvider(

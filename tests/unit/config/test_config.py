@@ -28,6 +28,7 @@ def _load_config_with_env(env_vars):
             return_value=BinaryType.DBT_CORE,
         ),
     ):
+        # Inner clear=True prevents .env file from leaking into test settings
         with patch.dict(os.environ, env_vars, clear=True):
             settings_instance = DbtMcpSettings(_env_file=None)
         mock_settings_class.return_value = settings_instance
