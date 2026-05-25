@@ -64,13 +64,6 @@ class DbtMCP(FastMCP):
         ) = None
 
     def _is_multi_project(self) -> bool:
-        """Check multi-project mode from settings. No credential fetch.
-
-        Note: dbt_project_ids may be populated later by the OAuth flow
-        in CredentialsProvider.get_credentials(). Users who rely on OAuth-derived project IDs
-        without setting DBT_PROJECT_IDS env var will see single-project
-        mode until the first platform tool call triggers OAuth.
-        """
         project_ids = self.config.credentials_provider.settings.dbt_project_ids
         return bool(project_ids is not None and len(project_ids) > 0)
 

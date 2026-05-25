@@ -169,17 +169,6 @@ class DbtMcpSettings(BaseSettings):
 
     @property
     def any_platform_toolset_active(self) -> bool:
-        """Whether any platform toolset is active under the current config mode.
-
-        Three modes (mirrors register.py:should_register_tool and config.py
-        enabled_toolsets/disabled_toolsets computation):
-        1. Allowlist mode (any ENABLE_* flag set): only explicitly enabled
-           platform toolsets count.
-        2. Denylist/default mode: platform toolsets active unless disabled.
-
-        Platform toolsets: semantic_layer, discovery, admin_api, sql.
-        Local toolsets: dbt_cli, dbt_codegen, lsp, product_docs, mcp_server_metadata.
-        """
         has_any_enable = self.enable_tools is not None or any((
             self.enable_semantic_layer, self.enable_discovery,
             self.enable_admin_api, self.enable_sql,

@@ -15,12 +15,6 @@ if TYPE_CHECKING:
 
 
 class CredentialsProviderProtocol(Protocol):
-    """Structural interface for credential providers.
-
-    Both CredentialsProvider and ElicitingCredentialsProvider satisfy this
-    protocol. Config providers accept this protocol so either can be injected.
-    """
-
     async def get_credentials(self) -> tuple[DbtMcpSettings, TokenProvider]: ...
 
 

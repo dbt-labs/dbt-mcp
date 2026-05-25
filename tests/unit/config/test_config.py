@@ -19,6 +19,21 @@ from dbt_mcp.dbt_cli.binary_type import BinaryType
 from dbt_mcp.tools.tool_names import ToolName
 
 
+def _load_config_with_env(env_vars):
+    with (
+        patch.dict(os.environ, env_vars),
+        patch("dbt_mcp.config.config.DbtMcpSettings") as mock_settings_class,
+        patch(
+            "dbt_mcp.config.config.detect_binary_type",
+            return_value=BinaryType.DBT_CORE,
+        ),
+    ):
+        with patch.dict(os.environ, env_vars, clear=True):
+            settings_instance = DbtMcpSettings(_env_file=None)
+        mock_settings_class.return_value = settings_instance
+        return load_config()
+
+
 class TestDbtMcpSettings:
     def setup_method(self):
         # Clear environment variables that could interfere with default value tests
@@ -325,22 +340,6 @@ class TestLoadConfig:
         for var in env_vars_to_clear:
             os.environ.pop(var, None)
 
-    def _load_config_with_env(self, env_vars):
-        """Helper method to load config with test environment variables, avoiding .env file interference"""
-        with (
-            patch.dict(os.environ, env_vars),
-            patch("dbt_mcp.config.config.DbtMcpSettings") as mock_settings_class,
-            patch(
-                "dbt_mcp.config.config.detect_binary_type",
-                return_value=BinaryType.DBT_CORE,
-            ),
-        ):
-            # Create a real instance with test values, but without .env file loading
-            with patch.dict(os.environ, env_vars, clear=True):
-                settings_instance = DbtMcpSettings(_env_file=None)
-            mock_settings_class.return_value = settings_instance
-            return load_config()
-
     def test_valid_config_all_services_enabled(self, env_setup):
         env_vars = {
             "DBT_HOST": "test.dbt.com",
@@ -388,7 +387,7 @@ class TestLoadConfig:
             "DISABLE_ADMIN_API": "true",
         }
 
-        config = self._load_config_with_env(env_vars)
+        config = _load_config_with_env(env_vars)
 
         # Platform providers are always created (resolve lazily via elicitation)
         assert config.discovery_config_provider is not None
@@ -407,7 +406,7 @@ class TestLoadConfig:
         }
 
         with pytest.raises(ValueError):
-            self._load_config_with_env(env_vars)
+            _load_config_with_env(env_vars)
 
     def test_multicell_account_prefix_configurations(self):
         env_vars = {
@@ -421,7 +420,7 @@ class TestLoadConfig:
             "DISABLE_REMOTE": "true",
         }
 
-        config = self._load_config_with_env(env_vars)
+        config = _load_config_with_env(env_vars)
 
         assert config.discovery_config_provider is not None
         assert config.semantic_layer_config_provider is not None
@@ -437,7 +436,7 @@ class TestLoadConfig:
             "DISABLE_REMOTE": "true",
         }
 
-        config = self._load_config_with_env(env_vars)
+        config = _load_config_with_env(env_vars)
 
         assert config.semantic_layer_config_provider is not None
 
@@ -504,7 +503,7 @@ class TestLoadConfig:
             patch.dict(os.environ, env_vars),
             patch("dbt_mcp.tracking.tracking.try_read_yaml", return_value=user_data),
         ):
-            config = self._load_config_with_env(env_vars)
+            config = _load_config_with_env(env_vars)
             # local_user_id is now loaded by UsageTracker, not Config
             assert config.credentials_provider is not None
 
@@ -523,7 +522,7 @@ class TestLoadConfig:
             patch.dict(os.environ, env_vars),
             patch("dbt_mcp.tracking.tracking.try_read_yaml", return_value=None),
         ):
-            config = self._load_config_with_env(env_vars)
+            config = _load_config_with_env(env_vars)
             # local_user_id is now loaded by UsageTracker, not Config
             assert config.credentials_provider is not None
 
@@ -539,7 +538,7 @@ class TestLoadConfig:
             "DISABLE_REMOTE": "true",
         }
 
-        config = self._load_config_with_env(env_vars)
+        config = _load_config_with_env(env_vars)
         assert config.discovery_config_provider is not None
         assert config.credentials_provider is not None
 
@@ -555,17 +554,12 @@ class TestLoadConfig:
             "DISABLE_REMOTE": "true",
         }
 
-        config = self._load_config_with_env(env_vars)
+        config = _load_config_with_env(env_vars)
         assert config.discovery_config_provider is not None
         assert config.credentials_provider is not None
 
 
 class TestAnyPlatformToolsetActive:
-    """Tests for DbtMcpSettings.any_platform_toolset_active property.
-
-    Uses model_construct() to test the property in isolation without
-    validators, env var loading, or filesystem checks.
-    """
 
     @pytest.mark.parametrize(
         "kwargs, expected",
@@ -613,25 +607,9 @@ class TestAnyPlatformToolsetActive:
 
 
 class TestProviderWiring:
-    """Tests that load_config() passes the correct credentials provider to each provider."""
-
-    def _load_config_with_env(self, env_vars):
-        with (
-            patch.dict(os.environ, env_vars),
-            patch("dbt_mcp.config.config.DbtMcpSettings") as mock_settings_class,
-            patch(
-                "dbt_mcp.config.config.detect_binary_type",
-                return_value=BinaryType.DBT_CORE,
-            ),
-        ):
-            with patch.dict(os.environ, env_vars, clear=True):
-                settings_instance = DbtMcpSettings(_env_file=None)
-            mock_settings_class.return_value = settings_instance
-            return load_config()
 
     def test_platform_providers_get_eliciting_wrapper_default_mode(self):
-        """Default mode -- platform providers get ElicitingCredentialsProvider."""
-        config = self._load_config_with_env({})
+        config = _load_config_with_env({})
         assert isinstance(
             config.discovery_config_provider.credentials_provider,
             ElicitingCredentialsProvider,
@@ -646,8 +624,7 @@ class TestProviderWiring:
         )
 
     def test_platform_providers_get_inner_when_cli_only(self):
-        """CLI-only allowlist -- platform providers get raw CredentialsProvider."""
-        config = self._load_config_with_env({"DBT_MCP_ENABLE_DBT_CLI": "true"})
+        config = _load_config_with_env({"DBT_MCP_ENABLE_DBT_CLI": "true"})
         assert isinstance(
             config.discovery_config_provider.credentials_provider,
             CredentialsProvider,
@@ -658,8 +635,7 @@ class TestProviderWiring:
         )
 
     def test_proxied_tools_always_get_inner(self):
-        """Proxied tools never get eliciting wrapper regardless of mode."""
-        config = self._load_config_with_env({})
+        config = _load_config_with_env({})
         assert config.proxied_tool_config_provider is not None
         assert isinstance(
             config.proxied_tool_config_provider.credentials_provider,

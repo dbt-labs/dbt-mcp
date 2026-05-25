@@ -108,10 +108,6 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
 
     inner_credentials = CredentialsProvider(settings)
     eliciting_credentials = ElicitingCredentialsProvider(inner_credentials)
-
-    # Platform providers get eliciting wrapper when platform toolsets are active.
-    # CLI-only users get raw credentials — defense-in-depth alongside register.py's
-    # allowlist gating which already prevents platform tool calls for these users.
     platform_credentials = (
         eliciting_credentials
         if settings.any_platform_toolset_active
@@ -136,8 +132,6 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         if getattr(settings, attr_name, False)
     }
 
-    # Proxied tools stay on inner_credentials — lifespan-time registration,
-    # request_ctx is None, elicitation impossible by design
     proxied_tool_config_provider = None
     if enable_proxied_tools:
         proxied_tool_config_provider = DefaultProxiedToolConfigProvider(
