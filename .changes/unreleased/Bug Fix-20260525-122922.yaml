@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Wire elicitation to platform config providers so the host setup wizard fires on first use; make _is_multi_project() sync to prevent list_tools() failures.
+time: 2026-05-25T12:29:22.012068+01:00
