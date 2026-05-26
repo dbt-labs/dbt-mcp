@@ -80,6 +80,15 @@ class TestIsMultiProject:
         dispatcher = _make_dispatcher(settings=settings)
         assert dispatcher._is_multi_project() is expected
 
+    def test_cli_only_with_project_ids_returns_false(self):
+        """CLI-only users with a stale DBT_PROJECT_IDS should not route to multi-project."""
+        settings = DbtMcpSettings.model_construct(
+            dbt_project_ids=[1, 2, 3],
+            enable_dbt_cli=True,
+        )
+        dispatcher = _make_dispatcher(settings=settings)
+        assert dispatcher._is_multi_project() is False
+
 
 class TestListToolsRouting:
     @pytest.mark.parametrize(

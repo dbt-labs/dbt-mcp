@@ -596,9 +596,14 @@ class TestAnyPlatformToolsetActive:
                 id="all_platform_disabled",
             ),
             pytest.param(
-                {"enable_tools": ["get_all_models"]},
+                {"enable_tools": [ToolName.GET_ALL_MODELS]},
+                True,
+                id="individual_platform_tool",
+            ),
+            pytest.param(
+                {"enable_tools": [ToolName.BUILD]},
                 False,
-                id="individual_tool_no_toolset",
+                id="individual_cli_tool",
             ),
         ],
     )

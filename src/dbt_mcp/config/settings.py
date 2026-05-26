@@ -11,6 +11,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from dbt_mcp.config.dbt_project import DbtProjectYaml
 from dbt_mcp.config.dbt_yaml import try_read_yaml
 from dbt_mcp.tools.tool_names import ToolName
+from dbt_mcp.tools.toolsets import TOOL_TO_TOOLSET, Toolset
 
 logger = logging.getLogger(__name__)
 
@@ -169,8 +170,8 @@ class DbtMcpSettings(BaseSettings):
 
     @property
     def any_platform_toolset_active(self) -> bool:
-        # enable_tools (individual tool names) triggers allowlist mode but
-        # doesn't resolve to toolsets — provider-level errors handle that path
+        platform_toolsets = {Toolset.SEMANTIC_LAYER, Toolset.DISCOVERY, Toolset.ADMIN_API, Toolset.SQL}
+
         has_any_enable = self.enable_tools is not None or any(
             (
                 self.enable_semantic_layer,
@@ -185,14 +186,23 @@ class DbtMcpSettings(BaseSettings):
             )
         )
         if has_any_enable:
-            return any(
+            # Check toolset-level flags
+            if any(
                 (
                     self.enable_semantic_layer,
                     self.enable_discovery,
                     self.enable_admin_api,
                     self.enable_sql,
                 )
-            )
+            ):
+                return True
+            # Resolve individual tool names to their parent toolsets
+            if self.enable_tools is not None:
+                for tool_name in self.enable_tools:
+                    toolset = TOOL_TO_TOOLSET.get(tool_name)
+                    if toolset in platform_toolsets:
+                        return True
+            return False
         return any(
             (
                 not self.disable_semantic_layer,
