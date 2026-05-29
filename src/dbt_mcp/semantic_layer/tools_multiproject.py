@@ -3,7 +3,10 @@ from typing import Annotated
 
 from dbtsl.api.shared.query_params import GroupByParam
 from mcp.server.fastmcp import FastMCP
-from pydantic import Field
+from pydantic import BeforeValidator, Field
+
+def _coerce_str_to_list(v):
+    return [v] if isinstance(v, str) else v
 
 from dbt_mcp.config.config_providers import (
     MultiProjectConfigProvider,
@@ -69,7 +72,9 @@ async def list_metrics(
     context: MultiProjectSemanticLayerToolContext,
     project_id: Annotated[int, Field(description=SEMANTIC_LAYER_PROJECT_ID)],
     search: Annotated[
-        list[str] | None, Field(description=SEMANTIC_SEARCH_METRICS)
+        list[str] | None,
+        BeforeValidator(_coerce_str_to_list),
+        Field(description=SEMANTIC_SEARCH_METRICS),
     ] = None,
 ) -> str:
     config = await context.semantic_layer_config_provider.get_config(project_id)
