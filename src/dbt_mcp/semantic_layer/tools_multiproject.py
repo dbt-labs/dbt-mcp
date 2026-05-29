@@ -69,7 +69,7 @@ async def list_metrics(
     context: MultiProjectSemanticLayerToolContext,
     project_id: Annotated[int, Field(description=SEMANTIC_LAYER_PROJECT_ID)],
     search: Annotated[
-        str | list[str] | None, Field(description=SEMANTIC_SEARCH_METRICS)
+        list[str] | None, Field(description=SEMANTIC_SEARCH_METRICS)
     ] = None,
 ) -> str:
     config = await context.semantic_layer_config_provider.get_config(project_id)

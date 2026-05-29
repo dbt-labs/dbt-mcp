@@ -527,22 +527,22 @@ async def test_list_metrics_search_list_normalizes_and_dedupes_terms(
 
 @pytest.mark.asyncio
 @patch("dbt_mcp.semantic_layer.client.submit_request")
-async def test_list_metrics_single_string_search_is_normalized(
+async def test_list_metrics_single_element_list_search_is_normalized(
     mock_submit_request, fetcher, mock_config_provider
 ):
-    """A single-string search is stripped and empty/whitespace-only becomes no filter."""
+    """A single-element list search is stripped and empty/whitespace-only becomes no filter."""
     mock_submit_request.side_effect = _make_query_dispatcher()
     config = mock_config_provider.get_config.return_value
 
     # Whitespace-padded string is stripped to "rev"
-    await fetcher.list_metrics(config=config, search="  rev  ")
+    await fetcher.list_metrics(config=config, search=["  rev  "])
     for call in mock_submit_request.call_args_list:
         assert call.args[1]["variables"]["search"] == "rev"
     mock_submit_request.reset_mock()
     mock_submit_request.side_effect = _make_query_dispatcher()
 
     # Empty/whitespace-only string collapses to no filter
-    await fetcher.list_metrics(config=config, search="   ")
+    await fetcher.list_metrics(config=config, search=["   "])
     for call in mock_submit_request.call_args_list:
         assert call.args[1]["variables"]["search"] is None
 

@@ -145,12 +145,12 @@ class SemanticLayerFetcher:
     async def list_metrics(
         self,
         config: SemanticLayerConfig,
-        search: str | list[str] | None = None,
+        search: list[str] | None = None,
     ) -> ListMetricsResponse:
-        # `search` may be a single substring or a list of substrings; for a list
-        # we fan out one GraphQL call per substring, then merge & dedupe by name.
+        # `search` is a list of substrings; we fan out one GraphQL call
+        # per substring, then merge & dedupe by name.
         search_terms: list[str | None]
-        if isinstance(search, list):
+        if search is not None:
             # Strip whitespace, drop empty values, and dedupe identical terms
             # (preserving first-seen order) so a whitespace-only or duplicated
             # term can't broaden the fan-out into redundant or no-filter calls.
@@ -171,11 +171,7 @@ class SemanticLayerFetcher:
                 )
             search_terms = list(cleaned) if cleaned else [None]
         else:
-            # Mirror the list-path normalization for parity: a single-string
-            # `search` is stripped, and an empty/whitespace-only string becomes
-            # no filter (search=None).
-            normalized = search.strip() if isinstance(search, str) else search
-            search_terms = [normalized if normalized else None]
+            search_terms = [None]
 
         cheap_results = await asyncio.gather(
             *(

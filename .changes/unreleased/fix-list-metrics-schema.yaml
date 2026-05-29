@@ -1,0 +1,2 @@
+kind: Bug Fix
+body: Change `list_metrics` search parameter to `list[str] | None` to resolve Vertex AI schema union error.

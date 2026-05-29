@@ -130,7 +130,7 @@ class SemanticLayerToolContext:
 async def list_metrics(
     context: SemanticLayerToolContext,
     search: Annotated[
-        str | list[str] | None, Field(description=SEMANTIC_SEARCH_METRICS)
+        list[str] | None, Field(description=SEMANTIC_SEARCH_METRICS)
     ] = None,
 ) -> str:
     config = await context.config_provider.get_config()
