@@ -1,25 +1,30 @@
 """Unit tests for the Product Docs toolset."""
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import httpx
 import pytest
 
-from dbt_mcp.config.config import load_config
 from dbt_mcp.dbt_cli.binary_type import BinaryType
-from dbt_mcp.mcp.server import create_dbt_mcp
 from dbt_mcp.product_docs.client import (
+    detect_eol_page,
     extract_relevant_sections,
+    filter_version_blocks,
     normalize_doc_url,
     parse_llms_full_txt,
     parse_llms_txt,
     split_markdown_sections,
 )
+from dbt_mcp.mcp.server import register_multi_project_dbt_mcp
 from dbt_mcp.product_docs.tools import (
+    PRODUCT_DOCS_TOOLS,
     ProductDocsToolContext,
     get_product_doc_pages,
+    register_product_docs_tools,
     search_product_docs,
 )
+from dbt_mcp.tools.toolsets import Toolset
+from tests.mocks.config import mock_config
 
 SAMPLE_LLMS_TXT = """\
 # dbt Developer Hub
@@ -93,9 +98,15 @@ def mock_client():
 @pytest.fixture
 def context(mock_client):
     """Create ProductDocsToolContext with a mocked client."""
-    ctx = ProductDocsToolContext.__new__(ProductDocsToolContext)
-    ctx.client = mock_client
-    return ctx
+    return ProductDocsToolContext(client=mock_client, dbt_version_provider=lambda: None)
+
+
+@pytest.fixture
+def versioned_context(mock_client):
+    """Create ProductDocsToolContext with a mocked client and dbt version set."""
+    return ProductDocsToolContext(
+        client=mock_client, dbt_version_provider=lambda: "1.8.4"
+    )
 
 
 class TestParseLlmsTxt:
@@ -518,46 +529,337 @@ class TestSearchFullText:
         assert results[0]["url"].endswith("incremental-models-overview")
 
 
+class TestFilterVersionBlocks:
+    def test_no_version_blocks_returns_unchanged(self):
+        content = "# Models\n\nPlain markdown with no version blocks."
+        assert filter_version_blocks(content, "1.8.0") == content
+
+    def test_strips_tags_when_no_user_version(self):
+        content = '<VersionBlock firstVersion="2.0">Fusion content</VersionBlock>'
+        result = filter_version_blocks(content, None)
+        assert result == "Fusion content"
+
+    def test_keeps_matching_first_version_block(self):
+        content = '<VersionBlock firstVersion="1.8">New feature</VersionBlock>'
+        result = filter_version_blocks(content, "1.9.0")
+        assert result == "New feature"
+
+    def test_removes_non_matching_first_version_block(self):
+        content = '<VersionBlock firstVersion="2.0">Fusion only</VersionBlock>'
+        result = filter_version_blocks(content, "1.8.0")
+        assert result == ""
+
+    def test_keeps_matching_last_version_block(self):
+        content = '<VersionBlock lastVersion="1.99">Core content</VersionBlock>'
+        result = filter_version_blocks(content, "1.8.0")
+        assert result == "Core content"
+
+    def test_removes_non_matching_last_version_block(self):
+        content = '<VersionBlock lastVersion="1.7">Old content</VersionBlock>'
+        result = filter_version_blocks(content, "1.8.0")
+        assert result == ""
+
+    def test_both_attributes_in_range(self):
+        content = '<VersionBlock firstVersion="1.8" lastVersion="1.11">Specific range</VersionBlock>'
+        result = filter_version_blocks(content, "1.9.0")
+        assert result == "Specific range"
+
+    def test_both_attributes_out_of_range(self):
+        content = '<VersionBlock firstVersion="1.8" lastVersion="1.11">Specific range</VersionBlock>'
+        result = filter_version_blocks(content, "1.12.0")
+        assert result == ""
+
+    def test_multiple_version_blocks(self):
+        content = (
+            "Before\n"
+            '<VersionBlock firstVersion="2.0">Fusion</VersionBlock>\n'
+            "Middle\n"
+            '<VersionBlock lastVersion="1.99">Core</VersionBlock>\n'
+            "After"
+        )
+        result = filter_version_blocks(content, "1.8.0")
+        assert "Fusion" not in result
+        assert "Core" in result
+        assert "Before" in result
+        assert "Middle" in result
+        assert "After" in result
+
+    def test_inline_version_blocks(self):
+        content = (
+            'Use <VersionBlock lastVersion="1.10">`DBT_PROJECT_DIR`</VersionBlock>'
+            '<VersionBlock firstVersion="1.11">`DBT_ENGINE_PROJECT_DIR`</VersionBlock>'
+        )
+        result = filter_version_blocks(content, "1.12.0")
+        assert "DBT_ENGINE_PROJECT_DIR" in result
+        assert "DBT_PROJECT_DIR" not in result
+
+    def test_nested_version_blocks(self):
+        content = (
+            '<VersionBlock firstVersion="2.0">\n'
+            "Outer content\n"
+            '<VersionBlock lastVersion="2.5">Inner range</VersionBlock>\n'
+            "</VersionBlock>"
+        )
+        # User is on 2.1 — both outer and inner should match
+        result = filter_version_blocks(content, "2.1.0")
+        assert "Outer content" in result
+        assert "Inner range" in result
+
+    def test_nested_version_blocks_outer_removed(self):
+        content = (
+            '<VersionBlock firstVersion="2.0">\n'
+            "Outer content\n"
+            '<VersionBlock lastVersion="2.5">Inner range</VersionBlock>\n'
+            "</VersionBlock>"
+        )
+        # User is on 1.8 — outer doesn't match, everything removed
+        result = filter_version_blocks(content, "1.8.0")
+        assert "Outer content" not in result
+        assert "Inner range" not in result
+
+    def test_malformed_version_block_kept(self):
+        # VersionBlock with no recognizable attributes — keep content
+        content = '<VersionBlock badattr="x">Keep this</VersionBlock>'
+        result = filter_version_blocks(content, "1.8.0")
+        assert result == "Keep this"
+
+    def test_boundary_version_exact_match(self):
+        content = '<VersionBlock firstVersion="1.8">Content</VersionBlock>'
+        result = filter_version_blocks(content, "1.8.0")
+        assert result == "Content"
+
+
+class TestDetectEolPage:
+    def test_older_versions_url(self):
+        url = "https://docs.getdbt.com/docs/dbt-versions/core-upgrade/Older versions/upgrading-to-v1.5.md"
+        assert detect_eol_page(url) is True
+
+    def test_url_encoded_older_versions(self):
+        url = "https://docs.getdbt.com/docs/dbt-versions/core-upgrade/Older%20versions/upgrading-to-v1.3.md"
+        assert detect_eol_page(url) is True
+
+    def test_current_upgrade_url(self):
+        url = "https://docs.getdbt.com/docs/dbt-versions/core-upgrade/upgrading-to-v1.9.md"
+        assert detect_eol_page(url) is False
+
+    def test_regular_docs_url(self):
+        url = "https://docs.getdbt.com/docs/build/models.md"
+        assert detect_eol_page(url) is False
+
+    def test_eol_boundary_version(self):
+        # v1.6 is the last EOL version
+        url = "https://docs.getdbt.com/docs/dbt-versions/core-upgrade/upgrading-to-v1.6.md"
+        assert detect_eol_page(url) is True
+
+    def test_first_supported_version(self):
+        # v1.7 is the first non-EOL version
+        url = "https://docs.getdbt.com/docs/dbt-versions/core-upgrade/upgrading-to-v1.7.md"
+        assert detect_eol_page(url) is False
+
+    def test_older_versions_folder_without_version_in_path(self):
+        # Pages in the folder that don't have an explicit version number use folder detection
+        url = "https://docs.getdbt.com/docs/dbt-versions/core-upgrade/Older versions/some-old-page.md"
+        assert detect_eol_page(url) is True
+
+
+class TestGetDbtVersion:
+    """Tests for the real get_dbt_version implementation.
+
+    The conftest stubs out get_dbt_version to prevent real subprocess calls
+    in integration-style tests. Here we reference the saved real implementation.
+    """
+
+    @pytest.fixture(autouse=True)
+    def real_fn(self):
+        import dbt_mcp.dbt_cli.binary_type as bt_mod
+
+        self._real = bt_mod._real_get_dbt_version  # type: ignore[attr-defined]
+
+    def test_dbt_core_installed_line(self):
+        mock_result = MagicMock()
+        mock_result.stdout = "Core:\n  - installed: 1.8.4\n  - latest:    1.9.0\n"
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result):
+            version = self._real("/usr/bin/dbt", BinaryType.DBT_CORE)
+        assert version == "1.8.4"
+
+    def test_dbt_cloud_cli(self):
+        mock_result = MagicMock()
+        mock_result.stdout = "dbt Cloud CLI - 0.38.23 (fcd1b61abc)\n"
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result):
+            version = self._real("/usr/bin/dbt", BinaryType.DBT_CLOUD_CLI)
+        assert version == "0.38.23"
+
+    def test_fusion_fallback(self):
+        mock_result = MagicMock()
+        mock_result.stdout = "dbt-fusion 1.9.0\n"
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result):
+            version = self._real("/usr/bin/dbt", BinaryType.FUSION)
+        assert version == "1.9.0"
+
+    def test_subprocess_failure_returns_none(self):
+        with patch("subprocess.run", side_effect=OSError("not found")):
+            version = self._real("/no/dbt", BinaryType.DBT_CORE)
+        assert version is None
+
+    def test_empty_output_returns_none(self):
+        mock_result = MagicMock()
+        mock_result.stdout = ""
+        mock_result.stderr = ""
+        with patch("subprocess.run", return_value=mock_result):
+            version = self._real("/usr/bin/dbt", BinaryType.DBT_CORE)
+        assert version is None
+
+
+class TestVersionInSearchResponse:
+    @pytest.mark.asyncio
+    async def test_search_includes_dbt_project_version(
+        self, versioned_context, mock_client
+    ):
+        mock_client.search_index.return_value = [
+            {"title": "Models", "url": "https://docs.getdbt.com/docs/build/models"},
+        ]
+        result = await search_product_docs.fn(versioned_context, "models")
+        assert result.dbt_project_version == "1.8.4"
+
+    @pytest.mark.asyncio
+    async def test_search_version_none_when_not_set(self, context, mock_client):
+        mock_client.search_index.return_value = [
+            {"title": "Models", "url": "https://docs.getdbt.com/docs/build/models"},
+        ]
+        result = await search_product_docs.fn(context, "models")
+        assert result.dbt_project_version is None
+
+    @pytest.mark.asyncio
+    async def test_search_empty_query_still_has_version(self, versioned_context):
+        result = await search_product_docs.fn(versioned_context, "")
+        assert result.dbt_project_version == "1.8.4"
+        assert result.error is not None
+
+
+class TestVersionInGetPagesResponse:
+    @pytest.mark.asyncio
+    async def test_get_pages_includes_dbt_project_version(
+        self, versioned_context, mock_client
+    ):
+        mock_client.get_page.return_value = "# Page Content"
+        result = await get_product_doc_pages.fn(
+            versioned_context, ["/docs/build/models"]
+        )
+        assert result.dbt_project_version == "1.8.4"
+
+    @pytest.mark.asyncio
+    async def test_get_pages_version_none_when_not_set(self, context, mock_client):
+        mock_client.get_page.return_value = "# Page Content"
+        result = await get_product_doc_pages.fn(context, ["/docs/build/models"])
+        assert result.dbt_project_version is None
+
+
+class TestEolPageAnnotation:
+    @pytest.mark.asyncio
+    async def test_fetched_eol_page_has_warning(self, context, mock_client):
+        mock_client.get_page.return_value = "# Upgrading to v1.5\n\nOld content."
+        result = await get_product_doc_pages.fn(
+            context,
+            [
+                "https://docs.getdbt.com/docs/dbt-versions/core-upgrade/Older versions/upgrading-to-v1.5"
+            ],
+        )
+        page = result.pages[0]
+        assert page.version_note is not None
+        assert "end-of-life" in page.version_note
+        assert page.content.startswith(">>> VERSION NOTICE:")
+
+    @pytest.mark.asyncio
+    async def test_fetched_current_page_no_annotation(self, context, mock_client):
+        mock_client.get_page.return_value = "# Models\n\nCurrent content."
+        result = await get_product_doc_pages.fn(context, ["/docs/build/models"])
+        page = result.pages[0]
+        assert page.version_note is None
+        assert not page.content.startswith(">>>")
+
+
+class TestVersionBlockInFetchedPages:
+    @pytest.mark.asyncio
+    async def test_fetched_page_filters_version_blocks(
+        self, versioned_context, mock_client
+    ):
+        mock_client.get_page.return_value = (
+            "# Install dbt\n\n"
+            '<VersionBlock firstVersion="2.0">Fusion content</VersionBlock>\n'
+            '<VersionBlock lastVersion="1.99">Core content</VersionBlock>'
+        )
+        result = await get_product_doc_pages.fn(
+            versioned_context, ["/docs/local/install-dbt"]
+        )
+        page = result.pages[0]
+        assert "Core content" in page.content
+        assert "Fusion content" not in page.content
+
+    @pytest.mark.asyncio
+    async def test_fetched_page_strips_tags_when_no_version(self, context, mock_client):
+        mock_client.get_page.return_value = (
+            '<VersionBlock firstVersion="2.0">Fusion</VersionBlock>\n'
+            '<VersionBlock lastVersion="1.99">Core</VersionBlock>'
+        )
+        result = await get_product_doc_pages.fn(context, ["/docs/local/install-dbt"])
+        page = result.pages[0]
+        # No user version — both kept, tags stripped
+        assert "Fusion" in page.content
+        assert "Core" in page.content
+        assert "<VersionBlock" not in page.content
+
+
 class TestProductDocsRegistration:
     @pytest.mark.asyncio
-    async def test_tools_registered_by_default(self, env_setup):
-        with (
-            env_setup(),
-            patch(
-                "dbt_mcp.config.config.detect_binary_type",
-                return_value=BinaryType.DBT_CORE,
-            ),
-        ):
-            config = load_config(enable_proxied_tools=False)
-            dbt_mcp = await create_dbt_mcp(config)
-            server_tools = await dbt_mcp.list_tools()
-            tool_names = {tool.name for tool in server_tools}
+    async def test_tools_registered_by_default(self):
+        """Product docs tools are registered when no toolset overrides are set."""
+        from mcp.server.fastmcp import FastMCP
 
-            assert "search_product_docs" in tool_names
-            assert "get_product_doc_pages" in tool_names
+        mcp = FastMCP()
+        register_product_docs_tools(
+            mcp,
+            dbt_version_provider=lambda: None,
+            disabled_tools=set(),
+            enabled_tools=None,
+            enabled_toolsets=set(),
+            disabled_toolsets=set(),
+        )
+        tools = await mcp.list_tools()
+        tool_names = {t.name for t in tools}
+
+        assert "search_product_docs" in tool_names
+        assert "get_product_doc_pages" in tool_names
 
     @pytest.mark.asyncio
-    async def test_tools_available_without_cloud_credentials(self, env_setup):
-        """Product docs tools should work even without DBT_HOST or DBT_TOKEN."""
-        with (
-            env_setup(
-                env_vars={
-                    "DBT_HOST": "",
-                    "DBT_TOKEN": "",
-                }
-            ),
-            patch(
-                "dbt_mcp.config.config.detect_binary_type",
-                return_value=BinaryType.DBT_CORE,
-            ),
-        ):
-            config = load_config(enable_proxied_tools=False)
-            dbt_mcp = await create_dbt_mcp(config)
-            server_tools = await dbt_mcp.list_tools()
-            tool_names = {tool.name for tool in server_tools}
+    async def test_tools_not_registered_when_disabled(self):
+        """Product docs tools are excluded when PRODUCT_DOCS toolset is disabled."""
+        from mcp.server.fastmcp import FastMCP
 
-            assert "search_product_docs" in tool_names
-            assert "get_product_doc_pages" in tool_names
+        mcp = FastMCP()
+        register_product_docs_tools(
+            mcp,
+            dbt_version_provider=lambda: None,
+            disabled_tools=set(),
+            enabled_tools=None,
+            enabled_toolsets=set(),
+            disabled_toolsets={Toolset.PRODUCT_DOCS},
+        )
+        tools = await mcp.list_tools()
+        tool_names = {t.name for t in tools}
+
+        assert "search_product_docs" not in tool_names
+        assert "get_product_doc_pages" not in tool_names
+
+    @pytest.mark.asyncio
+    async def test_tools_registered_in_multi_project_mcp(self, mock_fastmcp):
+        """Product docs tools are registered via register_multi_project_dbt_mcp."""
+        fastmcp, tools = mock_fastmcp
+        await register_multi_project_dbt_mcp(fastmcp, mock_config)
+        product_docs_tool_names = {tool.fn.__name__ for tool in PRODUCT_DOCS_TOOLS}
+        assert product_docs_tool_names.issubset(tools.keys())
 
 
 class TestSplitMarkdownSections:
