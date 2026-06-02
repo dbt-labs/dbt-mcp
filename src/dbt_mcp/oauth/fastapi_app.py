@@ -6,6 +6,7 @@ from authlib.integrations.requests_client import OAuth2Session
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import Receive, Scope, Send
 from uvicorn import Server
 
@@ -72,6 +73,10 @@ def create_app(
     dbt_platform_context_manager: DbtPlatformContextManager,
 ) -> FastAPI:
     app = FastAPI()
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=["localhost", "127.0.0.1"],
+    )
 
     app.state.decoded_access_token = cast(DecodedAccessToken | None, None)
     app.state.server_ref = cast(Server | None, None)
@@ -158,11 +163,6 @@ def create_app(
                 )
             )
         return projects
-
-    @app.get("/dbt_platform_context")
-    def get_dbt_platform_context() -> DbtPlatformContext:
-        logger.info("Selected project received")
-        return dbt_platform_context_manager.read_context() or DbtPlatformContext()
 
     @app.post("/selected_projects")
     async def set_selected_projects(
