@@ -86,6 +86,110 @@ _ABBREVIATION_EXPANSIONS: dict[str, list[str]] = {
 
 _LLMS_TXT_ENTRY_RE = re.compile(r"^-\s+\[([^\]]+)\]\(([^)]+)\)(?::\s*(.+))?$")
 
+_EOL_VERSION_RE = re.compile(r"/upgrading-to-v(\d+)[._-](\d+)", re.IGNORECASE)
+_EOL_FOLDER_RE = re.compile(r"/core-upgrade/Older(?:\s|%20)versions/", re.IGNORECASE)
+_EOL_MAX_MINOR = 6  # dbt Core 1.6 and older are EOL
+EOL_MAX_VERSION = f"1.{_EOL_MAX_MINOR}"
+
+EOL_PAGE_WARNING = (
+    ">>> VERSION NOTICE: This page describes a dbt Core version that has "
+    "reached end-of-life (EOL) and is no longer supported. The information "
+    "may be outdated or differ from current behavior. See the latest version "
+    "support info at https://docs.getdbt.com/docs/dbt-versions/core\n\n---\n\n"
+)
+
+# Matches innermost VersionBlock tags (content must not contain another <VersionBlock).
+# Processing innermost first and iterating handles nested blocks correctly.
+_INNER_VERSION_BLOCK_RE = re.compile(
+    r"<VersionBlock\s+([^>]*)>((?:(?!<VersionBlock).)*?)</VersionBlock>",
+    re.DOTALL,
+)
+_VB_ATTR_RE = re.compile(r'(firstVersion|lastVersion)="([^"]+)"')
+_MINOR_VERSION_RE = re.compile(r"(\d+)\.(\d+)")
+
+
+def _parse_minor_version(version_str: str) -> tuple[int, int] | None:
+    """Parse ``'1.8'`` or ``'1.8.4'`` into ``(1, 8)``."""
+    match = _MINOR_VERSION_RE.match(version_str)
+    if match:
+        return (int(match.group(1)), int(match.group(2)))
+    return None
+
+
+def _version_in_range(
+    user_version: tuple[int, int],
+    *,
+    first_version: str | None,
+    last_version: str | None,
+) -> bool:
+    """Return ``True`` if *user_version* falls within the VersionBlock range."""
+    if first_version:
+        fv = _parse_minor_version(first_version)
+        if fv and user_version < fv:
+            return False
+    if last_version:
+        lv = _parse_minor_version(last_version)
+        if lv and user_version > lv:
+            return False
+    return True
+
+
+def filter_version_blocks(content: str, user_version: str | None) -> str:
+    """Filter ``<VersionBlock>`` tags from docs content based on the user's dbt version.
+
+    - If *user_version* is ``None``, all ``<VersionBlock>`` tags are stripped but
+      their content is kept (so LLMs see clean markdown without XML noise).
+    - If *user_version* is set, only blocks matching the user's version are kept;
+      non-matching blocks are removed entirely.
+
+    Handles nested VersionBlocks by processing innermost blocks first and iterating.
+    """
+    if "<VersionBlock" not in content:
+        return content
+
+    parsed_version = _parse_minor_version(user_version) if user_version else None
+
+    def _replace(match: re.Match[str]) -> str:
+        attrs_str = match.group(1)
+        inner_content = match.group(2)
+
+        if parsed_version is None:
+            # No user version — keep all content, just strip the tags
+            return inner_content
+
+        attrs = dict(_VB_ATTR_RE.findall(attrs_str))
+        first_ver = attrs.get("firstVersion")
+        last_ver = attrs.get("lastVersion")
+
+        if _version_in_range(
+            parsed_version, first_version=first_ver, last_version=last_ver
+        ):
+            return inner_content
+        return ""
+
+    # Iterate to handle nested VersionBlocks (innermost replaced first each pass)
+    prev = None
+    while prev != content:
+        prev = content
+        content = _INNER_VERSION_BLOCK_RE.sub(_replace, content)
+
+    return content
+
+
+def detect_eol_page(url: str) -> bool:
+    """Return ``True`` if *url* points to a page for an EOL dbt Core version (v1.6 or older).
+
+    First tries to parse the version number from the URL and compare it against
+    the EOL boundary. Falls back to folder-based detection for pages under the
+    ``Older versions`` section that do not contain an explicit version in their path.
+    """
+    version_match = _EOL_VERSION_RE.search(url)
+    if version_match:
+        major, minor = int(version_match.group(1)), int(version_match.group(2))
+        return (major, minor) <= (1, _EOL_MAX_MINOR)
+    return bool(_EOL_FOLDER_RE.search(url))
+
+
 # Relevance scoring weights for search_index ranking.
 # Higher weights push results toward the top when terms appear in
 # more-specific fields (title > description > section).

@@ -10,6 +10,7 @@ documentation at docs.getdbt.com in real time:
 
 import asyncio
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Annotated
 
@@ -18,11 +19,15 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from dbt_mcp.product_docs.client import (
+    EOL_MAX_VERSION,
+    EOL_PAGE_WARNING,
     MAX_CONTENT_CHARS_PER_PAGE,
     ProductDocsClient,
+    detect_eol_page,
     display_url,
     expand_keywords,
     extract_relevant_sections,
+    filter_version_blocks,
     normalize_doc_url,
     truncate_content,
 )
@@ -46,6 +51,12 @@ QUERY_EXPANSION_THRESHOLD = 3
 @dataclass
 class ProductDocsToolContext:
     client: ProductDocsClient = field(default_factory=ProductDocsClient)
+    # Sync callable that resolves the dbt version on demand. Kept sync (not
+    # async) so tests can pass plain lambdas; tools offload the call to a
+    # worker thread via ``asyncio.to_thread`` to avoid blocking the loop.
+    # Process-lifetime caching lives inside the provider closure built in
+    # ``_make_dbt_version_provider`` so subsequent calls return instantly.
+    dbt_version_provider: Callable[[], str | None] = field(default=lambda: None)
 
 
 def _dict_to_doc_search_result(entry: dict[str, str]) -> DocSearchResult:
@@ -58,7 +69,10 @@ def _dict_to_doc_search_result(entry: dict[str, str]) -> DocSearchResult:
 
 
 async def _fetch_page(
-    client: ProductDocsClient, url: str, query: str | None = None
+    client: ProductDocsClient,
+    url: str,
+    query: str | None = None,
+    dbt_version: str | None = None,
 ) -> ProductDocPageResponse:
     """Fetch a single page, returning a typed response with error handling."""
     try:
@@ -80,13 +94,24 @@ async def _fetch_page(
             error=f"Failed to fetch page: {normalized} ({e})",
         )
 
+    version_note: str | None = None
+    if detect_eol_page(normalized):
+        version_note = f"This page is for an end-of-life dbt Core version (v{EOL_MAX_VERSION} or older)."
+        content = EOL_PAGE_WARNING + content
+
+    # Filter VersionBlock tags based on the user's installed dbt version.
+    # Strips tags and removes content for non-matching versions.
+    content = filter_version_blocks(content, dbt_version)
+
     if query:
         content = extract_relevant_sections(content, query, MAX_CONTENT_CHARS_PER_PAGE)
     else:
         content = truncate_content(
             content, MAX_CONTENT_CHARS_PER_PAGE, display_url(normalized)
         )
-    return ProductDocPageResponse(url=display_url(normalized), content=content)
+    return ProductDocPageResponse(
+        url=display_url(normalized), content=content, version_note=version_note
+    )
 
 
 @dbt_mcp_tool(
@@ -107,12 +132,15 @@ async def search_product_docs(
     Args:
         query: Search terms to match against page titles and descriptions.
     """
+    dbt_version = await asyncio.to_thread(context.dbt_version_provider)
+
     if not query.strip():
         return SearchProductDocsResponse(
             query=query,
             total_matches=0,
             showing=0,
             results=[],
+            dbt_project_version=dbt_version,
             error="Query must not be empty.",
         )
 
@@ -143,6 +171,7 @@ async def search_product_docs(
         total_matches=len(doc_results),
         showing=len(doc_results),
         results=doc_results,
+        dbt_project_version=dbt_version,
         search_method="query_expansion" if used_query_expansion else None,
     )
 
@@ -181,8 +210,9 @@ async def get_product_doc_pages(
         query: Optional query to extract only the most relevant sections from each page.
     """
     paths = paths[:5]
+    dbt_version = await asyncio.to_thread(context.dbt_version_provider)
     results = await asyncio.gather(
-        *[_fetch_page(context.client, path, query) for path in paths],
+        *[_fetch_page(context.client, path, query, dbt_version) for path in paths],
         return_exceptions=True,
     )
     pages: list[ProductDocPageResponse] = []
@@ -203,7 +233,7 @@ async def get_product_doc_pages(
         else:
             pages.append(result)
 
-    return GetProductDocPagesResponse(pages=pages)
+    return GetProductDocPagesResponse(pages=pages, dbt_project_version=dbt_version)
 
 
 PRODUCT_DOCS_TOOLS = [
@@ -215,6 +245,7 @@ PRODUCT_DOCS_TOOLS = [
 def register_product_docs_tools(
     dbt_mcp: FastMCP,
     *,
+    dbt_version_provider: Callable[[], str | None] = lambda: None,
     disabled_tools: set[ToolName],
     enabled_tools: set[ToolName] | None,
     enabled_toolsets: set[Toolset],
@@ -224,7 +255,9 @@ def register_product_docs_tools(
     shared_client = ProductDocsClient()
 
     def bind_context() -> ProductDocsToolContext:
-        return ProductDocsToolContext(client=shared_client)
+        return ProductDocsToolContext(
+            client=shared_client, dbt_version_provider=dbt_version_provider
+        )
 
     register_tools(
         dbt_mcp,
