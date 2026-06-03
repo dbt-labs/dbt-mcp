@@ -53,6 +53,7 @@ toolsets = {
         ToolName.LIST_SAVED_QUERIES,
         ToolName.GET_DIMENSIONS,
         ToolName.GET_ENTITIES,
+        ToolName.GET_DIMENSION_VALUES,
         ToolName.QUERY_METRICS,
         ToolName.GET_METRICS_COMPILED_SQL,
     },
