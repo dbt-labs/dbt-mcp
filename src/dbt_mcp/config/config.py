@@ -1,5 +1,7 @@
 import os
-from dataclasses import dataclass
+import threading
+from collections.abc import Callable
+from dataclasses import dataclass, field
 
 from dbt_mcp.config.config_providers.admin_api import DefaultAdminApiConfigProvider
 from dbt_mcp.config.config_providers.discovery import (
@@ -20,7 +22,7 @@ from dbt_mcp.config.settings import (
     DbtMcpSettings,
 )
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
-from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type
+from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type, get_dbt_version
 from dbt_mcp.lsp.lsp_binary_manager import dbt_lsp_binary_info
 from dbt_mcp.lsp.providers.local_lsp_client_provider import LocalLSPClientProvider
 from dbt_mcp.lsp.providers.local_lsp_connection_provider import (
@@ -97,6 +99,41 @@ class Config:
     admin_api_config_provider: DefaultAdminApiConfigProvider
     credentials_provider: ElicitingCredentialsProvider
     lsp_config: LspConfig | None
+    # Lazy: invoking the provider runs `dbt --version`, which can take several
+    # seconds when many adapters are installed. Resolution is deferred until a
+    # product_docs tool actually needs the version, then cached for the
+    # lifetime of the closure.
+    dbt_version_provider: Callable[[], str | None] = field(
+        default_factory=lambda: (lambda: None)
+    )
+
+
+def _make_dbt_version_provider(
+    *,
+    dbt_path: str | None,
+    binary_type: BinaryType | None,
+) -> Callable[[], str | None]:
+    """Return a callable that resolves the dbt version on first invocation
+    and caches the result for the lifetime of the closure.
+
+    The subprocess is *not* run until the provider is called, so importing
+    this module and constructing a ``Config`` never blocks on
+    ``dbt --version`` -- which can take several seconds on installs with
+    many adapters.
+    """
+    if not dbt_path or binary_type is None or binary_type == BinaryType.DBT_CLOUD_CLI:
+        return lambda: None
+
+    lock = threading.Lock()
+    cache: dict[str, str | None] = {}
+
+    def provider() -> str | None:
+        with lock:
+            if "value" not in cache:
+                cache["value"] = get_dbt_version(dbt_path, binary_type)
+            return cache["value"]
+
+    return provider
 
 
 def load_config(enable_proxied_tools: bool = True) -> Config:
@@ -159,10 +196,14 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         max_response_chars=settings.sl_metrics_max_response_chars,
     )
 
-    # CLI/codegen/LSP — still conditional (need concrete paths at registration time)
-    dbt_cli_config = None
+    # Detect binary type once (needed for CLI, codegen, and version detection)
+    binary_type: BinaryType | None = None
     if settings.dbt_project_dir and settings.dbt_path:
         binary_type = detect_binary_type(settings.dbt_path)
+
+    # CLI/codegen/LSP — still conditional (need concrete paths at registration time)
+    dbt_cli_config = None
+    if settings.dbt_project_dir and settings.dbt_path and binary_type is not None:
         dbt_cli_config = DbtCliConfig(
             project_dir=settings.dbt_project_dir,
             dbt_path=settings.dbt_path,
@@ -171,8 +212,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         )
 
     dbt_codegen_config = None
-    if settings.dbt_project_dir and settings.dbt_path:
-        binary_type = detect_binary_type(settings.dbt_path)
+    if settings.dbt_project_dir and settings.dbt_path and binary_type is not None:
         dbt_codegen_config = DbtCodegenConfig(
             project_dir=settings.dbt_project_dir,
             dbt_path=settings.dbt_path,
@@ -198,6 +238,15 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
                 lsp_client_provider=lsp_client_provider,
             )
 
+    # Version detection requires both a project dir and a dbt binary, and
+    # excludes dbt Cloud CLI because its --version reports the Go wrapper
+    # version. The provider defers the actual `dbt --version` subprocess
+    # until the first product_docs tool call so startup is never blocked.
+    dbt_version_provider = _make_dbt_version_provider(
+        dbt_path=settings.dbt_path if settings.dbt_project_dir else None,
+        binary_type=binary_type,
+    )
+
     return Config(
         disable_tools=settings.disable_tools or [],
         enable_tools=settings.enable_tools,
@@ -213,4 +262,5 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         admin_api_config_provider=admin_api_config_provider,
         credentials_provider=credentials_provider,
         lsp_config=lsp_config,
+        dbt_version_provider=dbt_version_provider,
     )

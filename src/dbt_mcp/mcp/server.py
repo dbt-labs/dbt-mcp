@@ -233,6 +233,26 @@ async def register_multi_project_dbt_mcp(dbt_mcp: FastMCP, config: Config) -> No
             disabled_toolsets=disabled_toolsets,
         )
 
+    # Product docs and MCP server metadata are globally available (not project-specific)
+    logger.info("Registering product docs tools for multi-project")
+    register_product_docs_tools(
+        dbt_mcp,
+        dbt_version_provider=config.dbt_version_provider,
+        disabled_tools=disabled_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
+    )
+
+    logger.info("Registering MCP server tools for multi-project")
+    register_mcp_server_tools(
+        dbt_mcp,
+        disabled_tools=disabled_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
+    )
+
 
 async def register_dbt_mcp_tools(dbt_mcp: FastMCP, config: Config) -> None:
     disabled_tools = set(config.disable_tools)
@@ -246,6 +266,7 @@ async def register_dbt_mcp_tools(dbt_mcp: FastMCP, config: Config) -> None:
     logger.info("Registering product docs tools")
     register_product_docs_tools(
         dbt_mcp,
+        dbt_version_provider=config.dbt_version_provider,
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,
