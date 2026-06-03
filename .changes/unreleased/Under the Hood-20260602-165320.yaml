@@ -1,3 +1,0 @@
-kind: Under the Hood
-body: Remove unused endpoint from OAuth helper server and add host validation middleware
-time: 2026-06-02T16:53:20.035085+02:00

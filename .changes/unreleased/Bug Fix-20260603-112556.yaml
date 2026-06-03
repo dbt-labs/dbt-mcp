@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Admin API client errors no longer include the full request URL, which could expose internal hostnames
-time: 2026-06-03T11:25:56.85535-05:00
