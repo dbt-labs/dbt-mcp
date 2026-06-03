@@ -1,6 +1,7 @@
 import io
 from dataclasses import replace
 
+from dbtsl.error import AuthError
 import pyarrow as pa
 import pyarrow.csv
 import pytest
@@ -12,7 +13,7 @@ from dbt_mcp.semantic_layer.client import (
     DefaultSemanticLayerClientProvider,
     SemanticLayerFetcher,
 )
-from dbt_mcp.semantic_layer.types import OrderByParam, QueryMetricsError
+from dbt_mcp.semantic_layer.types import OrderByParam
 
 config = load_config()
 
@@ -50,20 +51,37 @@ async def test_semantic_layer_sdk_respects_fetcher_config_environment_id():
     assert config.semantic_layer_config_provider is not None
     provider = config.semantic_layer_config_provider
     default_cfg = await provider.get_config()
-    invalid_cfg = replace(default_cfg, prod_environment_id=9_999_999_999)
+    invalid_env_id = 9_999_999_999
+    invalid_cfg = replace(default_cfg, prod_environment_id=invalid_env_id)
 
     fetcher = SemanticLayerFetcher(
         client_provider=DefaultSemanticLayerClientProvider(),
     )
 
-    with pytest.raises(GraphQLError):
+    # list_metrics (GraphQL) authenticates fine but rejects the unknown
+    # environment. The error message naming our injected env id is what proves
+    # the failure is genuinely environment-scoped — not a broken token or some
+    # other environmental auth issue, either of which would fail before reaching
+    # this environment lookup. It also confirms the credentials are valid (a bad
+    # token would surface as AuthError here, not a NOT_FOUND GraphQLError).
+    with pytest.raises(GraphQLError) as list_exc:
         await fetcher.list_metrics(config=invalid_cfg)
-
-    result = await fetcher.query_metrics(config=invalid_cfg, metrics=["revenue"])
-    assert isinstance(result, QueryMetricsError), (
-        "query_metrics must not silently use the default environment when the fetcher "
-        "is scoped to a different (invalid) semantic layer config"
+    assert str(invalid_env_id) in str(list_exc.value), (
+        "GraphQL must reject the fetcher's scoped environment id specifically; "
+        "a failure that doesn't name it could be an unrelated auth/transport error"
     )
+
+    # The query path (ADBC/FlightSQL) sends the environment id as an RPC header.
+    # The gateway rejects an environment the token can't access as UNAUTHENTICATED,
+    # which dbtsl surfaces as AuthError. query_metrics propagates operational
+    # errors like this rather than flattening them into a QueryMetricsError, so a
+    # raised AuthError proves the query used the fetcher's scoped config instead of
+    # silently falling back to the default environment (which would have returned a
+    # successful result). We can't key on this message — the gateway returns the
+    # same generic "Invalid credentials" text for any auth failure — so the
+    # env-specific GraphQLError above is what anchors the failure to our bad env id.
+    with pytest.raises(AuthError):
+        await fetcher.query_metrics(config=invalid_cfg, metrics=["revenue"])
 
 
 async def test_semantic_layer_list_dimensions(
