@@ -19,7 +19,11 @@ from dbt_mcp.config.config_providers import SemanticLayerConfig
 from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.errors.semantic_layer import SemanticLayerQueryTimeoutError
 from dbt_mcp.semantic_layer.client import DEFAULT_RESULT_FORMATTER, SemanticLayerFetcher
-from dbt_mcp.semantic_layer.types import OrderByParam, QueryMetricsError
+from dbt_mcp.semantic_layer.types import (
+    DimensionValuesResponse,
+    OrderByParam,
+    QueryMetricsError,
+)
 
 
 def test_default_result_formatter_outputs_iso_dates() -> None:
@@ -950,3 +954,116 @@ def test_get_order_bys_unknown_name_raises(fetcher) -> None:
 
 def test_get_order_bys_none_returns_empty(fetcher) -> None:
     assert fetcher._get_order_bys(None) == []
+
+
+# Tests for DimensionValuesResponse
+
+
+def test_dimension_values_response_creation() -> None:
+    response = DimensionValuesResponse(values=["value1", "value2"], truncated=False)
+    assert response.values == ["value1", "value2"]
+    assert response.truncated is False
+
+
+def test_dimension_values_response_truncated() -> None:
+    response = DimensionValuesResponse(values=["a", "b", "c"], truncated=True)
+    assert len(response.values) == 3
+    assert response.truncated is True
+
+
+class TestGetDimensionValues:
+    @pytest.fixture
+    def mock_sl_client(self):
+        client = MagicMock()
+        session_ctx = MagicMock()
+        client.session.return_value = session_ctx
+        session_ctx.__enter__ = MagicMock(return_value=client)
+        session_ctx.__exit__ = MagicMock(return_value=False)
+        return client
+
+    @pytest.fixture
+    def sl_config(self):
+        token_p = MagicMock()
+        token_p.get_token.return_value = "tok"
+        headers_p = MagicMock()
+        headers_p.get_headers.return_value = {}
+        return SemanticLayerConfig(
+            url="https://test-host/api/graphql",
+            host="test-host",
+            prod_environment_id=123,
+            token_provider=token_p,
+            headers_provider=headers_p,
+        )
+
+    @pytest.fixture
+    def dim_fetcher(self, mock_client_provider, mock_sl_client):
+        mock_client_provider.get_client.return_value = mock_sl_client
+        return SemanticLayerFetcher(client_provider=mock_client_provider)
+
+    @pytest.mark.asyncio
+    async def test_returns_values(self, dim_fetcher, mock_sl_client, sl_config):
+        mock_sl_client.dimension_values.return_value = pa.table(
+            {"customer__country": ["US", "UK", "FR"]}
+        )
+        result = await dim_fetcher.get_dimension_values(
+            config=sl_config,
+            dimension="customer__country",
+            metrics=["revenue"],
+            limit=100,
+        )
+        mock_sl_client.dimension_values.assert_called_once_with(
+            metrics=["revenue"], group_by="customer__country"
+        )
+        assert result.values == ["US", "UK", "FR"]
+        assert result.truncated is False
+
+    @pytest.mark.asyncio
+    async def test_truncates_at_limit(self, dim_fetcher, mock_sl_client, sl_config):
+        mock_sl_client.dimension_values.return_value = pa.table(
+            {"status": ["a", "b", "c", "d", "e"]}
+        )
+        result = await dim_fetcher.get_dimension_values(
+            config=sl_config, dimension="status", limit=3
+        )
+        assert result.values == ["a", "b", "c"]
+        assert result.truncated is True
+
+    @pytest.mark.asyncio
+    async def test_exact_limit_not_truncated(
+        self, dim_fetcher, mock_sl_client, sl_config
+    ):
+        mock_sl_client.dimension_values.return_value = pa.table(
+            {"status": ["a", "b", "c"]}
+        )
+        result = await dim_fetcher.get_dimension_values(
+            config=sl_config, dimension="status", limit=3
+        )
+        assert result.values == ["a", "b", "c"]
+        assert result.truncated is False
+
+    @pytest.mark.asyncio
+    async def test_no_metrics_passes_empty_list(
+        self, dim_fetcher, mock_sl_client, sl_config
+    ):
+        mock_sl_client.dimension_values.return_value = pa.table(
+            {"customer__status": ["active", "inactive"]}
+        )
+        result = await dim_fetcher.get_dimension_values(
+            config=sl_config, dimension="customer__status", metrics=None, limit=100
+        )
+        mock_sl_client.dimension_values.assert_called_once_with(
+            metrics=[], group_by="customer__status"
+        )
+        assert result.values == ["active", "inactive"]
+        assert result.truncated is False
+
+    @pytest.mark.asyncio
+    async def test_omits_nulls(self, dim_fetcher, mock_sl_client, sl_config):
+        mock_sl_client.dimension_values.return_value = pa.table(
+            {"customer__country": pa.array(["US", None, "FR"], type=pa.string())}
+        )
+        result = await dim_fetcher.get_dimension_values(
+            config=sl_config, dimension="customer__country", metrics=None, limit=100
+        )
+        assert result.values == ["US", "FR"]
+        assert result.truncated is False

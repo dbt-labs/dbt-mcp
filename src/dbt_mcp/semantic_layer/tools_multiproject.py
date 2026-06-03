@@ -19,6 +19,8 @@ from dbt_mcp.semantic_layer.client import (
 )
 from dbt_mcp.semantic_layer.param_descriptions import (
     QUERY_RESULT_LIMIT,
+    SEMANTIC_DIMENSION,
+    SEMANTIC_DIMENSION_VALUES_LIMIT,
     SEMANTIC_GROUP_BY,
     SEMANTIC_LAYER_PROJECT_ID,
     SEMANTIC_METRICS,
@@ -32,6 +34,7 @@ from dbt_mcp.semantic_layer.param_descriptions import (
 from dbt_mcp.semantic_layer.tools import metrics_to_csv
 from dbt_mcp.semantic_layer.types import (
     DimensionToolResponse,
+    DimensionValuesResponse,
     EntityToolResponse,
     GetMetricsCompiledSqlSuccess,
     OrderByParam,
@@ -216,6 +219,33 @@ async def get_metrics_compiled_sql(
         return result.error
 
 
+@dbt_mcp_tool(
+    description=get_prompt("semantic_layer/get_dimension_values"),
+    title="Get Dimension Values",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+)
+async def get_dimension_values(
+    context: MultiProjectSemanticLayerToolContext,
+    project_id: Annotated[int, Field(description=SEMANTIC_LAYER_PROJECT_ID)],
+    dimension: Annotated[str, Field(description=SEMANTIC_DIMENSION)],
+    metrics: Annotated[list[str] | None, Field(description=SEMANTIC_METRICS)] = None,
+    limit: Annotated[
+        int, Field(ge=1, description=SEMANTIC_DIMENSION_VALUES_LIMIT)
+    ] = 100,
+) -> DimensionValuesResponse:
+    config = await context.semantic_layer_config_provider.get_config(project_id)
+    return await SemanticLayerFetcher(
+        client_provider=context.client_provider
+    ).get_dimension_values(
+        config=config,
+        dimension=dimension,
+        metrics=metrics,
+        limit=limit,
+    )
+
+
 MULTIPROJECT_SEMANTIC_LAYER_TOOLS: list[GenericToolDefinition[ToolName]] = [
     list_metrics,
     list_saved_queries,
@@ -223,6 +253,7 @@ MULTIPROJECT_SEMANTIC_LAYER_TOOLS: list[GenericToolDefinition[ToolName]] = [
     get_entities,
     query_metrics,
     get_metrics_compiled_sql,
+    get_dimension_values,
 ]
 
 
