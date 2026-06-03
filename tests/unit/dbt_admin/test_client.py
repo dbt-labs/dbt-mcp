@@ -561,6 +561,22 @@ async def test_list_job_run_artifacts(client):
     )
 
 
+async def test_list_job_run_artifacts_null_data(client):
+    # The dbt Cloud API returns {"data": null} when a run produced no
+    # artifacts (e.g. it errored before generating any). The null must be
+    # normalized to an empty list rather than iterated over.
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"data": None}
+    mock_response.raise_for_status.return_value = None
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await client.list_job_run_artifacts(12345, 100)
+
+    assert result == []
+
+
 async def test_get_job_run_artifact_json(client):
     mock_response = MagicMock()
     mock_response.text = '{"nodes": {"model.test": {}}}'

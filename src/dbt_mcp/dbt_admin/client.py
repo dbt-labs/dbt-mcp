@@ -362,7 +362,9 @@ class DbtAdminAPIClient:
         result = await self._make_request(
             "GET", f"/api/v2/accounts/{account_id}/runs/{run_id}/artifacts/"
         )
-        data = result.get("data", [])
+        # The API returns {"data": null} when a run produced no artifacts, so
+        # coalesce to a list rather than passing the null through to iteration.
+        data = result.get("data") or []
 
         # we remove the compiled and run artifacts, they are not very relevant and there are thousands of them, filling the context
         filtered_data = [
