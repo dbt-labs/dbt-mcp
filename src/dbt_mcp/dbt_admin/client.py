@@ -54,13 +54,20 @@ class DbtAdminAPIClient:
                 response.raise_for_status()
                 return response.json()
         except httpx.HTTPStatusError as e:
+            # Don't interpolate the httpx error directly: its string contains the
+            # full request URL, which can leak internal hostnames to the caller.
+            # The status code plus method/endpoint are enough to act on.
             if 400 <= e.response.status_code < 500:
                 raise InvalidParameterError(
-                    f"API request failed ({e.response.status_code}): {e}"
+                    f"API request failed ({e.response.status_code}) "
+                    f"for {method} {endpoint}"
                 ) from e
-            raise AdminAPIError(f"API request failed: {e}") from e
+            raise AdminAPIError(
+                f"API request failed ({e.response.status_code}) for {method} {endpoint}"
+            ) from e
         except httpx.HTTPError as e:
-            raise AdminAPIError(f"API request failed: {e}") from e
+            # Same rationale: transport errors also embed the URL in their string.
+            raise AdminAPIError(f"API request failed for {method} {endpoint}") from e
 
     async def get_account(self, account_id: int) -> dict[str, Any]:
         """Get details for an account."""

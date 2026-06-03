@@ -135,6 +135,54 @@ async def test_make_request_5xx_raises_admin_api_error(client):
             await client._make_request("GET", "/test/endpoint")
 
 
+async def test_make_request_4xx_error_does_not_leak_request_url(client):
+    internal_url = (
+        "http://dbt-cloud-app.dbt-cloud.svc.cluster.local:8003"
+        "/api/v3/accounts/12345/projects/1/environments/?state=1"
+    )
+    mock_response = MagicMock()
+    mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        f"Client error '404 Not Found' for url '{internal_url}'",
+        request=MagicMock(),
+        response=MagicMock(status_code=404),
+    )
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        with pytest.raises(InvalidParameterError) as exc_info:
+            await client._make_request(
+                "GET", "/api/v3/accounts/12345/projects/1/environments/?state=1"
+            )
+
+    message = str(exc_info.value)
+    assert "dbt-cloud-app.dbt-cloud.svc.cluster.local" not in message
+    assert internal_url not in message
+    assert "404" in message
+
+
+async def test_make_request_5xx_error_does_not_leak_request_url(client):
+    internal_url = (
+        "http://dbt-cloud-app.dbt-cloud.svc.cluster.local:8003/api/v2/accounts/12345/"
+    )
+    mock_response = MagicMock()
+    mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        f"Server error '500 Internal Server Error' for url '{internal_url}'",
+        request=MagicMock(),
+        response=MagicMock(status_code=500),
+    )
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        with pytest.raises(AdminAPIError) as exc_info:
+            await client._make_request("GET", "/api/v2/accounts/12345/")
+
+    message = str(exc_info.value)
+    assert "dbt-cloud-app.dbt-cloud.svc.cluster.local" not in message
+    assert internal_url not in message
+
+
 async def test_list_jobs(client):
     mock_response = MagicMock()
     mock_response.json.return_value = {
