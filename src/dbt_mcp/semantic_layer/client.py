@@ -367,7 +367,7 @@ class SemanticLayerFetcher:
         try:
             sl_client = await self.client_provider.get_client(config=config)
             with sl_client.session():
-                raw_table: Any = await asyncio.to_thread(
+                raw_table: pa.Table = await asyncio.to_thread(
                     sl_client.dimension_values,
                     metrics=metrics or [],
                     group_by=dimension,
