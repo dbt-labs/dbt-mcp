@@ -373,8 +373,16 @@ class SemanticLayerFetcher:
                     group_by=dimension,
                 )
             # SDK doesn't support server-side limiting; truncation is applied client-side.
+            # SDK returns column names in uppercase; match case-insensitively.
+            schema_names = raw_table.schema.names
+            column_name = next(
+                (n for n in schema_names if n.lower() == dimension.lower()),
+                dimension,
+            )
             raw: list[str] = [
-                str(v) for v in raw_table.column(dimension).to_pylist() if v is not None
+                str(v)
+                for v in raw_table.column(column_name).to_pylist()
+                if v is not None
             ]
             truncated = len(raw) > limit
             return DimensionValuesResponse(values=raw[:limit], truncated=truncated)
