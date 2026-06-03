@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Semantic layer query_metrics now lets operational errors (authentication, connection) propagate instead of flattening them into a returned query-error string, so callers can distinguish an invalid query from an unreachable semantic layer.
+time: 2026-06-03T09:08:06.019505-05:00

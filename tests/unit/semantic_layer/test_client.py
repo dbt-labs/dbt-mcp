@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pyarrow as pa
 import pytest
-from dbtsl.error import RetryTimeoutError
+from dbtsl.error import AuthError, QueryFailedError, RetryTimeoutError
 
 from dbtsl.api.shared.query_params import (
     GroupByParam,
@@ -779,6 +779,80 @@ class TestQueryMetricsCompiledTimeout:
 
         assert isinstance(result, QueryMetricsError)
         assert result.error is not None
+
+
+class TestQueryMetricsErrorPropagation:
+    """query_metrics returns a result for query-level failures (the SL processed
+    the query and rejected it) but lets operational failures (auth, connection)
+    propagate, so callers can tell 'the query was invalid' apart from 'we could
+    not reach the semantic layer'."""
+
+    @pytest.fixture
+    def mock_sl_client(self):
+        client = MagicMock()
+        session_ctx = MagicMock()
+        client.session.return_value = session_ctx
+        session_ctx.__enter__ = MagicMock(return_value=client)
+        session_ctx.__exit__ = MagicMock(return_value=False)
+        return client
+
+    @pytest.fixture
+    def client_provider(self, mock_sl_client):
+        provider = AsyncMock()
+        provider.get_client.return_value = mock_sl_client
+        return provider
+
+    @pytest.fixture
+    def mock_config(self):
+        token_p = MagicMock()
+        token_p.get_token.return_value = "tok"
+        headers_p = MagicMock()
+        headers_p.get_headers.return_value = {}
+        return SemanticLayerConfig(
+            url="https://test-host/api/graphql",
+            host="test-host",
+            prod_environment_id=123,
+            token_provider=token_p,
+            headers_provider=headers_p,
+        )
+
+    @pytest.fixture
+    def fetcher(self, client_provider):
+        return SemanticLayerFetcher(client_provider=client_provider)
+
+    async def test_query_failed_error_returns_error_result(
+        self, fetcher, mock_sl_client, mock_config
+    ):
+        """A query the SL processed and rejected is returned as data, so the
+        caller can surface it to the model for self-correction."""
+        mock_sl_client.query.side_effect = QueryFailedError(
+            "Dimension 'foo' not found", "FAILED"
+        )
+
+        result = await fetcher.query_metrics(config=mock_config, metrics=["revenue"])
+
+        assert isinstance(result, QueryMetricsError)
+        assert "foo" in result.error
+
+    async def test_query_execution_operational_error_propagates(
+        self, fetcher, mock_sl_client, mock_config
+    ):
+        """An auth/connectivity failure during execution is not a query error —
+        it must propagate rather than be flattened into a returned error string."""
+        mock_sl_client.query.side_effect = AuthError("invalid credentials")
+
+        with pytest.raises(AuthError):
+            await fetcher.query_metrics(config=mock_config, metrics=["revenue"])
+
+    async def test_client_acquisition_error_propagates(
+        self, fetcher, client_provider, mock_config
+    ):
+        """A failure obtaining the SL client (e.g. connection refused) must
+        propagate rather than be returned as a query error."""
+        client_provider.get_client.side_effect = ConnectionError("refused")
+
+        with pytest.raises(ConnectionError):
+            await fetcher.query_metrics(config=mock_config, metrics=["revenue"])
 
 
 @pytest.mark.asyncio
