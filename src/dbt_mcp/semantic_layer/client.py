@@ -366,12 +366,18 @@ class SemanticLayerFetcher:
     ) -> DimensionValuesResponse:
         try:
             sl_client = await self.client_provider.get_client(config=config)
-            with sl_client.session():
-                raw_table: pa.Table = await asyncio.to_thread(
-                    sl_client.dimension_values,
-                    metrics=metrics or [],
-                    group_by=dimension,
-                )
+
+            # Opening a session is blocking I/O (it establishes a GraphQL and an
+            # ADBC/Arrow-Flight connection), so run the whole session lifecycle —
+            # open, query, close — in a worker thread to keep it off the event loop.
+            def query() -> pa.Table:
+                with sl_client.session():
+                    return sl_client.dimension_values(
+                        metrics=metrics or [],
+                        group_by=dimension,
+                    )
+
+            raw_table: pa.Table = await asyncio.to_thread(query)
             # SDK doesn't support server-side limiting; truncation is applied client-side.
             # SDK returns column names in uppercase; match case-insensitively.
             schema_names = raw_table.schema.names
@@ -493,26 +499,27 @@ class SemanticLayerFetcher:
             GetMetricsCompiledSqlResult with either the compiled SQL or an error
         """
         try:
-            sl_client = await self.client_provider.get_client(
-                config=config,
+            sl_client = await self.client_provider.get_client(config=config)
+            parsed_order_by: list[OrderBySpec] = self._get_order_bys(
+                order_by=order_by, metrics=metrics, group_by=group_by
             )
-            with sl_client.session():
-                parsed_order_by: list[OrderBySpec] = self._get_order_bys(
-                    order_by=order_by, metrics=metrics, group_by=group_by
-                )
-                compiled_sql = await asyncio.to_thread(
-                    sl_client.compile_sql,
-                    metrics=metrics,
-                    group_by=group_by,  # type: ignore
-                    order_by=parsed_order_by,  # type: ignore
-                    where=[normalized_where]
-                    if (normalized_where := self._normalize_where(where))
-                    else None,
-                    limit=limit,
-                    read_cache=True,
-                )
+            normalized_where = self._normalize_where(where)
 
-                return GetMetricsCompiledSqlSuccess(sql=compiled_sql)
+            # Run the whole session lifecycle off the event loop — see the note
+            # in get_dimension_values; opening a session is blocking I/O.
+            def query() -> str:
+                with sl_client.session():
+                    return sl_client.compile_sql(
+                        metrics=metrics,
+                        group_by=group_by,  # type: ignore
+                        order_by=parsed_order_by,  # type: ignore
+                        where=[normalized_where] if normalized_where else None,
+                        limit=limit,
+                        read_cache=True,
+                    )
+
+            compiled_sql = await asyncio.to_thread(query)
+            return GetMetricsCompiledSqlSuccess(sql=compiled_sql)
 
         except Exception as e:
             return self._format_get_metrics_compiled_sql_error(e)
@@ -529,45 +536,46 @@ class SemanticLayerFetcher:
     ) -> QueryMetricsResult:
         try:
             query_error: Exception | None = None
-            sl_client = await self.client_provider.get_client(
-                config=config,
+            sl_client = await self.client_provider.get_client(config=config)
+            parsed_order_by: list[OrderBySpec] = self._get_order_bys(
+                order_by=order_by, metrics=metrics, group_by=group_by
             )
-            with sl_client.session():
-                # Only query-level failures (the SL processed the query and
-                # rejected it) are returned to the caller as data. Operational
-                # failures (auth, connection, transport) propagate so callers
-                # can distinguish a bad query from an unreachable semantic layer.
-                # The `with` block handles session cleanup either way.
-                try:
-                    parsed_order_by: list[OrderBySpec] = self._get_order_bys(
-                        order_by=order_by, metrics=metrics, group_by=group_by
-                    )
-                    query_result = await asyncio.to_thread(
-                        sl_client.query,
+            normalized_where = self._normalize_where(where)
+
+            # Run the whole session lifecycle off the event loop — see the note
+            # in get_dimension_values; opening a session is blocking I/O.
+            def query() -> pa.Table:
+                with sl_client.session():
+                    return sl_client.query(
                         metrics=metrics,
                         group_by=group_by,  # type: ignore
                         order_by=parsed_order_by,  # type: ignore
-                        where=[normalized_where]
-                        if (normalized_where := self._normalize_where(where))
-                        else None,
+                        where=[normalized_where] if normalized_where else None,
                         limit=limit,
                     )
-                except RetryTimeoutError as e:
-                    # Queries that timeout with COMPILED status have finished SQL
-                    # compilation and are executing against the data platform. In
-                    # agent contexts, this indicates the query is too complex and
-                    # the client should request a simpler query.
-                    if e.status == QueryStatus.COMPILED.value:
-                        raise SemanticLayerQueryTimeoutError(
-                            f"The semantic layer query timed out after {e.timeout_s}s while "
-                            f"executing against the data platform (status: COMPILED). This "
-                            f"indicates the query is too complex or returns too much data "
-                            f"for an agent context. Please simplify the query by adding "
-                            f"filters, reducing dimensions, or limiting results."
-                        ) from e
-                    query_error = e
-                except QueryFailedError as e:
-                    query_error = e
+
+            # Only query-level failures (the SL processed the query and rejected
+            # it) are returned to the caller as data. Operational failures (auth,
+            # connection, transport) propagate so callers can distinguish a bad
+            # query from an unreachable semantic layer.
+            try:
+                query_result = await asyncio.to_thread(query)
+            except RetryTimeoutError as e:
+                # Queries that timeout with COMPILED status have finished SQL
+                # compilation and are executing against the data platform. In
+                # agent contexts, this indicates the query is too complex and
+                # the client should request a simpler query.
+                if e.status == QueryStatus.COMPILED.value:
+                    raise SemanticLayerQueryTimeoutError(
+                        f"The semantic layer query timed out after {e.timeout_s}s while "
+                        f"executing against the data platform (status: COMPILED). This "
+                        f"indicates the query is too complex or returns too much data "
+                        f"for an agent context. Please simplify the query by adding "
+                        f"filters, reducing dimensions, or limiting results."
+                    ) from e
+                query_error = e
+            except QueryFailedError as e:
+                query_error = e
             if query_error:
                 return self._format_query_failed_error(query_error)
             formatter = result_formatter or DEFAULT_RESULT_FORMATTER

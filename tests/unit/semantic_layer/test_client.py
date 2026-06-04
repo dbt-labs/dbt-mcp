@@ -1,6 +1,7 @@
 import base64
 import datetime as dt
 import json
+import threading
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1067,3 +1068,100 @@ class TestGetDimensionValues:
         )
         assert result.values == ["US", "FR"]
         assert result.truncated is False
+
+
+class TestSessionRunsOffEventLoop:
+    """Opening a Semantic Layer session is blocking I/O (it establishes a
+    GraphQL connection and an ADBC/Arrow-Flight connection). The whole session
+    lifecycle — `__enter__`, the SDK call, and `__exit__` — must run in a worker
+    thread so it never stalls the event loop, not just the SDK call itself.
+    """
+
+    @pytest.fixture
+    def loop_thread_id(self):
+        return threading.get_ident()
+
+    @pytest.fixture
+    def recording_sl_client(self):
+        """A client that records the thread id used at each step of the session."""
+        threads: dict[str, int] = {}
+        client = MagicMock()
+        session_ctx = MagicMock()
+        client.session.return_value = session_ctx
+
+        def _enter():
+            threads["enter"] = threading.get_ident()
+            return client
+
+        def _exit(*_args):
+            threads["exit"] = threading.get_ident()
+            return False
+
+        session_ctx.__enter__ = MagicMock(side_effect=_enter)
+        session_ctx.__exit__ = MagicMock(side_effect=_exit)
+
+        def _record(name, return_value):
+            def _call(**_kwargs):
+                threads[name] = threading.get_ident()
+                return return_value
+
+            return _call
+
+        client.query.side_effect = _record("query", pa.table({"a": [1]}))
+        client.compile_sql.side_effect = _record("compile_sql", "select 1")
+        client.dimension_values.side_effect = _record(
+            "dimension_values", pa.table({"d": ["x"]})
+        )
+        client._recorded_threads = threads
+        return client
+
+    @pytest.fixture
+    def sl_config(self):
+        token_p = MagicMock()
+        token_p.get_token.return_value = "tok"
+        headers_p = MagicMock()
+        headers_p.get_headers.return_value = {}
+        return SemanticLayerConfig(
+            url="https://test-host/api/graphql",
+            host="test-host",
+            prod_environment_id=123,
+            token_provider=token_p,
+            headers_provider=headers_p,
+        )
+
+    @pytest.fixture
+    def fetcher(self, mock_client_provider, recording_sl_client):
+        mock_client_provider.get_client.return_value = recording_sl_client
+        return SemanticLayerFetcher(client_provider=mock_client_provider)
+
+    @pytest.mark.asyncio
+    async def test_query_metrics_session_off_loop(
+        self, fetcher, recording_sl_client, sl_config, loop_thread_id
+    ):
+        await fetcher.query_metrics(config=sl_config, metrics=["revenue"])
+        threads = recording_sl_client._recorded_threads
+        assert threads["enter"] != loop_thread_id
+        assert threads["query"] != loop_thread_id
+        assert threads["exit"] != loop_thread_id
+
+    @pytest.mark.asyncio
+    async def test_get_metrics_compiled_sql_session_off_loop(
+        self, fetcher, recording_sl_client, sl_config, loop_thread_id
+    ):
+        await fetcher.get_metrics_compiled_sql(config=sl_config, metrics=["revenue"])
+        threads = recording_sl_client._recorded_threads
+        assert threads["enter"] != loop_thread_id
+        assert threads["compile_sql"] != loop_thread_id
+        assert threads["exit"] != loop_thread_id
+
+    @pytest.mark.asyncio
+    async def test_get_dimension_values_session_off_loop(
+        self, fetcher, recording_sl_client, sl_config, loop_thread_id
+    ):
+        await fetcher.get_dimension_values(
+            config=sl_config, dimension="d", metrics=["revenue"]
+        )
+        threads = recording_sl_client._recorded_threads
+        assert threads["enter"] != loop_thread_id
+        assert threads["dimension_values"] != loop_thread_id
+        assert threads["exit"] != loop_thread_id
