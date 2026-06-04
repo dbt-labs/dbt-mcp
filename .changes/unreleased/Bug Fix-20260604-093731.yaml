@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Run the full Semantic Layer session lifecycle (open, query, close) in a worker thread so session acquisition no longer blocks the event loop
+time: 2026-06-04T09:37:31.049545-05:00
