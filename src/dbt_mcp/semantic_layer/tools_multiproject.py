@@ -33,6 +33,7 @@ from dbt_mcp.semantic_layer.param_descriptions import (
 )
 from dbt_mcp.semantic_layer.tools import metrics_to_csv
 from dbt_mcp.semantic_layer.types import (
+    DimensionValuesError,
     DimensionToolResponse,
     DimensionValuesResponse,
     EntityToolResponse,
@@ -234,7 +235,7 @@ async def get_dimension_values(
     limit: Annotated[
         int, Field(ge=1, description=SEMANTIC_DIMENSION_VALUES_LIMIT)
     ] = 100,
-) -> DimensionValuesResponse:
+) -> DimensionValuesResponse | DimensionValuesError:
     config = await context.semantic_layer_config_provider.get_config(project_id)
     return await SemanticLayerFetcher(
         client_provider=context.client_provider

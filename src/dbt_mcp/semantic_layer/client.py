@@ -26,6 +26,8 @@ from dbt_mcp.semantic_layer.gql.gql import GRAPHQL_QUERIES
 from dbt_mcp.semantic_layer.gql.gql_request import submit_request
 from dbt_mcp.semantic_layer.types import (
     DimensionToolResponse,
+    DimensionValuesError,
+    DimensionValuesResult,
     DimensionValuesResponse,
     EntityToolResponse,
     GetMetricsCompiledSqlError,
@@ -363,7 +365,7 @@ class SemanticLayerFetcher:
         dimension: str,
         metrics: list[str] | None = None,
         limit: int = 100,
-    ) -> DimensionValuesResponse:
+    ) -> DimensionValuesResult:
         try:
             sl_client = await self.client_provider.get_client(config=config)
 
@@ -392,8 +394,8 @@ class SemanticLayerFetcher:
             ]
             truncated = len(raw) > limit
             return DimensionValuesResponse(values=raw[:limit], truncated=truncated)
-        except Exception as e:
-            raise RuntimeError(self._format_semantic_layer_error(e)) from e
+        except QueryFailedError as e:
+            return DimensionValuesError(error=self._format_semantic_layer_error(e))
 
     def _format_semantic_layer_error(self, error: Exception) -> str:
         """Format semantic layer errors by cleaning up common error message patterns."""
