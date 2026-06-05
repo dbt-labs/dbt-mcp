@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Return dimension-values query failures as tool results instead of raising generic runtime errors.
+time: 2026-06-05T10:23:00.932991-05:00

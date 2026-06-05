@@ -90,3 +90,14 @@ GetMetricsCompiledSqlResult = GetMetricsCompiledSqlSuccess | GetMetricsCompiledS
 class DimensionValuesResponse:
     values: list[str]
     truncated: bool
+    error: None = None
+
+
+@dataclass
+class DimensionValuesError:
+    error: str
+    values: None = None
+    truncated: None = None
+
+
+DimensionValuesResult = DimensionValuesResponse | DimensionValuesError

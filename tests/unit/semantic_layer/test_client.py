@@ -21,6 +21,7 @@ from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.errors.semantic_layer import SemanticLayerQueryTimeoutError
 from dbt_mcp.semantic_layer.client import DEFAULT_RESULT_FORMATTER, SemanticLayerFetcher
 from dbt_mcp.semantic_layer.types import (
+    DimensionValuesError,
     DimensionValuesResponse,
     OrderByParam,
     QueryMetricsError,
@@ -1068,6 +1069,35 @@ class TestGetDimensionValues:
         )
         assert result.values == ["US", "FR"]
         assert result.truncated is False
+
+    @pytest.mark.asyncio
+    async def test_query_failed_error_returns_error_result(
+        self, dim_fetcher, mock_sl_client, sl_config
+    ):
+        mock_sl_client.dimension_values.side_effect = QueryFailedError(
+            "Dimension 'foo' not found", "FAILED"
+        )
+
+        result = await dim_fetcher.get_dimension_values(
+            config=sl_config, dimension="foo", metrics=["revenue"], limit=100
+        )
+
+        assert isinstance(result, DimensionValuesError)
+        assert "foo" in result.error
+
+    @pytest.mark.asyncio
+    async def test_operational_error_propagates(
+        self, dim_fetcher, mock_sl_client, sl_config
+    ):
+        mock_sl_client.dimension_values.side_effect = AuthError("invalid credentials")
+
+        with pytest.raises(AuthError):
+            await dim_fetcher.get_dimension_values(
+                config=sl_config,
+                dimension="customer__country",
+                metrics=["revenue"],
+                limit=100,
+            )
 
 
 class TestSessionRunsOffEventLoop:
