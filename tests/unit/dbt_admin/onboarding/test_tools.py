@@ -7,15 +7,16 @@ from dbt_mcp.config.config_providers.base import StaticConfigProvider
 from dbt_mcp.dbt_admin.onboarding.tools import (
     ONBOARDING_TOOLS,
     OnboardingToolContext,
-    dbt_admin_onboarding_init,
-    dbt_admin_onboarding_state,
+    dbt_admin_onboarding_apply,
+    dbt_admin_onboarding_get,
+    dbt_admin_onboarding_validate,
     register_onboarding_tools,
 )
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 from tests.conftest import MockFastMCP
 
-NUM_ONBOARDING_TOOLS = 2
+NUM_ONBOARDING_TOOLS = 3
 
 _BACKEND_DATA = {
     "id": 1,
@@ -33,24 +34,24 @@ _BACKEND_DATA = {
 
 
 @pytest.fixture
-def admin_config():
-    return AdminApiConfig(
-        url="https://example.dbt.com",
-        headers_provider=MagicMock(),
-        account_id=1,
+def config_provider():
+    return StaticConfigProvider(
+        AdminApiConfig(
+            url="https://example.dbt.com",
+            headers_provider=MagicMock(),
+            account_id=1,
+        )
     )
-
-
-@pytest.fixture
-def config_provider(admin_config):
-    return StaticConfigProvider(admin_config)
 
 
 @pytest.fixture
 def onboarding_client():
     client = MagicMock()
     client.get = AsyncMock(return_value=_BACKEND_DATA)
-    client.create_or_get = AsyncMock(return_value=_BACKEND_DATA)
+    client.validate = AsyncMock(
+        return_value={"status": {"is_success": True, "developer_message": ""}}
+    )
+    client.apply = AsyncMock(return_value=_BACKEND_DATA)
     return client
 
 
@@ -68,38 +69,29 @@ def test_onboarding_tools_count():
 
 def test_register_onboarding_tools_registers_all():
     mock_mcp = MockFastMCP()
-    mock_config_provider = StaticConfigProvider(
-        AdminApiConfig(
-            url="https://example.dbt.com",
-            headers_provider=MagicMock(),
-            account_id=1,
-        )
-    )
     register_onboarding_tools(
         mock_mcp,
-        mock_config_provider,
+        StaticConfigProvider(
+            AdminApiConfig(url="https://example.dbt.com", headers_provider=MagicMock(), account_id=1)
+        ),
         disabled_tools=set(),
         enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
     registered = {kwargs["name"] for kwargs in mock_mcp.tool_kwargs.values()}
-    assert ToolName.ONBOARDING_INIT.value in registered
-    assert ToolName.ONBOARDING_STATE.value in registered
+    assert ToolName.ONBOARDING_GET.value in registered
+    assert ToolName.ONBOARDING_VALIDATE.value in registered
+    assert ToolName.ONBOARDING_APPLY.value in registered
 
 
 def test_register_onboarding_tools_respects_disabled_toolset():
     mock_mcp = MockFastMCP()
-    mock_config_provider = StaticConfigProvider(
-        AdminApiConfig(
-            url="https://example.dbt.com",
-            headers_provider=MagicMock(),
-            account_id=1,
-        )
-    )
     register_onboarding_tools(
         mock_mcp,
-        mock_config_provider,
+        StaticConfigProvider(
+            AdminApiConfig(url="https://example.dbt.com", headers_provider=MagicMock(), account_id=1)
+        ),
         disabled_tools=set(),
         enabled_tools=None,
         enabled_toolsets=set(),
@@ -108,39 +100,44 @@ def test_register_onboarding_tools_respects_disabled_toolset():
     assert len(mock_mcp.tools) == 0
 
 
-async def test_onboarding_init_returns_existing_when_backend_has_one(context, onboarding_client):
-    result = await dbt_admin_onboarding_init.fn(context)
-
-    onboarding_client.get.assert_awaited_once_with(1)
-    onboarding_client.create_or_get.assert_not_awaited()
-    assert result.created is False
-    assert result.onboarding.id == 1
-    assert result.onboarding.status == "in_progress"
-
-
-async def test_onboarding_init_creates_when_backend_has_none(context, onboarding_client):
-    onboarding_client.get = AsyncMock(return_value=None)
-
-    result = await dbt_admin_onboarding_init.fn(context)
-
-    onboarding_client.get.assert_awaited_once_with(1)
-    onboarding_client.create_or_get.assert_awaited_once_with(1)
-    assert result.created is True
-    assert result.onboarding.id == 1
-
-
-async def test_onboarding_state_returns_none_when_no_backend_model(context, onboarding_client):
-    onboarding_client.get = AsyncMock(return_value=None)
-
-    result = await dbt_admin_onboarding_state.fn(context)
-
-    assert result.onboarding is None
-
-
-async def test_onboarding_state_returns_model_when_exists(context, onboarding_client):
-    result = await dbt_admin_onboarding_state.fn(context)
+async def test_onboarding_get_returns_model(context, onboarding_client):
+    result = await dbt_admin_onboarding_get.fn(context)
 
     onboarding_client.get.assert_awaited_once_with(1)
     assert result.onboarding is not None
     assert result.onboarding.status == "in_progress"
-    assert result.onboarding.project_id is None
+
+
+async def test_onboarding_get_returns_none_when_no_record(context, onboarding_client):
+    onboarding_client.get = AsyncMock(return_value=None)
+
+    result = await dbt_admin_onboarding_get.fn(context)
+
+    assert result.onboarding is None
+
+
+async def test_onboarding_validate_returns_valid(context, onboarding_client):
+    result = await dbt_admin_onboarding_validate.fn(context, data={})
+
+    onboarding_client.validate.assert_awaited_once_with(1, {})
+    assert result.valid is True
+    assert result.errors == []
+
+
+async def test_onboarding_validate_returns_errors(context, onboarding_client):
+    onboarding_client.validate = AsyncMock(
+        return_value={"status": {"is_success": False, "developer_message": "field X is required"}}
+    )
+
+    result = await dbt_admin_onboarding_validate.fn(context, data={"bad": "data"})
+
+    assert result.valid is False
+    assert "field X is required" in result.errors
+
+
+async def test_onboarding_apply_submits_data(context, onboarding_client):
+    result = await dbt_admin_onboarding_apply.fn(context, data={})
+
+    onboarding_client.apply.assert_awaited_once_with(1, {})
+    assert result.onboarding.id == 1
+    assert result.onboarding.status == "in_progress"

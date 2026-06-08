@@ -60,8 +60,9 @@ HUMAN_DESCRIPTIONS: dict[ToolName, str] = {
     ToolName.LIST_JOB_RUN_ARTIFACTS: "Lists available artifacts from a job run.",
     ToolName.GET_JOB_RUN_ERROR: "Gets error and/or warning details for a job run; option to include or show warnings only.",
     # Onboarding tools
-    ToolName.ONBOARDING_INIT: "Starts or resumes an onboarding session; returns session ID, current phase, and decision points.",
-    ToolName.ONBOARDING_STATE: "Returns the current onboarding session phase and server-side applied resource progress.",
+    ToolName.ONBOARDING_GET: "Returns the current onboarding record and progress; null if no onboarding has been started.",
+    ToolName.ONBOARDING_VALIDATE: "Validates the collected onboarding data and returns what is missing or invalid.",
+    ToolName.ONBOARDING_APPLY: "Submits collected onboarding data to the platform; call incrementally as each piece of data is gathered.",
     # dbt-codegen tools
     ToolName.GENERATE_SOURCE: "Generates source YAML by introspecting database schemas; option to include columns.",
     ToolName.GENERATE_MODEL_YAML: "Generates model YAML with columns; option to inherit upstream descriptions.",

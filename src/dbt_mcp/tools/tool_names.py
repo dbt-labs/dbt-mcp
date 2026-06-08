@@ -65,8 +65,9 @@ class ToolName(Enum):
     GET_JOB_RUN_ERROR = "get_job_run_error"
 
     # Onboarding tools
-    ONBOARDING_INIT = "dbt_admin_onboarding_init"
-    ONBOARDING_STATE = "dbt_admin_onboarding_state"
+    ONBOARDING_GET = "dbt_admin_onboarding_get"
+    ONBOARDING_VALIDATE = "dbt_admin_onboarding_validate"
+    ONBOARDING_APPLY = "dbt_admin_onboarding_apply"
 
     # dbt-codegen tools
     GENERATE_SOURCE = "generate_source"

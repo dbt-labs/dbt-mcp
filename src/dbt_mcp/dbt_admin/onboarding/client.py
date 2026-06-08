@@ -31,9 +31,9 @@ class OnboardingClient:
         } | config.headers_provider.get_headers()
 
     async def get(self, account_id: int) -> dict[str, Any] | None:
-        """Fetch the current onboarding model for the account.
+        """Fetch the current onboarding record for the account.
 
-        Returns the raw data dict, or None if no onboarding exists yet.
+        Returns the raw data dict, or None if no onboarding exists yet (404).
         """
         config = await self.config_provider.get_config()
         url = self._base_url(config, account_id)
@@ -49,21 +49,52 @@ class OnboardingClient:
         except httpx.HTTPStatusError as e:
             if 400 <= e.response.status_code < 500:
                 raise InvalidParameterError(
-                    f"Onboarding request failed ({e.response.status_code}) for account {account_id}"
+                    f"Onboarding get failed ({e.response.status_code}) for account {account_id}"
                 ) from e
             raise AdminAPIError(
-                f"Onboarding request failed ({e.response.status_code}) for account {account_id}"
+                f"Onboarding get failed ({e.response.status_code}) for account {account_id}"
             ) from e
         except httpx.HTTPError as e:
             raise AdminAPIError(
-                f"Onboarding request failed for account {account_id}"
+                f"Onboarding get failed for account {account_id}"
             ) from e
 
-    async def create_or_get(self, account_id: int) -> dict[str, Any]:
-        """Create the onboarding model if it doesn't exist, or return the existing one.
+    async def validate(self, account_id: int, data: dict[str, Any]) -> dict[str, Any]:
+        """Validate onboarding data without applying it.
 
-        POST is idempotent on the backend — returns the existing record if one is present.
+        Returns a dict with 'valid' bool and 'errors' list.
         """
+        config = await self.config_provider.get_config()
+        url = self._base_url(config, account_id) + "validate/"
+        headers = await self._headers(config)
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    url, headers=headers, json=data, follow_redirects=True
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            if 400 <= e.response.status_code < 500:
+                # Validation errors are expected — return them as structured data
+                try:
+                    return response.json()
+                except Exception:
+                    pass
+                raise InvalidParameterError(
+                    f"Onboarding validate failed ({e.response.status_code}) for account {account_id}"
+                ) from e
+            raise AdminAPIError(
+                f"Onboarding validate failed ({e.response.status_code}) for account {account_id}"
+            ) from e
+        except httpx.HTTPError as e:
+            raise AdminAPIError(
+                f"Onboarding validate failed for account {account_id}"
+            ) from e
+
+    async def apply(self, account_id: int, data: dict[str, Any]) -> dict[str, Any]:
+        """Submit onboarding data. Idempotent — safe to call multiple times as data is gathered."""
         config = await self.config_provider.get_config()
         url = self._base_url(config, account_id)
         headers = await self._headers(config)
@@ -71,19 +102,19 @@ class OnboardingClient:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    url, headers=headers, json={}, follow_redirects=True
+                    url, headers=headers, json=data, follow_redirects=True
                 )
                 response.raise_for_status()
                 return response.json().get("data", {})
         except httpx.HTTPStatusError as e:
             if 400 <= e.response.status_code < 500:
                 raise InvalidParameterError(
-                    f"Onboarding create failed ({e.response.status_code}) for account {account_id}"
+                    f"Onboarding apply failed ({e.response.status_code}) for account {account_id}"
                 ) from e
             raise AdminAPIError(
-                f"Onboarding create failed ({e.response.status_code}) for account {account_id}"
+                f"Onboarding apply failed ({e.response.status_code}) for account {account_id}"
             ) from e
         except httpx.HTTPError as e:
             raise AdminAPIError(
-                f"Onboarding create failed for account {account_id}"
+                f"Onboarding apply failed for account {account_id}"
             ) from e

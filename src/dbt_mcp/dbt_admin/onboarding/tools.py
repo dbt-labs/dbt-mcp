@@ -1,13 +1,15 @@
 from dataclasses import dataclass
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
 from dbt_mcp.config.config_providers import AdminApiConfig, ConfigProvider
 from dbt_mcp.dbt_admin.onboarding.client import OnboardingClient
 from dbt_mcp.dbt_admin.onboarding.models import (
-    OnboardingInitResult,
+    OnboardingApplyResult,
+    OnboardingGetResult,
     OnboardingModel,
-    OnboardingStateResult,
+    OnboardingValidateResult,
 )
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
@@ -23,57 +25,66 @@ class OnboardingToolContext:
 
 
 @dbt_mcp_tool(
-    description=get_prompt("admin_api/onboarding_init"),
-    title="Start or Resume Onboarding",
-    read_only_hint=False,
-    destructive_hint=False,
-    idempotent_hint=True,
-)
-async def dbt_admin_onboarding_init(
-    context: OnboardingToolContext,
-) -> OnboardingInitResult:
-    """Start or resume an onboarding session for the account."""
-    config = await context.admin_api_config_provider.get_config()
-    account_id = config.account_id
-
-    existing = await context.onboarding_client.get(account_id)
-    if existing is not None:
-        return OnboardingInitResult(
-            onboarding=OnboardingModel.from_api(existing),
-            created=False,
-        )
-
-    data = await context.onboarding_client.create_or_get(account_id)
-    return OnboardingInitResult(
-        onboarding=OnboardingModel.from_api(data),
-        created=True,
-    )
-
-
-@dbt_mcp_tool(
-    description=get_prompt("admin_api/onboarding_state"),
-    title="Get Onboarding State",
+    description=get_prompt("admin_api/onboarding_get"),
+    title="Get Onboarding Status",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def dbt_admin_onboarding_state(
+async def dbt_admin_onboarding_get(
     context: OnboardingToolContext,
-) -> OnboardingStateResult:
-    """Return the current onboarding state for the account."""
+) -> OnboardingGetResult:
+    """Return the current onboarding record, or null if none has been started."""
     config = await context.admin_api_config_provider.get_config()
-    account_id = config.account_id
+    data = await context.onboarding_client.get(config.account_id)
+    return OnboardingGetResult(
+        onboarding=OnboardingModel.from_api(data) if data is not None else None
+    )
 
-    data = await context.onboarding_client.get(account_id)
-    if data is None:
-        return OnboardingStateResult(onboarding=None)
 
-    return OnboardingStateResult(onboarding=OnboardingModel.from_api(data))
+@dbt_mcp_tool(
+    description=get_prompt("admin_api/onboarding_validate"),
+    title="Validate Onboarding Data",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+)
+async def dbt_admin_onboarding_validate(
+    context: OnboardingToolContext,
+    data: dict[str, Any],
+) -> OnboardingValidateResult:
+    """Validate onboarding data without applying it; returns what is missing or invalid."""
+    config = await context.admin_api_config_provider.get_config()
+    raw = await context.onboarding_client.validate(config.account_id, data)
+    status = raw.get("status", {})
+    if status.get("is_success"):
+        return OnboardingValidateResult(valid=True)
+    developer_message = status.get("developer_message", "")
+    errors = [developer_message] if developer_message else []
+    return OnboardingValidateResult(valid=False, errors=errors)
+
+
+@dbt_mcp_tool(
+    description=get_prompt("admin_api/onboarding_apply"),
+    title="Apply Onboarding Data",
+    read_only_hint=False,
+    destructive_hint=False,
+    idempotent_hint=True,
+)
+async def dbt_admin_onboarding_apply(
+    context: OnboardingToolContext,
+    data: dict[str, Any],
+) -> OnboardingApplyResult:
+    """Submit collected onboarding data; safe to call multiple times with partial data."""
+    config = await context.admin_api_config_provider.get_config()
+    raw = await context.onboarding_client.apply(config.account_id, data)
+    return OnboardingApplyResult(onboarding=OnboardingModel.from_api(raw))
 
 
 ONBOARDING_TOOLS = [
-    dbt_admin_onboarding_init,
-    dbt_admin_onboarding_state,
+    dbt_admin_onboarding_get,
+    dbt_admin_onboarding_validate,
+    dbt_admin_onboarding_apply,
 ]
 
 

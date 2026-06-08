@@ -35,11 +35,15 @@ class OnboardingModel(BaseModel):
         )
 
 
-class OnboardingInitResult(BaseModel):
-    onboarding: OnboardingModel
-    created: bool
-
-
-class OnboardingStateResult(BaseModel):
+class OnboardingGetResult(BaseModel):
     onboarding: OnboardingModel | None
-    decision_points: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class OnboardingValidateResult(BaseModel):
+    valid: bool
+    errors: list[str] = Field(default_factory=list)
+    missing_fields: list[str] = Field(default_factory=list)
+
+
+class OnboardingApplyResult(BaseModel):
+    onboarding: OnboardingModel
