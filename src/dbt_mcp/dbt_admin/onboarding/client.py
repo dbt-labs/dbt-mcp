@@ -21,36 +21,69 @@ class OnboardingClient:
     def __init__(self, config_provider: ConfigProvider[AdminApiConfig]) -> None:
         self.config_provider = config_provider
 
-    async def get_state(self, account_id: int) -> dict[str, Any]:
-        """Fetch the server-side onboarding state for the account.
+    def _base_url(self, config: AdminApiConfig, account_id: int) -> str:
+        return f"{config.url}/api/v3/accounts/{account_id}/onboarding/"
 
-        Returns the OnboardingSession row: applied resource IDs and status.
-        """
-        config = await self.config_provider.get_config()
-        url = f"{config.url}/api/v3/accounts/{account_id}/onboarding/state/"
-        headers = {
+    async def _headers(self, config: AdminApiConfig) -> dict[str, str]:
+        return {
             "Content-Type": "application/json",
             "Accept": "application/json",
         } | config.headers_provider.get_headers()
 
+    async def get(self, account_id: int) -> dict[str, Any] | None:
+        """Fetch the current onboarding model for the account.
+
+        Returns the raw data dict, or None if no onboarding exists yet.
+        """
+        config = await self.config_provider.get_config()
+        url = self._base_url(config, account_id)
+        headers = await self._headers(config)
+
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    url, headers=headers, follow_redirects=True
-                )
+                response = await client.get(url, headers=headers, follow_redirects=True)
+                if response.status_code == 404:
+                    return None
                 response.raise_for_status()
-                return response.json()
+                return response.json().get("data")
         except httpx.HTTPStatusError as e:
             if 400 <= e.response.status_code < 500:
                 raise InvalidParameterError(
-                    f"Onboarding state request failed ({e.response.status_code}) "
-                    f"for account {account_id}"
+                    f"Onboarding request failed ({e.response.status_code}) for account {account_id}"
                 ) from e
             raise AdminAPIError(
-                f"Onboarding state request failed ({e.response.status_code}) "
-                f"for account {account_id}"
+                f"Onboarding request failed ({e.response.status_code}) for account {account_id}"
             ) from e
         except httpx.HTTPError as e:
             raise AdminAPIError(
-                f"Onboarding state request failed for account {account_id}"
+                f"Onboarding request failed for account {account_id}"
+            ) from e
+
+    async def create_or_get(self, account_id: int) -> dict[str, Any]:
+        """Create the onboarding model if it doesn't exist, or return the existing one.
+
+        POST is idempotent on the backend — returns the existing record if one is present.
+        """
+        config = await self.config_provider.get_config()
+        url = self._base_url(config, account_id)
+        headers = await self._headers(config)
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    url, headers=headers, json={}, follow_redirects=True
+                )
+                response.raise_for_status()
+                return response.json().get("data", {})
+        except httpx.HTTPStatusError as e:
+            if 400 <= e.response.status_code < 500:
+                raise InvalidParameterError(
+                    f"Onboarding create failed ({e.response.status_code}) for account {account_id}"
+                ) from e
+            raise AdminAPIError(
+                f"Onboarding create failed ({e.response.status_code}) for account {account_id}"
+            ) from e
+        except httpx.HTTPError as e:
+            raise AdminAPIError(
+                f"Onboarding create failed for account {account_id}"
             ) from e

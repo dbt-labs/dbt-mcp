@@ -4,14 +4,11 @@ from mcp.server.fastmcp import FastMCP
 
 from dbt_mcp.config.config_providers import AdminApiConfig, ConfigProvider
 from dbt_mcp.dbt_admin.onboarding.client import OnboardingClient
-from dbt_mcp.dbt_admin.onboarding.decision_points import get_decision_points
 from dbt_mcp.dbt_admin.onboarding.models import (
     OnboardingInitResult,
+    OnboardingModel,
     OnboardingStateResult,
-    ServerOnboardingState,
-    decision_points_to_dicts,
 )
-from dbt_mcp.dbt_admin.onboarding.session import InMemorySessionStore
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
@@ -22,7 +19,6 @@ from dbt_mcp.tools.toolsets import Toolset
 @dataclass
 class OnboardingToolContext:
     admin_api_config_provider: ConfigProvider[AdminApiConfig]
-    session_store: InMemorySessionStore
     onboarding_client: OnboardingClient
 
 
@@ -40,13 +36,17 @@ async def dbt_admin_onboarding_init(
     config = await context.admin_api_config_provider.get_config()
     account_id = config.account_id
 
-    session = await context.session_store.get_or_create(account_id)
+    existing = await context.onboarding_client.get(account_id)
+    if existing is not None:
+        return OnboardingInitResult(
+            onboarding=OnboardingModel.from_api(existing),
+            created=False,
+        )
 
+    data = await context.onboarding_client.create_or_get(account_id)
     return OnboardingInitResult(
-        session_id=session.session_id,
-        phase=session.phase.value,
-        account_id=account_id,
-        decision_points=decision_points_to_dicts(get_decision_points()),
+        onboarding=OnboardingModel.from_api(data),
+        created=True,
     )
 
 
@@ -60,33 +60,15 @@ async def dbt_admin_onboarding_init(
 async def dbt_admin_onboarding_state(
     context: OnboardingToolContext,
 ) -> OnboardingStateResult:
-    """Return the current onboarding session state for the account."""
+    """Return the current onboarding state for the account."""
     config = await context.admin_api_config_provider.get_config()
     account_id = config.account_id
 
-    session = context.session_store.get(account_id)
+    data = await context.onboarding_client.get(account_id)
+    if data is None:
+        return OnboardingStateResult(onboarding=None)
 
-    if session is None:
-        return OnboardingStateResult(
-            phase=None,
-            session_id=None,
-            server_state=None,
-        )
-
-    server_state: ServerOnboardingState | None = None
-    if session.has_server_state():
-        raw = await context.onboarding_client.get_state(account_id)
-        data = raw.get("data") or {}
-        server_state = ServerOnboardingState(
-            status=data.get("status", raw.get("status", "unknown")),
-            data=data,
-        )
-
-    return OnboardingStateResult(
-        phase=session.phase.value,
-        session_id=session.session_id,
-        server_state=server_state,
-    )
+    return OnboardingStateResult(onboarding=OnboardingModel.from_api(data))
 
 
 ONBOARDING_TOOLS = [
@@ -105,13 +87,11 @@ def register_onboarding_tools(
     disabled_toolsets: set[Toolset],
 ) -> None:
     """Register dbt onboarding tools."""
-    session_store = InMemorySessionStore()
     onboarding_client = OnboardingClient(admin_api_config_provider)
 
     def bind_context() -> OnboardingToolContext:
         return OnboardingToolContext(
             admin_api_config_provider=admin_api_config_provider,
-            session_store=session_store,
             onboarding_client=onboarding_client,
         )
 

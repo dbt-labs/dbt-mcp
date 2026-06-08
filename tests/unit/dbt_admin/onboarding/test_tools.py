@@ -4,7 +4,6 @@ import pytest
 
 from dbt_mcp.config.config_providers import AdminApiConfig
 from dbt_mcp.config.config_providers.base import StaticConfigProvider
-from dbt_mcp.dbt_admin.onboarding.session import InMemorySessionStore, SessionPhase
 from dbt_mcp.dbt_admin.onboarding.tools import (
     ONBOARDING_TOOLS,
     OnboardingToolContext,
@@ -17,6 +16,20 @@ from dbt_mcp.tools.toolsets import Toolset
 from tests.conftest import MockFastMCP
 
 NUM_ONBOARDING_TOOLS = 2
+
+_BACKEND_DATA = {
+    "id": 1,
+    "account_id": 1,
+    "status": "in_progress",
+    "project_id": None,
+    "connection_id": None,
+    "repository_id": None,
+    "dev_environment_id": None,
+    "prod_environment_id": None,
+    "production_job_id": None,
+    "credential_tested": False,
+    "details": None,
+}
 
 
 @pytest.fixture
@@ -34,22 +47,17 @@ def config_provider(admin_config):
 
 
 @pytest.fixture
-def session_store():
-    return InMemorySessionStore()
-
-
-@pytest.fixture
 def onboarding_client():
     client = MagicMock()
-    client.get_state = AsyncMock(return_value={"data": {"status": "in_progress"}})
+    client.get = AsyncMock(return_value=_BACKEND_DATA)
+    client.create_or_get = AsyncMock(return_value=_BACKEND_DATA)
     return client
 
 
 @pytest.fixture
-def context(config_provider, session_store, onboarding_client):
+def context(config_provider, onboarding_client):
     return OnboardingToolContext(
         admin_api_config_provider=config_provider,
-        session_store=session_store,
         onboarding_client=onboarding_client,
     )
 
@@ -100,47 +108,39 @@ def test_register_onboarding_tools_respects_disabled_toolset():
     assert len(mock_mcp.tools) == 0
 
 
-async def test_onboarding_init_creates_session(context):
+async def test_onboarding_init_returns_existing_when_backend_has_one(context, onboarding_client):
     result = await dbt_admin_onboarding_init.fn(context)
 
-    assert result.account_id == 1
-    assert result.phase == SessionPhase.DECIDING.value
-    assert len(result.session_id) > 0
-    assert result.decision_points == []
+    onboarding_client.get.assert_awaited_once_with(1)
+    onboarding_client.create_or_get.assert_not_awaited()
+    assert result.created is False
+    assert result.onboarding.id == 1
+    assert result.onboarding.status == "in_progress"
 
 
-async def test_onboarding_init_resumes_existing_session(context, session_store):
-    first = await dbt_admin_onboarding_init.fn(context)
-    second = await dbt_admin_onboarding_init.fn(context)
+async def test_onboarding_init_creates_when_backend_has_none(context, onboarding_client):
+    onboarding_client.get = AsyncMock(return_value=None)
 
-    assert first.session_id == second.session_id
+    result = await dbt_admin_onboarding_init.fn(context)
 
-
-async def test_onboarding_state_no_session(context):
-    result = await dbt_admin_onboarding_state.fn(context)
-
-    assert result.phase is None
-    assert result.session_id is None
-    assert result.server_state is None
+    onboarding_client.get.assert_awaited_once_with(1)
+    onboarding_client.create_or_get.assert_awaited_once_with(1)
+    assert result.created is True
+    assert result.onboarding.id == 1
 
 
-async def test_onboarding_state_with_deciding_session(context, session_store):
-    await session_store.get_or_create(account_id=1)
-    result = await dbt_admin_onboarding_state.fn(context)
-
-    assert result.phase == SessionPhase.DECIDING.value
-    assert result.server_state is None  # not in APPLYING phase yet
-
-
-async def test_onboarding_state_fetches_server_state_when_applying(
-    context, session_store, onboarding_client
-):
-    session = await session_store.get_or_create(account_id=1)
-    session.phase = SessionPhase.APPLYING
-    session_store.update(session)
+async def test_onboarding_state_returns_none_when_no_backend_model(context, onboarding_client):
+    onboarding_client.get = AsyncMock(return_value=None)
 
     result = await dbt_admin_onboarding_state.fn(context)
 
-    onboarding_client.get_state.assert_awaited_once_with(1)
-    assert result.server_state is not None
-    assert result.server_state.status == "in_progress"
+    assert result.onboarding is None
+
+
+async def test_onboarding_state_returns_model_when_exists(context, onboarding_client):
+    result = await dbt_admin_onboarding_state.fn(context)
+
+    onboarding_client.get.assert_awaited_once_with(1)
+    assert result.onboarding is not None
+    assert result.onboarding.status == "in_progress"
+    assert result.onboarding.project_id is None

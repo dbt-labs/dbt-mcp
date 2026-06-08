@@ -2,41 +2,44 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from dbt_mcp.dbt_admin.onboarding.decision_points import DecisionPoint
+
+class OnboardingModel(BaseModel):
+    """Mirrors the backend onboarding resource returned by GET/POST /onboarding/."""
+
+    id: int
+    account_id: int
+    status: str
+    project_id: int | None = None
+    connection_id: int | None = None
+    repository_id: int | None = None
+    dev_environment_id: int | None = None
+    prod_environment_id: int | None = None
+    production_job_id: int | None = None
+    credential_tested: bool = False
+    details: dict[str, Any] | None = None
+
+    @classmethod
+    def from_api(cls, data: dict[str, Any]) -> "OnboardingModel":
+        return cls(
+            id=data["id"],
+            account_id=data["account_id"],
+            status=data.get("status", "in_progress"),
+            project_id=data.get("project_id"),
+            connection_id=data.get("connection_id"),
+            repository_id=data.get("repository_id"),
+            dev_environment_id=data.get("dev_environment_id"),
+            prod_environment_id=data.get("prod_environment_id"),
+            production_job_id=data.get("production_job_id"),
+            credential_tested=data.get("credential_tested", False),
+            details=data.get("details"),
+        )
 
 
 class OnboardingInitResult(BaseModel):
-    session_id: str
-    phase: str
-    account_id: int
-    decision_points: list[dict[str, Any]]
-
-
-class ServerOnboardingState(BaseModel):
-    """Mirrors the GET /api/v3/accounts/{id}/onboarding/state/ response.
-
-    Resource FK fields are added incrementally as each phase ships.
-    """
-
-    status: str
-    data: dict[str, Any] = Field(default_factory=dict)
+    onboarding: OnboardingModel
+    created: bool
 
 
 class OnboardingStateResult(BaseModel):
-    phase: str | None
-    session_id: str | None
-    server_state: ServerOnboardingState | None
-
-
-def decision_points_to_dicts(points: list[DecisionPoint]) -> list[dict[str, Any]]:
-    return [
-        {
-            "key": p.key,
-            "label": p.label,
-            "description": p.description,
-            "sensitive": p.sensitive,
-            "rationale_hint": p.rationale_hint,
-            "examples": p.examples,
-        }
-        for p in points
-    ]
+    onboarding: OnboardingModel | None
+    decision_points: list[dict[str, Any]] = Field(default_factory=list)
