@@ -65,13 +65,13 @@ class OnboardingClient:
         Returns a dict with 'valid' bool and 'errors' list.
         """
         config = await self.config_provider.get_config()
-        url = self._base_url(config, account_id) + "validate/"
+        url = self._base_url(config, account_id)
         headers = await self._headers(config)
 
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    url, headers=headers, json=data, follow_redirects=True
+                    url, headers=headers, json=data, params={"dry_run": "1"}, follow_redirects=True
                 )
                 response.raise_for_status()
                 return response.json()
