@@ -71,7 +71,11 @@ class OnboardingClient:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    url, headers=headers, json=data, params={"dry_run": "1"}, follow_redirects=True
+                    url,
+                    headers=headers,
+                    json=data,
+                    params={"dry_run": "1"},
+                    follow_redirects=True,
                 )
                 response.raise_for_status()
                 return response.json()
@@ -105,7 +109,7 @@ class OnboardingClient:
                     url, headers=headers, json=data, follow_redirects=True
                 )
                 response.raise_for_status()
-                return response.json().get("data", {})
+                return response.json().get("data") or {}
         except httpx.HTTPStatusError as e:
             if 400 <= e.response.status_code < 500:
                 raise InvalidParameterError(

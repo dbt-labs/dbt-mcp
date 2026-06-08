@@ -445,6 +445,17 @@ def validate_dbt_platform_settings(settings: DbtMcpSettings) -> list[str]:
             errors.append(
                 "DBT_HOST environment variable is required when semantic layer, discovery, SQL or admin API tools are enabled."
             )
+        if not settings.dbt_token:
+            errors.append(
+                "DBT_TOKEN environment variable is required when semantic layer, discovery, SQL or admin API tools are enabled."
+            )
+        if settings.actual_host and (
+            settings.actual_host.startswith("metadata")
+            or settings.actual_host.startswith("semantic-layer")
+        ):
+            errors.append(
+                "DBT_HOST must not start with 'metadata' or 'semantic-layer'."
+            )
     # Project/environment context is required for project-scoped tools (semantic
     # layer, discovery, SQL) but NOT for admin API tools, which operate at the
     # account level and don't need a project ID to function.
@@ -466,17 +477,6 @@ def validate_dbt_platform_settings(settings: DbtMcpSettings) -> list[str]:
         ):
             errors.append(
                 "DBT_PROD_ENV_ID and DBT_PROJECT_IDS environment variables cannot be set at the same time."
-            )
-        if not settings.dbt_token:
-            errors.append(
-                "DBT_TOKEN environment variable is required when semantic layer, discovery, SQL or admin API tools are enabled."
-            )
-        if settings.actual_host and (
-            settings.actual_host.startswith("metadata")
-            or settings.actual_host.startswith("semantic-layer")
-        ):
-            errors.append(
-                "DBT_HOST must not start with 'metadata' or 'semantic-layer'."
             )
     if (
         not settings.actual_disable_sql
