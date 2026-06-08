@@ -83,7 +83,7 @@ class OnboardingClient:
             if 400 <= e.response.status_code < 500:
                 # Validation errors are expected — return them as structured data
                 try:
-                    return response.json()
+                    return e.response.json()
                 except Exception:
                     pass
                 raise InvalidParameterError(
