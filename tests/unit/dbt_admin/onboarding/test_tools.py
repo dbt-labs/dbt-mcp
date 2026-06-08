@@ -72,7 +72,11 @@ def test_register_onboarding_tools_registers_all():
     register_onboarding_tools(
         mock_mcp,
         StaticConfigProvider(
-            AdminApiConfig(url="https://example.dbt.com", headers_provider=MagicMock(), account_id=1)
+            AdminApiConfig(
+                url="https://example.dbt.com",
+                headers_provider=MagicMock(),
+                account_id=1,
+            )
         ),
         disabled_tools=set(),
         enabled_tools=None,
@@ -90,7 +94,11 @@ def test_register_onboarding_tools_respects_disabled_toolset():
     register_onboarding_tools(
         mock_mcp,
         StaticConfigProvider(
-            AdminApiConfig(url="https://example.dbt.com", headers_provider=MagicMock(), account_id=1)
+            AdminApiConfig(
+                url="https://example.dbt.com",
+                headers_provider=MagicMock(),
+                account_id=1,
+            )
         ),
         disabled_tools=set(),
         enabled_tools=None,
@@ -126,7 +134,9 @@ async def test_onboarding_validate_returns_valid(context, onboarding_client):
 
 async def test_onboarding_validate_returns_errors(context, onboarding_client):
     onboarding_client.validate = AsyncMock(
-        return_value={"status": {"is_success": False, "developer_message": "field X is required"}}
+        return_value={
+            "status": {"is_success": False, "developer_message": "field X is required"}
+        }
     )
 
     result = await dbt_admin_onboarding_validate.fn(context, data={"bad": "data"})
