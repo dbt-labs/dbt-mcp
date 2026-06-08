@@ -12,6 +12,7 @@ from mcp.server.lowlevel.server import LifespanResultT
 from mcp.types import ContentBlock, Tool
 
 from dbt_mcp.config.config import Config
+from dbt_mcp.dbt_admin.onboarding.tools import register_onboarding_tools
 from dbt_mcp.dbt_admin.tools import register_admin_api_tools
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.dbt_codegen.tools import register_dbt_codegen_tools
@@ -232,6 +233,15 @@ async def register_multi_project_dbt_mcp(dbt_mcp: FastMCP, config: Config) -> No
             enabled_toolsets=enabled_toolsets,
             disabled_toolsets=disabled_toolsets,
         )
+        logger.info("Registering onboarding tools for multi-project")
+        register_onboarding_tools(
+            dbt_mcp,
+            config.admin_api_config_provider,
+            disabled_tools=disabled_tools,
+            enabled_tools=enabled_tools,
+            enabled_toolsets=enabled_toolsets,
+            disabled_toolsets=disabled_toolsets,
+        )
 
     # Product docs and MCP server metadata are globally available (not project-specific)
     logger.info("Registering product docs tools for multi-project")
@@ -328,6 +338,16 @@ async def register_dbt_mcp_tools(dbt_mcp: FastMCP, config: Config) -> None:
 
     logger.info("Registering dbt admin API tools")
     register_admin_api_tools(
+        dbt_mcp,
+        config.admin_api_config_provider,
+        disabled_tools=disabled_tools,
+        enabled_tools=enabled_tools,
+        enabled_toolsets=enabled_toolsets,
+        disabled_toolsets=disabled_toolsets,
+    )
+
+    logger.info("Registering onboarding tools")
+    register_onboarding_tools(
         dbt_mcp,
         config.admin_api_config_provider,
         disabled_tools=disabled_tools,

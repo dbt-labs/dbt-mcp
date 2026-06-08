@@ -64,6 +64,10 @@ class ToolName(Enum):
     LIST_JOB_RUN_ARTIFACTS = "list_job_run_artifacts"
     GET_JOB_RUN_ERROR = "get_job_run_error"
 
+    # Onboarding tools
+    ONBOARDING_INIT = "dbt_admin_onboarding_init"
+    ONBOARDING_STATE = "dbt_admin_onboarding_state"
+
     # dbt-codegen tools
     GENERATE_SOURCE = "generate_source"
     GENERATE_MODEL_YAML = "generate_model_yaml"

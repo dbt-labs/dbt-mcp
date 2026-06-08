@@ -82,6 +82,8 @@ Allowing your client to utilize dbt commands through the MCP tooling could modif
 
 To learn more about the dbt Administrative API, click [here](https://docs.getdbt.com/docs/dbt-cloud-apis/admin-cloud-api).
 - `cancel_job_run`: Cancels a running job.
+- `dbt_admin_onboarding_init`: Starts or resumes an onboarding session; returns session ID, current phase, and decision points.
+- `dbt_admin_onboarding_state`: Returns the current onboarding session phase and server-side applied resource progress.
 - `get_job_details`: Gets job configuration including triggers, schedule, and dbt commands.
 - `get_job_run_details`: Gets run details including status, timing, steps, and artifacts.
 - `get_job_run_error`: Gets error and/or warning details for a job run; option to include or show warnings only.
