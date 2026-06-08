@@ -60,9 +60,10 @@ class OnboardingClient:
             ) from e
 
     async def validate(self, account_id: int, data: dict[str, Any]) -> dict[str, Any]:
-        """Validate onboarding data without applying it.
+        """Validate onboarding data without applying it (dry_run=1).
 
-        Returns a dict with 'valid' bool and 'errors' list.
+        Returns the raw API response body. Callers should inspect
+        response["status"]["is_success"] and response["status"]["developer_message"].
         """
         config = await self.config_provider.get_config()
         url = self._base_url(config, account_id)
@@ -109,7 +110,12 @@ class OnboardingClient:
                     url, headers=headers, json=data, follow_redirects=True
                 )
                 response.raise_for_status()
-                return response.json().get("data") or {}
+                data_payload = response.json().get("data")
+                if not data_payload:
+                    raise AdminAPIError(
+                        f"Onboarding apply returned no data for account {account_id}"
+                    )
+                return data_payload
         except httpx.HTTPStatusError as e:
             if 400 <= e.response.status_code < 500:
                 raise InvalidParameterError(
