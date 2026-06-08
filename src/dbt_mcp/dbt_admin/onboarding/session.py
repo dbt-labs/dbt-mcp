@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
@@ -50,11 +51,13 @@ class InMemorySessionStore:
 
     def __init__(self) -> None:
         self._sessions: dict[int, OnboardingSession] = {}
+        self._lock = asyncio.Lock()
 
-    def get_or_create(self, account_id: int) -> OnboardingSession:
-        if account_id not in self._sessions:
-            self._sessions[account_id] = OnboardingSession(account_id=account_id)
-        return self._sessions[account_id]
+    async def get_or_create(self, account_id: int) -> OnboardingSession:
+        async with self._lock:
+            if account_id not in self._sessions:
+                self._sessions[account_id] = OnboardingSession(account_id=account_id)
+            return self._sessions[account_id]
 
     def get(self, account_id: int) -> OnboardingSession | None:
         return self._sessions.get(account_id)

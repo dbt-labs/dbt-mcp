@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -41,9 +41,7 @@ def session_store():
 @pytest.fixture
 def onboarding_client():
     client = MagicMock()
-    client.get_state = AsyncMock(
-        return_value={"data": {"status": "in_progress"}}
-    )
+    client.get_state = AsyncMock(return_value={"data": {"status": "in_progress"}})
     return client
 
 
@@ -127,7 +125,7 @@ async def test_onboarding_state_no_session(context):
 
 
 async def test_onboarding_state_with_deciding_session(context, session_store):
-    session_store.get_or_create(account_id=1)
+    await session_store.get_or_create(account_id=1)
     result = await dbt_admin_onboarding_state.fn(context)
 
     assert result.phase == SessionPhase.DECIDING.value
@@ -137,7 +135,7 @@ async def test_onboarding_state_with_deciding_session(context, session_store):
 async def test_onboarding_state_fetches_server_state_when_applying(
     context, session_store, onboarding_client
 ):
-    session = session_store.get_or_create(account_id=1)
+    session = await session_store.get_or_create(account_id=1)
     session.phase = SessionPhase.APPLYING
     session_store.update(session)
 

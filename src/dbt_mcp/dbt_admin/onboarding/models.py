@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from dbt_mcp.dbt_admin.onboarding.decision_points import DecisionPoint
 
@@ -19,7 +19,7 @@ class ServerOnboardingState(BaseModel):
     """
 
     status: str
-    data: dict[str, Any] = {}
+    data: dict[str, Any] = Field(default_factory=dict)
 
 
 class OnboardingStateResult(BaseModel):

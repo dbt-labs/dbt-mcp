@@ -40,7 +40,7 @@ async def dbt_admin_onboarding_init(
     config = await context.admin_api_config_provider.get_config()
     account_id = config.account_id
 
-    session = context.session_store.get_or_create(account_id)
+    session = await context.session_store.get_or_create(account_id)
 
     return OnboardingInitResult(
         session_id=session.session_id,
@@ -76,9 +76,10 @@ async def dbt_admin_onboarding_state(
     server_state: ServerOnboardingState | None = None
     if session.has_server_state():
         raw = await context.onboarding_client.get_state(account_id)
+        data = raw.get("data") or {}
         server_state = ServerOnboardingState(
-            status=raw.get("data", {}).get("status", raw.get("status", "unknown")),
-            data=raw.get("data", raw),
+            status=data.get("status", raw.get("status", "unknown")),
+            data=data,
         )
 
     return OnboardingStateResult(
@@ -116,7 +117,9 @@ def register_onboarding_tools(
 
     register_tools(
         dbt_mcp,
-        tool_definitions=[tool.adapt_context(bind_context) for tool in ONBOARDING_TOOLS],
+        tool_definitions=[
+            tool.adapt_context(bind_context) for tool in ONBOARDING_TOOLS
+        ],
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,
