@@ -16,7 +16,6 @@ from dbt_mcp.config.config_providers.semantic_layer import (
     MultiProjectSemanticLayerConfigProvider,
 )
 from dbt_mcp.config.credentials import CredentialsProvider
-from dbt_mcp.config.elicitation import ElicitingCredentialsProvider
 from dbt_mcp.config.settings import (
     DbtMcpLogSettings,
     DbtMcpSettings,
@@ -97,7 +96,7 @@ class Config:
     )
     semantic_layer_config_provider: DefaultSemanticLayerConfigProvider
     admin_api_config_provider: DefaultAdminApiConfigProvider
-    credentials_provider: ElicitingCredentialsProvider
+    credentials_provider: CredentialsProvider
     lsp_config: LspConfig | None
     # Lazy: invoking the provider runs `dbt --version`, which can take several
     # seconds when many adapters are installed. Resolution is deferred until a
@@ -143,8 +142,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
     )
     settings = DbtMcpSettings()  # type: ignore
 
-    inner_credentials = CredentialsProvider(settings)
-    credentials_provider = ElicitingCredentialsProvider(inner_credentials)
+    credentials_provider = CredentialsProvider(settings)
 
     # Set default warn error options if not provided
     if settings.dbt_warn_error_options is None:
@@ -168,30 +166,30 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
     proxied_tool_config_provider = None
     if enable_proxied_tools:
         proxied_tool_config_provider = DefaultProxiedToolConfigProvider(
-            credentials_provider=inner_credentials
+            credentials_provider=credentials_provider
         )
 
     admin_api_config_provider = DefaultAdminApiConfigProvider(
-        credentials_provider=inner_credentials,
+        credentials_provider=credentials_provider,
     )
     admin_client = DbtAdminAPIClient(admin_api_config_provider)
     multi_project_discovery_config_provider = MultiProjectDiscoveryConfigProvider(
-        credentials_provider=inner_credentials,
+        credentials_provider=credentials_provider,
         admin_client=admin_client,
     )
     multi_project_semantic_layer_config_provider = (
         MultiProjectSemanticLayerConfigProvider(
-            credentials_provider=inner_credentials,
+            credentials_provider=credentials_provider,
             admin_client=admin_client,
             metrics_related_max=settings.sl_metrics_related_max,
             max_response_chars=settings.sl_metrics_max_response_chars,
         )
     )
     discovery_config_provider = DefaultDiscoveryConfigProvider(
-        credentials_provider=inner_credentials,
+        credentials_provider=credentials_provider,
     )
     semantic_layer_config_provider = DefaultSemanticLayerConfigProvider(
-        credentials_provider=inner_credentials,
+        credentials_provider=credentials_provider,
         metrics_related_max=settings.sl_metrics_related_max,
         max_response_chars=settings.sl_metrics_max_response_chars,
     )

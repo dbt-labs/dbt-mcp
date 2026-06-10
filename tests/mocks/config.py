@@ -4,7 +4,6 @@ from dbt_mcp.config.config import (
     DbtCodegenConfig,
     LspConfig,
 )
-from dbt_mcp.config.elicitation import ElicitingCredentialsProvider
 from dbt_mcp.config.config_providers import (
     AdminApiConfig,
     DiscoveryConfig,
@@ -182,7 +181,5 @@ mock_config = Config(
     enable_tools=None,  # None means not set, [] would mean allowlist mode
     disabled_toolsets=set(),
     enabled_toolsets=set(),
-    credentials_provider=ElicitingCredentialsProvider(
-        inner=MockCredentialsProvider(),
-    ),
+    credentials_provider=MockCredentialsProvider(),
 )

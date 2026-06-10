@@ -287,7 +287,7 @@ class TestDbtMcpSettings:
     def test_auto_disable_cli_features_only(self):
         with patch.dict(os.environ, {}, clear=True):
             settings = DbtMcpSettings(_env_file=None)
-            # Platform features are NOT auto-disabled (elicitation handles missing DBT_HOST)
+            # Platform features are NOT auto-disabled when DBT_HOST is absent
             assert settings.disable_admin_api is False
             assert settings.disable_semantic_layer is False
             assert settings.disable_discovery is False
@@ -388,7 +388,7 @@ class TestLoadConfig:
 
         config = self._load_config_with_env(env_vars)
 
-        # Platform providers are always created (resolve lazily via elicitation)
+        # Platform providers are always created (they raise MissingHostError if DBT_HOST is absent)
         assert config.discovery_config_provider is not None
         assert config.semantic_layer_config_provider is not None
         assert config.admin_api_config_provider is not None
