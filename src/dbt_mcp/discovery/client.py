@@ -7,6 +7,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from dbt_mcp.config.config_providers import DiscoveryConfig
+from dbt_mcp.config.settings import PLATFORM_API_TIMEOUT
 from dbt_mcp.discovery.graphql import load_query
 from dbt_mcp.errors import InvalidParameterError, ToolCallError
 from dbt_mcp.errors.common import NotFoundError
@@ -362,7 +363,7 @@ async def execute_query(
     url = config.url
     headers = config.headers_provider.get_headers()
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
+    async with httpx.AsyncClient(timeout=PLATFORM_API_TIMEOUT) as client:
         response = await client.post(
             url=url,
             json={"query": query, "variables": variables},

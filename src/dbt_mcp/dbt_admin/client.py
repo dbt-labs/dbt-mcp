@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 
 from dbt_mcp.config.config_providers import AdminApiConfig, ConfigProvider
+from dbt_mcp.config.settings import PLATFORM_API_TIMEOUT
 from dbt_mcp.errors import (
     AdminAPIError,
     ArtifactRetrievalError,
@@ -43,7 +44,7 @@ class DbtAdminAPIClient:
         headers = await self.get_headers()
 
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
+            async with httpx.AsyncClient(timeout=PLATFORM_API_TIMEOUT) as client:
                 response = await client.request(
                     method,
                     url,
@@ -394,7 +395,7 @@ class DbtAdminAPIClient:
         } | config.headers_provider.get_headers()
 
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
+            async with httpx.AsyncClient(timeout=PLATFORM_API_TIMEOUT) as client:
                 response = await client.get(
                     f"{config.url}/api/v2/accounts/{account_id}/runs/{run_id}/artifacts/{artifact_path}",
                     headers=get_artifact_header,
