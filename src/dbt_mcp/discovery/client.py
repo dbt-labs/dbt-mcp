@@ -362,7 +362,7 @@ async def execute_query(
     url = config.url
     headers = config.headers_provider.get_headers()
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=15.0) as client:
         response = await client.post(
             url=url,
             json={"query": query, "variables": variables},

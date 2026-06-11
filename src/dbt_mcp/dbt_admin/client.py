@@ -43,7 +43,7 @@ class DbtAdminAPIClient:
         headers = await self.get_headers()
 
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=15.0) as client:
                 response = await client.request(
                     method,
                     url,
@@ -394,7 +394,7 @@ class DbtAdminAPIClient:
         } | config.headers_provider.get_headers()
 
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=15.0) as client:
                 response = await client.get(
                     f"{config.url}/api/v2/accounts/{account_id}/runs/{run_id}/artifacts/{artifact_path}",
                     headers=get_artifact_header,
