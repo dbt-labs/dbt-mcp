@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Set explicit timeouts on all dbt platform httpx clients to prevent ReadTimeout errors (15s for REST APIs, 60s for Semantic Layer GQL)
-time: 2026-06-11T14:24:37.725211+01:00
