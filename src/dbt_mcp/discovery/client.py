@@ -577,7 +577,7 @@ class ModelsFetcher:
         edges = result["data"]["environment"]["applied"]["models"]["edges"]
         if not edges:
             return []
-        return edges[0]["node"]
+        return [edges[0]["node"]]
 
 
 class ExposuresFetcher:
