@@ -21,15 +21,7 @@ async def test_fetch_model_health_wraps_single_node_in_list(
         "ancestors": [],
     }
     mock_api_client.return_value = {
-        "data": {
-            "environment": {
-                "applied": {
-                    "models": {
-                        "edges": [{"node": node}]
-                    }
-                }
-            }
-        }
+        "data": {"environment": {"applied": {"models": {"edges": [{"node": node}]}}}}
     }
 
     result = await models_fetcher.fetch_model_health(
@@ -48,15 +40,7 @@ async def test_fetch_model_health_empty_edges_returns_empty_list(
 ):
     """fetch_model_health returns [] when no model is found."""
     mock_api_client.return_value = {
-        "data": {
-            "environment": {
-                "applied": {
-                    "models": {
-                        "edges": []
-                    }
-                }
-            }
-        }
+        "data": {"environment": {"applied": {"models": {"edges": []}}}}
     }
 
     result = await models_fetcher.fetch_model_health(
