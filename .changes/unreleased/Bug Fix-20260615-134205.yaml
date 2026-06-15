@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: 'Fix get_model_health response schema: wrap single-node result in a list to match the declared list[dict] return type'
-time: 2026-06-15T13:42:05.557078-07:00
