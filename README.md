@@ -82,6 +82,7 @@ Allowing your client to utilize dbt commands through the MCP tooling could modif
 
 To learn more about the dbt Administrative API, click [here](https://docs.getdbt.com/docs/dbt-cloud-apis/admin-cloud-api).
 - `cancel_job_run`: Cancels a running job.
+- `dbt_admin_account_create`: Bootstraps a brand-new trial account and owner token (billable); the token is stashed for the rest of the session.
 - `dbt_admin_onboarding_apply`: Submits collected onboarding data to the platform; call incrementally as each piece of data is gathered.
 - `dbt_admin_onboarding_get`: Returns the current onboarding record and progress; null if no onboarding has been started.
 - `dbt_admin_onboarding_validate`: Validates the collected onboarding data and returns what is missing or invalid.

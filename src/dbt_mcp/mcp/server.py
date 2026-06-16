@@ -237,6 +237,7 @@ async def register_multi_project_dbt_mcp(dbt_mcp: FastMCP, config: Config) -> No
         register_onboarding_tools(
             dbt_mcp,
             config.admin_api_config_provider,
+            config.credentials_provider.inner_provider,
             disabled_tools=disabled_tools,
             enabled_tools=enabled_tools,
             enabled_toolsets=enabled_toolsets,
@@ -350,6 +351,7 @@ async def register_dbt_mcp_tools(dbt_mcp: FastMCP, config: Config) -> None:
     register_onboarding_tools(
         dbt_mcp,
         config.admin_api_config_provider,
+        config.credentials_provider.inner_provider,
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,

@@ -103,6 +103,7 @@ toolsets = {
         ToolName.RETRY_JOB_RUN,
         ToolName.LIST_JOB_RUN_ARTIFACTS,
         ToolName.GET_JOB_RUN_ERROR,
+        ToolName.ACCOUNT_CREATE,
         ToolName.ONBOARDING_GET,
         ToolName.ONBOARDING_VALIDATE,
         ToolName.ONBOARDING_APPLY,

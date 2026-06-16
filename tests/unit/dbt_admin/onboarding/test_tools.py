@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -7,16 +8,18 @@ from dbt_mcp.config.config_providers.base import StaticConfigProvider
 from dbt_mcp.dbt_admin.onboarding.tools import (
     ONBOARDING_TOOLS,
     OnboardingToolContext,
+    dbt_admin_account_create,
     dbt_admin_onboarding_apply,
     dbt_admin_onboarding_get,
     dbt_admin_onboarding_validate,
     register_onboarding_tools,
 )
+from dbt_mcp.oauth.token_provider import StaticTokenProvider
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 from tests.conftest import MockFastMCP
 
-NUM_ONBOARDING_TOOLS = 3
+NUM_ONBOARDING_TOOLS = 4
 
 _BACKEND_DATA = {
     "id": 1,
@@ -56,10 +59,30 @@ def onboarding_client():
 
 
 @pytest.fixture
-def context(config_provider, onboarding_client):
+def credentials_provider():
+    # Minimal stand-in: the tool only touches settings.dbt_account_id and token_provider.
+    return SimpleNamespace(
+        settings=SimpleNamespace(dbt_account_id=None),
+        token_provider=None,
+    )
+
+
+@pytest.fixture
+def account_client():
+    client = MagicMock()
+    client.create = AsyncMock(
+        return_value={"account_id": 42, "owner_token": "tok_abc", "created_at": "now"}
+    )
+    return client
+
+
+@pytest.fixture
+def context(config_provider, onboarding_client, credentials_provider, account_client):
     return OnboardingToolContext(
         admin_api_config_provider=config_provider,
         onboarding_client=onboarding_client,
+        credentials_provider=credentials_provider,
+        account_client=account_client,
     )
 
 
@@ -78,12 +101,14 @@ def test_register_onboarding_tools_registers_all():
                 account_id=1,
             )
         ),
+        MagicMock(),
         disabled_tools=set(),
         enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
     registered = {kwargs["name"] for kwargs in mock_mcp.tool_kwargs.values()}
+    assert ToolName.ACCOUNT_CREATE.value in registered
     assert ToolName.ONBOARDING_GET.value in registered
     assert ToolName.ONBOARDING_VALIDATE.value in registered
     assert ToolName.ONBOARDING_APPLY.value in registered
@@ -100,12 +125,49 @@ def test_register_onboarding_tools_respects_disabled_toolset():
                 account_id=1,
             )
         ),
+        MagicMock(),
         disabled_tools=set(),
         enabled_tools=None,
         enabled_toolsets=set(),
         disabled_toolsets={Toolset.ADMIN_API},
     )
     assert len(mock_mcp.tools) == 0
+
+
+async def test_account_create_returns_result(context, account_client):
+    result = await dbt_admin_account_create.fn(
+        context, name="acme", owner_email="owner@acme.example"
+    )
+
+    account_client.create.assert_awaited_once_with(
+        name="acme", owner_email="owner@acme.example", created_via=None
+    )
+    assert result.account_id == 42
+    assert result.owner_token == "tok_abc"
+
+
+async def test_account_create_stashes_identity(context, credentials_provider):
+    await dbt_admin_account_create.fn(
+        context, name="acme", owner_email="owner@acme.example"
+    )
+
+    # The new account id + owner token are stashed for later account-scoped tools.
+    assert credentials_provider.settings.dbt_account_id == 42
+    assert isinstance(credentials_provider.token_provider, StaticTokenProvider)
+    assert credentials_provider.token_provider.get_token() == "tok_abc"
+
+
+async def test_account_create_passes_created_via(context, account_client):
+    await dbt_admin_account_create.fn(
+        context,
+        name="acme",
+        owner_email="owner@acme.example",
+        created_via="onboarding_api",
+    )
+
+    account_client.create.assert_awaited_once_with(
+        name="acme", owner_email="owner@acme.example", created_via="onboarding_api"
+    )
 
 
 async def test_onboarding_get_returns_model(context, onboarding_client):
