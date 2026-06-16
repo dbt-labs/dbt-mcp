@@ -135,6 +135,16 @@ tasks:
             echo "d2.png updated successfully"
           fi
 
+  contract:generate:
+    desc: "Regenerate the published-app contract snapshot from tool definitions"
+    cmds:
+      - uv run python -m dbt_mcp.contract.snapshot --lint
+
+  contract:check:
+    desc: "Fail if the published-app contract snapshot is out of date"
+    cmds:
+      - uv run python -m dbt_mcp.contract.snapshot --check --lint
+
   d2:
     desc: "Update d2 diagram from the config"
     silent: true

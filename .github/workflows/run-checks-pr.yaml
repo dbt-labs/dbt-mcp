@@ -73,6 +73,30 @@ jobs:
       - name: Validate documentation is up to date
         run: task docs:generate CHECK_FLAG=1
 
+  # validates the published-app contract snapshot is up to date
+  validate-contract:
+    name: Validate app contract
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    needs:
+      - check
+    steps:
+      - name: checkout code
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # actions/checkout@v4
+      - name: setup python
+        uses: ./.github/actions/setup-python
+        id: setup-python
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+        with:
+          version: 10
+      - name: Install go-task
+        run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+      - name: Install dependencies
+        run: task install
+      - name: Validate contract snapshot is up to date
+        run: task contract:check
+
   # validates mcpb manifest
   validate-mcpb:
     name: Validate mcpb manifest

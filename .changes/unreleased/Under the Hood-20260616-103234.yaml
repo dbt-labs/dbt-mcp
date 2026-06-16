@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: Add a CI check that snapshots the published-app contract (tool metadata, schemas, annotations, server instructions, UI resources) and fails when it changes, plus a workflow that labels contract-changing PRs
+time: 2026-06-16T10:32:34.025829+02:00
