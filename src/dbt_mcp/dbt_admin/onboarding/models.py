@@ -35,6 +35,13 @@ class OnboardingModel(BaseModel):
         )
 
 
+class AccountCreateResult(BaseModel):
+    """Result of bootstrapping a brand-new account via the public endpoint."""
+
+    account_id: int
+    owner_token: str
+
+
 class OnboardingGetResult(BaseModel):
     onboarding: OnboardingModel | None
 

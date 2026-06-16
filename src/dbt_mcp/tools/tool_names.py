@@ -65,6 +65,7 @@ class ToolName(Enum):
     GET_JOB_RUN_ERROR = "get_job_run_error"
 
     # Onboarding tools
+    ACCOUNT_CREATE = "dbt_admin_account_create"
     ONBOARDING_GET = "dbt_admin_onboarding_get"
     ONBOARDING_VALIDATE = "dbt_admin_onboarding_validate"
     ONBOARDING_APPLY = "dbt_admin_onboarding_apply"

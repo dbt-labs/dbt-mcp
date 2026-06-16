@@ -1,27 +1,69 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from mcp.server.fastmcp import FastMCP
 
 from dbt_mcp.config.config_providers import AdminApiConfig, ConfigProvider
+from dbt_mcp.dbt_admin.onboarding.account_client import AccountClient
 from dbt_mcp.dbt_admin.onboarding.client import OnboardingClient
 from dbt_mcp.dbt_admin.onboarding.models import (
+    AccountCreateResult,
     OnboardingApplyResult,
     OnboardingGetResult,
     OnboardingModel,
     OnboardingValidateResult,
 )
+from dbt_mcp.oauth.token_provider import StaticTokenProvider
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 
+if TYPE_CHECKING:
+    from dbt_mcp.config.credentials import CredentialsProvider
+
 
 @dataclass
 class OnboardingToolContext:
     admin_api_config_provider: ConfigProvider[AdminApiConfig]
     onboarding_client: OnboardingClient
+    credentials_provider: "CredentialsProvider"
+    account_client: AccountClient
+
+
+@dbt_mcp_tool(
+    description=get_prompt("admin_api/account_create"),
+    title="Create dbt Platform Account",
+    read_only_hint=False,
+    destructive_hint=False,
+    idempotent_hint=False,
+)
+async def dbt_admin_account_create(
+    context: OnboardingToolContext,
+    name: str,
+    owner_email: str,
+    created_via: str | None = None,
+) -> AccountCreateResult:
+    """Bootstrap a brand-new dbt platform account and owner token.
+
+    Use this only when the user has no account yet — it is billable and creates
+    a trial account. The returned owner token is stashed for the rest of this
+    session, so subsequent admin/onboarding tools authenticate automatically.
+    """
+    data = await context.account_client.create(
+        name=name,
+        owner_email=owner_email,
+        created_via=created_via,
+    )
+    account_id = int(data["account_id"])
+    owner_token = data["owner_token"]
+
+    # Stash the new identity so later account-scoped tools authenticate.
+    context.credentials_provider.settings.dbt_account_id = account_id
+    context.credentials_provider.token_provider = StaticTokenProvider(token=owner_token)
+
+    return AccountCreateResult(account_id=account_id, owner_token=owner_token)
 
 
 @dbt_mcp_tool(
@@ -82,6 +124,7 @@ async def dbt_admin_onboarding_apply(
 
 
 ONBOARDING_TOOLS = [
+    dbt_admin_account_create,
     dbt_admin_onboarding_get,
     dbt_admin_onboarding_validate,
     dbt_admin_onboarding_apply,
@@ -91,6 +134,7 @@ ONBOARDING_TOOLS = [
 def register_onboarding_tools(
     dbt_mcp: FastMCP,
     admin_api_config_provider: ConfigProvider[AdminApiConfig],
+    credentials_provider: "CredentialsProvider",
     *,
     disabled_tools: set[ToolName],
     enabled_tools: set[ToolName] | None,
@@ -99,11 +143,14 @@ def register_onboarding_tools(
 ) -> None:
     """Register dbt onboarding tools."""
     onboarding_client = OnboardingClient(admin_api_config_provider)
+    account_client = AccountClient(credentials_provider)
 
     def bind_context() -> OnboardingToolContext:
         return OnboardingToolContext(
             admin_api_config_provider=admin_api_config_provider,
             onboarding_client=onboarding_client,
+            credentials_provider=credentials_provider,
+            account_client=account_client,
         )
 
     register_tools(
