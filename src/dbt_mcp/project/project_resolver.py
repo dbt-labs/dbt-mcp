@@ -4,6 +4,7 @@ import logging
 
 import httpx
 
+from dbt_mcp.config.settings import PLATFORM_API_TIMEOUT
 from dbt_mcp.oauth.dbt_platform import (
     DbtPlatformAccount,
     DbtPlatformProject,
@@ -18,7 +19,7 @@ async def get_account(
     account_id: int,
     headers: dict[str, str],
 ) -> DbtPlatformAccount:
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=PLATFORM_API_TIMEOUT) as client:
         response = await client.get(
             # Using v2 as this endpoint in v3 was not available in testing
             url=f"{dbt_platform_url}/api/v2/accounts/{account_id}/",
@@ -33,7 +34,7 @@ async def get_all_accounts(
     dbt_platform_url: str,
     headers: dict[str, str],
 ) -> list[DbtPlatformAccount]:
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=PLATFORM_API_TIMEOUT) as client:
         response = await client.get(
             url=f"{dbt_platform_url}/api/v3/accounts/",
             headers=headers,
@@ -53,7 +54,7 @@ async def get_all_projects_for_account(
     """Fetch all projects for an account using offset/page_size pagination."""
     offset = 0
     projects: list[DbtPlatformProject] = []
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=PLATFORM_API_TIMEOUT) as client:
         while True:
             response = await client.get(
                 f"{dbt_platform_url}/api/v3/accounts/{account.id}/projects/?state=1&offset={offset}&limit={page_size}",

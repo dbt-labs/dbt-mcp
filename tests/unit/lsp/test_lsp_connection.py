@@ -261,8 +261,8 @@ class TestStartStop:
                 mock_loop.return_value.run_in_executor.return_value = (
                     mock_accept_wrapper()
                 )
-                mock_loop.return_value.create_task.side_effect = (
-                    lambda coro: asyncio.create_task(coro)
+                mock_loop.return_value.create_task.side_effect = lambda coro: (
+                    asyncio.create_task(coro)
                 )
 
                 await conn.start()
@@ -950,8 +950,8 @@ class TestReadWriteLoops:
         ):
             mock_loop = MagicMock()
             mock_get_loop.return_value = mock_loop
-            mock_loop.run_in_executor.side_effect = (
-                lambda _, func, *args: mock_recv_wrapper(*args)
+            mock_loop.run_in_executor.side_effect = lambda _, func, *args: (
+                mock_recv_wrapper(*args)
             )
 
             # Run read loop (will exit when recv returns empty)

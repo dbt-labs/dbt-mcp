@@ -103,7 +103,7 @@ class Config:
     # product_docs tool actually needs the version, then cached for the
     # lifetime of the closure.
     dbt_version_provider: Callable[[], str | None] = field(
-        default_factory=lambda: (lambda: None)
+        default_factory=lambda: lambda: None
     )
 
 
