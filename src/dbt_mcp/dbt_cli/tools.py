@@ -2,7 +2,7 @@ import json
 import os
 import subprocess
 from collections.abc import Iterable
-from typing import Any
+from typing import Annotated, Any
 import logging
 
 from mcp.server.fastmcp import FastMCP
@@ -59,6 +59,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         sample: str | None = None,
         yml_selector: str | None = None,
         state_path: str | None = None,
+        is_quiet: bool = True,
     ) -> str:
         try:
             # Commands that should always be quiet to reduce output verbosity
@@ -117,7 +118,11 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
 
             full_command = command.copy()
             # Add --quiet flag to specific commands to reduce context window usage
-            if len(full_command) > 0 and full_command[0] in verbose_commands:
+            if (
+                is_quiet
+                and len(full_command) > 0
+                and full_command[0] in verbose_commands
+            ):
                 main_command = full_command[0]
                 command_args = full_command[1:] if len(full_command) > 1 else []
                 full_command = [main_command, "--quiet", *command_args]
@@ -177,6 +182,9 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         sample: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/sample")
         ),
+        is_quiet: Annotated[
+            bool, Field(description=get_prompt("dbt_cli/args/is_quiet"))
+        ] = True,
     ) -> str:
         return _run_dbt_command(
             ["build"],
@@ -186,6 +194,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             vars=vars,
             sample=sample,
             yml_selector=yml_selector,
+            is_quiet=is_quiet,
         )
 
     def compile(
@@ -195,13 +204,24 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         yml_selector: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/yml_selector")
         ),
+        is_quiet: Annotated[
+            bool, Field(description=get_prompt("dbt_cli/args/is_quiet"))
+        ] = True,
     ) -> str:
         return _run_dbt_command(
-            ["compile"], node_selection, is_selectable=True, yml_selector=yml_selector
+            ["compile"],
+            node_selection,
+            is_selectable=True,
+            yml_selector=yml_selector,
+            is_quiet=is_quiet,
         )
 
-    def docs() -> str:
-        return _run_dbt_command(["docs", "generate"])
+    def docs(
+        is_quiet: Annotated[
+            bool, Field(description=get_prompt("dbt_cli/args/is_quiet"))
+        ] = True,
+    ) -> str:
+        return _run_dbt_command(["docs", "generate"], is_quiet=is_quiet)
 
     def ls(
         node_selection: str | None = Field(
@@ -214,6 +234,9 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             default=None,
             description=get_prompt("dbt_cli/args/resource_type"),
         ),
+        is_quiet: Annotated[
+            bool, Field(description=get_prompt("dbt_cli/args/is_quiet"))
+        ] = True,
     ) -> str:
         return _run_dbt_command(
             ["list"],
@@ -221,10 +244,15 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             resource_type=resource_type,
             is_selectable=True,
             yml_selector=yml_selector,
+            is_quiet=is_quiet,
         )
 
-    def parse() -> str:
-        return _run_dbt_command(["parse"])
+    def parse(
+        is_quiet: Annotated[
+            bool, Field(description=get_prompt("dbt_cli/args/is_quiet"))
+        ] = True,
+    ) -> str:
+        return _run_dbt_command(["parse"], is_quiet=is_quiet)
 
     def run(
         node_selection: str | None = Field(
@@ -242,6 +270,9 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         sample: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/sample")
         ),
+        is_quiet: Annotated[
+            bool, Field(description=get_prompt("dbt_cli/args/is_quiet"))
+        ] = True,
     ) -> str:
         return _run_dbt_command(
             ["run"],
@@ -251,6 +282,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             vars=vars,
             sample=sample,
             yml_selector=yml_selector,
+            is_quiet=is_quiet,
         )
 
     def test(
@@ -263,6 +295,9 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         vars: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/vars")
         ),
+        is_quiet: Annotated[
+            bool, Field(description=get_prompt("dbt_cli/args/is_quiet"))
+        ] = True,
     ) -> str:
         return _run_dbt_command(
             ["test"],
@@ -270,6 +305,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             is_selectable=True,
             vars=vars,
             yml_selector=yml_selector,
+            is_quiet=is_quiet,
         )
 
     def show(
@@ -311,6 +347,9 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         state_path: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/state_path")
         ),
+        is_quiet: Annotated[
+            bool, Field(description=get_prompt("dbt_cli/args/is_quiet"))
+        ] = True,
     ) -> str:
         return _run_dbt_command(
             ["clone"],
@@ -320,6 +359,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             vars=vars,
             yml_selector=yml_selector,
             state_path=state_path,
+            is_quiet=is_quiet,
         )
 
     def _get_manifest() -> Manifest:

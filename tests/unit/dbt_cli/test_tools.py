@@ -841,3 +841,63 @@ def test_resource_type_accepts_valid_values(
     )
 
     tools["ls"](resource_type=valid_types)
+
+
+def test_quiet_can_be_explicitly_disabled_for_core(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    tools["run"](is_quiet=False)
+
+    assert mock_calls
+    assert "--quiet" not in mock_calls[0]
+
+
+def test_quiet_can_be_explicitly_enabled_for_cloud_cli(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    cloud_cli_config = DbtCliConfig(
+        project_dir="/test/project",
+        dbt_path="/path/to/dbt",
+        dbt_cli_timeout=10,
+        binary_type=BinaryType.DBT_CLOUD_CLI,
+    )
+    register_dbt_cli_tools(
+        fastmcp,
+        cloud_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    tools["run"](is_quiet=True)
+
+    assert mock_calls
+    assert "--quiet" in mock_calls[0]
