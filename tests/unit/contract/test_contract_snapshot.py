@@ -119,3 +119,47 @@ def test_classify_resource_content_change_is_breaking():
     level, reasons = classify_change(old, new)
     assert level == "breaking"
     assert any("content changed" in r for r in reasons)
+
+
+def _union_schema(*, with_extra_field: bool):
+    """An output schema shaped like pydantic's `A | B` union output, where the
+    real fields live inside `$defs` (not at the top level)."""
+    response_props = {"values": {"type": "array"}, "truncated": {"type": "boolean"}}
+    if with_extra_field:
+        response_props["extra"] = {"type": "string"}
+    return {
+        "anyOf": [
+            {"$ref": "#/$defs/Response"},
+            {"$ref": "#/$defs/Error"},
+        ],
+        "$defs": {
+            "Response": {
+                "type": "object",
+                "properties": response_props,
+                "required": list(response_props),
+            },
+            "Error": {
+                "type": "object",
+                "properties": {"error": {"type": "string"}},
+                "required": ["error"],
+            },
+        },
+    }
+
+
+def test_classify_removed_field_inside_defs_is_breaking():
+    """A field removed from a $defs sub-schema must be caught (not just top level)."""
+    old = _snap([_tool("a", output_schema=_union_schema(with_extra_field=True))])
+    new = _snap([_tool("a", output_schema=_union_schema(with_extra_field=False))])
+    level, reasons = classify_change(old, new)
+    assert level == "breaking"
+    assert any("property removed" in r and "extra" in r for r in reasons)
+
+
+def test_classify_added_field_inside_defs_is_breaking_when_required():
+    """A newly-required field inside a $defs sub-schema is breaking."""
+    old = _snap([_tool("a", output_schema=_union_schema(with_extra_field=False))])
+    new = _snap([_tool("a", output_schema=_union_schema(with_extra_field=True))])
+    level, reasons = classify_change(old, new)
+    assert level == "breaking"
+    assert any("newly required" in r and "extra" in r for r in reasons)

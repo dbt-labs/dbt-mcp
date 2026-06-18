@@ -290,18 +290,75 @@ def snapshot_to_json(snapshot: ContractSnapshot) -> str:
     return json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=True) + "\n"
 
 
-def _required(schema: dict[str, Any] | None) -> set[str]:
-    if not schema:
-        return set()
-    required = schema.get("required")
-    return set(required) if isinstance(required, list) else set()
+def _walk_subschemas(schema: Any) -> "list[dict[str, Any]]":
+    """Yield every subschema dict reachable from ``schema``, descending into
+    ``properties``, ``$defs``/``definitions``, ``items``, and
+    ``anyOf``/``oneOf``/``allOf``.
 
-
-def _properties(schema: dict[str, Any] | None) -> set[str]:
-    if not schema:
-        return set()
+    JSON Schemas generated for union return types (e.g. ``A | B``) keep the real
+    fields inside ``$defs`` and reference them via ``$ref``, so a top-level-only
+    scan misses changes buried in those defs. This walk lets the classifier see
+    them.
+    """
+    found: list[dict[str, Any]] = []
+    if not isinstance(schema, dict):
+        return found
+    found.append(schema)
     properties = schema.get("properties")
-    return set(properties) if isinstance(properties, dict) else set()
+    if isinstance(properties, dict):
+        for sub in properties.values():
+            found.extend(_walk_subschemas(sub))
+    for defs_key in ("$defs", "definitions"):
+        defs = schema.get(defs_key)
+        if isinstance(defs, dict):
+            for sub in defs.values():
+                found.extend(_walk_subschemas(sub))
+    if isinstance(schema.get("items"), dict):
+        found.extend(_walk_subschemas(schema["items"]))
+    for combinator in ("anyOf", "oneOf", "allOf"):
+        members = schema.get(combinator)
+        if isinstance(members, list):
+            for sub in members:
+                found.extend(_walk_subschemas(sub))
+    return found
+
+
+def _all_properties(schema: dict[str, Any] | None) -> set[str]:
+    """All property names anywhere in the schema, including inside ``$defs``."""
+    names: set[str] = set()
+    for sub in _walk_subschemas(schema):
+        properties = sub.get("properties")
+        if isinstance(properties, dict):
+            names |= set(properties)
+    return names
+
+
+def _all_required(schema: dict[str, Any] | None) -> set[str]:
+    """All required property names anywhere in the schema, including ``$defs``."""
+    names: set[str] = set()
+    for sub in _walk_subschemas(schema):
+        required = sub.get("required")
+        if isinstance(required, list):
+            names |= set(required)
+    return names
+
+
+def _schema_breakages(name: str, kind: str, old: Any, new: Any) -> list[str]:
+    """Breaking reasons for a single schema pair (deep: descends into ``$defs``).
+
+    Errs toward flagging breaking (the safe direction for an advisory label):
+    removing a property or making one newly-required anywhere in the schema.
+    """
+    breaking: list[str] = []
+    removed = _all_properties(old) - _all_properties(new)
+    newly_required = _all_required(new) - _all_required(old)
+    if removed:
+        breaking.append(f"{name}: {kind} property removed: {sorted(removed)}")
+    if newly_required:
+        breaking.append(
+            f"{name}: {kind} property newly required: {sorted(newly_required)}"
+        )
+    return breaking
 
 
 def classify_change(old: dict[str, Any], new: dict[str, Any]) -> tuple[str, list[str]]:
@@ -327,19 +384,12 @@ def classify_change(old: dict[str, Any], new: dict[str, Any]) -> tuple[str, list
 
     for name in sorted(set(old_tools) & set(new_tools)):
         old_tool, new_tool = old_tools[name], new_tools[name]
-        old_in, new_in = old_tool.get("input_schema"), new_tool.get("input_schema")
-        removed_props = _properties(old_in) - _properties(new_in)
-        added_required = _required(new_in) - _required(old_in)
-        if removed_props:
-            breaking.append(f"{name}: input property removed: {sorted(removed_props)}")
-        if added_required:
-            breaking.append(
-                f"{name}: input property newly required: {sorted(added_required)}"
-            )
-        if old_in != new_in and not removed_props and not added_required:
-            reasons.append(f"{name}: input schema changed (compatible)")
-        if old_tool.get("output_schema") != new_tool.get("output_schema"):
-            reasons.append(f"{name}: output schema changed")
+        for kind in ("input_schema", "output_schema"):
+            old_s, new_s = old_tool.get(kind), new_tool.get(kind)
+            schema_breaks = _schema_breakages(name, kind.split("_")[0], old_s, new_s)
+            breaking.extend(schema_breaks)
+            if old_s != new_s and not schema_breaks:
+                reasons.append(f"{name}: {kind.split('_')[0]} schema changed")
         for field in ("title", "description", "annotations", "meta"):
             if old_tool.get(field) != new_tool.get(field):
                 reasons.append(f"{name}: {field} changed")
@@ -426,7 +476,7 @@ def main() -> None:
     parser.add_argument(
         "--lint",
         action="store_true",
-        help="Print advisory Claude-connector warnings.",
+        help="Run Claude-connector checks; exit non-zero if any issue is found.",
     )
     parser.add_argument(
         "--classify-against",
@@ -450,25 +500,35 @@ def main() -> None:
     snapshot = asyncio.run(generate_snapshot())
     rendered = snapshot_to_json(snapshot)
 
+    lint_failed = False
     if args.lint:
-        for warning in lint_claude_connector(snapshot):
+        warnings = lint_claude_connector(snapshot)
+        for warning in warnings:
             logger.warning(f"⚠ claude-connector: {warning}")
+        if warnings:
+            logger.error(
+                "✗ Claude-connector lint found issues (see above). Fix the tool "
+                "metadata so the app passes connector directory review."
+            )
+            lint_failed = True
 
     if args.check:
         current = SNAPSHOT_PATH.read_text() if SNAPSHOT_PATH.exists() else ""
-        if current == rendered:
-            logger.info("✓ contract snapshot is up to date")
-            sys.exit(0)
-        logger.error(
-            "✗ contract snapshot is out of date.\n"
-            "The ChatGPT-published contract changed. Run: task contract:generate\n"
-            "Commit the regenerated snapshot and submit a new app version for review."
-        )
-        sys.exit(1)
+        if current != rendered:
+            logger.error(
+                "✗ contract snapshot is out of date.\n"
+                "The ChatGPT-published contract changed. Run: task contract:generate\n"
+                "Commit the regenerated snapshot and submit a new app version for "
+                "review."
+            )
+            sys.exit(1)
+        logger.info("✓ contract snapshot is up to date")
+        sys.exit(1 if lint_failed else 0)
 
     SNAPSHOT_PATH.parent.mkdir(parents=True, exist_ok=True)
     SNAPSHOT_PATH.write_text(rendered)
     logger.info(f"Contract snapshot written to {SNAPSHOT_PATH}")
+    sys.exit(1 if lint_failed else 0)
 
 
 if __name__ == "__main__":
