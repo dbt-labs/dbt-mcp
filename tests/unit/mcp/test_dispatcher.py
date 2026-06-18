@@ -11,7 +11,7 @@ from dbt_mcp.errors.common import MissingHostError
 from dbt_mcp.config.settings import DbtMcpSettings
 from dbt_mcp.mcp.server import DbtMCP
 from dbt_mcp.oauth.token_provider import StaticTokenProvider
-from dbt_mcp.tracking.tracking import UsageTracker
+from dbt_mcp.tracking.tracking import ToolCalledEvent, UsageTracker
 
 
 def _make_dispatcher(
@@ -183,6 +183,76 @@ class TestCallToolRouting:
 
         # Tracking was attempted (and failed, but didn't suppress the tool error)
         dispatcher.usage_tracker.emit_tool_called_event.assert_awaited_once()
+
+
+class TestMcpClientInfo:
+    async def test_get_mcp_client_info_extracts_name_and_version(self):
+        """Verify the extraction chain from get_context() to clientInfo fields."""
+        from mcp.types import (
+            ClientCapabilities,
+            Implementation,
+            InitializeRequestParams,
+        )
+
+        client_params = InitializeRequestParams(
+            protocolVersion="2024-11-05",
+            capabilities=ClientCapabilities(),
+            clientInfo=Implementation(name="Claude", version="1.2.3"),
+        )
+        ctx = MagicMock()
+        ctx.request_context.session.client_params = client_params
+
+        dispatcher = _make_dispatcher()
+        with patch.object(dispatcher, "get_context", return_value=ctx):
+            name, version = dispatcher._get_mcp_client_info()
+
+        assert name == "Claude"
+        assert version == "1.2.3"
+
+    async def test_client_info_passed_to_tracking_event(self):
+        single = MagicMock(spec=FastMCP)
+        single.call_tool = AsyncMock(return_value=[TextContent(type="text", text="ok")])
+        dispatcher = _make_dispatcher(single_project_mcp=single)
+
+        with (
+            patch.object(
+                dispatcher, "_is_multi_project", AsyncMock(return_value=False)
+            ),
+            patch.object(
+                dispatcher,
+                "_get_mcp_client_info",
+                return_value=("Claude", "1.2.3"),
+            ),
+        ):
+            await dispatcher.call_tool("some_tool", {})
+
+        event: ToolCalledEvent = (
+            dispatcher.usage_tracker.emit_tool_called_event.call_args.kwargs[
+                "tool_called_event"
+            ]
+        )
+        assert event.mcp_client_name == "Claude"
+        assert event.mcp_client_version == "1.2.3"
+
+    async def test_get_mcp_client_info_returns_empty_when_no_context(self):
+        dispatcher = _make_dispatcher()
+        # FastMCP raises ValueError when request_context is accessed with no active request;
+        # mirror that by having get_context() raise
+        with patch.object(
+            dispatcher, "get_context", side_effect=ValueError("no context")
+        ):
+            name, version = dispatcher._get_mcp_client_info()
+        assert name == ""
+        assert version == ""
+
+    async def test_get_mcp_client_info_returns_empty_when_no_client_params(self):
+        dispatcher = _make_dispatcher()
+        ctx = MagicMock()
+        ctx.request_context.session.client_params = None
+        with patch.object(dispatcher, "get_context", return_value=ctx):
+            name, version = dispatcher._get_mcp_client_info()
+        assert name == ""
+        assert version == ""
 
 
 class TestAppLifespanLogging:
