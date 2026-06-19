@@ -254,6 +254,16 @@ class TestMcpClientInfo:
         assert name == ""
         assert version == ""
 
+    async def test_get_mcp_client_info_returns_empty_when_client_info_missing(self):
+        """Non-compliant clients may omit clientInfo; should not raise."""
+        dispatcher = _make_dispatcher()
+        ctx = MagicMock()
+        ctx.request_context.session.client_params.clientInfo = None
+        with patch.object(dispatcher, "get_context", return_value=ctx):
+            name, version = dispatcher._get_mcp_client_info()
+        assert name == ""
+        assert version == ""
+
 
 class TestAppLifespanLogging:
     async def test_lifespan_logs_exception_with_traceback(self, caplog):

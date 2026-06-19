@@ -84,7 +84,7 @@ class DbtMCP(FastMCP):
             client_params = self.get_context().request_context.session.client_params
             if client_params:
                 return client_params.clientInfo.name, client_params.clientInfo.version
-        except (LookupError, ValueError):
+        except Exception:
             pass
         return "", ""
 
