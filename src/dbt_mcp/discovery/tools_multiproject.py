@@ -172,44 +172,6 @@ async def get_model_details(
 
 
 @dbt_mcp_tool(
-    description=get_prompt("discovery/get_model_parents"),
-    title="Get Model Parents",
-    read_only_hint=True,
-    destructive_hint=False,
-    idempotent_hint=True,
-)
-async def get_model_parents(
-    context: MultiProjectDiscoveryToolContext,
-    project_id: Annotated[int, Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)],
-    name: str | None = NAME_FIELD,
-    unique_id: str | None = UNIQUE_ID_FIELD,
-) -> list[dict]:
-    config = await context.config_provider.get_config(project_id=project_id)
-    return await context.models_fetcher.fetch_model_parents(
-        name, unique_id, config=config
-    )
-
-
-@dbt_mcp_tool(
-    description=get_prompt("discovery/get_model_children"),
-    title="Get Model Children",
-    read_only_hint=True,
-    destructive_hint=False,
-    idempotent_hint=True,
-)
-async def get_model_children(
-    context: MultiProjectDiscoveryToolContext,
-    project_id: Annotated[int, Field(description=DISCOVERY_PROJECT_ID_DESCRIPTION)],
-    name: str | None = NAME_FIELD,
-    unique_id: str | None = UNIQUE_ID_FIELD,
-) -> list[dict]:
-    config = await context.config_provider.get_config(project_id=project_id)
-    return await context.models_fetcher.fetch_model_children(
-        model_name=name, unique_id=unique_id, config=config
-    )
-
-
-@dbt_mcp_tool(
     description=get_prompt("discovery/get_model_health"),
     title="Get Model Health",
     read_only_hint=True,
@@ -508,8 +470,6 @@ MULTIPROJECT_DISCOVERY_TOOLS = [
     get_mart_models,
     get_all_models,
     get_model_details,
-    get_model_parents,
-    get_model_children,
     get_model_health,
     get_model_performance,
     get_lineage,

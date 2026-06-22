@@ -594,6 +594,52 @@ async def test_fetch_lineage_depth_boundary_includes_nodes_at_exact_depth(
     }
 
 
+async def test_lineage_query_includes_description_field(
+    lineage_fetcher, mock_api_client, unit_discovery_config
+):
+    """Test that the lineage query requests the description field for each node."""
+    mock_api_client.return_value = {
+        "data": {"environment": {"applied": {"lineage": []}}}
+    }
+
+    await lineage_fetcher.fetch_lineage(
+        unique_id="model.test.customers", depth=5, config=unit_discovery_config
+    )
+
+    query = mock_api_client.call_args[0][0]
+    assert "description" in query, "Lineage query should select the description field"
+
+
+async def test_fetch_lineage_preserves_description(
+    lineage_fetcher, mock_api_client, unit_discovery_config
+):
+    """Test that fetch_lineage preserves the description field from API nodes."""
+    mock_api_client.return_value = {
+        "data": {
+            "environment": {
+                "applied": {
+                    "lineage": [
+                        {
+                            "uniqueId": "model.test.customers",
+                            "name": "customers",
+                            "resourceType": "Model",
+                            "parentIds": [],
+                            "description": "Customer dimension model",
+                        },
+                    ]
+                }
+            }
+        }
+    }
+
+    result = await lineage_fetcher.fetch_lineage(
+        unique_id="model.test.customers", depth=5, config=unit_discovery_config
+    )
+
+    assert len(result) == 1
+    assert result[0]["description"] == "Customer dimension model"
+
+
 async def test_fetch_lineage_large_depth_returns_all_connected(
     lineage_fetcher, mock_api_client, unit_discovery_config
 ):

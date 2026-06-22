@@ -7,7 +7,10 @@ A list of all nodes in the connected subgraph, where each node contains:
 - `uniqueId`: The resource's unique identifier
 - `name`: The resource name
 - `resourceType`: The type of resource (Model, Source, etc.)
+- `description`: A description of the resource
 - `parentIds`: List of unique IDs that this resource directly depends on
+
+**Getting immediate parents or children:** use `depth=1`. This returns the target node plus its direct upstream dependencies and direct downstream dependents.
 
 **Example Response:**
 ```json
@@ -16,18 +19,21 @@ A list of all nodes in the connected subgraph, where each node contains:
     "uniqueId": "source.raw.users",
     "name": "users",
     "resourceType": "Source",
+    "description": "Raw user events from the application",
     "parentIds": []
   },
   {
     "uniqueId": "model.stg_customers",
     "name": "stg_customers",
     "resourceType": "Model",
+    "description": "Staged customer records",
     "parentIds": ["source.raw.users"]
   },
   {
     "uniqueId": "model.customers",
     "name": "customers",
     "resourceType": "Model",
+    "description": "Customer dimension model",
     "parentIds": ["model.stg_customers"]
   }
 ]
@@ -38,11 +44,11 @@ A list of all nodes in the connected subgraph, where each node contains:
 # Get complete lineage (all connected nodes, all types, default depth of 5)
 get_lineage(unique_id="model.analytics.customers")
 
+# Get only immediate parents and children (replaces get_model_parents / get_model_children)
+get_lineage(unique_id="model.analytics.customers", depth=1)
+
 # Get lineage filtered to only models and sources
 get_lineage(unique_id="model.analytics.customers", types=["Model", "Source"])
-
-# Get only immediate neighbors (depth=1)
-get_lineage(unique_id="model.analytics.customers", depth=1)
 
 # Get deeper lineage for comprehensive analysis
 get_lineage(unique_id="model.analytics.customers", depth=10)

@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Remove get_model_parents and get_model_children tools; get_lineage(depth=1) provides the same information and now also returns a description field per node
+time: 2026-06-22T10:30:11.723713-07:00

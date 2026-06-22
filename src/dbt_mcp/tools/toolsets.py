@@ -61,8 +61,6 @@ toolsets = {
         ToolName.GET_MART_MODELS,
         ToolName.GET_ALL_MODELS,
         ToolName.GET_MODEL_DETAILS,
-        ToolName.GET_MODEL_PARENTS,
-        ToolName.GET_MODEL_CHILDREN,
         ToolName.GET_MODEL_HEALTH,
         ToolName.GET_MODEL_PERFORMANCE,
         ToolName.GET_LINEAGE,
