@@ -79,12 +79,22 @@ class DbtMCP(FastMCP):
             settings.dbt_project_ids is not None and len(settings.dbt_project_ids) > 0
         )
 
+    def _get_mcp_client_info(self) -> tuple[str, str]:
+        try:
+            client_params = self.get_context().request_context.session.client_params
+            if client_params:
+                return client_params.clientInfo.name, client_params.clientInfo.version
+        except Exception:
+            pass
+        return "", ""
+
     async def call_tool(
         self, name: str, arguments: dict[str, Any]
     ) -> Sequence[ContentBlock] | dict[str, Any]:
         logger.info(f"Calling tool: {name} with arguments: {_safe_args(arguments)}")
         result = None
         start_time = int(time.time() * 1000)
+        mcp_client_name, mcp_client_version = self._get_mcp_client_info()
         try:
             if await self._is_multi_project():
                 result = await self.multi_project_mcp.call_tool(name, arguments)
@@ -104,6 +114,8 @@ class DbtMCP(FastMCP):
                         start_time_ms=start_time,
                         end_time_ms=end_time,
                         error_message=str(e),
+                        mcp_client_name=mcp_client_name,
+                        mcp_client_version=mcp_client_version,
                     ),
                 )
             except Exception:
@@ -120,6 +132,8 @@ class DbtMCP(FastMCP):
                     start_time_ms=start_time,
                     end_time_ms=end_time,
                     error_message=None,
+                    mcp_client_name=mcp_client_name,
+                    mcp_client_version=mcp_client_version,
                 ),
             )
         except Exception:
