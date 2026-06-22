@@ -33,3 +33,10 @@ MACRO_RETURN_PACKAGE_NAMES_ONLY = "When true, return only distinct package names
 MACRO_INCLUDE_DEFAULT_DBT_PACKAGES = (
     "When true, include default dbt Labs core/adapter macro packages"
 )
+
+RESOURCE_TYPE_DESCRIPTION = (
+    "The type of dbt resource to fetch details for. "
+    "One of: model, source, exposure, test, seed, snapshot, macro, semantic_model. "
+    "Tip: the resource_type is encoded in the unique_id prefix "
+    "(e.g. `model.my_project.orders` → model)."
+)

@@ -29,21 +29,14 @@ class ToolName(Enum):
     # Discovery tools
     GET_MART_MODELS = "get_mart_models"
     GET_ALL_MODELS = "get_all_models"
-    GET_MODEL_DETAILS = "get_model_details"
+    GET_DETAILS = "get_details"
     GET_MODEL_HEALTH = "get_model_health"
     GET_MODEL_PERFORMANCE = "get_model_performance"
     GET_LINEAGE = "get_lineage"
     GET_ALL_SOURCES = "get_all_sources"
-    GET_SOURCE_DETAILS = "get_source_details"
     GET_EXPOSURES = "get_exposures"
-    GET_EXPOSURE_DETAILS = "get_exposure_details"
     GET_RELATED_MODELS = "get_related_models"
     GET_ALL_MACROS = "get_all_macros"
-    GET_MACRO_DETAILS = "get_macro_details"
-    GET_SEED_DETAILS = "get_seed_details"
-    GET_SEMANTIC_MODEL_DETAILS = "get_semantic_model_details"
-    GET_SNAPSHOT_DETAILS = "get_snapshot_details"
-    GET_TEST_DETAILS = "get_test_details"
     SEARCH = "search"  # The search tool is not generally available yet
 
     # SQL tools

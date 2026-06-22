@@ -23,6 +23,7 @@ from dbt_mcp.discovery.param_descriptions import (
     MACRO_RETURN_PACKAGE_NAMES_ONLY,
     MODEL_PERF_INCLUDE_TESTS,
     MODEL_PERF_NUM_RUNS,
+    RESOURCE_TYPE_DESCRIPTION,
     SOURCE_NAMES_FILTER,
     SOURCE_UNIQUE_IDS_FILTER,
 )
@@ -139,20 +140,23 @@ async def get_all_models(
 
 
 @dbt_mcp_tool(
-    description=get_prompt("discovery/get_model_details"),
-    title="Get Model Details",
+    description=get_prompt("discovery/get_details"),
+    title="Get Details",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def get_model_details(
+async def get_details(
     context: DiscoveryToolContext,
+    resource_type: Annotated[
+        AppliedResourceType, Field(description=RESOURCE_TYPE_DESCRIPTION)
+    ],
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
 ) -> list[dict]:
     config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
-        resource_type=AppliedResourceType.MODEL,
+        resource_type=resource_type,
         unique_id=unique_id,
         name=name,
         config=config,
@@ -244,27 +248,6 @@ async def get_exposures(
 
 
 @dbt_mcp_tool(
-    description=get_prompt("discovery/get_exposure_details"),
-    title="Get Exposure Details",
-    read_only_hint=True,
-    destructive_hint=False,
-    idempotent_hint=True,
-)
-async def get_exposure_details(
-    context: DiscoveryToolContext,
-    name: str | None = NAME_FIELD,
-    unique_id: str | None = UNIQUE_ID_FIELD,
-) -> list[dict]:
-    config = await context.config_provider.get_config()
-    return await context.resource_details_fetcher.fetch_details(
-        resource_type=AppliedResourceType.EXPOSURE,
-        unique_id=unique_id,
-        name=name,
-        config=config,
-    )
-
-
-@dbt_mcp_tool(
     description=get_prompt("discovery/get_all_sources"),
     title="Get All Sources",
     read_only_hint=True,
@@ -283,27 +266,6 @@ async def get_all_sources(
     config = await context.config_provider.get_config()
     return await context.sources_fetcher.fetch_sources(
         source_names, unique_ids, config=config
-    )
-
-
-@dbt_mcp_tool(
-    description=get_prompt("discovery/get_source_details"),
-    title="Get Source Details",
-    read_only_hint=True,
-    destructive_hint=False,
-    idempotent_hint=True,
-)
-async def get_source_details(
-    context: DiscoveryToolContext,
-    name: str | None = NAME_FIELD,
-    unique_id: str | None = UNIQUE_ID_FIELD,
-) -> list[dict]:
-    config = await context.config_provider.get_config()
-    return await context.resource_details_fetcher.fetch_details(
-        resource_type=AppliedResourceType.SOURCE,
-        unique_id=unique_id,
-        name=name,
-        config=config,
     )
 
 
@@ -335,128 +297,16 @@ async def get_all_macros(
     )
 
 
-@dbt_mcp_tool(
-    description=get_prompt("discovery/get_macro_details"),
-    title="Get Macro Details",
-    read_only_hint=True,
-    destructive_hint=False,
-    idempotent_hint=True,
-)
-async def get_macro_details(
-    context: DiscoveryToolContext,
-    name: str | None = NAME_FIELD,
-    unique_id: str | None = UNIQUE_ID_FIELD,
-) -> list[dict]:
-    config = await context.config_provider.get_config()
-    return await context.resource_details_fetcher.fetch_details(
-        resource_type=AppliedResourceType.MACRO,
-        unique_id=unique_id,
-        name=name,
-        config=config,
-    )
-
-
-@dbt_mcp_tool(
-    description=get_prompt("discovery/get_seed_details"),
-    title="Get Seed Details",
-    read_only_hint=True,
-    destructive_hint=False,
-    idempotent_hint=True,
-)
-async def get_seed_details(
-    context: DiscoveryToolContext,
-    name: str | None = NAME_FIELD,
-    unique_id: str | None = UNIQUE_ID_FIELD,
-) -> list[dict]:
-    config = await context.config_provider.get_config()
-    return await context.resource_details_fetcher.fetch_details(
-        resource_type=AppliedResourceType.SEED,
-        unique_id=unique_id,
-        name=name,
-        config=config,
-    )
-
-
-@dbt_mcp_tool(
-    description=get_prompt("discovery/get_semantic_model_details"),
-    title="Get Semantic Model Details",
-    read_only_hint=True,
-    destructive_hint=False,
-    idempotent_hint=True,
-)
-async def get_semantic_model_details(
-    context: DiscoveryToolContext,
-    name: str | None = NAME_FIELD,
-    unique_id: str | None = UNIQUE_ID_FIELD,
-) -> list[dict]:
-    config = await context.config_provider.get_config()
-    return await context.resource_details_fetcher.fetch_details(
-        resource_type=AppliedResourceType.SEMANTIC_MODEL,
-        unique_id=unique_id,
-        name=name,
-        config=config,
-    )
-
-
-@dbt_mcp_tool(
-    description=get_prompt("discovery/get_snapshot_details"),
-    title="Get Snapshot Details",
-    read_only_hint=True,
-    destructive_hint=False,
-    idempotent_hint=True,
-)
-async def get_snapshot_details(
-    context: DiscoveryToolContext,
-    name: str | None = NAME_FIELD,
-    unique_id: str | None = UNIQUE_ID_FIELD,
-) -> list[dict]:
-    config = await context.config_provider.get_config()
-    return await context.resource_details_fetcher.fetch_details(
-        resource_type=AppliedResourceType.SNAPSHOT,
-        unique_id=unique_id,
-        name=name,
-        config=config,
-    )
-
-
-@dbt_mcp_tool(
-    description=get_prompt("discovery/get_test_details"),
-    title="Get Test Details",
-    read_only_hint=True,
-    destructive_hint=False,
-    idempotent_hint=True,
-)
-async def get_test_details(
-    context: DiscoveryToolContext,
-    name: str | None = NAME_FIELD,
-    unique_id: str | None = UNIQUE_ID_FIELD,
-) -> list[dict]:
-    config = await context.config_provider.get_config()
-    return await context.resource_details_fetcher.fetch_details(
-        resource_type=AppliedResourceType.TEST,
-        unique_id=unique_id,
-        name=name,
-        config=config,
-    )
-
-
 DISCOVERY_TOOLS = [
     get_mart_models,
     get_all_models,
-    get_model_details,
+    get_details,
     get_model_health,
     get_model_performance,
     get_lineage,
     get_exposures,
-    get_exposure_details,
     get_all_sources,
-    get_source_details,
     get_all_macros,
-    get_macro_details,
-    get_seed_details,
-    get_semantic_model_details,
-    get_snapshot_details,
-    get_test_details,
 ]
 
 
