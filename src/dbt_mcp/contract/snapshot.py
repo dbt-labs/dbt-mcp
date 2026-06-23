@@ -269,16 +269,28 @@ async def generate_snapshot() -> ContractSnapshot:
             resources = []
         for resource in resources:
             uri = str(resource.uri)
+            mime_type = getattr(resource, "mimeType", None)
+            # MCP App UIs are released independently on a CDN (owned by the
+            # frontend repo), so their rendered content is intentionally
+            # out-of-contract: hashing it here would couple this repo to bytes it
+            # does not own and flag every independent UI release as a contract
+            # change. We still guard the resource's existence and shape
+            # (uri/name/mime/_meta); the server<->app interface is guarded by the
+            # linked tool's input/output schema and _meta.resourceUri.
+            is_mcp_app = bool(mime_type) and "profile=mcp-app" in mime_type
+            content_sha256 = (
+                None if is_mcp_app else await _read_resource_hash(dbt_mcp, uri)
+            )
             resource_contracts.append(
                 ResourceContract(
                     uri=uri,
                     name=getattr(resource, "name", None),
-                    mime_type=getattr(resource, "mimeType", None),
+                    mime_type=mime_type,
                     meta=_normalize(
                         getattr(resource, "meta", None)
                         or getattr(resource, "_meta", None)
                     ),
-                    content_sha256=await _read_resource_hash(dbt_mcp, uri),
+                    content_sha256=content_sha256,
                 )
             )
 
