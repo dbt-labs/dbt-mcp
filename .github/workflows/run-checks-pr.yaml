@@ -87,14 +87,11 @@ jobs:
       - name: setup python
         uses: ./.github/actions/setup-python
         id: setup-python
-      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
-        with:
-          version: 10
       - name: Install go-task
         run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
-      - name: Install dependencies
-        run: task install
       - name: Validate contract snapshot is up to date
+        # setup-python already runs `uv sync`; the check only needs `uv run`,
+        # so no pnpm / UI build / `task install` is required here.
         run: task contract:check
 
   # validates mcpb manifest

@@ -73,7 +73,9 @@ async def test_contract_snapshot_excludes_proxied_tools():
 
 
 async def test_committed_snapshot_passes_claude_connector_lint():
-    """Advisory Claude hard-gate rules should hold for the committed contract."""
+    """Advisory Claude hard-gate rules should hold for the freshly generated
+    snapshot. test_contract_snapshot_matches_committed guarantees this equals
+    the committed contract_snapshot.json."""
     snapshot = await generate_snapshot()
     assert lint_claude_connector(snapshot) == []
 

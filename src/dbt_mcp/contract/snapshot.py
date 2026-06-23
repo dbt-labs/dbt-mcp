@@ -160,6 +160,11 @@ async def _snapshot_server() -> AsyncIterator[Any]:
             # settings (which, e.g., disable mcp_server_metadata and sql).
             config.enabled_toolsets = set(INCLUDED_TOOLSETS)
             config.disabled_toolsets = set(Toolset) - INCLUDED_TOOLSETS
+            # Ignore ambient per-tool enable/disable (DISABLE_TOOLS /
+            # DBT_MCP_ENABLE_TOOLS) so generation is hermetic regardless of the
+            # caller's environment.
+            config.disable_tools = []
+            config.enable_tools = None
             dbt_mcp = await create_dbt_mcp(config)
             yield dbt_mcp
     finally:
@@ -171,14 +176,20 @@ async def _snapshot_server() -> AsyncIterator[Any]:
 
 
 def _normalize(value: Any) -> dict[str, Any] | None:
-    """Coerce schema/annotation/meta values to a plain JSON-able dict or None."""
+    """Coerce a schema/annotation/meta value to a plain JSON-able dict or None.
+
+    All contract fields routed through here (input/output schema, annotations,
+    meta) are dict-shaped or Pydantic models. Anything else is unexpected and
+    raises rather than silently entering the snapshot, since this is a
+    contract-integrity artifact.
+    """
     if value is None:
         return None
     if isinstance(value, BaseModel):
         value = value.model_dump(mode="json", exclude_none=True)
     if isinstance(value, dict):
         return value if value else None
-    return value
+    raise TypeError(f"Unexpected non-dict contract metadata value: {type(value)!r}")
 
 
 async def _read_resource_hash(dbt_mcp: Any, uri: str) -> str | None:
