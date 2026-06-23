@@ -15,6 +15,7 @@ from dbt_mcp.config.config import Config
 from dbt_mcp.dbt_admin.tools import register_admin_api_tools
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.dbt_codegen.tools import register_dbt_codegen_tools
+from dbt_mcp.apps.register import register_app_resource
 from dbt_mcp.discovery.tools import register_discovery_tools
 from dbt_mcp.discovery.tools_multiproject import register_multiproject_discovery_tools
 from dbt_mcp.errors.common import MissingHostError
@@ -381,4 +382,7 @@ async def create_dbt_mcp(config: Config) -> FastMCP:
         multi_project_mcp=multi_project_dbt_mcp,
         single_project_mcp=single_project_dbt_mcp,
     )
+    # MCP App UI resources are served by the dispatcher itself (it only routes
+    # tool calls, not resources). The bundle is fetched from the CDN on read.
+    register_app_resource(tool_dispatcher, config.apps_config, app_name="get-lineage")
     return tool_dispatcher
