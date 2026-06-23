@@ -33,6 +33,8 @@ class ToolCalledEvent:
     error_message: str | None
     start_time_ms: int
     end_time_ms: int
+    mcp_client_name: str = ""
+    mcp_client_version: str = ""
 
 
 class UsageTracker(Protocol):
@@ -167,7 +169,12 @@ class DefaultUsageTracker:
                     disabled_tools=[
                         tool.value for tool in settings.disable_tools or []
                     ],
-                    user_agent="",  # Only used for remote MCP
+                    user_agent=(
+                        f"{tool_called_event.mcp_client_name}/{tool_called_event.mcp_client_version}"
+                        if tool_called_event.mcp_client_name
+                        and tool_called_event.mcp_client_version
+                        else tool_called_event.mcp_client_name
+                    ),
                 )
             )
         except Exception as e:
