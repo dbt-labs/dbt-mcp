@@ -80,6 +80,25 @@ async def test_committed_snapshot_passes_claude_connector_lint():
     assert lint_claude_connector(snapshot) == []
 
 
+async def test_mcp_app_resource_content_is_out_of_contract(monkeypatch):
+    """MCP App UIs are released independently on the CDN, so their rendered
+    content is not hashed into the contract -- and generating the snapshot must
+    not fetch it over the network."""
+    import dbt_mcp.contract.snapshot as snapshot_mod
+
+    async def _fail(*_args, **_kwargs):
+        raise AssertionError("mcp-app resource content must not be fetched")
+
+    monkeypatch.setattr(snapshot_mod, "_read_resource_hash", _fail)
+
+    snapshot = await generate_snapshot()
+    app_resources = [
+        r for r in snapshot.resources if r.mime_type and "profile=mcp-app" in r.mime_type
+    ]
+    assert app_resources, "expected at least one mcp-app resource (get-lineage)"
+    assert all(r.content_sha256 is None for r in app_resources)
+
+
 def test_classify_no_change():
     snap = _snap([_tool("a")])
     assert classify_change(snap, snap) == ("none", [])
