@@ -12,7 +12,15 @@
     "product_docs",
     "semantic_layer"
   ],
-  "resources": [],
+  "resources": [
+    {
+      "content_sha256": null,
+      "meta": null,
+      "mime_type": "text/html;profile=mcp-app",
+      "name": "get-lineage",
+      "uri": "ui://dbt-mcp/get-lineage"
+    }
+  ],
   "server_instructions": "Use these tools to interact with dbt resources (typically via dbt Platform):\n\n- Understand how the project is structured: what exists in the environment, how objects depend on one another, and where to look when something looks wrong or slow.\n- Reason over governed business meaning -- named measures and breakdowns the project maintains -- and answer questions with validated aggregates or the warehouse logic behind them when that helps.\n- Work with platform automation when available: see what runs on a schedule, inspect past outcomes, act on failures or reruns, and dig into logs and outputs.\n- Assist with engineering work on dbt projects: take action on the project and reason about the underlying SQL.\n\nExample data-oriented questions (users may not use dbt vocabulary):\n\n- Revenue, ARR, bookings, pipeline, or quota: \"how are we doing this quarter?\"; \"split it by region or product\"; \"this total doesn't match finance.\"\n- Customers, users, signups, or retention: \"how many active ...?\" \"is churn getting worse?\" \"cohorts or segments -- whatever we already track.\"\n- Orders, inventory, SKUs, or fulfillment: \"what's selling?\" \"stock or backorder questions\" when they only describe the business problem.\n- Funnel, marketing, or web activity: \"conversion from visit to purchase\" \"campaign performance\" with loose wording and no metric names.\n- Trust and definitions: \"where does this dashboard number come from?\" \"two reports disagree -- help me find why\" \"what's the official definition of ...?\"\n- Quality and freshness: \"is this table up to date?\" \"missing yesterday's data\" \"something looks stale in our reporting.\"\n- Orchestration tied to data: \"did last night's refresh finish?\" \"prod load failed and Finance is blocked\" without run or job IDs.\n- Engineering on a dbt project: \"help me with this model,\" \"what's wrong with my project?\"",
   "tools": [
     {

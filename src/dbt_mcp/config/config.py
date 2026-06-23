@@ -81,6 +81,11 @@ class LspConfig:
 
 
 @dataclass
+class AppsConfig:
+    cdn_base: str
+
+
+@dataclass
 class Config:
     disable_tools: list[ToolName]
     enable_tools: list[ToolName] | None
@@ -98,6 +103,7 @@ class Config:
     admin_api_config_provider: DefaultAdminApiConfigProvider
     credentials_provider: CredentialsProvider
     lsp_config: LspConfig | None
+    apps_config: AppsConfig
     # Lazy: invoking the provider runs `dbt --version`, which can take several
     # seconds when many adapters are installed. Resolution is deferred until a
     # product_docs tool actually needs the version, then cached for the
@@ -260,5 +266,6 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         admin_api_config_provider=admin_api_config_provider,
         credentials_provider=credentials_provider,
         lsp_config=lsp_config,
+        apps_config=AppsConfig(cdn_base=settings.cdn_base),
         dbt_version_provider=dbt_version_provider,
     )
