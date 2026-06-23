@@ -172,6 +172,16 @@ MCP Apps are tools that have an associated interactive UI rendered by the host (
 
 The `ui://` URI convention is `ui://<server-name>/<resource-name>`. The `meta` field is passed through the full tool registration pipeline (`@dbt_mcp_tool` → `GenericToolDefinition` → `adapt_context` → `register_tools` → `FastMCP.add_tool`).
 
+## Published-app contract
+
+When the server is published as an app (notably the ChatGPT app), the host caches the server's metadata as a versioned contract at submission time: tool names/titles/descriptions, input/output schemas, annotations, `_meta`, linked UI resource metadata, and the server `instructions`. Deploying a server change does **not** update that published snapshot, and breaking changes (removing/renaming a tool, making an input schema incompatible, or changing the content served at a published UI resource URI) can break the published version as soon as they deploy.
+
+To guard this, `tests/unit/contract/contract_snapshot.json` is a committed snapshot of that contract surface for the published toolsets (declared by `INCLUDED_TOOLSETS` in `src/dbt_mcp/contract/snapshot.py`). Proxied tools are excluded — their contract is owned by the remote endpoint, not this repo.
+
+- If a change you make alters the contract, `task contract:check` (and the unit test) fail. Run **`task contract:generate`**, commit the regenerated snapshot, and **submit a new app version for review** after merge.
+- The `Label app contract changes` workflow labels contract-changing PRs `contract-change` (compatible) or `contract-breaking` (advisory) so app owners know an app update is due.
+- Prefer backward-compatible changes (add tools/fields; keep existing contracts) over breaking ones.
+
 ## Signed Commits
 
 Before committing changes, ensure that you have set up [signed commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).

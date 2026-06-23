@@ -1,0 +1,2793 @@
+{
+  "excluded_toolsets": [
+    "dbt_cli",
+    "dbt_codegen",
+    "dbt_lsp",
+    "mcp_server_metadata",
+    "sql"
+  ],
+  "included_toolsets": [
+    "admin_api",
+    "discovery",
+    "product_docs",
+    "semantic_layer"
+  ],
+  "resources": [],
+  "server_instructions": "Use these tools to interact with dbt resources (typically via dbt Platform):\n\n- Understand how the project is structured: what exists in the environment, how objects depend on one another, and where to look when something looks wrong or slow.\n- Reason over governed business meaning -- named measures and breakdowns the project maintains -- and answer questions with validated aggregates or the warehouse logic behind them when that helps.\n- Work with platform automation when available: see what runs on a schedule, inspect past outcomes, act on failures or reruns, and dig into logs and outputs.\n- Assist with engineering work on dbt projects: take action on the project and reason about the underlying SQL.\n\nExample data-oriented questions (users may not use dbt vocabulary):\n\n- Revenue, ARR, bookings, pipeline, or quota: \"how are we doing this quarter?\"; \"split it by region or product\"; \"this total doesn't match finance.\"\n- Customers, users, signups, or retention: \"how many active ...?\" \"is churn getting worse?\" \"cohorts or segments -- whatever we already track.\"\n- Orders, inventory, SKUs, or fulfillment: \"what's selling?\" \"stock or backorder questions\" when they only describe the business problem.\n- Funnel, marketing, or web activity: \"conversion from visit to purchase\" \"campaign performance\" with loose wording and no metric names.\n- Trust and definitions: \"where does this dashboard number come from?\" \"two reports disagree -- help me find why\" \"what's the official definition of ...?\"\n- Quality and freshness: \"is this table up to date?\" \"missing yesterday's data\" \"something looks stale in our reporting.\"\n- Orchestration tied to data: \"did last night's refresh finish?\" \"prod load failed and Finance is blocked\" without run or job IDs.\n- Engineering on a dbt project: \"help me with this model,\" \"what's wrong with my project?\"",
+  "tools": [
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true,
+        "readOnlyHint": false,
+        "title": "Cancel Job Run"
+      },
+      "description": "Cancel a currently running or queued dbt run.\n\nThis tool allows you to stop a run that is currently executing or waiting in the queue.\n\n## Returns\n\nUpdated run object showing the cancelled status and timing information.\n\n## Run States That Can Be Cancelled\n\n- **Queued (1)**: Run is waiting to start\n- **Starting (2)**: Run is initializing\n- **Running (3)**: Run is currently executing\n\n## Use Cases\n\n- Stop long-running jobs that are no longer needed\n- Cancel jobs that were triggered by mistake\n- Free up run slots for higher priority jobs\n- Stop runs that are stuck or hanging\n- Emergency cancellation during incidents\n\n## Important Notes\n\n- Once cancelled, a run cannot be resumed\n- Partial work may have been completed before cancellation\n- Artifacts from cancelled runs may not be available\n- Use the retry functionality if you need to re-run after cancellation\n\n## Example Usage\n\n```json\n{\n  \"run_id\": 789\n}\n```\n\n## Response\n\nReturns the updated run object with:\n- Status changed to cancelled (30)\n- Cancellation timestamp\n- Final execution timing\n- Any artifacts that were generated before cancellation\n",
+      "input_schema": {
+        "properties": {
+          "run_id": {
+            "description": "The dbt job run ID",
+            "title": "Run Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "cancel_job_runArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "cancel_job_run",
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "cancel_job_runDictOutput",
+        "type": "object"
+      },
+      "title": "Cancel Job Run",
+      "toolset": "admin_api"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get All Macros"
+      },
+      "description": "Get the name, description, and package name of all dbt macros in the environment. Macros are reusable pieces of Jinja SQL that can be called from models, tests, and other macros.\n\nUsage patterns:\n1. Discover available packages first: `get_all_macros(return_package_names_only=True)`\n2. Then get macros for specific packages: `get_all_macros(package_names=['my_project'])`\n\nNote:\n  - dbt-labs first-party packages are excluded by default. These are packages maintained directly by dbt Labs from the dbt-labs/dbt-adapters monorepo:\n    - dbt (dbt-core)\n    - dbt_postgres\n    - dbt_redshift\n    - dbt_snowflake\n    - dbt_bigquery\n    - dbt_spark\n    - dbt_athena\n  - Community packages (dbt_utils, dbt_expectations, dbt_date) are included\n  - Partner-maintained adapters (dbt_databricks, dbt_trino, dbt_synapse) are included\n  - All project-specific macros are included\n\nReturns:\n- When return_package_names_only=False (default): List of macros with name, uniqueId, description, packageName\n- When return_package_names_only=True: List of unique package names (strings)\n",
+      "input_schema": {
+        "properties": {
+          "include_default_dbt_packages": {
+            "default": false,
+            "description": "When true, include default dbt Labs core/adapter macro packages",
+            "title": "Include Default Dbt Packages",
+            "type": "boolean"
+          },
+          "package_names": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Filter macros to these package names (e.g. `my_project`, `dbt_utils`)",
+            "title": "Package Names"
+          },
+          "return_package_names_only": {
+            "default": false,
+            "description": "When true, return only distinct package names (use to discover packages before filtering)",
+            "title": "Return Package Names Only",
+            "type": "boolean"
+          }
+        },
+        "title": "get_all_macrosArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_all_macros",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Result"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_all_macrosOutput",
+        "type": "object"
+      },
+      "title": "Get All Macros",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get All Models"
+      },
+      "description": "Get the name and description of all dbt models in the environment.\n",
+      "input_schema": {
+        "properties": {},
+        "title": "get_all_modelsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_all_models",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_all_modelsOutput",
+        "type": "object"
+      },
+      "title": "Get All Models",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get All Sources"
+      },
+      "description": "Get the name, description, and metadata of all dbt sources in the environment. Sources represent external data tables that your dbt models build upon.\n\nNote:\n  - source_names correspond to the top-level source grouping in the source YML config\n  - unique_ids have the form `source.{YOUR-DBT-PROJECT}.{SOURCE-NAME}.{SOURCE-TABLE}`\n\nReturns information including:\n- name: The table name within the source\n- uniqueId: The unique identifier for this source table\n- identifier: The underlying table identifier in the warehouse\n- description: Description of the source table\n- sourceName: The source name (e.g., 'raw_data', 'external_api')\n- database: Database containing the source table\n- schema: Schema containing the source table\n- resourceType: Will be 'source'\n- freshness: Real-time freshness status from production including:\n  - maxLoadedAt: When the source was last loaded\n  - maxLoadedAtTimeAgoInS: How long ago the source was loaded (in seconds)\n  - freshnessStatus: Current freshness status (e.g., 'pass', 'warn', 'error')\n\n",
+      "input_schema": {
+        "properties": {
+          "source_names": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Filter by top-level source names from the project `sources:` YAML (e.g. `raw_data`, `external_api`)",
+            "title": "Source Names"
+          },
+          "unique_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Filter by fully qualified source table unique IDs (`source.<project>.<source_name>.<table>`)",
+            "title": "Unique Ids"
+          }
+        },
+        "title": "get_all_sourcesArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_all_sources",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_all_sourcesOutput",
+        "type": "object"
+      },
+      "title": "Get All Sources",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Dimension Values"
+      },
+      "description": "<instructions>\nGet the distinct values for a given dimension, optionally scoped to specific metrics.\n\nUse this tool to discover what values exist for a dimension before building a `where`\nfilter in `query_metrics`. For example, to filter by country you first call this tool\nto see which country values exist, then use those values in the `where` clause.\n\nIf the response includes `truncated: true`, there are more values than the current\n`limit`. Increase `limit` to retrieve more, or add `metrics` to narrow the scope.\n</instructions>\n\n<examples>\n<example>\nQuestion: \"I want to filter revenue for a specific country \u2014 what countries are available?\"\nThinking step-by-step:\n   - The user wants to know valid values for a country dimension\n   - I should scope to the \"revenue\" metric for accurate results\nParameters:\n    dimension=\"customer__country\"\n    metrics=[\"revenue\"]\n    limit=100\n</example>\n\n<example>\nQuestion: \"What are the possible order statuses?\"\nThinking step-by-step:\n   - The user wants all distinct values for an order status dimension\n   - No specific metric context needed\nParameters:\n    dimension=\"order__status\"\n    metrics=null\n    limit=100\n</example>\n</examples>\n",
+      "input_schema": {
+        "properties": {
+          "dimension": {
+            "description": "The dimension name to retrieve values for (e.g. `customer__country`, `order__status`)",
+            "title": "Dimension",
+            "type": "string"
+          },
+          "limit": {
+            "default": 100,
+            "description": "Maximum number of distinct values to return (default 100). If the result is truncated, the response `truncated` field will be True \u2014 increase this limit to retrieve more values.",
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Metric names from list_metrics to query or inspect",
+            "title": "Metrics"
+          }
+        },
+        "required": [
+          "dimension"
+        ],
+        "title": "get_dimension_valuesArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_dimension_values",
+      "output_schema": {
+        "$defs": {
+          "DimensionValuesError": {
+            "properties": {
+              "error": {
+                "title": "Error",
+                "type": "string"
+              },
+              "truncated": {
+                "default": null,
+                "title": "Truncated",
+                "type": "null"
+              },
+              "values": {
+                "default": null,
+                "title": "Values",
+                "type": "null"
+              }
+            },
+            "required": [
+              "error"
+            ],
+            "title": "DimensionValuesError",
+            "type": "object"
+          },
+          "DimensionValuesResponse": {
+            "properties": {
+              "error": {
+                "default": null,
+                "title": "Error",
+                "type": "null"
+              },
+              "truncated": {
+                "title": "Truncated",
+                "type": "boolean"
+              },
+              "values": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Values",
+                "type": "array"
+              }
+            },
+            "required": [
+              "values",
+              "truncated"
+            ],
+            "title": "DimensionValuesResponse",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DimensionValuesResponse"
+              },
+              {
+                "$ref": "#/$defs/DimensionValuesError"
+              }
+            ],
+            "title": "Result"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_dimension_valuesOutput",
+        "type": "object"
+      },
+      "title": "Get Dimension Values",
+      "toolset": "semantic_layer"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Dimensions"
+      },
+      "description": "<instructions>\nGet the dimensions for specified metrics\n\nNote: `metric_time` is a standard time dimension available on most metrics. You do not need to call this tool just to confirm time dimensions exist \u2014 call it only when you need categorical dimensions or specific granularity details. If this tool returns no results, proceed to query directly using `metric_time`.\n\nDimensions are the attributes, features, or characteristics\nthat describe or categorize data.\n\nEach dimension includes a metadata field containing config.meta from semantic model YAML files.\nThe metadata contains fields relevant to the semantic models.\n\n</instructions>\n\n<examples>\n<example>\nQuestion: \"I want to analyze revenue trends - what dimensions are available?\"\nThinking step-by-step:\n   - Using list_metrics(), I find \"revenue\" is available\n   - Now I can get the dimensions for this metric\n   - The search parameter is not needed here since the user is interested in all available dimensions.\nParameters:\n    metrics=[\"revenue\"]\n    search=null\n</example>\n\n<example>\nQuestion: \"Are there any time-related dimensions for my sales metrics?\"\nThinking step-by-step:\n   - Using list_metrics(), I find \"total_sales\" and \"average_order_value\" are available\n   - The user is interested in time dimensions specifically\n   - I should use the search parameter to filter for dimensions with \"time\" in the name\n   - This will narrow down the results to just time-related dimensions\nParameters:\n    metrics=[\"total_sales\", \"average_order_value\"]\n    search=\"time\"\n</example>\n</examples>\n",
+      "input_schema": {
+        "properties": {
+          "metrics": {
+            "description": "Metric names from list_metrics to query or inspect",
+            "items": {
+              "type": "string"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "search": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Filter dimensions by substring match on name (omit to return all for these metrics)",
+            "title": "Search"
+          }
+        },
+        "required": [
+          "metrics"
+        ],
+        "title": "get_dimensionsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_dimensions",
+      "output_schema": {
+        "$defs": {
+          "DimensionToolResponse": {
+            "properties": {
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Description"
+              },
+              "granularities": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Granularities"
+              },
+              "label": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Label"
+              },
+              "metadata": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Metadata"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "type": {
+                "$ref": "#/$defs/DimensionType"
+              }
+            },
+            "required": [
+              "name",
+              "type"
+            ],
+            "title": "DimensionToolResponse",
+            "type": "object"
+          },
+          "DimensionType": {
+            "description": "The type of a dimension.",
+            "enum": [
+              "UNKNOWN",
+              "CATEGORICAL",
+              "TIME"
+            ],
+            "title": "DimensionType",
+            "type": "string"
+          }
+        },
+        "properties": {
+          "result": {
+            "items": {
+              "$ref": "#/$defs/DimensionToolResponse"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_dimensionsOutput",
+        "type": "object"
+      },
+      "title": "Get Dimensions",
+      "toolset": "semantic_layer"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Entities"
+      },
+      "description": "<instructions>\nGet the entities for specified metrics\n\nEntities are real-world concepts in a business such as customers,\ntransactions, and ad campaigns. Analysis is often focused around\nspecific entities, such as customer churn or\nannual recurring revenue modeling.\n</instructions>\n\n<examples>\n<example>\nQuestion: \"I want to analyze revenue - what entities are available?\"\nThinking step-by-step:\n   - Using list_metrics(), I find \"revenue\" is available\n   - Now I can get the entities for this metric\n   - The search parameter is not needed here since the user is interested in all available entities.\nParameters:\n    metrics=[\"revenue\"]\n    search=null\n</example>\n\n<example>\nQuestion: \"Are there any customer-related entities for my sales metrics?\"\nThinking step-by-step:\n   - Using list_metrics(), I find \"total_sales\" and \"average_order_value\" are available\n   - The user is interested in customer entities specifically\n   - I should use the search parameter to filter for entities with \"customer\" in the name\n   - This will narrow down the results to just customer-related entities\nParameters:\n    metrics=[\"total_sales\", \"average_order_value\"]\n    search=\"customer\"\n</example>\n</examples>\n",
+      "input_schema": {
+        "properties": {
+          "metrics": {
+            "description": "Metric names from list_metrics to query or inspect",
+            "items": {
+              "type": "string"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "search": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Filter entities by substring match on name (omit to return all for these metrics)",
+            "title": "Search"
+          }
+        },
+        "required": [
+          "metrics"
+        ],
+        "title": "get_entitiesArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_entities",
+      "output_schema": {
+        "$defs": {
+          "EntityToolResponse": {
+            "properties": {
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Description"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "type": {
+                "$ref": "#/$defs/EntityType"
+              }
+            },
+            "required": [
+              "name",
+              "type"
+            ],
+            "title": "EntityToolResponse",
+            "type": "object"
+          },
+          "EntityType": {
+            "description": "All supported entity types.",
+            "enum": [
+              "UNKNOWN",
+              "FOREIGN",
+              "NATURAL",
+              "PRIMARY",
+              "UNIQUE"
+            ],
+            "title": "EntityType",
+            "type": "string"
+          }
+        },
+        "properties": {
+          "result": {
+            "items": {
+              "$ref": "#/$defs/EntityToolResponse"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_entitiesOutput",
+        "type": "object"
+      },
+      "title": "Get Entities",
+      "toolset": "semantic_layer"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Exposure Details"
+      },
+      "description": "Get detailed information about one or more exposures by name or unique IDs.\n\nReturns a list of detailed information dictionaries, each including:\n- name: The name of the exposure\n- description: Detailed description of the exposure\n- exposureType: Type of exposure (application, dashboard, analysis, etc.)\n- maturity: Maturity level of the exposure (high, medium, low)\n- ownerName: Name of the exposure owner\n- ownerEmail: Email of the exposure owner\n- url: URL associated with the exposure\n- label: Optional label for the exposure\n- parents: List of parent models/sources that this exposure depends on\n- meta: Additional metadata associated with the exposure\n- freshnessStatus: Current freshness status of the exposure\n- uniqueId: The unique identifier for this exposure\n\nExample usage:\n- Get an exposure by unique ID: get_exposure_details(unique_id=\"exposure.analytics.customer_dashboard\")\n",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The name of the resource. This is not required if `unique_id` is provided. Only use name when `unique_id` is unknown.",
+            "title": "Name"
+          },
+          "unique_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Fully-qualified unique ID of the resource. This will follow the format `<resource_type>.<package_name>.<resource_name>` (e.g. `model.analytics.stg_orders`). Strongly preferred over the `name` parameter for deterministic lookups.",
+            "title": "Unique Id"
+          }
+        },
+        "title": "get_exposure_detailsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_exposure_details",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_exposure_detailsOutput",
+        "type": "object"
+      },
+      "title": "Get Exposure Details",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Exposures"
+      },
+      "description": "Get the id, name, description, and url of all exposures in the dbt environment. Exposures represent downstream applications or analyses that depend on dbt models.\n\nReturns information including:\n- uniqueId: The unique identifier for this exposure taht can then be used to get more details about the exposure\n- name: The name of the exposure\n- description: Description of the exposure\n- url: URL associated with the exposure",
+      "input_schema": {
+        "properties": {},
+        "title": "get_exposuresArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_exposures",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_exposuresOutput",
+        "type": "object"
+      },
+      "title": "Get Exposures",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Job Details"
+      },
+      "description": "Get detailed information for a specific dbt job.\n\nThis tool retrieves comprehensive job configuration including execution settings, triggers, and scheduling information.\n\n## Returns\n\nJob object with detailed configuration including:\n\n- Job metadata (ID, name, description, type)\n- Environment and project associations\n- Execute steps (dbt commands to run)\n- Trigger configuration (schedule, webhooks, CI)\n- Execution settings (timeout, threads, target)\n- dbt version overrides\n- Generate docs and sources settings\n- Most recent run information (if requested)\n\n## Use Cases\n\n- Debug job configuration issues\n- Understand job execution settings\n- Review scheduling and trigger configuration\n- Check dbt commands and execution steps\n- Audit job settings across projects\n- Get recent run status for monitoring\n\n## Job Types\n\n- **ci**: Continuous integration jobs\n- **scheduled**: Regularly scheduled jobs\n- **other**: Manual or API-triggered jobs\n- **merge**: Jobs triggered on merge events\n\n## Example Usage\n\n```json\n{\n  \"job_id\": 456\n}\n```\n",
+      "input_schema": {
+        "properties": {
+          "job_id": {
+            "description": "The dbt job definition ID",
+            "title": "Job Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "title": "get_job_detailsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_job_details",
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_job_detailsDictOutput",
+        "type": "object"
+      },
+      "title": "Get Job Details",
+      "toolset": "admin_api"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Job Run Details"
+      },
+      "description": "Get detailed information for a specific dbt job run.\n\nThis tool retrieves comprehensive run information including execution details, steps, and artifacts.\n\n## Returns\n\nRun object with detailed execution information including:\n\n- Run metadata (ID, status, timing information)\n- Job and environment details\n- Git branch and SHA information\n- Execution steps and their status\n- Artifacts and logs availability\n- Trigger information and cause\n- Performance metrics and timing\n\n## Use Cases\n\n- Monitor run progress and status\n- Debug failed runs with detailed logs\n- Review run performance and timing\n- Check artifact generation status\n- Audit run execution details\n- Troubleshoot run failures\n\n## Example Usage\n\n```json\n{\n  \"run_id\": 789\n}\n```\n\n```json\n{\n  \"run_id\": 789\n}\n```\n\n## Response Information\n\nThe detailed response includes timing, status, and execution context to help with monitoring and debugging dbt job runs.\n",
+      "input_schema": {
+        "properties": {
+          "run_id": {
+            "description": "The dbt job run ID",
+            "title": "Run Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "get_job_run_detailsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_job_run_details",
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_job_run_detailsDictOutput",
+        "type": "object"
+      },
+      "title": "Get Job Run Details",
+      "toolset": "admin_api"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Job Run Error"
+      },
+      "description": "Get focused error and/or warning information for a dbt job run.\n\nThis tool retrieves and analyzes job runs to provide concise, actionable error and warning details optimized for troubleshooting and monitoring. Instead of verbose run details, it returns structured information with minimal token usage.\n\n## Returns\n\n### Default Behavior (errors only)\nStructured error information with `failed_steps` containing a list of failed step details:\n\n- failed_steps: List of failed steps, each containing:\n  - target: The dbt target environment where the failure occurred\n  - step_name: The failed step that caused the run to fail\n  - finished_at: Timestamp when the failed step completed\n  - results: List of specific error details, each with:\n    - unique_id: Model/test unique identifier (nullable)\n    - relation_name: Database relation name or \"No database relation\"\n    - message: Error message\n    - compiled_code: Raw compiled SQL code (nullable)\n    - truncated_logs: Raw truncated debug log output (nullable)\n\nNOTE: The \"truncated_logs\" key only populates if there is no `run_results.json` artifact to parse after a job run error.\n\n### When include_warnings=True\nReturns both error information (as above) plus a `warnings` object containing:\n\n- has_warnings: Boolean indicating if any warnings were found\n- warning_steps: List of successful steps containing warnings\n- log_warnings: List of warnings extracted from logs\n- summary: Aggregate warning counts\n\n### When warning_only=True\nReturns only warning information (same structure as the `warnings` object above):\n\n- has_warnings: Boolean indicating if any warnings were found\n- warning_steps: List of successful steps containing warnings, each with:\n  - target: The dbt target environment\n  - step_name: The step that generated warnings\n  - finished_at: Timestamp when the step completed\n  - results: List of specific warning details, each with:\n    - unique_id: Model/test/source unique identifier\n    - relation_name: Database relation name or source name\n    - message: Warning message describing the issue\n    - status: Always \"warn\" to distinguish from errors\n    - compiled_code: Raw compiled SQL code (optional, for test warnings)\n- log_warnings: List of warnings extracted directly from logs (no unique_id)\n- summary: Aggregate warning counts:\n  - total_warnings: Total number of warnings found\n  - test_warnings: Number of test warnings (tests with `severity: warn`)\n  - freshness_warnings: Number of source freshness warnings\n  - log_warnings: Number of warnings extracted from logs\n\n## Example Usage\n\n### Get errors only (default)\n```json\n{\n  \"run_id\": 789\n}\n```\n\n### Get errors with warnings\n```json\n{\n  \"run_id\": 789,\n  \"include_warnings\": true\n}\n```\n\n### Get warnings only\n```json\n{\n  \"run_id\": 789,\n  \"warning_only\": true\n}\n```",
+      "input_schema": {
+        "properties": {
+          "include_warnings": {
+            "default": false,
+            "description": "If true, include warning analysis together with error details",
+            "title": "Include Warnings",
+            "type": "boolean"
+          },
+          "run_id": {
+            "description": "The dbt job run ID",
+            "title": "Run Id",
+            "type": "integer"
+          },
+          "warning_only": {
+            "default": false,
+            "description": "If true, return only warning analysis (e.g. for successful runs with warnings)",
+            "title": "Warning Only",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "get_job_run_errorArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_job_run_error",
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_job_run_errorDictOutput",
+        "type": "object"
+      },
+      "title": "Get Job Run Error",
+      "toolset": "admin_api"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Lineage"
+      },
+      "description": "Retrieves the lineage graph for a dbt resource.\n\nReturns all nodes connected to the specified resource, including both upstream dependencies (ancestors) and downstream dependents (descendants).\n\n**Returns:**\nA list of all nodes in the connected subgraph, where each node contains:\n- `uniqueId`: The resource's unique identifier\n- `name`: The resource name\n- `resourceType`: The type of resource (Model, Source, etc.)\n- `parentIds`: List of unique IDs that this resource directly depends on\n\n**Example Response:**\n```json\n[\n  {\n    \"uniqueId\": \"source.raw.users\",\n    \"name\": \"users\",\n    \"resourceType\": \"Source\",\n    \"parentIds\": []\n  },\n  {\n    \"uniqueId\": \"model.stg_customers\",\n    \"name\": \"stg_customers\",\n    \"resourceType\": \"Model\",\n    \"parentIds\": [\"source.raw.users\"]\n  },\n  {\n    \"uniqueId\": \"model.customers\",\n    \"name\": \"customers\",\n    \"resourceType\": \"Model\",\n    \"parentIds\": [\"model.stg_customers\"]\n  }\n]\n```\n\n**Usage Examples:**\n```python\n# Get complete lineage (all connected nodes, all types, default depth of 5)\nget_lineage(unique_id=\"model.analytics.customers\")\n\n# Get lineage filtered to only models and sources\nget_lineage(unique_id=\"model.analytics.customers\", types=[\"Model\", \"Source\"])\n\n# Get only immediate neighbors (depth=1)\nget_lineage(unique_id=\"model.analytics.customers\", depth=1)\n\n# Get deeper lineage for comprehensive analysis\nget_lineage(unique_id=\"model.analytics.customers\", depth=10)\n```\n\n**Traversing the Graph:**\n\nThe graph is represented by parent-child relationships. To navigate:\n\n**Finding Upstream Dependencies (Parents):**\n```python\n# Direct: What does this node depend on?\ntarget_node = find_node_by_id(result, \"model.customers\")\ndirect_parents = target_node[\"parentIds\"]\n# Result: [\"model.stg_customers\"]\n```\n\n**Finding Downstream Dependents (Children):**\n```python\n# Search: What depends on this node?\ntarget_id = \"model.customers\"\ndirect_children = [\n    node for node in result\n    if target_id in node.get(\"parentIds\", [])\n]\n# Result: nodes that list \"model.customers\" in their parentIds\n```\n\n**Understanding the Results:**\n\n- The target node is always included in the response\n- All returned nodes are connected to the target (no disconnected nodes)\n- To get full lineage, omit the `types` parameter\n- To reduce payload size, specify relevant `types`\n\n**Common Use Cases:**\n\n1. **Impact Analysis**: \"What will break if I change this model?\"\n   - Look at downstream dependents (nodes that have target in `parentIds`)\n\n2. **Dependency Tracking**: \"What does this model depend on?\"\n   - Look at upstream dependencies (`parentIds` of the target node)\n\n3. **Data Lineage**: \"Show the complete data flow for this entity\"\n   - Use all returned nodes to build a complete graph\n\n4. **Finding Tests**: \"What tests exist for this model and its dependencies?\"\n   - Filter results where `resourceType == \"Test\"`\n",
+      "input_schema": {
+        "$defs": {
+          "LineageResourceType": {
+            "description": "Resource types supported by lineage APIs.",
+            "enum": [
+              "Model",
+              "Source",
+              "Seed",
+              "Snapshot",
+              "Exposure",
+              "Metric",
+              "SemanticModel",
+              "SavedQuery",
+              "Test"
+            ],
+            "title": "LineageResourceType",
+            "type": "string"
+          }
+        },
+        "properties": {
+          "depth": {
+            "default": 5,
+            "description": "The depth of the lineage graph to return. Controls how many levels to traverse from the target node.A depth of 1 returns only direct parents/children.A depth of 0 returns the entire lineage graph.",
+            "title": "Depth",
+            "type": "integer"
+          },
+          "types": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/$defs/LineageResourceType"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "List of resource types to include in lineage results. If not provided, includes all types. Valid types: Model, Source, Seed, Snapshot, Exposure, Metric, SemanticModel, SavedQuery, Test.",
+            "title": "Types"
+          },
+          "unique_id": {
+            "description": "Fully-qualified unique ID of the resource. This will follow the format `<resource_type>.<package_name>.<resource_name>` (e.g. `model.analytics.stg_orders`).",
+            "title": "Unique Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "unique_id"
+        ],
+        "title": "get_lineageArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_lineage",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_lineageOutput",
+        "type": "object"
+      },
+      "title": "Get Lineage",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Macro Details"
+      },
+      "description": "<instructions>\nFetch detailed metadata for a dbt macro.\n\n- Supply at least one of `unique_id` or `name`. Call will fail if both are missing.\n- Always prefer providing `unique_id` for exact matches.\n</instructions>\n\n<examples>\n1. Fetch a macro by unique_id:\n   get_macro_details(unique_id=\"macro.dbt_utils.date_spine\")\n\n2. Fetch a macro when only the node name is known:\n   get_macro_details(name=\"date_spine\")\n</examples>\n",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The name of the resource. This is not required if `unique_id` is provided. Only use name when `unique_id` is unknown.",
+            "title": "Name"
+          },
+          "unique_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Fully-qualified unique ID of the resource. This will follow the format `<resource_type>.<package_name>.<resource_name>` (e.g. `model.analytics.stg_orders`). Strongly preferred over the `name` parameter for deterministic lookups.",
+            "title": "Unique Id"
+          }
+        },
+        "title": "get_macro_detailsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_macro_details",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_macro_detailsOutput",
+        "type": "object"
+      },
+      "title": "Get Macro Details",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Mart Models"
+      },
+      "description": "Get the name and description of all mart models in the environment. A mart model is part of the presentation layer of the dbt project. It's where cleaned, transformed data is organized for consumption by end-users, like analysts, dashboards, or business tools.",
+      "input_schema": {
+        "properties": {},
+        "title": "get_mart_modelsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_mart_models",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_mart_modelsOutput",
+        "type": "object"
+      },
+      "title": "Get Mart Models",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Compile SQL"
+      },
+      "description": "<instructions>\nGets compiled SQL for given metrics and dimensions/entities from the dbt Semantic Layer.\n\nThis tool generates the underlying SQL that would be executed for a given metric query by the `query_metrics` tool,\nwithout actually running the query. This is useful for understanding what SQL is being\ngenerated, debugging query issues, or getting SQL to run elsewhere.\n\nTo use this tool, you must first know about specific metrics, dimensions and\nentities to provide. You can call the list_metrics, get_dimensions,\nand get_entities tools to get information about which metrics, dimensions,\nand entities to use.\n\nWhen using the `group_by` parameter, ensure that the dimensions and entities\nyou specify are valid for the given metrics. Time dimensions can include\ngrain specifications (e.g., MONTH, DAY, YEAR).\n\nThe tool will return the compiled SQL that the dbt Semantic Layer would generate\nto calculate the specified metrics with the given groupings.\n\nDon't call this tool if the user's question cannot be answered with the provided\nmetrics, dimensions, and entities. Instead, clarify what metrics, dimensions,\nand entities are available and suggest a new question that can be answered\nand is approximately the same as the user's question.\n\nThis tool is particularly useful when:\n- Users want to see the underlying SQL for a metric calculation\n- Debugging complex metric definitions\n- Understanding how grouping affects the generated SQL\n- Getting SQL to run in other tools or systems\n</instructions>\n\nReturns the compiled SQL as a string, or an error message if the compilation fails.\n\n",
+      "input_schema": {
+        "$defs": {
+          "GroupByParam": {
+            "properties": {
+              "grain": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Grain"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "type": {
+                "$ref": "#/$defs/GroupByType"
+              }
+            },
+            "required": [
+              "name",
+              "type"
+            ],
+            "title": "GroupByParam",
+            "type": "object"
+          },
+          "GroupByType": {
+            "description": "The type of a group_by, i.e a dimension or an entity.",
+            "enum": [
+              "dimension",
+              "time_dimension",
+              "entity"
+            ],
+            "title": "GroupByType",
+            "type": "string"
+          },
+          "OrderByParam": {
+            "properties": {
+              "descending": {
+                "default": false,
+                "title": "Descending",
+                "type": "boolean"
+              },
+              "grain": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Grain"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "title": "OrderByParam",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "group_by": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/$defs/GroupByParam"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Group by dimensions, time dimensions, or entities; each item has `name`, `type` (`\"dimension\"`, `\"time_dimension\"`, or `\"entity\"`), and optional `grain` for time dimensions",
+            "title": "Group By"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Maximum number of results to return",
+            "title": "Limit"
+          },
+          "metrics": {
+            "description": "Metric names from list_metrics to query or inspect",
+            "items": {
+              "type": "string"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "order_by": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/$defs/OrderByParam"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Sort keys; each item has `name`, `descending` (default false), and optional `grain` for time dimensions (overrides the grain from group_by; falls back to the matching group_by grain when omitted); items may be metric names or group_by fields",
+            "title": "Order By"
+          },
+          "where": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Semantic Layer filter; use {{ Dimension('name') }}, {{ TimeDimension('name', 'grain') }}, {{ Entity('name') }}; dates as yyyy-mm-dd",
+            "title": "Where"
+          }
+        },
+        "required": [
+          "metrics"
+        ],
+        "title": "get_metrics_compiled_sqlArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_metrics_compiled_sql",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_metrics_compiled_sqlOutput",
+        "type": "object"
+      },
+      "title": "Compile SQL",
+      "toolset": "semantic_layer"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Model Children"
+      },
+      "description": "<instructions>\nRetrieves the child models (downstream dependencies) of a specific dbt model. These are the models that depend on the specified model.\n\nYou can provide either a name or a uniqueId, if known, to identify the model. Using uniqueId is more precise and guarantees a unique match, which is especially useful when models might have the same name in different projects.\n\nThis is specifically for retrieving model children from the production manifest. If you want development lineage, use `get_lineage_dev` instead.\n</instructions>\n\n<examples>\n1. Getting children for a model by name:\n   get_model_children(name=\"customer_orders\")\n\n2. Getting children for a model by uniqueId (more precise):\n   get_model_children(name=\"customer_orders\", uniqueId=\"model.my_project.customer_orders\")\n\n3. Getting children using only uniqueId:\n   get_model_children(uniqueId=\"model.my_project.customer_orders\")\n   </examples>\n",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The name of the resource. This is not required if `unique_id` is provided. Only use name when `unique_id` is unknown.",
+            "title": "Name"
+          },
+          "unique_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Fully-qualified unique ID of the resource. This will follow the format `<resource_type>.<package_name>.<resource_name>` (e.g. `model.analytics.stg_orders`). Strongly preferred over the `name` parameter for deterministic lookups.",
+            "title": "Unique Id"
+          }
+        },
+        "title": "get_model_childrenArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_model_children",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_model_childrenOutput",
+        "type": "object"
+      },
+      "title": "Get Model Children",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Model Details"
+      },
+      "description": "<instructions>\nRetrieves information about a specific dbt model, including compiled SQL, description, database, schema, alias, and column details.\n\nIMPORTANT: Use uniqueId when available.\n- Using uniqueId guarantees the correct model is retrieved\n- Using only name may return incorrect results or fail entirely\n- If you obtained models via get_all_models(), you should always use the uniqueId from those results\n</instructions>\n\n<examples>\n1. PREFERRED METHOD - Using uniqueId (always use this when available):\n   get_model_details(uniqueId=\"model.my_project.customer_orders\")\n\n2. FALLBACK METHOD - Using only name (only when uniqueId is unknown):\n   get_model_details(name=\"customer_orders\")\n",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The name of the resource. This is not required if `unique_id` is provided. Only use name when `unique_id` is unknown.",
+            "title": "Name"
+          },
+          "unique_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Fully-qualified unique ID of the resource. This will follow the format `<resource_type>.<package_name>.<resource_name>` (e.g. `model.analytics.stg_orders`). Strongly preferred over the `name` parameter for deterministic lookups.",
+            "title": "Unique Id"
+          }
+        },
+        "title": "get_model_detailsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_model_details",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_model_detailsOutput",
+        "type": "object"
+      },
+      "title": "Get Model Details",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Model Health"
+      },
+      "description": "<instructions>\nRetrieves information about the health of a dbt model, including the last time it ran, the last test execution status, and whether the upstream data for the model is fresh.\n\nIMPORTANT: Use uniqueId when available.\n- Using uniqueId guarantees the correct model is retrieved\n- Using only name may return incorrect results or fail entirely\n- If you obtained models via get_all_models(), you should always use the uniqueId from those results\n\nASSESSING MODEL HEALTH:\nFor all of the below, summarize whether the model is healthy, questionable, or unhealthy. Only provide more details when asked.\n\n- for the model executionInfo, if the lastRunStatus is \"success\" consider the model healthy\n- for the test executionInfo, if the lastRunStatus is \"success\" consider the model healthy\n\n- for the models parents:\n-- check the modelexecutionInfo, snapshotExecutionInfo, and seedExecutionInfo. If the lastRunStatus is \"success\" consider the model healthy. If the lastRunStatus is \"error\" consider the model unhealthy.\n\n-- if the parent node is a SourceAppliedStateNestedNode:\n--- If the freshnessStatus is \"pass\", consider the model healthy\n--- If the freshnessStatus is \"fail\", consider the model unhealthy\n--- If the freshnessStatus is null, consider the model health questionable\n--- If the freshnessStatus is \"warn\", consider the model health questionable\n</instructions>\n\n<examples>\n1. PREFERRED METHOD - Using uniqueId (always use this when available):\n   get_model_health(uniqueId=\"model.my_project.customer_orders\")\n\n2. FALLBACK METHOD - Using only name (only when uniqueId is unknown):\n   get_model_health(name=\"customer_orders\")\n</examples>\n",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The name of the resource. This is not required if `unique_id` is provided. Only use name when `unique_id` is unknown.",
+            "title": "Name"
+          },
+          "unique_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Fully-qualified unique ID of the resource. This will follow the format `<resource_type>.<package_name>.<resource_name>` (e.g. `model.analytics.stg_orders`). Strongly preferred over the `name` parameter for deterministic lookups.",
+            "title": "Unique Id"
+          }
+        },
+        "title": "get_model_healthArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_model_health",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_model_healthOutput",
+        "type": "object"
+      },
+      "title": "Get Model Health",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Model Parents"
+      },
+      "description": "<instructions>\nRetrieves the parent models of a specific dbt model. These are the models that the specified model depends on.\n\nYou can provide either a name or a uniqueId, if known, to identify the model. Using uniqueId is more precise and guarantees a unique match, which is especially useful when models might have the same name in different projects.\n\nReturned parents include `resourceType`, `name`, and `description`. For upstream sources, also provide `sourceName` and `uniqueId` so lineage can be linked back via `get_all_sources`.\n\nThis is specifically for retrieving model parents from the production manifest. If you want development lineage, use `get_lineage_dev` instead.\n</instructions>\n\n<examples>\n1. Getting parents for a model by name:\n   get_model_parents(name=\"customer_orders\")\n\n2. Getting parents for a model by uniqueId (more precise):\n   get_model_parents(name=\"customer_orders\", uniqueId=\"model.my_project.customer_orders\")\n\n3. Getting parents using only uniqueId:\n   get_model_parents(uniqueId=\"model.my_project.customer_orders\")\n</examples>\n",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The name of the resource. This is not required if `unique_id` is provided. Only use name when `unique_id` is unknown.",
+            "title": "Name"
+          },
+          "unique_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Fully-qualified unique ID of the resource. This will follow the format `<resource_type>.<package_name>.<resource_name>` (e.g. `model.analytics.stg_orders`). Strongly preferred over the `name` parameter for deterministic lookups.",
+            "title": "Unique Id"
+          }
+        },
+        "title": "get_model_parentsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_model_parents",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_model_parentsOutput",
+        "type": "object"
+      },
+      "title": "Get Model Parents",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Model Performance"
+      },
+      "description": "<instructions>\nRetrieve execution performance metrics for a dbt model from historical runs.\n\nThis tool queries the Discovery API to fetch model execution data including:\n- Execution time (duration in seconds)\n- Run status (success, error, skipped)\n- Execution timestamps\n- Associated job run IDs\n- Optional: Test execution history (when include_tests=True)\n\nUse this to:\n- Analyze model performance trends over time\n- Identify performance regressions\n- Optimize slow-running models\n- Debug execution issues\n- Monitor test execution alongside model runs\n\nThe `unique_id` parameter is strongly preferred over `name` for deterministic lookups,\nespecially in projects with multiple packages.\n\nIf a name matches multiple models, the tool will raise an error and ask for a `unique_id`.\n\nResults are always returned as an array (possibly empty), sorted newest-first.\n- When `num_runs=1` (default), the array has at most one element (the latest run).\n- When `num_runs > 1`, the array includes up to `num_runs` historical runs.\n\nWhen `include_tests=True`, each run will include a `tests` array containing:\n- Test name\n- Test status (pass, fail, warn, error, skipped)\n- Test execution time (duration in seconds)\n\nExample unique_id format: model.analytics.stg_orders\n</instructions>\n\n<examples>\n1. PREFERRED METHOD - Get latest run performance using unique_id:\n   get_model_performance(unique_id=\"model.analytics.stg_orders\")\n\n2. Analyze performance trend over last 10 runs:\n   get_model_performance(unique_id=\"model.analytics.fct_orders\", num_runs=10)\n\n3. Get performance with test execution history:\n   get_model_performance(unique_id=\"model.analytics.stg_orders\", num_runs=5, include_tests=True)\n\n4. FALLBACK METHOD - Using only name (only when unique_id is unknown):\n   get_model_performance(name=\"stg_orders\", num_runs=5)\n</examples>\n",
+      "input_schema": {
+        "properties": {
+          "include_tests": {
+            "default": false,
+            "description": "When true, include test execution history (name, status, execution time) for each run; when false, omit tests to keep the response smaller.",
+            "title": "Include Tests",
+            "type": "boolean"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The name of the resource. This is not required if `unique_id` is provided. Only use name when `unique_id` is unknown.",
+            "title": "Name"
+          },
+          "num_runs": {
+            "default": 1,
+            "description": "Number of historical runs to return (1\u2013100). Default 1 returns the latest run only; use higher values to analyze performance trends.",
+            "maximum": 100,
+            "minimum": 1,
+            "title": "Num Runs",
+            "type": "integer"
+          },
+          "unique_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Fully-qualified unique ID of the resource. This will follow the format `<resource_type>.<package_name>.<resource_name>` (e.g. `model.analytics.stg_orders`). Strongly preferred over the `name` parameter for deterministic lookups.",
+            "title": "Unique Id"
+          }
+        },
+        "title": "get_model_performanceArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_model_performance",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_model_performanceOutput",
+        "type": "object"
+      },
+      "title": "Get Model Performance",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Product Doc Pages"
+      },
+      "description": "Retrieve the Markdown content of one or more dbt documentation pages from docs.getdbt.com. Pass a list of URLs or relative paths (e.g. from search_product_docs results). Up to 5 pages can be fetched per call; pages are fetched in parallel for speed. Pass the optional `query` parameter to retrieve only the most relevant sections of each page rather than the full content \u2014 this significantly reduces response size and is recommended when you already know what topic you are looking for.\n\nIMPORTANT \u2014 how to present docs content to the user:\n1. Give a direct answer first, then explain. Don't just summarize \u2014 be specific about WHERE to find a feature in the UI and HOW it works.\n2. Structure around the user's task: lead with what they asked, not the doc's own structure. Include step-by-step actionable detail when the docs describe a workflow or UI feature.\n3. Call out practical limitations and edge cases from the docs.\n4. Close with clear guidance: if the feature only partially answers the question, say what else they can do and where.\n5. ALWAYS include the docs page URL(s) as markdown hyperlinks at the end of your response, e.g. [Page title](https://docs.getdbt.com/...).\n\nVERSION AWARENESS:\nThe response includes a `dbt_project_version` field with the user's installed dbt version (detected via `dbt --version`). Page content is automatically filtered to show only sections relevant to the detected version \u2014 VersionBlock tags from the docs site are resolved so you receive clean, version-appropriate markdown. Pages may also have a `version_note` field if they cover an EOL version. If `dbt_project_version` is null, the version could not be detected \u2014 all version-specific content is kept with tags stripped.\n\nWhen presenting page content to the user, you MUST:\n1. If `dbt_project_version` is set, tell the user their detected version upfront (e.g. \"You're on dbt 1.8\").\n2. If `version_note` is set, prominently warn the user that the page is for an end-of-life version and the information may be outdated. Suggest they look at the current docs instead.\n3. Page content has already been filtered to show only sections relevant to the detected version. If the content seems sparse or incomplete, let the user know that some sections may have been filtered out because they apply to a different dbt version, and suggest they check the full page on docs.getdbt.com.\n",
+      "input_schema": {
+        "properties": {
+          "paths": {
+            "description": "List of docs.getdbt.com URLs or relative paths to fetch (e.g. ['/docs/build/incremental-models', '/docs/build/models']). Max 5 pages per call.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Paths",
+            "type": "array"
+          },
+          "query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional search query. When provided, only the most relevant sections of each page are returned instead of the full content, significantly reducing response size.",
+            "title": "Query"
+          }
+        },
+        "required": [
+          "paths"
+        ],
+        "title": "get_product_doc_pagesArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_product_doc_pages",
+      "output_schema": {
+        "$defs": {
+          "ProductDocPageResponse": {
+            "properties": {
+              "content": {
+                "title": "Content",
+                "type": "string"
+              },
+              "error": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Error"
+              },
+              "url": {
+                "title": "Url",
+                "type": "string"
+              },
+              "version_note": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Version Note"
+              }
+            },
+            "required": [
+              "url",
+              "content"
+            ],
+            "title": "ProductDocPageResponse",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "dbt_project_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Dbt Project Version"
+          },
+          "pages": {
+            "items": {
+              "$ref": "#/$defs/ProductDocPageResponse"
+            },
+            "title": "Pages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "pages"
+        ],
+        "title": "GetProductDocPagesResponse",
+        "type": "object"
+      },
+      "title": "Get Product Doc Pages",
+      "toolset": "product_docs"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Seed Details"
+      },
+      "description": "<instructions>\nFetch detailed metadata for a dbt seed.\n\n- Supply at least one of `unique_id` or `name`. Call will fail if both are missing.\n- Always prefer providing `unique_id` for exact matches.\n</instructions>\n\n<examples>\n1. Fetch a seed by unique_id:\n   get_seed_details(unique_id=\"seed.analytics.customers\")\n\n2. Fetch a seed when only the node name is known:\n   get_seed_details(name=\"customers\")\n</examples>\n",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The name of the resource. This is not required if `unique_id` is provided. Only use name when `unique_id` is unknown.",
+            "title": "Name"
+          },
+          "unique_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Fully-qualified unique ID of the resource. This will follow the format `<resource_type>.<package_name>.<resource_name>` (e.g. `model.analytics.stg_orders`). Strongly preferred over the `name` parameter for deterministic lookups.",
+            "title": "Unique Id"
+          }
+        },
+        "title": "get_seed_detailsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_seed_details",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_seed_detailsOutput",
+        "type": "object"
+      },
+      "title": "Get Seed Details",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Semantic Model Details"
+      },
+      "description": "<instructions>\nFetch detailed metadata for a dbt MetricFlow semantic model.\n\n- Supply at least one of `unique_id` or `name`. Call will fail if both are missing.\n- Always prefer providing `unique_id` for exact matches.\n</instructions>\n\n<examples>\n1. Fetch a semantic model by unique_id:\n   get_semantic_model_details(unique_id=\"semantic_model.analytics.customers\")\n\n2. Fetch a semantic model when only the node name is known:\n   get_semantic_model_details(name=\"customers\")\n</examples>\n",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The name of the resource. This is not required if `unique_id` is provided. Only use name when `unique_id` is unknown.",
+            "title": "Name"
+          },
+          "unique_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Fully-qualified unique ID of the resource. This will follow the format `<resource_type>.<package_name>.<resource_name>` (e.g. `model.analytics.stg_orders`). Strongly preferred over the `name` parameter for deterministic lookups.",
+            "title": "Unique Id"
+          }
+        },
+        "title": "get_semantic_model_detailsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_semantic_model_details",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_semantic_model_detailsOutput",
+        "type": "object"
+      },
+      "title": "Get Semantic Model Details",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Snapshot Details"
+      },
+      "description": "<instructions>\nFetch detailed metadata for a dbt snapshot.\n\n- Supply at least one of `unique_id` or `name`. Call will fail if both are missing.\n- Always prefer providing `unique_id` for exact matches.\n</instructions>\n\n<examples>\n1. Fetch a snapshot by unique_id:\n   get_snapshot_details(unique_id=\"snapshot.analytics.customers\")\n\n2. Fetch a snapshot when only the node name is known:\n   get_snapshot_details(name=\"customers\")\n</examples>\n",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The name of the resource. This is not required if `unique_id` is provided. Only use name when `unique_id` is unknown.",
+            "title": "Name"
+          },
+          "unique_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Fully-qualified unique ID of the resource. This will follow the format `<resource_type>.<package_name>.<resource_name>` (e.g. `model.analytics.stg_orders`). Strongly preferred over the `name` parameter for deterministic lookups.",
+            "title": "Unique Id"
+          }
+        },
+        "title": "get_snapshot_detailsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_snapshot_details",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_snapshot_detailsOutput",
+        "type": "object"
+      },
+      "title": "Get Snapshot Details",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Source Details"
+      },
+      "description": "<instructions>\nRetrieves detailed information about a specific dbt source, including database, schema, identifier, freshness status, and column-level details (name, type, description).\n\nIMPORTANT: Use uniqueId when available.\n- Using uniqueId guarantees the correct source table is retrieved\n- Using only name may return incorrect results if multiple sources have tables with the same name\n- If you obtained sources via get_all_sources(), you should always use the uniqueId from those results\n</instructions>\n\n<examples>\n1. PREFERRED METHOD - Using uniqueId (always use this when available):\n   get_source_details(uniqueId=\"source.my_project.raw_data.customers\")\n\n2. FALLBACK METHOD - Using only name (only when uniqueId is unknown):\n   get_source_details(name=\"customers\")\n</examples>\n",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The name of the resource. This is not required if `unique_id` is provided. Only use name when `unique_id` is unknown.",
+            "title": "Name"
+          },
+          "unique_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Fully-qualified unique ID of the resource. This will follow the format `<resource_type>.<package_name>.<resource_name>` (e.g. `model.analytics.stg_orders`). Strongly preferred over the `name` parameter for deterministic lookups.",
+            "title": "Unique Id"
+          }
+        },
+        "title": "get_source_detailsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_source_details",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_source_detailsOutput",
+        "type": "object"
+      },
+      "title": "Get Source Details",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Get Test Details"
+      },
+      "description": "<instructions>\nFetch detailed metadata for a dbt test.\n\n- Supply at least one of `unique_id` or `name`. Call will fail if both are missing.\n- Always prefer providing `unique_id` for exact matches.\n</instructions>\n\n<examples>\n1. Fetch a test by unique_id:\n   get_test_details(unique_id=\"test.analytics.is_empty_string\")\n\n2. Fetch a test when only the node name is known:\n   get_test_details(name=\"is_empty_string\")\n</examples>\n",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The name of the resource. This is not required if `unique_id` is provided. Only use name when `unique_id` is unknown.",
+            "title": "Name"
+          },
+          "unique_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Fully-qualified unique ID of the resource. This will follow the format `<resource_type>.<package_name>.<resource_name>` (e.g. `model.analytics.stg_orders`). Strongly preferred over the `name` parameter for deterministic lookups.",
+            "title": "Unique Id"
+          }
+        },
+        "title": "get_test_detailsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_test_details",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_test_detailsOutput",
+        "type": "object"
+      },
+      "title": "Get Test Details",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "List Job Run Artifacts"
+      },
+      "description": "List all available artifacts for a completed dbt job run.\n\nThis tool retrieves the list of artifact files generated during a run execution, such as manifest.json, catalog.json, and run_results.json.\n\n## Returns\n\nList of artifact file paths available for download. Common artifacts include:\n\n- **manifest.json**: Complete project metadata and lineage\n- **catalog.json**: Documentation and column information\n- **run_results.json**: Execution results and timing\n- **sources.json**: Source freshness check results\n- **compiled/**: Compiled SQL files\n- **run/**: SQL statements executed during the run\n\n## Artifact Availability\n\nArtifacts are only available for:\n- Successfully completed runs\n- Failed runs that progressed beyond compilation\n- Runs where `artifacts_saved` is true\n\n## Use Cases\n\n- Discover available artifacts before downloading\n- Check if specific artifacts were generated\n- Audit artifact generation across runs\n- Integrate with external systems that consume dbt artifacts\n- Validate run completion and output generation\n\n## Example Usage\n\n```json\n{\n  \"run_id\": 789\n}\n```\n\n## Next Steps\n\nUse `get_run_artifact` to download specific artifacts from this list for analysis or integration with other tools.\n",
+      "input_schema": {
+        "properties": {
+          "run_id": {
+            "description": "The dbt job run ID",
+            "title": "Run Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "list_job_run_artifactsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "list_job_run_artifacts",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "list_job_run_artifactsOutput",
+        "type": "object"
+      },
+      "title": "List Job Run Artifacts",
+      "toolset": "admin_api"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "List Jobs"
+      },
+      "description": "List all jobs in a dbt platform account with optional filtering.\n\nThis tool retrieves jobs from the dbt Admin API. Jobs are the configuration for scheduled or triggered dbt runs.\n\nWhen a single project is configured, results are automatically scoped to that environment. Otherwise, all jobs in the account are returned \u2014 use `limit` to constrain large result sets.\n\nReturns a list of job objects with details like:\n- Job ID, name, and description\n- Environment ID and project ID the job belongs to\n- Schedule configuration\n- Execute steps (dbt commands)\n- Trigger settings\n\nUse this tool to explore available jobs, understand job configurations, or find specific jobs to trigger.\n",
+      "input_schema": {
+        "properties": {
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Maximum number of results to return",
+            "title": "Limit"
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Number of results to skip for pagination",
+            "title": "Offset"
+          }
+        },
+        "title": "list_jobsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "list_jobs",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "list_jobsOutput",
+        "type": "object"
+      },
+      "title": "List Jobs",
+      "toolset": "admin_api"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "List Jobs Runs"
+      },
+      "description": "List all job runs in a dbt platform account with optional filtering.\n\nThis tool retrieves runs from the dbt Admin API. Runs represent executions of dbt jobs in dbt.\n\nReturns a list of run objects with details like:\n\n- Run ID and status\n- Job information\n- Start and end times\n- Git branch and SHA\n- Artifacts and logs information\n\nUse this tool to monitor job execution, check run history, or find specific runs for debugging.\n",
+      "input_schema": {
+        "$defs": {
+          "JobRunStatus": {
+            "description": "Enum for job run status values.",
+            "enum": [
+              "queued",
+              "starting",
+              "running",
+              "success",
+              "error",
+              "cancelled"
+            ],
+            "title": "JobRunStatus",
+            "type": "string"
+          }
+        },
+        "properties": {
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "When set, only include runs for this job definition ID",
+            "title": "Job Id"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Maximum number of results to return",
+            "title": "Limit"
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Number of results to skip for pagination",
+            "title": "Offset"
+          },
+          "order_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Sort field (e.g. \"created_at\", \"finished_at\", \"id\"); prefix with \"-\" for descending order (e.g. \"-created_at\" for newest first)",
+            "title": "Order By"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/JobRunStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Filter by run status: queued, starting, running, success, error, or cancelled"
+          }
+        },
+        "title": "list_jobs_runsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "list_jobs_runs",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "list_jobs_runsOutput",
+        "type": "object"
+      },
+      "title": "List Jobs Runs",
+      "toolset": "admin_api"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "List Metrics"
+      },
+      "description": "List metrics from the dbt Semantic Layer.\n\nThe response is a CSV string with a header row. Columns are dynamic: a column is only present if at least one metric has a non-empty value for it. `name` and `type` are always present; `label`, `description`, `metadata`, `dimensions`, and `entities` are included only when at least one metric has a value. The `dimensions` and `entities` cells contain comma-separated lists of names.\n\nWhen the number of metrics is below the configured threshold (default: 10), each metric includes the names of its available dimensions and entities. Use get_dimensions or get_entities for full details (types, granularities, descriptions) on specific metrics.\n\nWhen above the threshold, only metrics are returned. `metric_time` is a standard time dimension available on most metrics \u2014 you can often query directly without calling `get_dimensions` first. Call `get_dimensions` only when you need non-time dimensions or specific granularity details.\n\nFor broad listings that exceed the size budget, the `description` and `metadata` columns are dropped to save tokens and the CSV is prefixed with one or more `# Note:` lines explaining what happened. When that happens, call `list_metrics` again with the `search` parameter to retrieve those fields for the specific metrics you care about \u2014 a narrow result set (at or below the related-metrics threshold) is always returned with full `description` and `metadata`, even if the text is verbose. `search` accepts either a single substring or a list of substrings; when a list is provided, metrics whose name matches **any** of the substrings are returned (deduplicated), so you can fetch details for several metrics in one call.\n\nIf the user is asking a data-related or business-related question, use this tool as a first step.\n\n",
+      "input_schema": {
+        "properties": {
+          "search": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Filter metrics by substring match against the metric name. Accepts either a single substring or a list of substrings; when a list is provided, metrics matching any of the substrings are returned (deduplicated).",
+            "title": "Search"
+          }
+        },
+        "title": "list_metricsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "list_metrics",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "list_metricsOutput",
+        "type": "object"
+      },
+      "title": "List Metrics",
+      "toolset": "semantic_layer"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "List Projects"
+      },
+      "description": "List all active projects in the dbt Cloud account.\n\nThis tool retrieves projects from the dbt Admin API. Projects are the top-level organizational unit in dbt Cloud, each associated with a git repository containing dbt code.\n\nReturns a list of project objects with:\n- **id**: The project ID\n- **name**: The project name\n- **description**: The project description (if set)\n- **dbt_project_subdirectory**: Path within the repository where the dbt project lives (if set)\n- **has_semantic_layer**: Whether the project has a semantic layer configured\n- **type**: The project type (0=default, 1=hybrid)\n- **environments**: List of environments, each with id, name, and type (development, production, staging, or generic)\n- **repository_full_name**: The repository name in `org/repo` format (if set)\n\nUse this tool to discover available projects in the account, especially when working across multiple projects.\n",
+      "input_schema": {
+        "properties": {},
+        "title": "list_projectsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "list_projects",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "list_projectsOutput",
+        "type": "object"
+      },
+      "title": "List Projects",
+      "toolset": "admin_api"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "List Saved Queries"
+      },
+      "description": "List all saved queries from the dbt Semantic Layer.\n\nSaved queries are pre-defined queries that have been saved in the Semantic Layer. \nThey contain specific metrics, group-by dimensions, and filters that are commonly used.\nThis tool helps discover what predefined queries are available for quick execution.\n\nUse this tool when:\n- The user wants to see what pre-built queries are available\n- The user mentions \"saved queries\" or \"predefined queries\"\n- You need to find commonly used analytical queries\n\nExamples:\n- \"What saved queries are available?\"\n- \"Show me the predefined reports\"\n- \"List all saved queries for revenue analysis\"\n",
+      "input_schema": {
+        "properties": {
+          "search": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Filter saved queries by substring match on name, label, or description",
+            "title": "Search"
+          }
+        },
+        "title": "list_saved_queriesArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "list_saved_queries",
+      "output_schema": {
+        "$defs": {
+          "SavedQueryToolResponse": {
+            "properties": {
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Description"
+              },
+              "group_by": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Group By"
+              },
+              "label": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Label"
+              },
+              "metrics": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Metrics"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "where": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Where"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "title": "SavedQueryToolResponse",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "result": {
+            "items": {
+              "$ref": "#/$defs/SavedQueryToolResponse"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "list_saved_queriesOutput",
+        "type": "object"
+      },
+      "title": "List Saved Queries",
+      "toolset": "semantic_layer"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Query Metrics"
+      },
+      "description": "<instructions>\nQueries the dbt Semantic Layer to answer business questions from the data warehouse.\n\nThis tool allows ordering and grouping by dimensions and entities.\nTo use this tool, you must first know about specific metrics, dimensions and\nentities to provide. You can call the list_metrics, get_dimensions,\nand get_entities tools to get information about which metrics, dimensions,\nand entities to use.\n\nWhen using the `order_by` parameter, each item must refer to either a metric\nname or a field that also appears in `group_by`. For time dimensions, you may\nspecify a `grain` in `order_by` independently from `group_by`; if omitted, it\ndefaults to the grain of the matching `group_by` entry. `grain` only applies to\ntime dimensions and should be omitted for metrics and categorical dimensions.\nWhen fulfilling a lookback\nquery, prefer using order_by and limit instead of using the where parameter.\nA lookback query requires that the `order_by` parameter includes a descending\norder for a time dimension.\n\nThe `where` parameter should be database agnostic SQL syntax, however dimensions\nand entity are referenced differently. For categorical dimensions,\nuse `{{ Dimension('<name>') }}` and for time dimensions add the grain\nlike `{{ TimeDimension('<name>', '<grain>') }}`. For entities,\nuse `{{ Entity('<name>') }}`. When referencing dates in the `where`\nparameter, only use the format `yyyy-mm-dd`. Pass the `where` value as a\nplain string \u2014 do not wrap it in additional quotes.\n\nDon't call this tool if the user's question cannot be answered with the provided\nmetrics, dimensions, and entities. Instead, clarify what metrics, dimensions,\nand entities are available and suggest a new question that can be answered\nand is approximately the same as the user's question.\n\nFor queries that may return large amounts of data, it's recommended\nto use a two-step approach:\n1. First make a query with a small limit to verify the results are what you expect\n2. Then make a follow-up query without a limit (or with a larger limit) to get the full dataset\n\nIMPORTANT:\n\nDo the below if the GET_MODEL_HEALTH tool is enabled.\n\nWhen responding to user requests to pull metrics data, check the health of the dbt models that\nare the parents of the dbt semantic models. Use the instructions from the \"ASSESSING MODEL HEALTH\"\nsection of the get_model_health() prompts to do this.\n</instructions>\n\n<examples>\n<example>\nQuestion: \"What were our total sales last month?\"\nThinking step-by-step:\n   - I know \"total_sales\" is the metric I need\n   - I know \"metric_time\" is a valid dimension for this metric and supports MONTH grain\n   - I need to group by metric_time to get monthly data\n   - Since this is time-based data, I should order by metric_time. I am also grouping by metric_time, so this is valid.\n   - The user is asking for a lookback query, so I should set descending to true so the most recent month is at the top of the results.\n   - The user is asking for just the last month, so I should limit to 1 month of data\nParameters:\n    metrics=[\"total_sales\"]\n    group_by=[{\"name\": \"metric_time\", \"grain\": \"MONTH\", \"type\": \"time_dimension\"}]\n    order_by=[{\"name\": \"metric_time\", \"grain\": \"MONTH\", \"descending\": true}]\n    limit=1\n</example>\n<example>\nQuestion: \"Show me our top customers by revenue in the last quarter\"\nThinking step-by-step:\n   - First, I need to find the revenue metric\n   - Using list_metrics(), I find \"revenue\" is available\n   - I need to check what dimensions are available for revenue\n   - Using get_dimensions([\"revenue\"]), I see \"customer_name\" and \"metric_time\" supports QUARTER grain\n   - I need to check what entities are available\n   - Using get_entities([\"revenue\"]), I confirm \"customer\" is an entity\n   - I need quarterly time grain\n   - Since this is time-based data, I should order by metric_time. I am grouping by metric_time, so this is valid. This is a lookback query, so I should set descending to true.\n   - I should also order by revenue to see top customers. I am grouping by revenue, so this is valid. The user is asking for the highest revenue customers, so I should set descending to true.\n   - I should limit to top 5 results to verify the query works\nParameters:\n    metrics=[\"revenue\"]\n    group_by=[{\"name\": \"customer_name\", \"type\": \"dimension\"}, {\"name\": \"metric_time\", \"grain\": \"QUARTER\", \"type\": \"time_dimension\"}]\n    order_by=[{\"name\": \"metric_time\", \"grain\": \"QUARTER\", \"descending\": true}, {\"name\": \"revenue\", \"descending\": true}]\n    limit=5\nFollow-up Query (after verifying results):\n    metrics=[\"revenue\"]\n    group_by=[{\"name\": \"customer_name\", \"type\": \"dimension\"}, {\"name\": \"metric_time\", \"grain\": \"QUARTER\", \"type\": \"time_dimension\"}]\n    order_by=[{\"name\": \"metric_time\", \"grain\": \"QUARTER\", \"descending\": true}, {\"name\": \"revenue\", \"descending\": true}]\n    limit=null\n</example>\n<example>\nQuestion: \"What's our average order value by product category for orders over $100?\"\nThinking step-by-step:\n  - I know \"average_order_value\" is the metric I need\n  - I know \"product_category\" is a valid dimension\n  - I need to filter for orders over $100\n  - No time dimension needed\n  - I should first limit results to verify the query works\nParameters (initial query):\n    metrics=[\"average_order_value\"]\n    group_by=[{\"name\": \"product_category\", \"type\": \"dimension\"}]\n    where=\"{{ Dimension('order_value') }} > 100\"\n    limit=10\nFollow-up Query (after verifying results):\n    metrics=[\"average_order_value\"]\n    group_by=[{\"name\": \"product_category\", \"type\": \"dimension\"}]\n    where=\"{{ Dimension('order_value') }} > 100\"\n    limit=null\n</example>\n<example>\nQuestion: \"How many new users did we get each week last year?\"\nThinking step-by-step:\n  - First, I need to find the new users metric\n  - Using list_metrics(), I find \"new_users\" is available\n  - I need to check what dimensions are available\n  - Using get_dimensions([\"new_users\"]), I see \"metric_time\" supports WEEK grain\n  - I need to check what entities are available\n  - Using get_entities([\"new_users\"]), I confirm \"user\" is an entity\n  - I need weekly time grain\n  - I need to group by metric_time\n  - Since this is time-based data, I should order by metric_time to show progression\n  - I need to filter for the previous year's data using proper time dimension syntax\n  - Should first get a few weeks to verify the query works\nParameters (initial query):\n    metrics=[\"new_users\"]\n    group_by=[{\"name\": \"metric_time\", \"grain\": \"WEEK\", \"type\": \"time_dimension\"}]\n    order_by=[{\"name\": \"metric_time\", \"grain\": \"WEEK\", \"descending\": false}]\n    where=\"{{ TimeDimension('metric_time', 'WEEK') }} >= '2023-01-01' AND {{ TimeDimension('metric_time', 'WEEK') }} < '2024-01-01'\"\n    limit=4\nFollow-up Query (after verifying results):\n    metrics=[\"new_users\"]\n    group_by=[{\"name\": \"metric_time\", \"grain\": \"WEEK\", \"type\": \"time_dimension\"}]\n    order_by=[{\"name\": \"metric_time\", \"grain\": \"WEEK\", \"descending\": false}]\n    where=\"{{ TimeDimension('metric_time', 'WEEK') }} >= '2023-01-01' AND {{ TimeDimension('metric_time', 'WEEK') }} < '2024-01-01'\"\n    limit=null\n</example>\n<example>\nQuestion: \"What's our customer satisfaction score by region?\"\nThinking step-by-step:\n  - First, I need to check if we have a customer satisfaction metric\n  - Using list_metrics(), I find we don't have a direct \"customer_satisfaction\" metric\n  - I should check what metrics we do have that might be related\n  - I see we have \"net_promoter_score\" and \"customer_retention_rate\"\n  - I should inform the user that we don't have a direct customer satisfaction metric\n  - I can suggest using NPS as a proxy for customer satisfaction\nResponse to user:\n    \"I don't have a direct customer satisfaction metric, but I can show you Net Promoter Score (NPS) by region, which is often used as a proxy for customer satisfaction. Would you like to see that instead?\"\n    If user agrees, then:\nParameters:\n    metrics=[\"net_promoter_score\"]\n    group_by=[{\"name\": \"region\", \"type\": \"dimension\"}]\n    order_by=[{\"name\": \"net_promoter_score\", \"descending\": true}]\n    limit=10\n</example>\n</examples>\n\n",
+      "input_schema": {
+        "$defs": {
+          "GroupByParam": {
+            "properties": {
+              "grain": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Grain"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "type": {
+                "$ref": "#/$defs/GroupByType"
+              }
+            },
+            "required": [
+              "name",
+              "type"
+            ],
+            "title": "GroupByParam",
+            "type": "object"
+          },
+          "GroupByType": {
+            "description": "The type of a group_by, i.e a dimension or an entity.",
+            "enum": [
+              "dimension",
+              "time_dimension",
+              "entity"
+            ],
+            "title": "GroupByType",
+            "type": "string"
+          },
+          "OrderByParam": {
+            "properties": {
+              "descending": {
+                "default": false,
+                "title": "Descending",
+                "type": "boolean"
+              },
+              "grain": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Grain"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "title": "OrderByParam",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "group_by": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/$defs/GroupByParam"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Group by dimensions, time dimensions, or entities; each item has `name`, `type` (`\"dimension\"`, `\"time_dimension\"`, or `\"entity\"`), and optional `grain` for time dimensions",
+            "title": "Group By"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Maximum number of results to return",
+            "title": "Limit"
+          },
+          "metrics": {
+            "description": "Metric names from list_metrics to query or inspect",
+            "items": {
+              "type": "string"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "order_by": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/$defs/OrderByParam"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Sort keys; each item has `name`, `descending` (default false), and optional `grain` for time dimensions (overrides the grain from group_by; falls back to the matching group_by grain when omitted); items may be metric names or group_by fields",
+            "title": "Order By"
+          },
+          "where": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Semantic Layer filter; use {{ Dimension('name') }}, {{ TimeDimension('name', 'grain') }}, {{ Entity('name') }}; dates as yyyy-mm-dd",
+            "title": "Where"
+          }
+        },
+        "required": [
+          "metrics"
+        ],
+        "title": "query_metricsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "query_metrics",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "query_metricsOutput",
+        "type": "object"
+      },
+      "title": "Query Metrics",
+      "toolset": "semantic_layer"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true,
+        "readOnlyHint": false,
+        "title": "Retry Job Run"
+      },
+      "description": "Retry a failed dbt job run from the point of failure.\n\nThis tool allows you to restart a failed run, continuing from where it failed rather than starting completely over.\n\n## Returns\n\nNew run object for the retry attempt with a new run ID and execution details.\n\n## Requirements for Retry\n\n- Original run must have failed (status 20)\n- Run must be the most recent run for the job\n- dbt version must support retry functionality\n- Run must have generated run_results.json\n\n## Retry Behavior\n\n- Continues from the failed step\n- Skips successfully completed models\n- Uses the same configuration as the original run\n- Creates a new run with a new run ID\n- Maintains the same Git SHA and branch\n\n## Use Cases\n\n- Recover from transient infrastructure failures\n- Continue after warehouse connectivity issues\n- Resume after temporary resource constraints\n- Avoid re-running expensive successful steps\n- Quick recovery from known, fixable issues\n\n## Retry Not Supported Reasons\n\nIf retry fails, possible reasons include:\n- **RETRY_UNSUPPORTED_CMD**: Command type doesn't support retry\n- **RETRY_UNSUPPORTED_VERSION**: dbt version too old\n- **RETRY_NOT_LATEST_RUN**: Not the most recent run for the job\n- **RETRY_NOT_FAILED_RUN**: Run didn't fail\n- **RETRY_NO_RUN_RESULTS**: Missing run results for retry logic\n\n## Example Usage\n\n```json\n{\n  \"run_id\": 789\n}\n```\n\nThis creates a new run that continues from the failure point of run 789.\n",
+      "input_schema": {
+        "properties": {
+          "run_id": {
+            "description": "The dbt job run ID",
+            "title": "Run Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "retry_job_runArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "retry_job_run",
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "retry_job_runDictOutput",
+        "type": "object"
+      },
+      "title": "Retry Job Run",
+      "toolset": "admin_api"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Search Product Docs"
+      },
+      "description": "Search the dbt product documentation at docs.getdbt.com for pages matching a query. Returns matching page titles, URLs, and descriptions ranked by relevance. Only returns metadata, not page content \u2014 use get_product_doc_pages with URLs from the results to retrieve full page content.\n\nIf the title/description search finds few matches, it automatically falls back to a deep full-text search across all documentation content to find pages where the topic is discussed in the body text.\n\nIf your first query returns few results, try rephrasing with synonyms or the full term (e.g. 'user-defined functions' instead of 'UDFs', 'version control' instead of 'git'). Use the abbreviations on the page as well.\n\nVERSION AWARENESS:\nThe response includes a `dbt_project_version` field (e.g. \"1.8\") detected by running `dbt --version` against the user's installed dbt binary. If null, the version could not be detected \u2014 present docs normally without version-specific callouts.\n\nWhen presenting results to the user, you MUST:\n1. State the user's detected dbt version upfront if available (e.g. \"Based on your project (dbt 1.8), here's what I found:\").\n2. If a result title or description clearly references an older/EOL version (v1.6 or earlier), flag it: \"Note: this page covers dbt v1.X, which has reached end-of-life and is no longer supported.\"\n3. Search results only include titles, descriptions, and URLs \u2014 not page content. Do NOT make version-specific claims based on search results alone. If the user needs to know whether a feature applies to their version, fetch the page with `get_product_doc_pages` first.\n",
+      "input_schema": {
+        "properties": {
+          "query": {
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "search_product_docsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "search_product_docs",
+      "output_schema": {
+        "$defs": {
+          "DocSearchResult": {
+            "properties": {
+              "description": {
+                "default": "",
+                "title": "Description",
+                "type": "string"
+              },
+              "section": {
+                "default": "",
+                "title": "Section",
+                "type": "string"
+              },
+              "title": {
+                "title": "Title",
+                "type": "string"
+              },
+              "url": {
+                "title": "Url",
+                "type": "string"
+              }
+            },
+            "required": [
+              "title",
+              "url"
+            ],
+            "title": "DocSearchResult",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "dbt_project_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Dbt Project Version"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Error"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/$defs/DocSearchResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "search_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Search Method"
+          },
+          "showing": {
+            "title": "Showing",
+            "type": "integer"
+          },
+          "total_matches": {
+            "title": "Total Matches",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query",
+          "total_matches",
+          "showing",
+          "results"
+        ],
+        "title": "SearchProductDocsResponse",
+        "type": "object"
+      },
+      "title": "Search Product Docs",
+      "toolset": "product_docs"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true,
+        "readOnlyHint": false,
+        "title": "Trigger Job Run"
+      },
+      "description": "# Trigger Job Run\n\nTrigger a dbt job run with optional parameter overrides.\n\nThis tool starts a new run for a specified job with the ability to override default settings like Git branch, schema, or other execution parameters.\n\n## Returns\n\nRun object with information about the newly triggered run including:\n\n- Run ID and status\n- Job and environment information\n- Git branch and SHA being used\n- Trigger information and cause\n- Execution queue position\n\n## Use Cases\n\n- Trigger ad-hoc job runs for testing\n- Run jobs with different Git branches for feature testing\n- Execute jobs with schema overrides for development\n- Trigger jobs via API automation or external systems\n- Run jobs with custom parameters for specific scenarios\n\n## Example Usage\n\n```json\n{\n  \"job_id\": 456,\n  \"cause\": \"Manual trigger for testing\"\n}\n```\n\n```json\n{\n  \"job_id\": 456,\n  \"cause\": \"Testing feature branch\",\n  \"git_branch\": \"feature/new-models\",\n  \"schema_override\": \"dev_testing\"\n}\n```\n\n```json\n{\n  \"job_id\": 456,\n  \"cause\": \"Selective production build\",\n  \"steps_override\": [\"dbt run --select my_model+ --full-refresh\"]\n}\n```\n",
+      "input_schema": {
+        "properties": {
+          "cause": {
+            "default": "Triggered by dbt MCP",
+            "description": "Why this run is being triggered (recorded in run history on the dbt platform)",
+            "title": "Cause",
+            "type": "string"
+          },
+          "git_branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Override the Git branch to check out for this run",
+            "title": "Git Branch"
+          },
+          "git_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Override the Git commit SHA to check out for this run",
+            "title": "Git Sha"
+          },
+          "job_id": {
+            "description": "The dbt job definition ID",
+            "title": "Job Id",
+            "type": "integer"
+          },
+          "schema_override": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Override the destination schema for this run",
+            "title": "Schema Override"
+          },
+          "steps_override": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Replace the job's default dbt commands; each entry is a full dbt command (e.g. \"dbt run --select my_model+ --full-refresh\")",
+            "title": "Steps Override"
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "title": "trigger_job_runArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "trigger_job_run",
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "trigger_job_runDictOutput",
+        "type": "object"
+      },
+      "title": "Trigger Job Run",
+      "toolset": "admin_api"
+    }
+  ]
+}

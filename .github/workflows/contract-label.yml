@@ -1,0 +1,60 @@
+name: Label app contract changes
+
+# Labels PRs that change the published-app contract snapshot so reviewers and
+# app owners know a new ChatGPT app version must be submitted after merge.
+#   - contract-change:   backward-compatible change (new tools/fields, copy)
+#   - contract-breaking: advisory; potentially breaking (removed/renamed tool,
+#                        incompatible input schema, changed UI resource content)
+# Classification is a heuristic -- a human confirms the real safety.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    paths:
+      - "tests/unit/contract/contract_snapshot.json"
+
+jobs:
+  label:
+    name: Classify contract change
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write # creating repo labels (first run) uses the issues API
+    steps:
+      - name: checkout code
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: setup python
+        uses: ./.github/actions/setup-python
+        id: setup-python
+      - name: Extract base snapshot
+        run: |
+          git show "${{ github.event.pull_request.base.sha }}:tests/unit/contract/contract_snapshot.json" \
+            > /tmp/base_contract_snapshot.json 2>/dev/null || echo '{}' > /tmp/base_contract_snapshot.json
+      - name: Classify change
+        id: classify
+        run: uv run python -m dbt_mcp.contract.snapshot --classify-against /tmp/base_contract_snapshot.json
+      - name: Apply label
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          script: |
+            const label = ${{ toJSON(steps.classify.outputs.label) }};
+            const all = ["contract-change", "contract-breaking"];
+            const colors = { "contract-change": "0e8a16", "contract-breaking": "b60205" };
+            const pr = context.issue.number;
+            for (const name of all) {
+              if (name === label) continue;
+              try {
+                await github.rest.issues.removeLabel({ ...context.repo, issue_number: pr, name });
+              } catch (e) { /* label not present */ }
+            }
+            if (label) {
+              try {
+                await github.rest.issues.getLabel({ ...context.repo, name: label });
+              } catch (e) {
+                await github.rest.issues.createLabel({ ...context.repo, name: label, color: colors[label] });
+              }
+              await github.rest.issues.addLabels({ ...context.repo, issue_number: pr, labels: [label] });
+            }
