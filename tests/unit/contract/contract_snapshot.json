@@ -875,23 +875,87 @@
         "title": "get_lineageArguments",
         "type": "object"
       },
-      "meta": null,
+      "meta": {
+        "ui": {
+          "resourceUri": "ui://dbt-mcp/get-lineage"
+        }
+      },
       "name": "get_lineage",
       "output_schema": {
-        "properties": {
-          "result": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
+        "$defs": {
+          "LineageEdge": {
+            "properties": {
+              "source": {
+                "title": "Source",
+                "type": "string"
+              },
+              "target": {
+                "title": "Target",
+                "type": "string"
+              }
             },
-            "title": "Result",
+            "required": [
+              "source",
+              "target"
+            ],
+            "title": "LineageEdge",
+            "type": "object"
+          },
+          "LineageNode": {
+            "properties": {
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "resource_type": {
+                "title": "Resource Type",
+                "type": "string"
+              },
+              "unique_id": {
+                "title": "Unique Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "unique_id",
+              "name",
+              "resource_type"
+            ],
+            "title": "LineageNode",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/$defs/LineageEdge"
+            },
+            "title": "Edges",
             "type": "array"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/$defs/LineageNode"
+            },
+            "title": "Nodes",
+            "type": "array"
+          },
+          "root_id": {
+            "title": "Root Id",
+            "type": "string"
+          },
+          "type": {
+            "default": "lineage_graph",
+            "title": "Type",
+            "type": "string"
           }
         },
         "required": [
-          "result"
+          "root_id",
+          "nodes",
+          "edges"
         ],
-        "title": "get_lineageOutput",
+        "title": "LineageGraph",
         "type": "object"
       },
       "title": "Get Lineage",

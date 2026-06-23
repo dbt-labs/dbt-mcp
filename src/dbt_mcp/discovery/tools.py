@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.client import (
@@ -246,22 +246,60 @@ async def get_model_performance(
     )
 
 
+class LineageNode(BaseModel):
+    unique_id: str
+    name: str
+    resource_type: str
+
+
+class LineageEdge(BaseModel):
+    source: str
+    target: str
+
+
+class LineageGraph(BaseModel):
+    type: str = "lineage_graph"
+    root_id: str
+    nodes: list[LineageNode]
+    edges: list[LineageEdge]
+
+
 @dbt_mcp_tool(
     description=get_prompt("discovery/get_lineage"),
     title="Get Lineage",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
+    structured_output=True,
+    meta={"ui": {"resourceUri": "ui://dbt-mcp/get-lineage"}},
 )
 async def get_lineage(
     context: DiscoveryToolContext,
     unique_id: str = UNIQUE_ID_REQUIRED_FIELD,
     types: list[LineageResourceType] | None = TYPES_FIELD,
     depth: int = DEPTH_FIELD,
-) -> list[dict]:
+) -> LineageGraph:
     config = await context.config_provider.get_config()
-    return await context.lineage_fetcher.fetch_lineage(
+    nodes = await context.lineage_fetcher.fetch_lineage(
         unique_id=unique_id, types=types, depth=depth, config=config
+    )
+    node_ids = {n["uniqueId"] for n in nodes}
+    return LineageGraph(
+        root_id=unique_id,
+        nodes=[
+            LineageNode(
+                unique_id=n["uniqueId"],
+                name=n["name"],
+                resource_type=n["resourceType"],
+            )
+            for n in nodes
+        ],
+        edges=[
+            LineageEdge(source=parent_id, target=n["uniqueId"])
+            for n in nodes
+            for parent_id in n.get("parentIds", [])
+            if parent_id in node_ids
+        ],
     )
 
 
