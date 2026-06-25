@@ -744,21 +744,23 @@ class ResourceDetailsFetcher:
         name: str | None = None,
         unique_id: str | None = None,
     ) -> list[dict]:
-        normalized_name = name.strip().lower() if name else None
-        normalized_unique_id = unique_id.strip().lower() if unique_id else None
+        stripped_name = name.strip() if name else None
+        normalized_name = stripped_name.lower() if stripped_name else None
+        # Do not lowercase unique_id — the Discovery API uniqueIds filter is case-sensitive
+        stripped_unique_id = unique_id.strip() if unique_id else None
         environment_id = config.environment_id
-        if not normalized_name and not normalized_unique_id:
+        if not stripped_name and not stripped_unique_id:
             raise InvalidParameterError("Either name or unique_id must be provided")
         if (
             normalized_name
-            and normalized_unique_id
-            and normalized_name != normalized_unique_id.split(".")[-1]
+            and stripped_unique_id
+            and normalized_name != stripped_unique_id.split(".")[-1].lower()
         ):
             raise InvalidParameterError(
                 f"Name and unique_id do not match. The unique_id does not end with {normalized_name}."
             )
-        if not normalized_unique_id:
-            assert normalized_name is not None, "Name must be provided"
+        if not stripped_unique_id:
+            assert stripped_name is not None, "Name must be provided"
             packages_result = await asyncio.gather(
                 execute_query(
                     self.GET_PACKAGES_QUERY,
@@ -781,12 +783,15 @@ class ResourceDetailsFetcher:
             ]
             if not macro_packages and not model_packages:
                 raise InvalidParameterError("No packages found for project")
+            # Try both the provided casing and lowercase to handle resources with uppercase names
+            name_candidates = sorted({stripped_name, stripped_name.lower()})
             unique_ids = [
-                f"{resource_type.value.lower()}.{package_name}.{normalized_name}"
+                f"{resource_type.value.lower()}.{package_name}.{name_candidate}"
                 for package_name in macro_packages + model_packages
+                for name_candidate in name_candidates
             ]
         else:
-            unique_ids = [normalized_unique_id]
+            unique_ids = [stripped_unique_id]
         query = self.GQL_QUERIES[resource_type]
         variables = {
             "environmentId": environment_id,
