@@ -71,7 +71,7 @@ async def test_fetch_details_with_unique_id(
     result = await resource_details_fetcher.fetch_details(
         AppliedResourceType.MODEL,
         unit_discovery_config,
-        unique_id=" Model.Jaffle.Orders ",
+        unique_id=" model.jaffle.orders ",
     )
 
     assert result == [
@@ -124,8 +124,11 @@ async def test_fetch_details_with_name_builds_unique_ids(
             if variables["resource"] == "model":
                 return model_packages_response
         elif query == ResourceDetailsFetcher.GQL_QUERIES[AppliedResourceType.MACRO]:
+            # Both original case and lowercase are tried to handle resources with uppercase names
             expected_unique_ids = [
+                "macro.core_macros.My_Macro",
                 "macro.core_macros.my_macro",
+                "macro.analytics_models.My_Macro",
                 "macro.analytics_models.my_macro",
             ]
             assert variables["filter"]["uniqueIds"] == expected_unique_ids
@@ -154,6 +157,77 @@ async def test_fetch_details_with_name_builds_unique_ids(
             call(model_packages_response),
             call(details_response),
         ]
+    )
+
+
+@patch("dbt_mcp.discovery.client.raise_gql_error")
+async def test_fetch_details_preserves_unique_id_casing(
+    mock_raise_gql_error: Mock,
+    resource_details_fetcher: ResourceDetailsFetcher,
+    mock_api_client: Mock,
+    unit_discovery_config: DiscoveryConfig,
+):
+    """unique_id casing must be preserved — the Discovery API uniqueIds filter is case-sensitive."""
+    details_response = {
+        "data": {
+            "environment": {
+                "applied": {
+                    "resources": {
+                        "edges": [
+                            {
+                                "node": {
+                                    "name": "MY_MODEL",
+                                    "uniqueId": "model.jaffle.MY_MODEL",
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    }
+    mock_api_client.return_value = details_response
+
+    await resource_details_fetcher.fetch_details(
+        AppliedResourceType.MODEL,
+        unit_discovery_config,
+        unique_id="model.jaffle.MY_MODEL",
+    )
+
+    _, variables = mock_api_client.call_args[0]
+    assert variables["filter"]["uniqueIds"] == ["model.jaffle.MY_MODEL"]
+
+
+@patch("dbt_mcp.discovery.client.raise_gql_error")
+async def test_fetch_details_with_lowercase_name_no_duplicate_candidates(
+    mock_raise_gql_error: Mock,
+    resource_details_fetcher: ResourceDetailsFetcher,
+    mock_api_client: Mock,
+    unit_discovery_config: DiscoveryConfig,
+):
+    """All-lowercase names should produce a single candidate per package, not duplicates."""
+    packages_response = {"data": {"environment": {"applied": {"packages": ["jaffle"]}}}}
+    details_response: dict[str, dict[str, dict[str, dict[str, dict[str, list]]]]] = {
+        "data": {"environment": {"applied": {"resources": {"edges": []}}}}
+    }
+
+    async def execute_side_effect(query, variables, *, config):
+        if query == ResourceDetailsFetcher.GET_PACKAGES_QUERY:
+            if variables["resource"] == "macro":
+                return {"data": {"environment": {"applied": {"packages": []}}}}
+            return packages_response
+        elif query == ResourceDetailsFetcher.GQL_QUERIES[AppliedResourceType.MODEL]:
+            assert variables["filter"]["uniqueIds"] == ["model.jaffle.orders"]
+            assert variables["first"] == 1
+            return details_response
+        raise AssertionError(f"Unexpected query: {query}")
+
+    mock_api_client.side_effect = execute_side_effect
+
+    await resource_details_fetcher.fetch_details(
+        AppliedResourceType.MODEL,
+        unit_discovery_config,
+        name="orders",
     )
 
 

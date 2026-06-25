@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Preserve unique_id casing when querying the Discovery API — the uniqueIds filter is case-sensitive, so lowercasing caused empty results for models with uppercase names
+time: 2026-06-25T12:08:19.684895+02:00
