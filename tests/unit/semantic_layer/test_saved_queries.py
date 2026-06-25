@@ -39,84 +39,66 @@ class TestSavedQueries:
         self, mock_submit_request, fetcher, mock_config
     ):
         """Test listing saved queries without a search filter."""
-        # Mock GraphQL response
         mock_submit_request.return_value = {
             "data": {
-                "savedQueriesPaginated": {
-                    "items": [
-                        {
-                            "name": "daily_revenue",
-                            "label": "Daily Revenue Report",
-                            "description": "Daily revenue metrics by product",
-                            "queryParams": {
-                                "metrics": [{"name": "revenue"}, {"name": "profit"}],
-                                "groupBy": [{"name": "product_name"}, {"name": "date"}],
-                                "where": {"whereSqlTemplate": "date >= '2024-01-01'"},
-                            },
-                        },
-                        {
-                            "name": "monthly_users",
-                            "label": "Monthly Active Users",
-                            "description": "Monthly active user counts",
-                            "queryParams": {
-                                "metrics": [{"name": "user_count"}],
-                                "groupBy": [{"name": "month"}],
-                                "where": None,
-                            },
-                        },
-                    ]
-                }
+                "savedQueries": [
+                    {
+                        "name": "daily_revenue",
+                        "label": "Daily Revenue Report",
+                        "description": "Daily revenue metrics by product",
+                    },
+                    {
+                        "name": "monthly_users",
+                        "label": "Monthly Active Users",
+                        "description": "Monthly active user counts",
+                    },
+                ]
             }
         }
 
-        # Call the method
         result = await fetcher.list_saved_queries(config=mock_config)
 
-        # Assertions
         assert len(result) == 2
         assert isinstance(result[0], SavedQueryToolResponse)
         assert result[0].name == "daily_revenue"
         assert result[0].label == "Daily Revenue Report"
-        assert result[0].metrics == ["revenue", "profit"]
-        assert result[0].group_by == ["product_name", "date"]
-        assert result[0].where == "date >= '2024-01-01'"
+        assert result[0].metrics is None
+        assert result[0].group_by is None
+        assert result[0].where is None
         assert result[1].name == "monthly_users"
-        assert result[1].metrics == ["user_count"]
-        assert result[1].where is None
 
     @pytest.mark.asyncio
     @patch("dbt_mcp.semantic_layer.client.submit_request")
     async def test_list_saved_queries_with_search(
         self, mock_submit_request, fetcher, mock_config
     ):
-        """Test listing saved queries with a search filter."""
-        # Mock GraphQL response - only revenue query matches search
+        """Test that client-side search filters by name."""
         mock_submit_request.return_value = {
             "data": {
-                "savedQueriesPaginated": {
-                    "items": [
-                        {
-                            "name": "daily_revenue",
-                            "label": "Daily Revenue Report",
-                            "description": "Daily revenue metrics",
-                            "queryParams": {},
-                        }
-                    ]
-                }
+                "savedQueries": [
+                    {
+                        "name": "daily_revenue",
+                        "label": "Daily Revenue Report",
+                        "description": "Daily revenue metrics",
+                    },
+                    {
+                        "name": "monthly_users",
+                        "label": "Monthly Active Users",
+                        "description": "Monthly active user counts",
+                    },
+                ]
             }
         }
 
-        # Call the method with search filter
         result = await fetcher.list_saved_queries(config=mock_config, search="revenue")
 
-        # Should return the matched query
         assert len(result) == 1
         assert result[0].name == "daily_revenue"
 
-        # Verify search parameter was passed
-        mock_submit_request.assert_called_once()
-        call_args = mock_submit_request.call_args[0]
-        assert call_args[1]["variables"]["search"] == "revenue"
+        # Search is client-side; both calls pass empty variables
+        assert mock_submit_request.call_count == 2
+        for call in mock_submit_request.call_args_list:
+            assert call[0][1]["variables"] == {}
 
     @pytest.mark.asyncio
     @patch("dbt_mcp.semantic_layer.client.submit_request")
@@ -124,15 +106,10 @@ class TestSavedQueries:
         self, mock_submit_request, fetcher, mock_config
     ):
         """Test listing saved queries when no queries exist."""
-        # Mock empty GraphQL response
-        mock_submit_request.return_value = {
-            "data": {"savedQueriesPaginated": {"items": []}}
-        }
+        mock_submit_request.return_value = {"data": {"savedQueries": []}}
 
-        # Call the method
         result = await fetcher.list_saved_queries(config=mock_config)
 
-        # Should return empty list
         assert result == []
 
     @pytest.mark.asyncio
@@ -140,29 +117,239 @@ class TestSavedQueries:
     async def test_list_saved_queries_missing_attributes(
         self, mock_submit_request, fetcher, mock_config
     ):
-        """Test listing saved queries when some attributes are missing."""
-        # Mock GraphQL response with missing attributes
+        """Test listing saved queries when optional attributes are missing."""
         mock_submit_request.return_value = {
             "data": {
-                "savedQueriesPaginated": {
-                    "items": [
-                        {
-                            "name": "test_query",
-                            # Missing label, description, and queryParams
-                        }
-                    ]
-                }
+                "savedQueries": [
+                    {
+                        "name": "test_query",
+                        # Missing label and description
+                    }
+                ]
             }
         }
 
-        # Call the method
         result = await fetcher.list_saved_queries(config=mock_config)
 
-        # Should handle missing attributes gracefully
         assert len(result) == 1
         assert result[0].name == "test_query"
         assert result[0].label is None
         assert result[0].description is None
+        assert result[0].metrics is None
+        assert result[0].group_by is None
+        assert result[0].where is None
+
+    @pytest.mark.asyncio
+    @patch("dbt_mcp.semantic_layer.client.submit_request")
+    async def test_list_saved_queries_search_filters_by_name(
+        self, mock_submit_request, fetcher, mock_config
+    ):
+        """Test that client-side search matches on name substring."""
+        mock_submit_request.return_value = {
+            "data": {
+                "savedQueries": [
+                    {
+                        "name": "arr_growth",
+                        "label": "ARR Growth",
+                        "description": "Annual recurring revenue growth",
+                    },
+                    {
+                        "name": "churn_rate",
+                        "label": "Churn Rate",
+                        "description": "Customer churn rate",
+                    },
+                ]
+            }
+        }
+
+        result = await fetcher.list_saved_queries(config=mock_config, search="arr")
+
+        assert len(result) == 1
+        assert result[0].name == "arr_growth"
+
+    @pytest.mark.asyncio
+    @patch("dbt_mcp.semantic_layer.client.submit_request")
+    async def test_list_saved_queries_search_filters_by_label(
+        self, mock_submit_request, fetcher, mock_config
+    ):
+        """Test that client-side search matches on label substring."""
+        mock_submit_request.return_value = {
+            "data": {
+                "savedQueries": [
+                    {
+                        "name": "q1",
+                        "label": "Weekly Active Users",
+                        "description": "WAU metric",
+                    },
+                    {
+                        "name": "q2",
+                        "label": "Monthly Revenue",
+                        "description": "MRR metric",
+                    },
+                ]
+            }
+        }
+
+        result = await fetcher.list_saved_queries(config=mock_config, search="monthly")
+
+        assert len(result) == 1
+        assert result[0].name == "q2"
+
+    @pytest.mark.asyncio
+    @patch("dbt_mcp.semantic_layer.client.submit_request")
+    async def test_list_saved_queries_search_filters_by_description(
+        self, mock_submit_request, fetcher, mock_config
+    ):
+        """Test that client-side search matches on description substring."""
+        mock_submit_request.return_value = {
+            "data": {
+                "savedQueries": [
+                    {
+                        "name": "q1",
+                        "label": "Label A",
+                        "description": "Tracks pipeline conversion",
+                    },
+                    {
+                        "name": "q2",
+                        "label": "Label B",
+                        "description": "Tracks customer retention",
+                    },
+                ]
+            }
+        }
+
+        result = await fetcher.list_saved_queries(config=mock_config, search="pipeline")
+
+        assert len(result) == 1
+        assert result[0].name == "q1"
+
+    @pytest.mark.asyncio
+    @patch("dbt_mcp.semantic_layer.client.submit_request")
+    async def test_list_saved_queries_search_is_case_insensitive(
+        self, mock_submit_request, fetcher, mock_config
+    ):
+        """Test that client-side search is case-insensitive."""
+        mock_submit_request.return_value = {
+            "data": {
+                "savedQueries": [
+                    {
+                        "name": "arr_current",
+                        "label": "ARR Current",
+                        "description": "Current ARR",
+                    },
+                ]
+            }
+        }
+
+        result = await fetcher.list_saved_queries(config=mock_config, search="ARR")
+
+        assert len(result) == 1
+        assert result[0].name == "arr_current"
+
+    @pytest.mark.asyncio
+    @patch("dbt_mcp.semantic_layer.client.submit_request")
+    async def test_list_saved_queries_search_none_returns_all(
+        self, mock_submit_request, fetcher, mock_config
+    ):
+        """Test that search=None returns all items unfiltered."""
+        mock_submit_request.return_value = {
+            "data": {
+                "savedQueries": [
+                    {"name": "q1", "label": None, "description": None},
+                    {"name": "q2", "label": None, "description": None},
+                    {"name": "q3", "label": None, "description": None},
+                ]
+            }
+        }
+
+        result = await fetcher.list_saved_queries(config=mock_config, search=None)
+
+        assert len(result) == 3
+
+    @pytest.mark.asyncio
+    @patch("dbt_mcp.semantic_layer.client.submit_request")
+    async def test_list_saved_queries_null_label_and_description(
+        self, mock_submit_request, fetcher, mock_config
+    ):
+        """Test that explicit null label and description from the API are handled correctly."""
+        mock_submit_request.return_value = {
+            "data": {
+                "savedQueries": [
+                    {
+                        "name": "minimal_query",
+                        "label": None,
+                        "description": None,
+                    }
+                ]
+            }
+        }
+
+        result = await fetcher.list_saved_queries(config=mock_config)
+
+        assert len(result) == 1
+        assert result[0].name == "minimal_query"
+        assert result[0].label is None
+        assert result[0].description is None
+        assert result[0].metrics is None
+        assert result[0].group_by is None
+        assert result[0].where is None
+
+    @pytest.mark.asyncio
+    @patch("dbt_mcp.semantic_layer.client.submit_request")
+    async def test_list_saved_queries_with_params_success(
+        self, mock_submit_request, fetcher, mock_config
+    ):
+        """Test that queryParams fields are populated when the with_params query succeeds."""
+        full_response = {
+            "data": {
+                "savedQueries": [
+                    {
+                        "name": "revenue_query",
+                        "label": "Revenue",
+                        "description": "Revenue metrics",
+                        "queryParams": {
+                            "metrics": [{"name": "revenue"}, {"name": "profit"}],
+                            "groupBy": [{"name": "date"}],
+                            "where": {"whereSqlTemplate": "date >= '2024-01-01'"},
+                        },
+                    }
+                ]
+            }
+        }
+        # First call (simple) and second call (with_params) both return the full response
+        mock_submit_request.side_effect = [full_response, full_response]
+
+        result = await fetcher.list_saved_queries(config=mock_config)
+
+        assert len(result) == 1
+        assert result[0].metrics == ["revenue", "profit"]
+        assert result[0].group_by == ["date"]
+        assert result[0].where == "date >= '2024-01-01'"
+
+    @pytest.mark.asyncio
+    @patch("dbt_mcp.semantic_layer.client.submit_request")
+    async def test_list_saved_queries_with_params_fallback(
+        self, mock_submit_request, fetcher, mock_config
+    ):
+        """Test that a timeout on the with_params query falls back to simple results."""
+        simple_response = {
+            "data": {
+                "savedQueries": [
+                    {
+                        "name": "revenue_query",
+                        "label": "Revenue",
+                        "description": "Revenue metrics",
+                    },
+                ]
+            }
+        }
+        # First call (simple) succeeds; second call (with_params) times out
+        mock_submit_request.side_effect = [simple_response, Exception("ReadTimeout")]
+
+        result = await fetcher.list_saved_queries(config=mock_config)
+
+        assert len(result) == 1
+        assert result[0].name == "revenue_query"
         assert result[0].metrics is None
         assert result[0].group_by is None
         assert result[0].where is None
