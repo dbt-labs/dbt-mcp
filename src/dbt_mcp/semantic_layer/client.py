@@ -319,6 +319,8 @@ class SemanticLayerFetcher:
         except Exception as e:
             logger.warning(f"Error fetching saved queries with params: {e}")
             results = simple_results
+        search = search.strip() if isinstance(search, str) else search
+        search = search if search else None
         if search:
             search_lower = search.lower()
             results = [

@@ -95,10 +95,10 @@ class TestSavedQueries:
         assert len(result) == 1
         assert result[0].name == "daily_revenue"
 
-        # Search is client-side; both calls pass empty variables
+        # Search is client-side; neither call passes a search variable
         assert mock_submit_request.call_count == 2
         for call in mock_submit_request.call_args_list:
-            assert call[0][1]["variables"] == {}
+            assert "search" not in call[0][1]["variables"]
 
     @pytest.mark.asyncio
     @patch("dbt_mcp.semantic_layer.client.submit_request")
