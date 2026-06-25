@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Fix list_saved_queries tool which was calling savedQueriesPaginated (a non-existent API field) instead of savedQueries
+time: 2026-06-24T20:57:34.35722-07:00

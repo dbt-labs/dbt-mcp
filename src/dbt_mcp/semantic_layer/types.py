@@ -53,7 +53,7 @@ class SavedQueryToolResponse:
     description: str | None = None
     metrics: list[str] | None = None
     group_by: list[str] | None = None
-    where: list[str] | None = None
+    where: str | None = None
 
 
 @dataclass
