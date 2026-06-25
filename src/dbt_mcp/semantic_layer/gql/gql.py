@@ -66,24 +66,29 @@ query GetMetricsWithRelated($environmentId: BigInt!, $search: String) {
 }
     """,
     "saved_queries": """
-query GetSavedQueries($environmentId: BigInt!, $search: String) {
-  savedQueriesPaginated(environmentId: $environmentId, search: $search) {
-    items {
-      name
-      description
-      label
-      queryParams {
-        metrics {
-          name
-        }
-        groupBy {
-          name
-          grain
-          datePart
-        }
-        where {
-          whereSqlTemplate
-        }
+query GetSavedQueries($environmentId: BigInt!) {
+  savedQueries(environmentId: $environmentId) {
+    name
+    description
+    label
+  }
+}
+    """,
+    "saved_queries_with_params": """
+query GetSavedQueriesWithParams($environmentId: BigInt!) {
+  savedQueries(environmentId: $environmentId) {
+    name
+    description
+    label
+    queryParams {
+      metrics {
+        name
+      }
+      groupBy {
+        name
+      }
+      where {
+        whereSqlTemplate
       }
     }
   }

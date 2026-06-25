@@ -271,30 +271,66 @@ class SemanticLayerFetcher:
             config,
             {
                 "query": GRAPHQL_QUERIES["saved_queries"],
-                "variables": {"search": search},
+                "variables": {},
             },
         )
-        return [
+        simple_results = [
             SavedQueryToolResponse(
                 name=sq.get("name"),
                 label=sq.get("label"),
                 description=sq.get("description"),
-                metrics=[
-                    m.get("name") for m in sq.get("queryParams", {}).get("metrics", [])
-                ]
-                if sq.get("queryParams", {}).get("metrics")
-                else None,
-                group_by=[
-                    g.get("name") for g in sq.get("queryParams", {}).get("groupBy", [])
-                ]
-                if sq.get("queryParams", {}).get("groupBy")
-                else None,
-                where=sq.get("queryParams", {}).get("where", {}).get("whereSqlTemplate")
-                if sq.get("queryParams", {}).get("where")
-                else None,
             )
-            for sq in saved_queries_result["data"]["savedQueriesPaginated"]["items"]
+            for sq in saved_queries_result["data"]["savedQueries"]
         ]
+        try:
+            full_result = await submit_request(
+                config,
+                {
+                    "query": GRAPHQL_QUERIES["saved_queries_with_params"],
+                    "variables": {},
+                },
+                timeout=5.0,
+            )
+            results = [
+                SavedQueryToolResponse(
+                    name=sq.get("name"),
+                    label=sq.get("label"),
+                    description=sq.get("description"),
+                    metrics=[
+                        m.get("name")
+                        for m in (sq.get("queryParams") or {}).get("metrics", [])
+                    ]
+                    if (sq.get("queryParams") or {}).get("metrics")
+                    else None,
+                    group_by=[
+                        g.get("name")
+                        for g in (sq.get("queryParams") or {}).get("groupBy", [])
+                    ]
+                    if (sq.get("queryParams") or {}).get("groupBy")
+                    else None,
+                    where=(sq.get("queryParams") or {})
+                    .get("where", {})
+                    .get("whereSqlTemplate")
+                    if (sq.get("queryParams") or {}).get("where")
+                    else None,
+                )
+                for sq in full_result["data"]["savedQueries"]
+            ]
+        except Exception as e:
+            logger.warning(f"Error fetching saved queries with params: {e}")
+            results = simple_results
+        search = search.strip() if isinstance(search, str) else search
+        search = search if search else None
+        if search:
+            search_lower = search.lower()
+            results = [
+                r
+                for r in results
+                if search_lower in (r.name or "").lower()
+                or search_lower in (r.label or "").lower()
+                or search_lower in (r.description or "").lower()
+            ]
+        return results
 
     async def get_dimensions(
         self,
