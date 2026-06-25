@@ -2327,10 +2327,7 @@
               "where": {
                 "anyOf": [
                   {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
+                    "type": "string"
                   },
                   {
                     "type": "null"
