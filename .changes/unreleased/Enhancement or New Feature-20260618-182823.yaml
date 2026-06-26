@@ -1,3 +1,0 @@
-kind: Enhancement or New Feature
-body: Track MCP client identity (name and version from the MCP initialize handshake) in Vortex tool call events via the user_agent field
-time: 2026-06-18T18:28:23.204012+02:00
