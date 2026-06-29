@@ -1000,7 +1000,6 @@
       "input_schema": {
         "$defs": {
           "GroupByParam": {
-            "description": "Parameter for a group_by, i.e a dimension or an entity.",
             "properties": {
               "grain": {
                 "anyOf": [
@@ -2381,7 +2380,6 @@
       "input_schema": {
         "$defs": {
           "GroupByParam": {
-            "description": "Parameter for a group_by, i.e a dimension or an entity.",
             "properties": {
               "grain": {
                 "anyOf": [
