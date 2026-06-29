@@ -33,6 +33,7 @@ from dbt_mcp.discovery.param_descriptions import (
 )
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
+from dbt_mcp.tools.deprecation import deprecated_description, deprecation_meta
 from dbt_mcp.tools.fields import (
     DEPTH_FIELD,
     NAME_FIELD,
@@ -172,7 +173,10 @@ async def get_model_details(
 
 
 @dbt_mcp_tool(
-    description=get_prompt("discovery/get_model_parents"),
+    description=deprecated_description(
+        get_prompt("discovery/get_model_parents"), replacement="get_lineage"
+    ),
+    meta=deprecation_meta(replacement="get_lineage"),
     title="Get Model Parents",
     read_only_hint=True,
     destructive_hint=False,
@@ -191,7 +195,10 @@ async def get_model_parents(
 
 
 @dbt_mcp_tool(
-    description=get_prompt("discovery/get_model_children"),
+    description=deprecated_description(
+        get_prompt("discovery/get_model_children"), replacement="get_lineage"
+    ),
+    meta=deprecation_meta(replacement="get_lineage"),
     title="Get Model Children",
     read_only_hint=True,
     destructive_hint=False,
