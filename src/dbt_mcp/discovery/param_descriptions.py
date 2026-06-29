@@ -4,6 +4,13 @@ from dbt_mcp.tools.multiproject_params import MULTI_PROJECT_PROJECT_ID_DESCRIPTI
 
 DISCOVERY_PROJECT_ID_DESCRIPTION = MULTI_PROJECT_PROJECT_ID_DESCRIPTION
 
+RESOURCE_TYPE_DESCRIPTION = (
+    "The type of dbt resource to fetch details for. "
+    "One of: model, source, exposure, test, seed, snapshot, macro, semantic_model. "
+    "Tip: the resource_type is encoded in the unique_id prefix "
+    "(e.g. `model.my_project.orders` → model)."
+)
+
 SOURCE_NAMES_FILTER = (
     "Filter by top-level source names from the project `sources:` YAML "
     "(e.g. `raw_data`, `external_api`)"
