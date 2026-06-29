@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Add get_details tool for fetching details of any dbt resource type; deprecate the 8 type-specific get_*_details tools in favor of get_details
+time: 2026-06-29T11:30:20.511624-07:00

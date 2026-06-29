@@ -45,6 +45,7 @@ To learn more about the dbt Discovery API, click [here](https://docs.getdbt.com/
 - `get_all_macros`: Retrieves macros; option to filter by package or return package names only.
 - `get_all_models`: Retrieves name and description of all models.
 - `get_all_sources`: Gets all sources with freshness status; option to filter by source name.
+- `get_details`: Gets full details for any dbt resource type (model, source, exposure, test, seed, snapshot, macro, semantic_model).
 - `get_exposure_details`: Gets exposure details including owner, parents, and freshness status.
 - `get_exposures`: Gets all exposures (downstream dashboards, apps, or analyses).
 - `get_lineage`: Gets full lineage graph (ancestors and descendants) with type and depth filtering.

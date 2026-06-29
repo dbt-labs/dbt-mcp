@@ -60,6 +60,7 @@ toolsets = {
     Toolset.DISCOVERY: {
         ToolName.GET_MART_MODELS,
         ToolName.GET_ALL_MODELS,
+        ToolName.GET_DETAILS,
         ToolName.GET_MODEL_DETAILS,
         ToolName.GET_MODEL_PARENTS,
         ToolName.GET_MODEL_CHILDREN,
