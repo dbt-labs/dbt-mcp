@@ -73,6 +73,50 @@ async def test_fetch_lineage_returns_connected_nodes(
     }
 
 
+async def test_fetch_lineage_returns_description_on_nodes(
+    lineage_fetcher, mock_api_client, unit_discovery_config
+):
+    """Test that fetch_lineage preserves the description field on each node."""
+    mock_api_client.return_value = {
+        "data": {
+            "environment": {
+                "applied": {
+                    "lineage": [
+                        {
+                            "uniqueId": "model.test.customers",
+                            "name": "customers",
+                            "resourceType": "Model",
+                            "description": "One row per customer.",
+                            "parentIds": ["source.test.raw_customers"],
+                        },
+                        {
+                            "uniqueId": "source.test.raw_customers",
+                            "name": "raw_customers",
+                            "resourceType": "Source",
+                            "description": "Raw customer records.",
+                            "parentIds": [],
+                        },
+                    ]
+                }
+            }
+        }
+    }
+
+    result = await lineage_fetcher.fetch_lineage(
+        unique_id="model.test.customers", depth=1, config=unit_discovery_config
+    )
+
+    # The GraphQL query must request the description field.
+    query = mock_api_client.call_args[0][0]
+    assert "description" in query
+
+    descriptions = {node["uniqueId"]: node["description"] for node in result}
+    assert descriptions == {
+        "model.test.customers": "One row per customer.",
+        "source.test.raw_customers": "Raw customer records.",
+    }
+
+
 async def test_fetch_lineage_with_type_filter(
     lineage_fetcher, mock_api_client, unit_discovery_config
 ):

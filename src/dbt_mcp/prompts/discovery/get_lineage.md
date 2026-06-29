@@ -7,7 +7,10 @@ A list of all nodes in the connected subgraph, where each node contains:
 - `uniqueId`: The resource's unique identifier
 - `name`: The resource name
 - `resourceType`: The type of resource (Model, Source, etc.)
+- `description`: The resource's description, if one is defined (may be null)
 - `parentIds`: List of unique IDs that this resource directly depends on
+
+Call `get_lineage(unique_id=..., depth=1)` to retrieve only the immediate parents and children of a resource.
 
 **Example Response:**
 ```json
@@ -16,18 +19,21 @@ A list of all nodes in the connected subgraph, where each node contains:
     "uniqueId": "source.raw.users",
     "name": "users",
     "resourceType": "Source",
+    "description": "Raw user records ingested from the application database.",
     "parentIds": []
   },
   {
     "uniqueId": "model.stg_customers",
     "name": "stg_customers",
     "resourceType": "Model",
+    "description": "Cleaned and typed customer staging model.",
     "parentIds": ["source.raw.users"]
   },
   {
     "uniqueId": "model.customers",
     "name": "customers",
     "resourceType": "Model",
+    "description": "One row per customer with enriched attributes.",
     "parentIds": ["model.stg_customers"]
   }
 ]
