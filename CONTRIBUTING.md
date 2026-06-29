@@ -172,6 +172,14 @@ MCP Apps are tools that have an associated interactive UI rendered by the host (
 
 The `ui://` URI convention is `ui://<server-name>/<resource-name>`. The `meta` field is passed through the full tool registration pipeline (`@dbt_mcp_tool` → `GenericToolDefinition` → `adapt_context` → `register_tools` → `FastMCP.add_tool`).
 
+## Deprecating a tool
+
+Tools in dbt-mcp follow a **deprecate-then-remove** lifecycle — because the server is
+a published app, you cannot remove a tool immediately without breaking installed clients.
+See [`docs/deprecating-tools.md`](docs/deprecating-tools.md) for the full process,
+including the 4-step lifecycle, the mechanical deprecation checklist, and instructions
+for monitoring usage before removal.
+
 ## Published-app contract
 
 When the server is published as an app (notably the ChatGPT app), the host caches the server's metadata as a versioned contract at submission time: tool names/titles/descriptions, input/output schemas, annotations, `_meta`, linked UI resource metadata, and the server `instructions`. Deploying a server change does **not** update that published snapshot, and breaking changes (removing/renaming a tool, making an input schema incompatible, or changing the content served at a published UI resource URI) can break the published version as soon as they deploy.
