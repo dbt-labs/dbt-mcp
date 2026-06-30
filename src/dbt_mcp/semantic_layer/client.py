@@ -421,8 +421,12 @@ class SemanticLayerFetcher:
             schema_names = raw_table.schema.names
             column_name = next(
                 (n for n in schema_names if n.lower() == dimension.lower()),
-                dimension,
+                None,
             )
+            if column_name is None:
+                return DimensionValuesError(
+                    error=f"Dimension '{dimension}' not found in result schema"
+                )
             raw: list[str] = [
                 str(v)
                 for v in raw_table.column(column_name).to_pylist()
