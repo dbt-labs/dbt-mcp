@@ -81,6 +81,7 @@ include = ["src/dbt_mcp/**/*", "README.md", "LICENSE"]
 
 [tool.hatch.version]
 source = "vcs"
+fallback-version = "0.0.0"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
