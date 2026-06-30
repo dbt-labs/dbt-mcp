@@ -1105,6 +1105,7 @@ class TestGetDimensionValues:
 
         assert isinstance(result, DimensionValuesError)
         assert "project_activity__date_day" in result.error
+        assert "some_other_column" in result.error
 
     @pytest.mark.asyncio
     async def test_operational_error_propagates(

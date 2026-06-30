@@ -425,7 +425,8 @@ class SemanticLayerFetcher:
             )
             if column_name is None:
                 return DimensionValuesError(
-                    error=f"Dimension '{dimension}' not found in result schema"
+                    error=f"Dimension '{dimension}' not found in result schema. "
+                    f"Available columns: {schema_names}"
                 )
             raw: list[str] = [
                 str(v)
