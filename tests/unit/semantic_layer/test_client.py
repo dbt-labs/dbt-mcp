@@ -1086,6 +1086,28 @@ class TestGetDimensionValues:
         assert "foo" in result.error
 
     @pytest.mark.asyncio
+    async def test_dimension_column_absent_from_result_returns_error(
+        self, dim_fetcher, mock_sl_client, sl_config
+    ):
+        """When the Arrow table returned by the SDK has no column matching the
+        requested dimension (not even case-insensitively), get_dimension_values
+        must return DimensionValuesError rather than raising KeyError."""
+        mock_sl_client.dimension_values.return_value = pa.table(
+            {"some_other_column": ["2024-01-01", "2024-01-02"]}
+        )
+
+        result = await dim_fetcher.get_dimension_values(
+            config=sl_config,
+            dimension="project_activity__date_day",
+            metrics=["some_metric"],
+            limit=100,
+        )
+
+        assert isinstance(result, DimensionValuesError)
+        assert "project_activity__date_day" in result.error
+        assert "some_other_column" in result.error
+
+    @pytest.mark.asyncio
     async def test_operational_error_propagates(
         self, dim_fetcher, mock_sl_client, sl_config
     ):
