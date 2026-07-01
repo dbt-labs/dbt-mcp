@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Fix unhandled KeyError in get_dimension_values when the Arrow result schema does not contain the requested dimension column
-time: 2026-06-30T10:49:09.977022+02:00
