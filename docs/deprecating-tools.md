@@ -11,7 +11,7 @@ descriptions, input/output schemas, annotations, and `_meta` — as a versioned
 contract at submission time. Removing or renaming a tool is a breaking change for
 all installed clients that depend on that tool string.
 
-A deploying the server immediately removes a tool from the live server, but the
+Deploying the server immediately removes a tool from the live server, but the
 published contract (the snapshot submitted to the app store) still lists it. Clients
 using the published version see a mismatch; the tool disappears without warning.
 See `CONTRIBUTING.md` (§ Published-app contract) and
@@ -85,7 +85,26 @@ callable. Keep all of the following intact:
 - [ ] `task docs:generate`
 - [ ] `task contract:generate` — regenerates `tests/unit/contract/contract_snapshot.json`; commit the result
 - [ ] `task check` + `task test:unit`
-- [ ] Submit a new app version after merge (the snapshot changed)
+- [ ] Release and roll out — merging this PR doesn't update the published apps
+      on its own (see [Release & rollout](#release--rollout))
+
+## Release & rollout
+
+A merged dbt-mcp PR does **not** reach the published apps on its own — merging
+is not releasing, and releasing is not deploying. The same rollout applies to
+both the deprecate and the remove phases:
+
+1. **Merge the dbt-mcp PR** (code + contract snapshot + changelog entry).
+2. **Cut a dbt-mcp release.** See `CONTRIBUTING.md` (§ Release). A deprecation
+   is typically a minor bump; a removal is a major bump.
+3. **Roll the new release into the hosted MCP service and deploy it.** This is
+   the step that actually changes the tool surface the published apps talk to.
+   A major bump (a removal) requires updating the pinned dbt-mcp version in the
+   hosted service, not just a routine dependency refresh.
+4. **Resubmit the app version in each store (OpenAI and Claude), after step 3.**
+   Each store is a separate submission, and each captures the live server's
+   tool list at submission time — submitting before the hosted service runs
+   the new release captures the old surface.
 
 ## Monitoring usage before removal
 
@@ -97,7 +116,9 @@ Proxied tools are filtered out before emission — only tools directly served by
 repo are tracked.
 
 Query `ToolCalled` events filtered to the deprecated `tool_name` over a trailing
-30-day window. The bar for proceeding to removal is approximately zero calls.
+30-day window. The bar for proceeding to removal is approximately zero calls —
+measured against the *deployed* hosted service, not just the merged PR (see
+[Release & rollout](#release--rollout)).
 
 ## Removing a tool (Phase B)
 
@@ -117,4 +138,9 @@ Once usage is ~0, remove the tool in a dedicated PR:
 8. `task docs:generate`
 9. `task contract:generate` — commit the updated snapshot
 10. `task check` + `task test:unit`
-11. Submit a new app version after merge.
+11. Release and roll out (see [Release & rollout](#release--rollout)).
+
+The tool leaves the live server only once the hosted service deploys this
+removal, and the published contract still lists it until each store approves
+the new app version — so confirm usage is ~0 against the deployed service
+before that deploy, not merely before this PR merges.
