@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Add hatch-vcs fallback-version to fix mcpb install failures in environments without git history
-time: 2026-06-30T18:36:28.827834+02:00
