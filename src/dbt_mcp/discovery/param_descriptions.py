@@ -33,3 +33,12 @@ MACRO_RETURN_PACKAGE_NAMES_ONLY = "When true, return only distinct package names
 MACRO_INCLUDE_DEFAULT_DBT_PACKAGES = (
     "When true, include default dbt Labs core/adapter macro packages"
 )
+
+# Not a JSON Schema param description — used as the `arg_mapping` for the
+# get_model_parents/get_model_children deprecation banner. get_lineage isn't a
+# drop-in: it requires unique_id (these tools accept name alone) and defaults
+# to depth=5 (these tools only ever return immediate parents/children).
+GET_LINEAGE_ARG_MAPPING = (
+    "Call get_lineage(unique_id=..., depth=1) to match this tool's behavior — "
+    "get_lineage requires unique_id (not name) and defaults to depth=5."
+)
