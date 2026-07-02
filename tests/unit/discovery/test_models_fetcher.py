@@ -231,3 +231,25 @@ async def test_resolve_unique_ids_by_name_case_insensitive_name_match(
     )
 
     assert result == ["model.jaffle.orders"]
+
+
+async def test_resolve_unique_ids_by_name_handles_null_name_field(
+    paginated_models_fetcher, mock_api_client, unit_discovery_config
+):
+    """A node with an explicit `name: null` (key present, value None) must not
+    crash -- dict.get(key, default) only falls back for a *missing* key, not
+    a null value, so a bare `.get("name", "").lower()` would raise
+    AttributeError here."""
+    mock_api_client.side_effect = [
+        _models_page(
+            [{"name": None, "uniqueId": "model.jaffle.orders"}],
+            has_next=False,
+            end_cursor=None,
+        )
+    ]
+
+    result = await paginated_models_fetcher.resolve_unique_ids_by_name(
+        "orders", config=unit_discovery_config
+    )
+
+    assert result == []

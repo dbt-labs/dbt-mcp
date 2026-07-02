@@ -539,7 +539,8 @@ class ModelsFetcher:
         return [
             model["uniqueId"]
             for model in models
-            if model.get("uniqueId") and model.get("name", "").lower() == name.lower()
+            if model.get("uniqueId")
+            and (model.get("name") or "").lower() == name.lower()
         ]
 
     async def fetch_model_parents(
