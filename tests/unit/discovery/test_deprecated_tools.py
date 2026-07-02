@@ -82,21 +82,27 @@ def test_deprecated_tool_description_is_trimmed(mock_fastmcp):
     fastmcp = _register_single_project(mock_fastmcp)
     description = fastmcp.tool_kwargs["get_model_parents"]["description"]
     assert "Retrieves the parent models" not in description
-    # Banner + a one-line arg mapping should stay well under the original
-    # prompt's length (which runs to several hundred characters).
-    assert len(description) < 300
+    # Banner + arg mapping should still land well under the original prompt's
+    # length (~1000 chars, per prompts/discovery/get_model_parents.md) — a
+    # correct arg mapping can cost more than a bare banner, but must still be
+    # shorter than the prompt it replaces.
+    assert len(description) < 500
 
 
 def test_deprecated_tool_description_maps_args_to_replacement(mock_fastmcp):
     """get_lineage isn't a drop-in for get_model_parents/children: it requires
 
-    unique_id (these tools accept name alone) and defaults to depth=5 (these
-    tools only ever return immediate parents/children). The deprecation
-    description must spell out the mapping so callers reproduce the old
-    behavior instead of silently getting a 5-level graph.
+    unique_id (these tools accept name alone), defaults to depth=5 (these tools
+    only ever return immediate parents/children), and even at depth=1 returns
+    the target plus BOTH parents and children (LineageFetcher._filter_connected_nodes
+    traverses parentIds in both directions) rather than one direction. The
+    deprecation description must spell out unique_id, depth=1, and the
+    parentIds-based filter needed to isolate one direction — otherwise a caller
+    gets a different node set than the old tool, not just a deeper one.
     """
     fastmcp = _register_single_project(mock_fastmcp)
     for tool_name in DEPRECATED_TOOLS:
         description = fastmcp.tool_kwargs[tool_name]["description"]
         assert "depth=1" in description
         assert "unique_id" in description
+        assert "parentIds" in description
