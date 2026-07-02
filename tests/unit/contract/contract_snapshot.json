@@ -1169,7 +1169,7 @@
         "readOnlyHint": true,
         "title": "Get Model Children"
       },
-      "description": "**DEPRECATED \u2014 use `get_lineage` instead.** This tool will be removed in a future release.",
+      "description": "**DEPRECATED \u2014 use `get_lineage` instead.** This tool will be removed in a future release.\n\nCall get_lineage(unique_id=..., depth=1) to match this tool's behavior \u2014 get_lineage requires unique_id (not name) and defaults to depth=5.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1361,7 +1361,7 @@
         "readOnlyHint": true,
         "title": "Get Model Parents"
       },
-      "description": "**DEPRECATED \u2014 use `get_lineage` instead.** This tool will be removed in a future release.",
+      "description": "**DEPRECATED \u2014 use `get_lineage` instead.** This tool will be removed in a future release.\n\nCall get_lineage(unique_id=..., depth=1) to match this tool's behavior \u2014 get_lineage requires unique_id (not name) and defaults to depth=5.",
       "input_schema": {
         "properties": {
           "name": {

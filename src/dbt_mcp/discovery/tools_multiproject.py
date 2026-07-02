@@ -23,6 +23,7 @@ from dbt_mcp.discovery.client import (
 )
 from dbt_mcp.discovery.param_descriptions import (
     DISCOVERY_PROJECT_ID_DESCRIPTION,
+    GET_LINEAGE_ARG_MAPPING,
     MACRO_INCLUDE_DEFAULT_DBT_PACKAGES,
     MACRO_PACKAGE_NAMES,
     MACRO_RETURN_PACKAGE_NAMES_ONLY,
@@ -173,7 +174,9 @@ async def get_model_details(
 
 
 @dbt_mcp_tool(
-    description=deprecated_description(replacement="get_lineage"),
+    description=deprecated_description(
+        replacement="get_lineage", arg_mapping=GET_LINEAGE_ARG_MAPPING
+    ),
     meta=deprecation_meta(replacement="get_lineage"),
     title="Get Model Parents",
     read_only_hint=True,
@@ -193,7 +196,9 @@ async def get_model_parents(
 
 
 @dbt_mcp_tool(
-    description=deprecated_description(replacement="get_lineage"),
+    description=deprecated_description(
+        replacement="get_lineage", arg_mapping=GET_LINEAGE_ARG_MAPPING
+    ),
     meta=deprecation_meta(replacement="get_lineage"),
     title="Get Model Children",
     read_only_hint=True,
