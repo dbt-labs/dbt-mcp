@@ -234,6 +234,92 @@
         "idempotentHint": true,
         "openWorldHint": true,
         "readOnlyHint": true,
+        "title": "Get Details"
+      },
+      "description": "Retrieves full details for a dbt resource by type and name or unique ID.\n\nUse this tool when you need the full schema, definition, or metadata for a specific dbt resource. The `resource_type` determines what fields are returned.\n\n**Parameters:**\n- `resource_type`: The type of dbt resource. One of: `model`, `source`, `exposure`, `test`, `seed`, `snapshot`, `macro`, `semantic_model`. The resource type is also encoded in the `unique_id` prefix (e.g. `model.my_project.orders` \u2192 `model`).\n- `name`: The resource's short name (e.g. `orders`). Provide `name` or `unique_id`, not both.\n- `unique_id`: The resource's fully qualified unique ID (e.g. `model.my_project.orders`). Preferred when available \u2014 avoids ambiguity when multiple resources share a name.\n\n**Usage examples:**\n```python\n# Get details for a model by unique_id\nget_details(resource_type=\"model\", unique_id=\"model.analytics.orders\")\n\n# Get details for a source by name\nget_details(resource_type=\"source\", name=\"raw_users\")\n\n# Get details for a semantic model\nget_details(resource_type=\"semantic_model\", unique_id=\"semantic_model.analytics.orders\")\n```\n",
+      "input_schema": {
+        "$defs": {
+          "AppliedResourceType": {
+            "enum": [
+              "model",
+              "source",
+              "exposure",
+              "test",
+              "seed",
+              "snapshot",
+              "macro",
+              "semantic_model"
+            ],
+            "title": "AppliedResourceType",
+            "type": "string"
+          }
+        },
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The name of the resource. This is not required if `unique_id` is provided. Only use name when `unique_id` is unknown.",
+            "title": "Name"
+          },
+          "resource_type": {
+            "$ref": "#/$defs/AppliedResourceType",
+            "description": "The type of dbt resource to fetch details for. One of: model, source, exposure, test, seed, snapshot, macro, semantic_model. Tip: the resource_type is encoded in the unique_id prefix (e.g. `model.my_project.orders` \u2192 model)."
+          },
+          "unique_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Fully-qualified unique ID of the resource. This will follow the format `<resource_type>.<package_name>.<resource_name>` (e.g. `model.analytics.stg_orders`). Strongly preferred over the `name` parameter for deterministic lookups.",
+            "title": "Unique Id"
+          }
+        },
+        "required": [
+          "resource_type"
+        ],
+        "title": "get_detailsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_details",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_detailsOutput",
+        "type": "object"
+      },
+      "title": "Get Details",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
         "title": "Get Dimension Values"
       },
       "description": "<instructions>\nGet the distinct values for a given dimension, optionally scoped to specific metrics.\n\nUse this tool to discover what values exist for a dimension before building a `where`\nfilter in `query_metrics`. For example, to filter by country you first call this tool\nto see which country values exist, then use those values in the `where` clause.\n\nIf the response includes `truncated: true`, there are more values than the current\n`limit`. Increase `limit` to retrieve more, or add `metrics` to narrow the scope.\n</instructions>\n\n<examples>\n<example>\nQuestion: \"I want to filter revenue for a specific country \u2014 what countries are available?\"\nThinking step-by-step:\n   - The user wants to know valid values for a country dimension\n   - I should scope to the \"revenue\" metric for accurate results\nParameters:\n    dimension=\"customer__country\"\n    metrics=[\"revenue\"]\n    limit=100\n</example>\n\n<example>\nQuestion: \"What are the possible order statuses?\"\nThinking step-by-step:\n   - The user wants all distinct values for an order status dimension\n   - No specific metric context needed\nParameters:\n    dimension=\"order__status\"\n    metrics=null\n    limit=100\n</example>\n</examples>\n",
@@ -602,7 +688,7 @@
         "readOnlyHint": true,
         "title": "Get Exposure Details"
       },
-      "description": "Get detailed information about one or more exposures by name or unique IDs.\n\nReturns a list of detailed information dictionaries, each including:\n- name: The name of the exposure\n- description: Detailed description of the exposure\n- exposureType: Type of exposure (application, dashboard, analysis, etc.)\n- maturity: Maturity level of the exposure (high, medium, low)\n- ownerName: Name of the exposure owner\n- ownerEmail: Email of the exposure owner\n- url: URL associated with the exposure\n- label: Optional label for the exposure\n- parents: List of parent models/sources that this exposure depends on\n- meta: Additional metadata associated with the exposure\n- freshnessStatus: Current freshness status of the exposure\n- uniqueId: The unique identifier for this exposure\n\nExample usage:\n- Get an exposure by unique ID: get_exposure_details(unique_id=\"exposure.analytics.customer_dashboard\")\n",
+      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -635,7 +721,10 @@
         "title": "get_exposure_detailsArguments",
         "type": "object"
       },
-      "meta": null,
+      "meta": {
+        "deprecated": true,
+        "replacement": "get_details"
+      },
       "name": "get_exposure_details",
       "output_schema": {
         "properties": {
@@ -897,7 +986,7 @@
         "readOnlyHint": true,
         "title": "Get Macro Details"
       },
-      "description": "<instructions>\nFetch detailed metadata for a dbt macro.\n\n- Supply at least one of `unique_id` or `name`. Call will fail if both are missing.\n- Always prefer providing `unique_id` for exact matches.\n</instructions>\n\n<examples>\n1. Fetch a macro by unique_id:\n   get_macro_details(unique_id=\"macro.dbt_utils.date_spine\")\n\n2. Fetch a macro when only the node name is known:\n   get_macro_details(name=\"date_spine\")\n</examples>\n",
+      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -930,7 +1019,10 @@
         "title": "get_macro_detailsArguments",
         "type": "object"
       },
-      "meta": null,
+      "meta": {
+        "deprecated": true,
+        "replacement": "get_details"
+      },
       "name": "get_macro_details",
       "output_schema": {
         "properties": {
@@ -1235,7 +1327,7 @@
         "readOnlyHint": true,
         "title": "Get Model Details"
       },
-      "description": "<instructions>\nRetrieves information about a specific dbt model, including compiled SQL, description, database, schema, alias, and column details.\n\nIMPORTANT: Use uniqueId when available.\n- Using uniqueId guarantees the correct model is retrieved\n- Using only name may return incorrect results or fail entirely\n- If you obtained models via get_all_models(), you should always use the uniqueId from those results\n</instructions>\n\n<examples>\n1. PREFERRED METHOD - Using uniqueId (always use this when available):\n   get_model_details(uniqueId=\"model.my_project.customer_orders\")\n\n2. FALLBACK METHOD - Using only name (only when uniqueId is unknown):\n   get_model_details(name=\"customer_orders\")\n",
+      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1268,7 +1360,10 @@
         "title": "get_model_detailsArguments",
         "type": "object"
       },
-      "meta": null,
+      "meta": {
+        "deprecated": true,
+        "replacement": "get_details"
+      },
       "name": "get_model_details",
       "output_schema": {
         "properties": {
@@ -1620,7 +1715,7 @@
         "readOnlyHint": true,
         "title": "Get Seed Details"
       },
-      "description": "<instructions>\nFetch detailed metadata for a dbt seed.\n\n- Supply at least one of `unique_id` or `name`. Call will fail if both are missing.\n- Always prefer providing `unique_id` for exact matches.\n</instructions>\n\n<examples>\n1. Fetch a seed by unique_id:\n   get_seed_details(unique_id=\"seed.analytics.customers\")\n\n2. Fetch a seed when only the node name is known:\n   get_seed_details(name=\"customers\")\n</examples>\n",
+      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1653,7 +1748,10 @@
         "title": "get_seed_detailsArguments",
         "type": "object"
       },
-      "meta": null,
+      "meta": {
+        "deprecated": true,
+        "replacement": "get_details"
+      },
       "name": "get_seed_details",
       "output_schema": {
         "properties": {
@@ -1683,7 +1781,7 @@
         "readOnlyHint": true,
         "title": "Get Semantic Model Details"
       },
-      "description": "<instructions>\nFetch detailed metadata for a dbt MetricFlow semantic model.\n\n- Supply at least one of `unique_id` or `name`. Call will fail if both are missing.\n- Always prefer providing `unique_id` for exact matches.\n</instructions>\n\n<examples>\n1. Fetch a semantic model by unique_id:\n   get_semantic_model_details(unique_id=\"semantic_model.analytics.customers\")\n\n2. Fetch a semantic model when only the node name is known:\n   get_semantic_model_details(name=\"customers\")\n</examples>\n",
+      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1716,7 +1814,10 @@
         "title": "get_semantic_model_detailsArguments",
         "type": "object"
       },
-      "meta": null,
+      "meta": {
+        "deprecated": true,
+        "replacement": "get_details"
+      },
       "name": "get_semantic_model_details",
       "output_schema": {
         "properties": {
@@ -1746,7 +1847,7 @@
         "readOnlyHint": true,
         "title": "Get Snapshot Details"
       },
-      "description": "<instructions>\nFetch detailed metadata for a dbt snapshot.\n\n- Supply at least one of `unique_id` or `name`. Call will fail if both are missing.\n- Always prefer providing `unique_id` for exact matches.\n</instructions>\n\n<examples>\n1. Fetch a snapshot by unique_id:\n   get_snapshot_details(unique_id=\"snapshot.analytics.customers\")\n\n2. Fetch a snapshot when only the node name is known:\n   get_snapshot_details(name=\"customers\")\n</examples>\n",
+      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1779,7 +1880,10 @@
         "title": "get_snapshot_detailsArguments",
         "type": "object"
       },
-      "meta": null,
+      "meta": {
+        "deprecated": true,
+        "replacement": "get_details"
+      },
       "name": "get_snapshot_details",
       "output_schema": {
         "properties": {
@@ -1809,7 +1913,7 @@
         "readOnlyHint": true,
         "title": "Get Source Details"
       },
-      "description": "<instructions>\nRetrieves detailed information about a specific dbt source, including database, schema, identifier, freshness status, and column-level details (name, type, description).\n\nIMPORTANT: Use uniqueId when available.\n- Using uniqueId guarantees the correct source table is retrieved\n- Using only name may return incorrect results if multiple sources have tables with the same name\n- If you obtained sources via get_all_sources(), you should always use the uniqueId from those results\n</instructions>\n\n<examples>\n1. PREFERRED METHOD - Using uniqueId (always use this when available):\n   get_source_details(uniqueId=\"source.my_project.raw_data.customers\")\n\n2. FALLBACK METHOD - Using only name (only when uniqueId is unknown):\n   get_source_details(name=\"customers\")\n</examples>\n",
+      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1842,7 +1946,10 @@
         "title": "get_source_detailsArguments",
         "type": "object"
       },
-      "meta": null,
+      "meta": {
+        "deprecated": true,
+        "replacement": "get_details"
+      },
       "name": "get_source_details",
       "output_schema": {
         "properties": {
@@ -1872,7 +1979,7 @@
         "readOnlyHint": true,
         "title": "Get Test Details"
       },
-      "description": "<instructions>\nFetch detailed metadata for a dbt test.\n\n- Supply at least one of `unique_id` or `name`. Call will fail if both are missing.\n- Always prefer providing `unique_id` for exact matches.\n</instructions>\n\n<examples>\n1. Fetch a test by unique_id:\n   get_test_details(unique_id=\"test.analytics.is_empty_string\")\n\n2. Fetch a test when only the node name is known:\n   get_test_details(name=\"is_empty_string\")\n</examples>\n",
+      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1905,7 +2012,10 @@
         "title": "get_test_detailsArguments",
         "type": "object"
       },
-      "meta": null,
+      "meta": {
+        "deprecated": true,
+        "replacement": "get_details"
+      },
       "name": "get_test_details",
       "output_schema": {
         "properties": {

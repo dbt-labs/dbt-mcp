@@ -29,6 +29,7 @@ class ToolName(Enum):
     # Discovery tools
     GET_MART_MODELS = "get_mart_models"
     GET_ALL_MODELS = "get_all_models"
+    GET_DETAILS = "get_details"
     GET_MODEL_DETAILS = "get_model_details"
     GET_MODEL_PARENTS = "get_model_parents"
     GET_MODEL_CHILDREN = "get_model_children"
