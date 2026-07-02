@@ -38,9 +38,7 @@ Use the helpers in `src/dbt_mcp/tools/deprecation.py`:
 from dbt_mcp.tools.deprecation import deprecated_description, deprecation_meta
 
 @dbt_mcp_tool(
-    description=deprecated_description(
-        get_prompt("discovery/get_model_parents"), replacement="get_lineage"
-    ),
+    description=deprecated_description(replacement="get_lineage"),
     meta=deprecation_meta(replacement="get_lineage"),
     title="Get Model Parents",
     read_only_hint=True,
@@ -51,10 +49,17 @@ async def get_model_parents(...):
     ...
 ```
 
-`deprecated_description` prepends a standard banner:
+`deprecated_description` **replaces** the tool's description entirely — it does
+not prepend to the original prompt. It builds a short, blunt line:
 
 > **DEPRECATED — use \`get_lineage\` instead.** This tool will be removed in a
 > future release.
+
+A shorter description makes a model less likely to pick the deprecated tool,
+which speeds the usage soak before removal. Pass `removal_version="vX.Y"` if a
+target removal version is already known, and `arg_mapping="..."` for a one-line
+note on how arguments map to the replacement — only needed when the replacement
+isn't a drop-in (see [What to change](#what-to-change) below).
 
 `deprecation_meta` returns `{"deprecated": True, "replacement": "<name>"}`, which
 surfaces as `Tool._meta` in the MCP protocol so clients can inspect it
@@ -65,6 +70,13 @@ programmatically.
 - Apply `deprecated_description(...)` + `deprecation_meta(replacement="<new>")` at
   the `@dbt_mcp_tool(...)` call site in **both** `discovery/tools.py` and
   `discovery/tools_multiproject.py`.
+- **Optional — forward to the replacement.** If the replacement is a true
+  drop-in (same inputs, same output shape), you may reimplement the deprecated
+  tool's body as a thin call into the replacement to cut maintenance. Only do
+  this when it doesn't change behavior — keep the deprecated tool's own schema
+  and output contract exactly as they were. If the replacement isn't a drop-in
+  (different required arguments, a reshaped output), don't force it; document
+  the mapping instead with `arg_mapping=` and leave the implementation as-is.
 
 ### What NOT to change
 
