@@ -107,10 +107,12 @@ class MultiProjectDiscoveryToolContext:
                 ),
             ),
         )
-        self.resource_details_fetcher = ResourceDetailsFetcher()
+        self.resource_details_fetcher = ResourceDetailsFetcher(
+            models_fetcher=self.models_fetcher
+        )
         self.lineage_fetcher = LineageFetcher()
         self.model_performance_fetcher = ModelPerformanceFetcher(
-            resource_details_fetcher=self.resource_details_fetcher,
+            models_fetcher=self.models_fetcher,
         )
 
 

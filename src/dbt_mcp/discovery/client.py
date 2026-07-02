@@ -464,6 +464,8 @@ class PaginatedResourceFetcher:
 
 class ModelFilter(TypedDict, total=False):
     modelingLayer: Literal["marts"] | None
+    identifier: str
+    uniqueIds: list[str]
 
 
 class SourceFilter(TypedDict, total=False):
@@ -486,7 +488,7 @@ class ModelsFetcher:
 
     def _get_model_filters(
         self, model_name: str | None = None, unique_id: str | None = None
-    ) -> dict[str, list[str] | str]:
+    ) -> ModelFilter:
         if unique_id:
             return {"uniqueIds": [unique_id]}
         elif model_name:
@@ -510,6 +512,35 @@ class ModelsFetcher:
             },
             config=config,
         )
+
+    async def resolve_unique_ids_by_name(
+        self, name: str, *, config: DiscoveryConfig
+    ) -> list[str]:
+        """Resolve a model name to unique_id(s) via the Discovery API's
+        `identifier` filter.
+
+        `identifier` matches on the model's *alias* (DB relation name), not its
+        dbt `name` -- in the Discovery API schema, `identifier` is grouped with
+        `database`/`schema` as a materialization field and resolves to an
+        `alias` column match. `alias` defaults to `name` unless overridden via
+        `{{ config(alias=...) }}`, so:
+          - a model whose alias coincidentally equals `name` but whose real
+            name differs would be a false-positive match from the server
+            alone -- filtered out below by comparing the returned node's name.
+          - a model whose alias was overridden away from its name is a false
+            negative this method cannot find (there is no server-side `name`
+            filter on the model filter type). Known limitation, consistent
+            with existing `_get_model_filters` usage in
+            fetch_model_health/fetch_model_children/fetch_model_parents.
+        """
+        models = await self.fetch_models(
+            model_filter=self._get_model_filters(model_name=name), config=config
+        )
+        return [
+            model["uniqueId"]
+            for model in models
+            if model.get("uniqueId") and model.get("name", "").lower() == name.lower()
+        ]
 
     async def fetch_model_parents(
         self,
@@ -705,6 +736,9 @@ class AppliedResourceType(StrEnum):
 
 
 class ResourceDetailsFetcher:
+    def __init__(self, models_fetcher: ModelsFetcher):
+        self._models_fetcher = models_fetcher
+
     GET_PACKAGES_QUERY = load_query("get_packages.gql")
     GET_MODELS_DETAILS_QUERY = load_query("get_model_details.gql")
     GET_SOURCES_QUERY = load_query("get_source_details.gql")
@@ -761,35 +795,51 @@ class ResourceDetailsFetcher:
             )
         if not stripped_unique_id:
             assert stripped_name is not None, "Name must be provided"
-            packages_result = await asyncio.gather(
-                execute_query(
-                    self.GET_PACKAGES_QUERY,
-                    variables={"resource": "macro", "environmentId": environment_id},
-                    config=config,
-                ),
-                execute_query(
-                    self.GET_PACKAGES_QUERY,
-                    variables={"resource": "model", "environmentId": environment_id},
-                    config=config,
-                ),
-            )
-            raise_gql_error(packages_result[0])
-            raise_gql_error(packages_result[1])
-            macro_packages = packages_result[0]["data"]["environment"]["applied"][
-                "packages"
-            ]
-            model_packages = packages_result[1]["data"]["environment"]["applied"][
-                "packages"
-            ]
-            if not macro_packages and not model_packages:
-                raise InvalidParameterError("No packages found for project")
-            # Try both the provided casing and lowercase to handle resources with uppercase names
-            name_candidates = sorted({stripped_name, stripped_name.lower()})
-            unique_ids = [
-                f"{resource_type.value.lower()}.{package_name}.{name_candidate}"
-                for package_name in macro_packages + model_packages
-                for name_candidate in name_candidates
-            ]
+            if resource_type == AppliedResourceType.MODEL:
+                # Models support a server-side name filter (see
+                # ModelsFetcher.resolve_unique_ids_by_name), so we can resolve
+                # directly instead of enumerating packages and guessing unique_ids.
+                unique_ids = await self._models_fetcher.resolve_unique_ids_by_name(
+                    stripped_name, config=config
+                )
+                if not unique_ids:
+                    return []
+            else:
+                packages_result = await asyncio.gather(
+                    execute_query(
+                        self.GET_PACKAGES_QUERY,
+                        variables={
+                            "resource": "macro",
+                            "environmentId": environment_id,
+                        },
+                        config=config,
+                    ),
+                    execute_query(
+                        self.GET_PACKAGES_QUERY,
+                        variables={
+                            "resource": "model",
+                            "environmentId": environment_id,
+                        },
+                        config=config,
+                    ),
+                )
+                raise_gql_error(packages_result[0])
+                raise_gql_error(packages_result[1])
+                macro_packages = packages_result[0]["data"]["environment"]["applied"][
+                    "packages"
+                ]
+                model_packages = packages_result[1]["data"]["environment"]["applied"][
+                    "packages"
+                ]
+                if not macro_packages and not model_packages:
+                    raise InvalidParameterError("No packages found for project")
+                # Try both the provided casing and lowercase to handle resources with uppercase names
+                name_candidates = sorted({stripped_name, stripped_name.lower()})
+                unique_ids = [
+                    f"{resource_type.value.lower()}.{package_name}.{name_candidate}"
+                    for package_name in macro_packages + model_packages
+                    for name_candidate in name_candidates
+                ]
         else:
             unique_ids = [stripped_unique_id]
         query = self.GQL_QUERIES[resource_type]
@@ -925,9 +975,9 @@ class ModelPerformanceFetcher:
 
     def __init__(
         self,
-        resource_details_fetcher: ResourceDetailsFetcher,
+        models_fetcher: ModelsFetcher,
     ):
-        self._resource_details_fetcher = resource_details_fetcher
+        self._models_fetcher = models_fetcher
 
     async def fetch_performance(
         self,
@@ -959,26 +1009,22 @@ class ModelPerformanceFetcher:
         # Resolve name to unique_id if needed
         resolved_unique_id = unique_id
         if not resolved_unique_id:
-            # Re-use resource_details_fetcher from ResourceDetailsFetcher to resolve name
-            details = await self._resource_details_fetcher.fetch_details(
-                resource_type=AppliedResourceType.MODEL,
-                name=name,
-                config=config,
+            assert name is not None, "Name must be provided"
+            unique_ids = await self._models_fetcher.resolve_unique_ids_by_name(
+                name, config=config
             )
-            if not details:
+            if not unique_ids:
                 raise NotFoundError(f"Model not found: {name}")
             # Model name can map to multiple unique_ids - require disambiguation
             # For example, if multiple dbt packages define a model with the same name
-            if len(details) > 1:
-                matches = ", ".join(
-                    sorted(d.get("uniqueId", "") for d in details if d.get("uniqueId"))
-                )
+            if len(unique_ids) > 1:
+                matches = ", ".join(sorted(unique_ids))
                 raise NotFoundError(
                     f"Multiple models found for name '{name}'. "
                     "Please provide the unique_id instead. "
                     f"Matches: {matches}"
                 )
-            resolved_unique_id = details[0]["uniqueId"]
+            resolved_unique_id = unique_ids[0]
 
         variables = {
             "environmentId": environment_id,
