@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: 'Model-by-name lookups in get_model_details now resolve via a single Discovery API identifier query instead of enumerating packages and guessing unique_ids. Note: this fast path matches by DB alias (same as existing model tools like get_model_health), so a model whose alias was explicitly overridden away from its dbt name may not be found by name -- a pre-existing limitation, not new to this change.'
+time: 2026-07-02T10:45:57.483315-07:00

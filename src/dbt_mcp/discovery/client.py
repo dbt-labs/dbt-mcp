@@ -736,6 +736,9 @@ class AppliedResourceType(StrEnum):
 
 
 class ResourceDetailsFetcher:
+    def __init__(self, models_fetcher: ModelsFetcher):
+        self._models_fetcher = models_fetcher
+
     GET_PACKAGES_QUERY = load_query("get_packages.gql")
     GET_MODELS_DETAILS_QUERY = load_query("get_model_details.gql")
     GET_SOURCES_QUERY = load_query("get_source_details.gql")
@@ -792,35 +795,51 @@ class ResourceDetailsFetcher:
             )
         if not stripped_unique_id:
             assert stripped_name is not None, "Name must be provided"
-            packages_result = await asyncio.gather(
-                execute_query(
-                    self.GET_PACKAGES_QUERY,
-                    variables={"resource": "macro", "environmentId": environment_id},
-                    config=config,
-                ),
-                execute_query(
-                    self.GET_PACKAGES_QUERY,
-                    variables={"resource": "model", "environmentId": environment_id},
-                    config=config,
-                ),
-            )
-            raise_gql_error(packages_result[0])
-            raise_gql_error(packages_result[1])
-            macro_packages = packages_result[0]["data"]["environment"]["applied"][
-                "packages"
-            ]
-            model_packages = packages_result[1]["data"]["environment"]["applied"][
-                "packages"
-            ]
-            if not macro_packages and not model_packages:
-                raise InvalidParameterError("No packages found for project")
-            # Try both the provided casing and lowercase to handle resources with uppercase names
-            name_candidates = sorted({stripped_name, stripped_name.lower()})
-            unique_ids = [
-                f"{resource_type.value.lower()}.{package_name}.{name_candidate}"
-                for package_name in macro_packages + model_packages
-                for name_candidate in name_candidates
-            ]
+            if resource_type == AppliedResourceType.MODEL:
+                # Models support a server-side name filter (see
+                # ModelsFetcher.resolve_unique_ids_by_name), so we can resolve
+                # directly instead of enumerating packages and guessing unique_ids.
+                unique_ids = await self._models_fetcher.resolve_unique_ids_by_name(
+                    stripped_name, config=config
+                )
+                if not unique_ids:
+                    return []
+            else:
+                packages_result = await asyncio.gather(
+                    execute_query(
+                        self.GET_PACKAGES_QUERY,
+                        variables={
+                            "resource": "macro",
+                            "environmentId": environment_id,
+                        },
+                        config=config,
+                    ),
+                    execute_query(
+                        self.GET_PACKAGES_QUERY,
+                        variables={
+                            "resource": "model",
+                            "environmentId": environment_id,
+                        },
+                        config=config,
+                    ),
+                )
+                raise_gql_error(packages_result[0])
+                raise_gql_error(packages_result[1])
+                macro_packages = packages_result[0]["data"]["environment"]["applied"][
+                    "packages"
+                ]
+                model_packages = packages_result[1]["data"]["environment"]["applied"][
+                    "packages"
+                ]
+                if not macro_packages and not model_packages:
+                    raise InvalidParameterError("No packages found for project")
+                # Try both the provided casing and lowercase to handle resources with uppercase names
+                name_candidates = sorted({stripped_name, stripped_name.lower()})
+                unique_ids = [
+                    f"{resource_type.value.lower()}.{package_name}.{name_candidate}"
+                    for package_name in macro_packages + model_packages
+                    for name_candidate in name_candidates
+                ]
         else:
             unique_ids = [stripped_unique_id]
         query = self.GQL_QUERIES[resource_type]
