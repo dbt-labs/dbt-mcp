@@ -464,6 +464,8 @@ class PaginatedResourceFetcher:
 
 class ModelFilter(TypedDict, total=False):
     modelingLayer: Literal["marts"] | None
+    identifier: str
+    uniqueIds: list[str]
 
 
 class SourceFilter(TypedDict, total=False):
@@ -486,7 +488,7 @@ class ModelsFetcher:
 
     def _get_model_filters(
         self, model_name: str | None = None, unique_id: str | None = None
-    ) -> dict[str, list[str] | str]:
+    ) -> ModelFilter:
         if unique_id:
             return {"uniqueIds": [unique_id]}
         elif model_name:
@@ -510,6 +512,35 @@ class ModelsFetcher:
             },
             config=config,
         )
+
+    async def resolve_unique_ids_by_name(
+        self, name: str, *, config: DiscoveryConfig
+    ) -> list[str]:
+        """Resolve a model name to unique_id(s) via the Discovery API's
+        `identifier` filter.
+
+        `identifier` matches on the model's *alias* (DB relation name), not its
+        dbt `name` -- in the Discovery API schema, `identifier` is grouped with
+        `database`/`schema` as a materialization field and resolves to an
+        `alias` column match. `alias` defaults to `name` unless overridden via
+        `{{ config(alias=...) }}`, so:
+          - a model whose alias coincidentally equals `name` but whose real
+            name differs would be a false-positive match from the server
+            alone -- filtered out below by comparing the returned node's name.
+          - a model whose alias was overridden away from its name is a false
+            negative this method cannot find (there is no server-side `name`
+            filter on the model filter type). Known limitation, consistent
+            with existing `_get_model_filters` usage in
+            fetch_model_health/fetch_model_children/fetch_model_parents.
+        """
+        models = await self.fetch_models(
+            model_filter=self._get_model_filters(model_name=name), config=config
+        )
+        return [
+            model["uniqueId"]
+            for model in models
+            if model.get("uniqueId") and model.get("name", "").lower() == name.lower()
+        ]
 
     async def fetch_model_parents(
         self,
