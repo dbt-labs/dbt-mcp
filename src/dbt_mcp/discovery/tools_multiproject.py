@@ -173,9 +173,7 @@ async def get_model_details(
 
 
 @dbt_mcp_tool(
-    description=deprecated_description(
-        get_prompt("discovery/get_model_parents"), replacement="get_lineage"
-    ),
+    description=deprecated_description(replacement="get_lineage"),
     meta=deprecation_meta(replacement="get_lineage"),
     title="Get Model Parents",
     read_only_hint=True,
@@ -195,9 +193,7 @@ async def get_model_parents(
 
 
 @dbt_mcp_tool(
-    description=deprecated_description(
-        get_prompt("discovery/get_model_children"), replacement="get_lineage"
-    ),
+    description=deprecated_description(replacement="get_lineage"),
     meta=deprecation_meta(replacement="get_lineage"),
     title="Get Model Children",
     read_only_hint=True,
