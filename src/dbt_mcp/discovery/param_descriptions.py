@@ -46,5 +46,5 @@ GET_LINEAGE_ARG_MAPPING = (
     "and, at depth=1, returns the target node plus both parents and children "
     "(not filtered to one direction). Derive one direction from the result via "
     "parentIds: parents are nodes whose uniqueId is in the target's parentIds; "
-    "children are nodes whose parentIds contains the target's uniqueId."
+    "children are nodes whose parentIds contain the target's uniqueId."
 )
