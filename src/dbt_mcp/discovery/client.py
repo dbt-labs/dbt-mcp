@@ -975,9 +975,9 @@ class ModelPerformanceFetcher:
 
     def __init__(
         self,
-        resource_details_fetcher: ResourceDetailsFetcher,
+        models_fetcher: ModelsFetcher,
     ):
-        self._resource_details_fetcher = resource_details_fetcher
+        self._models_fetcher = models_fetcher
 
     async def fetch_performance(
         self,
@@ -1009,26 +1009,22 @@ class ModelPerformanceFetcher:
         # Resolve name to unique_id if needed
         resolved_unique_id = unique_id
         if not resolved_unique_id:
-            # Re-use resource_details_fetcher from ResourceDetailsFetcher to resolve name
-            details = await self._resource_details_fetcher.fetch_details(
-                resource_type=AppliedResourceType.MODEL,
-                name=name,
-                config=config,
+            assert name is not None, "Name must be provided"
+            unique_ids = await self._models_fetcher.resolve_unique_ids_by_name(
+                name, config=config
             )
-            if not details:
+            if not unique_ids:
                 raise NotFoundError(f"Model not found: {name}")
             # Model name can map to multiple unique_ids - require disambiguation
             # For example, if multiple dbt packages define a model with the same name
-            if len(details) > 1:
-                matches = ", ".join(
-                    sorted(d.get("uniqueId", "") for d in details if d.get("uniqueId"))
-                )
+            if len(unique_ids) > 1:
+                matches = ", ".join(sorted(unique_ids))
                 raise NotFoundError(
                     f"Multiple models found for name '{name}'. "
                     "Please provide the unique_id instead. "
                     f"Matches: {matches}"
                 )
-            resolved_unique_id = details[0]["uniqueId"]
+            resolved_unique_id = unique_ids[0]
 
         variables = {
             "environmentId": environment_id,
