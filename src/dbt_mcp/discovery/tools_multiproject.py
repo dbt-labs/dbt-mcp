@@ -177,9 +177,7 @@ async def get_details(
 
 
 @dbt_mcp_tool(
-    description=deprecated_description(
-        get_prompt("discovery/get_model_details"), replacement="get_details"
-    ),
+    description=deprecated_description(replacement="get_details"),
     title="Get Model Details",
     read_only_hint=True,
     destructive_hint=False,
@@ -331,9 +329,7 @@ async def get_exposures(
 
 
 @dbt_mcp_tool(
-    description=deprecated_description(
-        get_prompt("discovery/get_exposure_details"), replacement="get_details"
-    ),
+    description=deprecated_description(replacement="get_details"),
     title="Get Exposure Details",
     read_only_hint=True,
     destructive_hint=False,
@@ -379,9 +375,7 @@ async def get_all_sources(
 
 
 @dbt_mcp_tool(
-    description=deprecated_description(
-        get_prompt("discovery/get_source_details"), replacement="get_details"
-    ),
+    description=deprecated_description(replacement="get_details"),
     title="Get Source Details",
     read_only_hint=True,
     destructive_hint=False,
@@ -433,9 +427,7 @@ async def get_all_macros(
 
 
 @dbt_mcp_tool(
-    description=deprecated_description(
-        get_prompt("discovery/get_macro_details"), replacement="get_details"
-    ),
+    description=deprecated_description(replacement="get_details"),
     title="Get Macro Details",
     read_only_hint=True,
     destructive_hint=False,
@@ -458,9 +450,7 @@ async def get_macro_details(
 
 
 @dbt_mcp_tool(
-    description=deprecated_description(
-        get_prompt("discovery/get_seed_details"), replacement="get_details"
-    ),
+    description=deprecated_description(replacement="get_details"),
     title="Get Seed Details",
     read_only_hint=True,
     destructive_hint=False,
@@ -483,9 +473,7 @@ async def get_seed_details(
 
 
 @dbt_mcp_tool(
-    description=deprecated_description(
-        get_prompt("discovery/get_semantic_model_details"), replacement="get_details"
-    ),
+    description=deprecated_description(replacement="get_details"),
     title="Get Semantic Model Details",
     read_only_hint=True,
     destructive_hint=False,
@@ -508,9 +496,7 @@ async def get_semantic_model_details(
 
 
 @dbt_mcp_tool(
-    description=deprecated_description(
-        get_prompt("discovery/get_snapshot_details"), replacement="get_details"
-    ),
+    description=deprecated_description(replacement="get_details"),
     title="Get Snapshot Details",
     read_only_hint=True,
     destructive_hint=False,
@@ -533,9 +519,7 @@ async def get_snapshot_details(
 
 
 @dbt_mcp_tool(
-    description=deprecated_description(
-        get_prompt("discovery/get_test_details"), replacement="get_details"
-    ),
+    description=deprecated_description(replacement="get_details"),
     title="Get Test Details",
     read_only_hint=True,
     destructive_hint=False,

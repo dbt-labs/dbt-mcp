@@ -688,7 +688,7 @@
         "readOnlyHint": true,
         "title": "Get Exposure Details"
       },
-      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.\n\nGet detailed information about one or more exposures by name or unique IDs.\n\nReturns a list of detailed information dictionaries, each including:\n- name: The name of the exposure\n- description: Detailed description of the exposure\n- exposureType: Type of exposure (application, dashboard, analysis, etc.)\n- maturity: Maturity level of the exposure (high, medium, low)\n- ownerName: Name of the exposure owner\n- ownerEmail: Email of the exposure owner\n- url: URL associated with the exposure\n- label: Optional label for the exposure\n- parents: List of parent models/sources that this exposure depends on\n- meta: Additional metadata associated with the exposure\n- freshnessStatus: Current freshness status of the exposure\n- uniqueId: The unique identifier for this exposure\n\nExample usage:\n- Get an exposure by unique ID: get_exposure_details(unique_id=\"exposure.analytics.customer_dashboard\")\n",
+      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -986,7 +986,7 @@
         "readOnlyHint": true,
         "title": "Get Macro Details"
       },
-      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.\n\n<instructions>\nFetch detailed metadata for a dbt macro.\n\n- Supply at least one of `unique_id` or `name`. Call will fail if both are missing.\n- Always prefer providing `unique_id` for exact matches.\n</instructions>\n\n<examples>\n1. Fetch a macro by unique_id:\n   get_macro_details(unique_id=\"macro.dbt_utils.date_spine\")\n\n2. Fetch a macro when only the node name is known:\n   get_macro_details(name=\"date_spine\")\n</examples>\n",
+      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1327,7 +1327,7 @@
         "readOnlyHint": true,
         "title": "Get Model Details"
       },
-      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.\n\n<instructions>\nRetrieves information about a specific dbt model, including compiled SQL, description, database, schema, alias, and column details.\n\nIMPORTANT: Use uniqueId when available.\n- Using uniqueId guarantees the correct model is retrieved\n- Using only name may return incorrect results or fail entirely\n- If you obtained models via get_all_models(), you should always use the uniqueId from those results\n</instructions>\n\n<examples>\n1. PREFERRED METHOD - Using uniqueId (always use this when available):\n   get_model_details(uniqueId=\"model.my_project.customer_orders\")\n\n2. FALLBACK METHOD - Using only name (only when uniqueId is unknown):\n   get_model_details(name=\"customer_orders\")\n",
+      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1715,7 +1715,7 @@
         "readOnlyHint": true,
         "title": "Get Seed Details"
       },
-      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.\n\n<instructions>\nFetch detailed metadata for a dbt seed.\n\n- Supply at least one of `unique_id` or `name`. Call will fail if both are missing.\n- Always prefer providing `unique_id` for exact matches.\n</instructions>\n\n<examples>\n1. Fetch a seed by unique_id:\n   get_seed_details(unique_id=\"seed.analytics.customers\")\n\n2. Fetch a seed when only the node name is known:\n   get_seed_details(name=\"customers\")\n</examples>\n",
+      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1781,7 +1781,7 @@
         "readOnlyHint": true,
         "title": "Get Semantic Model Details"
       },
-      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.\n\n<instructions>\nFetch detailed metadata for a dbt MetricFlow semantic model.\n\n- Supply at least one of `unique_id` or `name`. Call will fail if both are missing.\n- Always prefer providing `unique_id` for exact matches.\n</instructions>\n\n<examples>\n1. Fetch a semantic model by unique_id:\n   get_semantic_model_details(unique_id=\"semantic_model.analytics.customers\")\n\n2. Fetch a semantic model when only the node name is known:\n   get_semantic_model_details(name=\"customers\")\n</examples>\n",
+      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1847,7 +1847,7 @@
         "readOnlyHint": true,
         "title": "Get Snapshot Details"
       },
-      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.\n\n<instructions>\nFetch detailed metadata for a dbt snapshot.\n\n- Supply at least one of `unique_id` or `name`. Call will fail if both are missing.\n- Always prefer providing `unique_id` for exact matches.\n</instructions>\n\n<examples>\n1. Fetch a snapshot by unique_id:\n   get_snapshot_details(unique_id=\"snapshot.analytics.customers\")\n\n2. Fetch a snapshot when only the node name is known:\n   get_snapshot_details(name=\"customers\")\n</examples>\n",
+      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1913,7 +1913,7 @@
         "readOnlyHint": true,
         "title": "Get Source Details"
       },
-      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.\n\n<instructions>\nRetrieves detailed information about a specific dbt source, including database, schema, identifier, freshness status, and column-level details (name, type, description).\n\nIMPORTANT: Use uniqueId when available.\n- Using uniqueId guarantees the correct source table is retrieved\n- Using only name may return incorrect results if multiple sources have tables with the same name\n- If you obtained sources via get_all_sources(), you should always use the uniqueId from those results\n</instructions>\n\n<examples>\n1. PREFERRED METHOD - Using uniqueId (always use this when available):\n   get_source_details(uniqueId=\"source.my_project.raw_data.customers\")\n\n2. FALLBACK METHOD - Using only name (only when uniqueId is unknown):\n   get_source_details(name=\"customers\")\n</examples>\n",
+      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1979,7 +1979,7 @@
         "readOnlyHint": true,
         "title": "Get Test Details"
       },
-      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.\n\n<instructions>\nFetch detailed metadata for a dbt test.\n\n- Supply at least one of `unique_id` or `name`. Call will fail if both are missing.\n- Always prefer providing `unique_id` for exact matches.\n</instructions>\n\n<examples>\n1. Fetch a test by unique_id:\n   get_test_details(unique_id=\"test.analytics.is_empty_string\")\n\n2. Fetch a test when only the node name is known:\n   get_test_details(name=\"is_empty_string\")\n</examples>\n",
+      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {

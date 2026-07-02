@@ -84,6 +84,8 @@ def test_detail_tools_are_deprecated(tool_name: ToolName):
     assert tool.meta["deprecated"] is True
     assert tool.meta["replacement"] == "get_details"
     assert tool.description.startswith("**DEPRECATED")
+    # A short, blunt description (not the original prompt) speeds the soak.
+    assert len(tool.description) < 200
 
 
 @pytest.mark.parametrize("tool_name", DEPRECATED_DETAIL_TOOLS)
@@ -93,6 +95,7 @@ def test_detail_tools_are_deprecated_multiproject(tool_name: ToolName):
     assert tool.meta["deprecated"] is True
     assert tool.meta["replacement"] == "get_details"
     assert tool.description.startswith("**DEPRECATED")
+    assert len(tool.description) < 200
 
 
 def test_get_details_not_deprecated():
