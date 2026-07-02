@@ -71,3 +71,15 @@ def test_non_deprecated_tool_has_no_deprecation_meta(mock_fastmcp):
     assert not fastmcp.tool_kwargs["get_lineage"]["description"].startswith(
         "**DEPRECATED"
     )
+
+
+def test_deprecated_tool_description_is_trimmed(mock_fastmcp):
+    """The deprecated description should be a short, blunt line — not the
+
+    original prompt body prepended with a banner. A shorter description makes
+    the model less likely to pick the tool, which speeds the usage soak.
+    """
+    fastmcp = _register_single_project(mock_fastmcp)
+    description = fastmcp.tool_kwargs["get_model_parents"]["description"]
+    assert "Retrieves the parent models" not in description
+    assert len(description) < 200

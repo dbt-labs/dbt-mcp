@@ -1169,7 +1169,7 @@
         "readOnlyHint": true,
         "title": "Get Model Children"
       },
-      "description": "**DEPRECATED \u2014 use `get_lineage` instead.** This tool will be removed in a future release.\n\n<instructions>\nRetrieves the child models (downstream dependencies) of a specific dbt model. These are the models that depend on the specified model.\n\nYou can provide either a name or a uniqueId, if known, to identify the model. Using uniqueId is more precise and guarantees a unique match, which is especially useful when models might have the same name in different projects.\n\nThis is specifically for retrieving model children from the production manifest. If you want development lineage, use `get_lineage_dev` instead.\n</instructions>\n\n<examples>\n1. Getting children for a model by name:\n   get_model_children(name=\"customer_orders\")\n\n2. Getting children for a model by uniqueId (more precise):\n   get_model_children(name=\"customer_orders\", uniqueId=\"model.my_project.customer_orders\")\n\n3. Getting children using only uniqueId:\n   get_model_children(uniqueId=\"model.my_project.customer_orders\")\n   </examples>\n",
+      "description": "**DEPRECATED \u2014 use `get_lineage` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1361,7 +1361,7 @@
         "readOnlyHint": true,
         "title": "Get Model Parents"
       },
-      "description": "**DEPRECATED \u2014 use `get_lineage` instead.** This tool will be removed in a future release.\n\n<instructions>\nRetrieves the parent models of a specific dbt model. These are the models that the specified model depends on.\n\nYou can provide either a name or a uniqueId, if known, to identify the model. Using uniqueId is more precise and guarantees a unique match, which is especially useful when models might have the same name in different projects.\n\nReturned parents include `resourceType`, `name`, and `description`. For upstream sources, also provide `sourceName` and `uniqueId` so lineage can be linked back via `get_all_sources`.\n\nThis is specifically for retrieving model parents from the production manifest. If you want development lineage, use `get_lineage_dev` instead.\n</instructions>\n\n<examples>\n1. Getting parents for a model by name:\n   get_model_parents(name=\"customer_orders\")\n\n2. Getting parents for a model by uniqueId (more precise):\n   get_model_parents(name=\"customer_orders\", uniqueId=\"model.my_project.customer_orders\")\n\n3. Getting parents using only uniqueId:\n   get_model_parents(uniqueId=\"model.my_project.customer_orders\")\n</examples>\n",
+      "description": "**DEPRECATED \u2014 use `get_lineage` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {

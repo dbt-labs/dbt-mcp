@@ -20,17 +20,27 @@ def deprecation_meta(*, replacement: str) -> dict[str, Any]:
     return {"deprecated": True, "replacement": replacement}
 
 
-def deprecated_description(description: str, *, replacement: str) -> str:
-    """Prepend a deprecation banner to a tool description.
+def deprecated_description(
+    *,
+    replacement: str,
+    removal_version: str | None = None,
+    arg_mapping: str | None = None,
+) -> str:
+    """Build a short, blunt description for a deprecated tool.
 
-    Pass the result as the ``description=`` kwarg on ``@dbt_mcp_tool``.
+    Pass the result as the ``description=`` kwarg on ``@dbt_mcp_tool``, replacing
+    the tool's original description entirely — do not prepend to it. A short,
+    blunt description makes a model less likely to pick the tool, which speeds
+    the usage soak before removal.
 
     Args:
-        description: Original tool description (e.g. from ``get_prompt(...)``).
         replacement: Name of the tool that replaces this one.
+        removal_version: Version the tool will be removed in/after, if known.
+        arg_mapping: One line describing how args map to ``replacement``, only
+            needed when ``replacement`` is not a drop-in replacement.
     """
-    banner = (
-        f"**DEPRECATED — use `{replacement}` instead.** "
-        "This tool will be removed in a future release.\n\n"
-    )
-    return banner + description
+    when = f" after {removal_version}" if removal_version else " in a future release"
+    line = f"**DEPRECATED — use `{replacement}` instead.** This tool will be removed{when}."
+    if arg_mapping:
+        line += f"\n\n{arg_mapping}"
+    return line
