@@ -1004,24 +1004,28 @@ class ModelPerformanceFetcher:
             ToolCallError: If model not found or API error
         """
         environment_id = config.environment_id
-        if not name and not unique_id:
+        # Strip whitespace up front -- mirrors ResourceDetailsFetcher.fetch_details,
+        # which this method used to delegate through for name resolution.
+        stripped_name = name.strip() if name else None
+        stripped_unique_id = unique_id.strip() if unique_id else None
+        if not stripped_name and not stripped_unique_id:
             raise InvalidParameterError("Either 'name' or 'unique_id' must be provided")
 
         # Resolve name to unique_id if needed
-        resolved_unique_id = unique_id
+        resolved_unique_id = stripped_unique_id
         if not resolved_unique_id:
-            assert name is not None, "Name must be provided"
+            assert stripped_name is not None, "Name must be provided"
             unique_ids = await self._models_fetcher.resolve_unique_ids_by_name(
-                name, config=config
+                stripped_name, config=config
             )
             if not unique_ids:
-                raise NotFoundError(f"Model not found: {name}")
+                raise NotFoundError(f"Model not found: {stripped_name}")
             # Model name can map to multiple unique_ids - require disambiguation
             # For example, if multiple dbt packages define a model with the same name
             if len(unique_ids) > 1:
                 matches = ", ".join(sorted(unique_ids))
                 raise NotFoundError(
-                    f"Multiple models found for name '{name}'. "
+                    f"Multiple models found for name '{stripped_name}'. "
                     "Please provide the unique_id instead. "
                     f"Matches: {matches}"
                 )

@@ -302,3 +302,79 @@ async def test_fetch_performance_include_tests(
         assert result[0]["tests"][1]["executionTime"] == 3.2
     else:
         assert "tests" not in result[0]
+
+
+async def test_fetch_performance_strips_whitespace_from_name(
+    model_performance_fetcher,
+    mock_api_client,
+    models_fetcher,
+    unit_discovery_config,
+):
+    """A whitespace-padded name must resolve the same as its stripped form --
+    matches ResourceDetailsFetcher.fetch_details's prior stripping behavior,
+    which this method used to delegate through."""
+    models_fetcher.resolve_unique_ids_by_name.return_value = [
+        "model.analytics.stg_orders"
+    ]
+    mock_api_client.return_value = {
+        "data": {
+            "environment": {
+                "applied": {
+                    "modelHistoricalRuns": [
+                        {
+                            "uniqueId": "model.analytics.stg_orders",
+                            "runId": 1,
+                            "status": "success",
+                            "executeStartedAt": "2025-12-16T10:30:00Z",
+                            "executionTime": 1.0,
+                        }
+                    ]
+                }
+            }
+        }
+    }
+
+    result = await model_performance_fetcher.fetch_performance(
+        unit_discovery_config,
+        name="  stg_orders  ",
+        num_runs=1,
+    )
+
+    models_fetcher.resolve_unique_ids_by_name.assert_called_once_with(
+        "stg_orders",
+        config=unit_discovery_config,
+    )
+    assert result[0]["uniqueId"] == "model.analytics.stg_orders"
+
+
+async def test_fetch_performance_strips_whitespace_from_unique_id(
+    model_performance_fetcher, mock_api_client, unit_discovery_config
+):
+    """A whitespace-padded unique_id must be stripped before being sent to the
+    (case-sensitive) uniqueId filter."""
+    mock_api_client.return_value = {
+        "data": {
+            "environment": {
+                "applied": {
+                    "modelHistoricalRuns": [
+                        {
+                            "uniqueId": "model.analytics.stg_orders",
+                            "runId": 1,
+                            "status": "success",
+                            "executeStartedAt": "2025-12-16T10:30:00Z",
+                            "executionTime": 1.0,
+                        }
+                    ]
+                }
+            }
+        }
+    }
+
+    await model_performance_fetcher.fetch_performance(
+        unit_discovery_config,
+        unique_id="  model.analytics.stg_orders  ",
+        num_runs=1,
+    )
+
+    _, variables = mock_api_client.call_args[0]
+    assert variables["uniqueId"] == "model.analytics.stg_orders"
