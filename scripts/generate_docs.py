@@ -3,9 +3,30 @@ import logging
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
+from dbt_mcp.dbt_admin.tools import ADMIN_TOOLS
+from dbt_mcp.discovery.tools import DISCOVERY_TOOLS
+from dbt_mcp.mcp_server_metadata.tools import MCP_SERVER_TOOLS
+from dbt_mcp.product_docs.tools import PRODUCT_DOCS_TOOLS
+from dbt_mcp.semantic_layer.tools import SEMANTIC_LAYER_TOOLS
 from dbt_mcp.tools.readme_mappings import HUMAN_DESCRIPTIONS, TOOLSET_DESCRIPTIONS
+from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import toolsets
+
+# Tool meta keyed by ToolName for modules that define static tool lists.
+# Factory-function modules (dbt_cli, dbt_codegen, lsp) and proxied tools
+# (sql, search) are registered at runtime and currently carry no deprecated meta.
+_TOOL_META: dict[ToolName, dict[str, Any] | None] = {
+    tool.get_name(): tool.meta
+    for tool in (
+        *DISCOVERY_TOOLS,
+        *ADMIN_TOOLS,
+        *SEMANTIC_LAYER_TOOLS,
+        *MCP_SERVER_TOOLS,
+        *PRODUCT_DOCS_TOOLS,
+    )
+}
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -49,7 +70,16 @@ def generate_readme_tools_section() -> str:
 
         sorted_tools = sorted(tool_names, key=lambda t: t.value)
         for tool in sorted_tools:
-            desc = HUMAN_DESCRIPTIONS.get(tool, "")
+            meta = _TOOL_META.get(tool)
+            if meta and meta.get("deprecated"):
+                replacement = meta.get("replacement")
+                desc = (
+                    f"*(deprecated — use `{replacement}` instead)*"
+                    if replacement
+                    else "*(deprecated)*"
+                )
+            else:
+                desc = HUMAN_DESCRIPTIONS.get(tool, "")
             lines.append(f"- `{tool.value}`: {desc}")
 
         lines.append("")  # Empty line after each section
