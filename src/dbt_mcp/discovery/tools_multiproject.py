@@ -23,7 +23,8 @@ from dbt_mcp.discovery.client import (
 )
 from dbt_mcp.discovery.param_descriptions import (
     DISCOVERY_PROJECT_ID_DESCRIPTION,
-    GET_LINEAGE_ARG_MAPPING,
+    GET_MODEL_CHILDREN_ARG_MAPPING,
+    GET_MODEL_PARENTS_ARG_MAPPING,
     MACRO_INCLUDE_DEFAULT_DBT_PACKAGES,
     MACRO_PACKAGE_NAMES,
     MACRO_RETURN_PACKAGE_NAMES_ONLY,
@@ -37,12 +38,13 @@ from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.deprecation import deprecated_description, deprecation_meta
 from dbt_mcp.tools.fields import (
     DEPTH_FIELD,
+    DIRECTION_FIELD,
     NAME_FIELD,
     TYPES_FIELD,
     UNIQUE_ID_FIELD,
     UNIQUE_ID_REQUIRED_FIELD,
 )
-from dbt_mcp.tools.parameters import LineageResourceType
+from dbt_mcp.tools.parameters import LineageDirection, LineageResourceType
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
@@ -177,7 +179,7 @@ async def get_model_details(
 
 @dbt_mcp_tool(
     description=deprecated_description(
-        replacement="get_lineage", arg_mapping=GET_LINEAGE_ARG_MAPPING
+        replacement="get_lineage", arg_mapping=GET_MODEL_PARENTS_ARG_MAPPING
     ),
     meta=deprecation_meta(replacement="get_lineage"),
     title="Get Model Parents",
@@ -199,7 +201,7 @@ async def get_model_parents(
 
 @dbt_mcp_tool(
     description=deprecated_description(
-        replacement="get_lineage", arg_mapping=GET_LINEAGE_ARG_MAPPING
+        replacement="get_lineage", arg_mapping=GET_MODEL_CHILDREN_ARG_MAPPING
     ),
     meta=deprecation_meta(replacement="get_lineage"),
     title="Get Model Children",
@@ -286,10 +288,15 @@ async def get_lineage(
     unique_id: str = UNIQUE_ID_REQUIRED_FIELD,
     types: list[LineageResourceType] | None = TYPES_FIELD,
     depth: int = DEPTH_FIELD,
+    direction: LineageDirection = DIRECTION_FIELD,
 ) -> list[dict]:
     config = await context.config_provider.get_config(project_id=project_id)
     return await context.lineage_fetcher.fetch_lineage(
-        unique_id=unique_id, types=types, depth=depth, config=config
+        unique_id=unique_id,
+        types=types,
+        depth=depth,
+        direction=direction,
+        config=config,
     )
 
 

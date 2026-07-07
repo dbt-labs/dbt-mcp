@@ -50,10 +50,10 @@ To learn more about the dbt Discovery API, click [here](https://docs.getdbt.com/
 - `get_lineage`: Gets full lineage graph (ancestors and descendants) with type and depth filtering.
 - `get_macro_details`: Gets details for a specific macro.
 - `get_mart_models`: Retrieves all mart models.
-- `get_model_children`: Gets downstream dependents of a model.
+- `get_model_children`: Gets downstream dependents of a model. **Deprecated** — use `get_lineage` instead.
 - `get_model_details`: Gets model details including compiled SQL, columns, and schema.
 - `get_model_health`: Gets health signals: run status, test results, and upstream source freshness.
-- `get_model_parents`: Gets upstream dependencies of a model.
+- `get_model_parents`: Gets upstream dependencies of a model. **Deprecated** — use `get_lineage` instead.
 - `get_model_performance`: Gets execution history for a model; option to include test results.
 - `get_related_models`: Finds similar models using semantic search.
 - `get_seed_details`: Gets details for a specific seed.

@@ -75,6 +75,16 @@ HUMAN_DESCRIPTIONS: dict[ToolName, str] = {
     ToolName.GET_MCP_SERVER_BRANCH: "Returns the current git branch of the running dbt MCP server.",
 }
 
+# Tools marked deprecated via `deprecation_meta()` on their `@dbt_mcp_tool`
+# definition, mapped to the tool that replaces them. Keep in sync with the
+# actual `deprecation_meta()` calls — `test_deprecated_tools_matches_tool_meta`
+# (tests/unit/tools/test_readme_deprecated_tools.py) fails if this drifts from
+# the real signal.
+DEPRECATED_TOOLS: dict[ToolName, str] = {
+    ToolName.GET_MODEL_PARENTS: "get_lineage",
+    ToolName.GET_MODEL_CHILDREN: "get_lineage",
+}
+
 TOOLSET_DESCRIPTIONS: dict[Toolset, str] = {
     Toolset.SQL: "Tools for executing and generating SQL on dbt Platform infrastructure.",
     Toolset.SEMANTIC_LAYER: "To learn more about the dbt Semantic Layer, click [here](https://docs.getdbt.com/docs/use-dbt-semantic-layer/dbt-sl).",

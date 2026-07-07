@@ -5,6 +5,7 @@ from dbt_mcp.discovery.client import (
     LineageResourceType,
 )
 from dbt_mcp.errors import ToolCallError
+from dbt_mcp.tools.parameters import LineageDirection
 
 
 @pytest.fixture
@@ -635,6 +636,141 @@ async def test_fetch_lineage_depth_boundary_includes_nodes_at_exact_depth(
         "model.test.c",  # depth 0 (start)
         "model.test.d",  # depth 1
         "model.test.e",  # depth 2 (boundary)
+    }
+
+
+async def test_fetch_lineage_direction_upstream_excludes_children(
+    lineage_fetcher, mock_api_client, unit_discovery_config
+):
+    """direction=upstream returns the target and its ancestors, not descendants."""
+    mock_api_client.return_value = {
+        "data": {
+            "environment": {
+                "applied": {
+                    "lineage": [
+                        {
+                            "uniqueId": "source.test.raw",
+                            "name": "raw",
+                            "resourceType": "Source",
+                            "parentIds": [],
+                        },
+                        {
+                            "uniqueId": "model.test.staging",
+                            "name": "staging",
+                            "resourceType": "Model",
+                            "parentIds": ["source.test.raw"],
+                        },
+                        {
+                            "uniqueId": "model.test.mart",
+                            "name": "mart",
+                            "resourceType": "Model",
+                            "parentIds": ["model.test.staging"],
+                        },
+                    ]
+                }
+            }
+        }
+    }
+
+    result = await lineage_fetcher.fetch_lineage(
+        unique_id="model.test.staging",
+        depth=5,
+        direction=LineageDirection.UPSTREAM,
+        config=unit_discovery_config,
+    )
+
+    unique_ids = {node["uniqueId"] for node in result}
+    assert unique_ids == {"model.test.staging", "source.test.raw"}
+    assert "model.test.mart" not in unique_ids
+
+
+async def test_fetch_lineage_direction_downstream_excludes_parents(
+    lineage_fetcher, mock_api_client, unit_discovery_config
+):
+    """direction=downstream returns the target and its descendants, not ancestors."""
+    mock_api_client.return_value = {
+        "data": {
+            "environment": {
+                "applied": {
+                    "lineage": [
+                        {
+                            "uniqueId": "source.test.raw",
+                            "name": "raw",
+                            "resourceType": "Source",
+                            "parentIds": [],
+                        },
+                        {
+                            "uniqueId": "model.test.staging",
+                            "name": "staging",
+                            "resourceType": "Model",
+                            "parentIds": ["source.test.raw"],
+                        },
+                        {
+                            "uniqueId": "model.test.mart",
+                            "name": "mart",
+                            "resourceType": "Model",
+                            "parentIds": ["model.test.staging"],
+                        },
+                    ]
+                }
+            }
+        }
+    }
+
+    result = await lineage_fetcher.fetch_lineage(
+        unique_id="model.test.staging",
+        depth=5,
+        direction=LineageDirection.DOWNSTREAM,
+        config=unit_discovery_config,
+    )
+
+    unique_ids = {node["uniqueId"] for node in result}
+    assert unique_ids == {"model.test.staging", "model.test.mart"}
+    assert "source.test.raw" not in unique_ids
+
+
+async def test_fetch_lineage_direction_defaults_to_both(
+    lineage_fetcher, mock_api_client, unit_discovery_config
+):
+    """Omitting direction preserves the existing bidirectional behavior."""
+    mock_api_client.return_value = {
+        "data": {
+            "environment": {
+                "applied": {
+                    "lineage": [
+                        {
+                            "uniqueId": "source.test.raw",
+                            "name": "raw",
+                            "resourceType": "Source",
+                            "parentIds": [],
+                        },
+                        {
+                            "uniqueId": "model.test.staging",
+                            "name": "staging",
+                            "resourceType": "Model",
+                            "parentIds": ["source.test.raw"],
+                        },
+                        {
+                            "uniqueId": "model.test.mart",
+                            "name": "mart",
+                            "resourceType": "Model",
+                            "parentIds": ["model.test.staging"],
+                        },
+                    ]
+                }
+            }
+        }
+    }
+
+    result = await lineage_fetcher.fetch_lineage(
+        unique_id="model.test.staging", depth=5, config=unit_discovery_config
+    )
+
+    unique_ids = {node["uniqueId"] for node in result}
+    assert unique_ids == {
+        "model.test.staging",
+        "source.test.raw",
+        "model.test.mart",
     }
 
 

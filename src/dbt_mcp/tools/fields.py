@@ -2,6 +2,8 @@
 
 from pydantic import Field
 
+from dbt_mcp.tools.parameters import LineageDirection
+
 
 _UNIQUE_ID_DESCRIPTION = (
     "Fully-qualified unique ID of the resource. "
@@ -39,4 +41,11 @@ TYPES_FIELD = Field(
     description="List of resource types to include in lineage results. "
     "If not provided, includes all types. "
     "Valid types: Model, Source, Seed, Snapshot, Exposure, Metric, SemanticModel, SavedQuery, Test.",
+)
+
+DIRECTION_FIELD = Field(
+    default=LineageDirection.BOTH,
+    description="Which direction(s) of the graph to return, relative to the target node: "
+    "`upstream` (ancestors/parents only), `downstream` (descendants/children only), "
+    "or `both` (default). Narrowing to one direction reduces response size.",
 )

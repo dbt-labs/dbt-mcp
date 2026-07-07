@@ -36,15 +36,17 @@ MACRO_INCLUDE_DEFAULT_DBT_PACKAGES = (
 
 # Not a JSON Schema param description — used as the `arg_mapping` for the
 # get_model_parents/get_model_children deprecation banner. get_lineage isn't a
-# drop-in: it requires unique_id (these tools accept name alone), defaults to
-# depth=5, and even at depth=1 returns the target node plus BOTH parents and
-# children (LineageFetcher._filter_connected_nodes traverses parentIds in both
-# directions) — callers must filter the result themselves to isolate one
-# direction, using the parentIds field each node already carries.
-GET_LINEAGE_ARG_MAPPING = (
-    "Call get_lineage(unique_id=..., depth=1) — it requires unique_id (not name) "
-    "and, at depth=1, returns the target node plus both parents and children "
-    "(not filtered to one direction). Derive one direction from the result via "
-    "parentIds: parents are nodes whose uniqueId is in the target's parentIds; "
-    "children are nodes whose parentIds contain the target's uniqueId."
+# drop-in on its own: it requires unique_id (these tools accept name alone) and
+# defaults to depth=5. The `direction` param (upstream/downstream/both) makes it
+# a true drop-in once both differences are called out.
+GET_MODEL_PARENTS_ARG_MAPPING = (
+    'Call get_lineage(unique_id=..., depth=1, direction="upstream") — it '
+    'requires unique_id (not name) and defaults to depth=5; direction="upstream" '
+    "returns only parents, matching this tool's behavior."
+)
+
+GET_MODEL_CHILDREN_ARG_MAPPING = (
+    'Call get_lineage(unique_id=..., depth=1, direction="downstream") — it '
+    'requires unique_id (not name) and defaults to depth=5; direction="downstream" '
+    "returns only children, matching this tool's behavior."
 )

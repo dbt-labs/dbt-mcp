@@ -10,7 +10,12 @@ A list of all nodes in the connected subgraph, where each node contains:
 - `description`: The resource's description, if one is defined (may be null)
 - `parentIds`: List of unique IDs that this resource directly depends on
 
-Call `get_lineage(unique_id=..., depth=1)` to retrieve only the immediate parents and children of a resource.
+Call `get_lineage(unique_id=..., depth=1)` to retrieve the target node plus only its immediate parents and children.
+
+Use `direction` to narrow the response to one side of the graph and reduce payload size:
+- `direction="upstream"`: target node plus ancestors only (no descendants)
+- `direction="downstream"`: target node plus descendants only (no ancestors)
+- `direction="both"` (default): target node plus both ancestors and descendants
 
 **Example Response:**
 ```json
@@ -52,6 +57,12 @@ get_lineage(unique_id="model.analytics.customers", depth=1)
 
 # Get deeper lineage for comprehensive analysis
 get_lineage(unique_id="model.analytics.customers", depth=10)
+
+# Get only upstream dependencies (ancestors), e.g. for dependency tracking
+get_lineage(unique_id="model.analytics.customers", direction="upstream")
+
+# Get only downstream dependents (descendants), e.g. for impact analysis
+get_lineage(unique_id="model.analytics.customers", direction="downstream")
 ```
 
 **Traversing the Graph:**
