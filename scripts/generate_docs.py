@@ -70,15 +70,17 @@ def generate_readme_tools_section() -> str:
 
         sorted_tools = sorted(tool_names, key=lambda t: t.value)
         for tool in sorted_tools:
-            desc = HUMAN_DESCRIPTIONS.get(tool, "")
             meta = _TOOL_META.get(tool)
-            replacement = (
-                meta.get("replacement") if meta and meta.get("deprecated") else None
-            )
-            suffix = (
-                f" *(deprecated — use `{replacement}` instead)*" if replacement else ""
-            )
-            lines.append(f"- `{tool.value}`{suffix}: {desc}")
+            if meta and meta.get("deprecated"):
+                replacement = meta.get("replacement")
+                desc = (
+                    f"*(deprecated — use `{replacement}` instead)*"
+                    if replacement
+                    else "*(deprecated)*"
+                )
+            else:
+                desc = HUMAN_DESCRIPTIONS.get(tool, "")
+            lines.append(f"- `{tool.value}`: {desc}")
 
         lines.append("")  # Empty line after each section
 
