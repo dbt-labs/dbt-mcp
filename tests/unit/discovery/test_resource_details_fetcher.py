@@ -1,4 +1,4 @@
-from unittest.mock import Mock, call, patch
+from unittest.mock import AsyncMock, Mock, call, patch
 
 import pytest
 
@@ -11,8 +11,14 @@ from dbt_mcp.errors import InvalidParameterError
 
 
 @pytest.fixture
-def resource_details_fetcher():
-    return ResourceDetailsFetcher()
+def models_fetcher():
+    """Mock ModelsFetcher for model-by-name resolution."""
+    return AsyncMock()
+
+
+@pytest.fixture
+def resource_details_fetcher(models_fetcher):
+    return ResourceDetailsFetcher(models_fetcher=models_fetcher)
 
 
 async def test_fetch_details_requires_identifier(
@@ -205,7 +211,10 @@ async def test_fetch_details_with_lowercase_name_no_duplicate_candidates(
     mock_api_client: Mock,
     unit_discovery_config: DiscoveryConfig,
 ):
-    """All-lowercase names should produce a single candidate per package, not duplicates."""
+    """All-lowercase names should produce a single candidate per package, not
+    duplicates. Only exercised for non-model types now, since MODEL resolves
+    via ModelsFetcher.resolve_unique_ids_by_name instead of the packages
+    Cartesian product."""
     packages_response = {"data": {"environment": {"applied": {"packages": ["jaffle"]}}}}
     details_response: dict[str, dict[str, dict[str, dict[str, dict[str, list]]]]] = {
         "data": {"environment": {"applied": {"resources": {"edges": []}}}}
@@ -214,10 +223,10 @@ async def test_fetch_details_with_lowercase_name_no_duplicate_candidates(
     async def execute_side_effect(query, variables, *, config):
         if query == ResourceDetailsFetcher.GET_PACKAGES_QUERY:
             if variables["resource"] == "macro":
-                return {"data": {"environment": {"applied": {"packages": []}}}}
-            return packages_response
-        elif query == ResourceDetailsFetcher.GQL_QUERIES[AppliedResourceType.MODEL]:
-            assert variables["filter"]["uniqueIds"] == ["model.jaffle.orders"]
+                return packages_response
+            return {"data": {"environment": {"applied": {"packages": []}}}}
+        elif query == ResourceDetailsFetcher.GQL_QUERIES[AppliedResourceType.MACRO]:
+            assert variables["filter"]["uniqueIds"] == ["macro.jaffle.orders"]
             assert variables["first"] == 1
             return details_response
         raise AssertionError(f"Unexpected query: {query}")
@@ -225,10 +234,126 @@ async def test_fetch_details_with_lowercase_name_no_duplicate_candidates(
     mock_api_client.side_effect = execute_side_effect
 
     await resource_details_fetcher.fetch_details(
+        AppliedResourceType.MACRO,
+        unit_discovery_config,
+        name="orders",
+    )
+
+
+@patch("dbt_mcp.discovery.client.raise_gql_error")
+async def test_fetch_details_with_name_resolves_model_via_models_fetcher(
+    mock_raise_gql_error: Mock,
+    resource_details_fetcher: ResourceDetailsFetcher,
+    models_fetcher: AsyncMock,
+    mock_api_client: Mock,
+    unit_discovery_config: DiscoveryConfig,
+):
+    """Models resolve name->unique_id via ModelsFetcher.resolve_unique_ids_by_name,
+    not the packages-enumeration + Cartesian product used for other resource
+    types. No GetPackages query should be issued."""
+    models_fetcher.resolve_unique_ids_by_name.return_value = ["model.jaffle.orders"]
+    details_node = {"name": "orders", "uniqueId": "model.jaffle.orders"}
+    details_response = {
+        "data": {
+            "environment": {
+                "applied": {"resources": {"edges": [{"node": details_node}]}}
+            }
+        }
+    }
+    mock_api_client.return_value = details_response
+
+    result = await resource_details_fetcher.fetch_details(
         AppliedResourceType.MODEL,
         unit_discovery_config,
         name="orders",
     )
+
+    assert result == [details_node]
+    models_fetcher.resolve_unique_ids_by_name.assert_called_once_with(
+        "orders", config=unit_discovery_config
+    )
+    mock_api_client.assert_called_once()
+    _, variables = mock_api_client.call_args[0]
+    assert variables["filter"]["uniqueIds"] == ["model.jaffle.orders"]
+    assert variables["filter"]["types"] == ["Model"]
+    assert variables["first"] == 1
+    mock_raise_gql_error.assert_called_once_with(details_response)
+
+
+@patch("dbt_mcp.discovery.client.raise_gql_error")
+async def test_fetch_details_with_name_resolves_multiple_models(
+    mock_raise_gql_error: Mock,
+    resource_details_fetcher: ResourceDetailsFetcher,
+    models_fetcher: AsyncMock,
+    mock_api_client: Mock,
+    unit_discovery_config: DiscoveryConfig,
+):
+    """All unique_ids resolved by ModelsFetcher flow through into the details
+    filter -- fetch_details doesn't itself disambiguate multi-match, that's the
+    caller's responsibility (see ModelPerformanceFetcher)."""
+    models_fetcher.resolve_unique_ids_by_name.return_value = [
+        "model.jaffle.orders",
+        "model.other_pkg.orders",
+    ]
+    details_response = {
+        "data": {
+            "environment": {
+                "applied": {
+                    "resources": {
+                        "edges": [
+                            {
+                                "node": {
+                                    "name": "orders",
+                                    "uniqueId": "model.jaffle.orders",
+                                }
+                            },
+                            {
+                                "node": {
+                                    "name": "orders",
+                                    "uniqueId": "model.other_pkg.orders",
+                                }
+                            },
+                        ]
+                    }
+                }
+            }
+        }
+    }
+    mock_api_client.return_value = details_response
+
+    result = await resource_details_fetcher.fetch_details(
+        AppliedResourceType.MODEL,
+        unit_discovery_config,
+        name="orders",
+    )
+
+    assert len(result) == 2
+    _, variables = mock_api_client.call_args[0]
+    assert variables["filter"]["uniqueIds"] == [
+        "model.jaffle.orders",
+        "model.other_pkg.orders",
+    ]
+    assert variables["first"] == 2
+
+
+async def test_fetch_details_with_name_returns_empty_when_model_not_resolved(
+    resource_details_fetcher: ResourceDetailsFetcher,
+    models_fetcher: AsyncMock,
+    mock_api_client: Mock,
+    unit_discovery_config: DiscoveryConfig,
+):
+    """When ModelsFetcher resolves no unique_ids, fetch_details returns []
+    without issuing a details query."""
+    models_fetcher.resolve_unique_ids_by_name.return_value = []
+
+    result = await resource_details_fetcher.fetch_details(
+        AppliedResourceType.MODEL,
+        unit_discovery_config,
+        name="nonexistent",
+    )
+
+    assert result == []
+    mock_api_client.assert_not_called()
 
 
 @patch("dbt_mcp.discovery.client.raise_gql_error")

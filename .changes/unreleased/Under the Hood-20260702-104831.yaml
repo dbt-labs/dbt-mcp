@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: get_model_performance's name resolution now skips fetching full model details (catalog, compiled code, etc.) and resolves the unique_id directly.
+time: 2026-07-02T10:48:31.191615-07:00

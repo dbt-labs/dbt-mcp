@@ -10,8 +10,8 @@ from dbt_mcp.discovery.client import (
 
 
 @pytest.fixture
-def resource_details_fetcher() -> ResourceDetailsFetcher:
-    return ResourceDetailsFetcher()
+def resource_details_fetcher(models_fetcher: ModelsFetcher) -> ResourceDetailsFetcher:
+    return ResourceDetailsFetcher(models_fetcher=models_fetcher)
 
 
 async def test_resource_details_fetcher_accepts_unique_id_for_model(

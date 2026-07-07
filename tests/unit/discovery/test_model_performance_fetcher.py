@@ -2,24 +2,21 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from dbt_mcp.discovery.client import (
-    AppliedResourceType,
-    ModelPerformanceFetcher,
-)
+from dbt_mcp.discovery.client import ModelPerformanceFetcher
 from dbt_mcp.errors import InvalidParameterError, ToolCallError
 
 
 @pytest.fixture
-def resource_details_fetcher():
-    """Mock ResourceDetailsFetcher for name resolution."""
+def models_fetcher():
+    """Mock ModelsFetcher for name resolution."""
     return AsyncMock()
 
 
 @pytest.fixture
-def model_performance_fetcher(resource_details_fetcher):
+def model_performance_fetcher(models_fetcher):
     """Create ModelPerformanceFetcher with mocked dependencies."""
     return ModelPerformanceFetcher(
-        resource_details_fetcher=resource_details_fetcher,
+        models_fetcher=models_fetcher,
     )
 
 
@@ -77,13 +74,13 @@ async def test_fetch_performance_with_unique_id(
 async def test_fetch_performance_with_name_resolution(
     model_performance_fetcher,
     mock_api_client,
-    resource_details_fetcher,
+    models_fetcher,
     unit_discovery_config,
 ):
     """Test fetching performance using model name (requires resolution)."""
     # Mock name resolution
-    resource_details_fetcher.fetch_details.return_value = [
-        {"uniqueId": "model.analytics.stg_orders", "name": "stg_orders"}
+    models_fetcher.resolve_unique_ids_by_name.return_value = [
+        "model.analytics.stg_orders"
     ]
 
     # Mock performance query
@@ -111,10 +108,9 @@ async def test_fetch_performance_with_name_resolution(
         num_runs=1,
     )
 
-    # Verify name was resolved via resource_details_fetcher
-    resource_details_fetcher.fetch_details.assert_called_once_with(
-        resource_type=AppliedResourceType.MODEL,
-        name="stg_orders",
+    # Verify name was resolved via models_fetcher
+    models_fetcher.resolve_unique_ids_by_name.assert_called_once_with(
+        "stg_orders",
         config=unit_discovery_config,
     )
 
@@ -192,10 +188,10 @@ async def test_fetch_performance_no_parameters_raises_error(
 
 
 async def test_fetch_performance_model_not_found(
-    model_performance_fetcher, resource_details_fetcher, unit_discovery_config
+    model_performance_fetcher, models_fetcher, unit_discovery_config
 ):
     """Test error when model name doesn't resolve to any model."""
-    resource_details_fetcher.fetch_details.return_value = []
+    models_fetcher.resolve_unique_ids_by_name.return_value = []
 
     with pytest.raises(ToolCallError, match="Model not found"):
         await model_performance_fetcher.fetch_performance(
@@ -206,12 +202,12 @@ async def test_fetch_performance_model_not_found(
 
 
 async def test_fetch_performance_multiple_name_matches(
-    model_performance_fetcher, resource_details_fetcher, unit_discovery_config
+    model_performance_fetcher, models_fetcher, unit_discovery_config
 ):
     """Ensure ambiguous name lookups raise ToolCallError."""
-    resource_details_fetcher.fetch_details.return_value = [
-        {"uniqueId": "model.pkg_a.duplicate", "name": "duplicate"},
-        {"uniqueId": "model.pkg_b.duplicate", "name": "duplicate"},
+    models_fetcher.resolve_unique_ids_by_name.return_value = [
+        "model.pkg_a.duplicate",
+        "model.pkg_b.duplicate",
     ]
 
     with pytest.raises(
@@ -306,3 +302,79 @@ async def test_fetch_performance_include_tests(
         assert result[0]["tests"][1]["executionTime"] == 3.2
     else:
         assert "tests" not in result[0]
+
+
+async def test_fetch_performance_strips_whitespace_from_name(
+    model_performance_fetcher,
+    mock_api_client,
+    models_fetcher,
+    unit_discovery_config,
+):
+    """A whitespace-padded name must resolve the same as its stripped form --
+    matches ResourceDetailsFetcher.fetch_details's prior stripping behavior,
+    which this method used to delegate through."""
+    models_fetcher.resolve_unique_ids_by_name.return_value = [
+        "model.analytics.stg_orders"
+    ]
+    mock_api_client.return_value = {
+        "data": {
+            "environment": {
+                "applied": {
+                    "modelHistoricalRuns": [
+                        {
+                            "uniqueId": "model.analytics.stg_orders",
+                            "runId": 1,
+                            "status": "success",
+                            "executeStartedAt": "2025-12-16T10:30:00Z",
+                            "executionTime": 1.0,
+                        }
+                    ]
+                }
+            }
+        }
+    }
+
+    result = await model_performance_fetcher.fetch_performance(
+        unit_discovery_config,
+        name="  stg_orders  ",
+        num_runs=1,
+    )
+
+    models_fetcher.resolve_unique_ids_by_name.assert_called_once_with(
+        "stg_orders",
+        config=unit_discovery_config,
+    )
+    assert result[0]["uniqueId"] == "model.analytics.stg_orders"
+
+
+async def test_fetch_performance_strips_whitespace_from_unique_id(
+    model_performance_fetcher, mock_api_client, unit_discovery_config
+):
+    """A whitespace-padded unique_id must be stripped before being sent to the
+    (case-sensitive) uniqueId filter."""
+    mock_api_client.return_value = {
+        "data": {
+            "environment": {
+                "applied": {
+                    "modelHistoricalRuns": [
+                        {
+                            "uniqueId": "model.analytics.stg_orders",
+                            "runId": 1,
+                            "status": "success",
+                            "executeStartedAt": "2025-12-16T10:30:00Z",
+                            "executionTime": 1.0,
+                        }
+                    ]
+                }
+            }
+        }
+    }
+
+    await model_performance_fetcher.fetch_performance(
+        unit_discovery_config,
+        unique_id="  model.analytics.stg_orders  ",
+        num_runs=1,
+    )
+
+    _, variables = mock_api_client.call_args[0]
+    assert variables["uniqueId"] == "model.analytics.stg_orders"
