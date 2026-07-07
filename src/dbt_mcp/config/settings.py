@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_DBT_CLI_TIMEOUT = 60
 PLATFORM_API_TIMEOUT = 15.0
-SEMANTIC_LAYER_GQL_TIMEOUT = 60.0
+SEMANTIC_LAYER_GQL_TIMEOUT = 30.0
 
 
 class DbtMcpLogSettings(BaseSettings):
