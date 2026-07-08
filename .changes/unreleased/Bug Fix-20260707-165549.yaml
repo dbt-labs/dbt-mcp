@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Reduce the semantic layer GraphQL request timeout from 60s to 30s so unresponsive requests fail faster instead of holding the connection open.
-time: 2026-07-07T16:55:49+01:00
