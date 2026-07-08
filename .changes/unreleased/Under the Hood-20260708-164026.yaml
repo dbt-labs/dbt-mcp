@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: Fix the changelog CI check so it skips auto-generated release pull requests. The previous guard tested a push-only event field that is empty on pull_request events, so it never took effect and release PRs failed the check.
+time: 2026-07-08T16:40:26+01:00
