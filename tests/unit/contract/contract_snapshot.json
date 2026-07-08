@@ -234,92 +234,6 @@
         "idempotentHint": true,
         "openWorldHint": true,
         "readOnlyHint": true,
-        "title": "Get Details"
-      },
-      "description": "Retrieves full details for a dbt resource by type and name or unique ID.\n\nUse this tool when you need the full schema, definition, or metadata for a specific dbt resource. The `resource_type` determines what fields are returned.\n\n**Parameters:**\n- `resource_type`: The type of dbt resource. One of: `model`, `source`, `exposure`, `test`, `seed`, `snapshot`, `macro`, `semantic_model`. The resource type is also encoded in the `unique_id` prefix (e.g. `model.my_project.orders` \u2192 `model`).\n- `name`: The resource's short name (e.g. `orders`). Provide `name` or `unique_id`, not both.\n- `unique_id`: The resource's fully qualified unique ID (e.g. `model.my_project.orders`). Preferred when available \u2014 avoids ambiguity when multiple resources share a name.\n\n**Usage examples:**\n```python\n# Get details for a model by unique_id\nget_details(resource_type=\"model\", unique_id=\"model.analytics.orders\")\n\n# Get details for a source by name\nget_details(resource_type=\"source\", name=\"raw_users\")\n\n# Get details for a semantic model\nget_details(resource_type=\"semantic_model\", unique_id=\"semantic_model.analytics.orders\")\n```\n",
-      "input_schema": {
-        "$defs": {
-          "AppliedResourceType": {
-            "enum": [
-              "model",
-              "source",
-              "exposure",
-              "test",
-              "seed",
-              "snapshot",
-              "macro",
-              "semantic_model"
-            ],
-            "title": "AppliedResourceType",
-            "type": "string"
-          }
-        },
-        "properties": {
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "The name of the resource. This is not required if `unique_id` is provided. Only use name when `unique_id` is unknown.",
-            "title": "Name"
-          },
-          "resource_type": {
-            "$ref": "#/$defs/AppliedResourceType",
-            "description": "The type of dbt resource to fetch details for. One of: model, source, exposure, test, seed, snapshot, macro, semantic_model. Tip: the resource_type is encoded in the unique_id prefix (e.g. `model.my_project.orders` \u2192 model)."
-          },
-          "unique_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "Fully-qualified unique ID of the resource. This will follow the format `<resource_type>.<package_name>.<resource_name>` (e.g. `model.analytics.stg_orders`). Strongly preferred over the `name` parameter for deterministic lookups.",
-            "title": "Unique Id"
-          }
-        },
-        "required": [
-          "resource_type"
-        ],
-        "title": "get_detailsArguments",
-        "type": "object"
-      },
-      "meta": null,
-      "name": "get_details",
-      "output_schema": {
-        "properties": {
-          "result": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Result",
-            "type": "array"
-          }
-        },
-        "required": [
-          "result"
-        ],
-        "title": "get_detailsOutput",
-        "type": "object"
-      },
-      "title": "Get Details",
-      "toolset": "discovery"
-    },
-    {
-      "annotations": {
-        "destructiveHint": false,
-        "idempotentHint": true,
-        "openWorldHint": true,
-        "readOnlyHint": true,
         "title": "Get Dimension Values"
       },
       "description": "<instructions>\nGet the distinct values for a given dimension, optionally scoped to specific metrics.\n\nUse this tool to discover what values exist for a dimension before building a `where`\nfilter in `query_metrics`. For example, to filter by country you first call this tool\nto see which country values exist, then use those values in the `where` clause.\n\nIf the response includes `truncated: true`, there are more values than the current\n`limit`. Increase `limit` to retrieve more, or add `metrics` to narrow the scope.\n</instructions>\n\n<examples>\n<example>\nQuestion: \"I want to filter revenue for a specific country \u2014 what countries are available?\"\nThinking step-by-step:\n   - The user wants to know valid values for a country dimension\n   - I should scope to the \"revenue\" metric for accurate results\nParameters:\n    dimension=\"customer__country\"\n    metrics=[\"revenue\"]\n    limit=100\n</example>\n\n<example>\nQuestion: \"What are the possible order statuses?\"\nThinking step-by-step:\n   - The user wants all distinct values for an order status dimension\n   - No specific metric context needed\nParameters:\n    dimension=\"order__status\"\n    metrics=null\n    limit=100\n</example>\n</examples>\n",
@@ -688,7 +602,7 @@
         "readOnlyHint": true,
         "title": "Get Exposure Details"
       },
-      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
+      "description": "**DEPRECATED \u2014 use `get_node_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -723,7 +637,7 @@
       },
       "meta": {
         "deprecated": true,
-        "replacement": "get_details"
+        "replacement": "get_node_details"
       },
       "name": "get_exposure_details",
       "output_schema": {
@@ -1001,7 +915,7 @@
         "readOnlyHint": true,
         "title": "Get Macro Details"
       },
-      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
+      "description": "**DEPRECATED \u2014 use `get_node_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1036,7 +950,7 @@
       },
       "meta": {
         "deprecated": true,
-        "replacement": "get_details"
+        "replacement": "get_node_details"
       },
       "name": "get_macro_details",
       "output_schema": {
@@ -1107,7 +1021,6 @@
       "input_schema": {
         "$defs": {
           "GroupByParam": {
-            "description": "Parameter for a group_by, i.e a dimension or an entity.",
             "properties": {
               "grain": {
                 "anyOf": [
@@ -1343,7 +1256,7 @@
         "readOnlyHint": true,
         "title": "Get Model Details"
       },
-      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
+      "description": "**DEPRECATED \u2014 use `get_node_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1378,7 +1291,7 @@
       },
       "meta": {
         "deprecated": true,
-        "replacement": "get_details"
+        "replacement": "get_node_details"
       },
       "name": "get_model_details",
       "output_schema": {
@@ -1613,6 +1526,92 @@
         "idempotentHint": true,
         "openWorldHint": true,
         "readOnlyHint": true,
+        "title": "Get Details"
+      },
+      "description": "Retrieves full details for a dbt resource by type and name or unique ID.\n\nUse this tool when you need the full schema, definition, or metadata for a specific dbt resource. The `resource_type` determines what fields are returned.\n\n**Parameters:**\n- `resource_type`: The type of dbt resource. One of: `model`, `source`, `exposure`, `test`, `seed`, `snapshot`, `macro`, `semantic_model`. The resource type is also encoded in the `unique_id` prefix (e.g. `model.my_project.orders` \u2192 `model`).\n- `name`: The resource's short name (e.g. `orders`). Provide `name` or `unique_id`, not both.\n- `unique_id`: The resource's fully qualified unique ID (e.g. `model.my_project.orders`). Preferred when available \u2014 avoids ambiguity when multiple resources share a name.\n\n**Usage examples:**\n```python\n# Get details for a model by unique_id\nget_node_details(resource_type=\"model\", unique_id=\"model.analytics.orders\")\n\n# Get details for a source by name\nget_node_details(resource_type=\"source\", name=\"raw_users\")\n\n# Get details for a semantic model\nget_node_details(resource_type=\"semantic_model\", unique_id=\"semantic_model.analytics.orders\")\n```\n",
+      "input_schema": {
+        "$defs": {
+          "AppliedResourceType": {
+            "enum": [
+              "model",
+              "source",
+              "exposure",
+              "test",
+              "seed",
+              "snapshot",
+              "macro",
+              "semantic_model"
+            ],
+            "title": "AppliedResourceType",
+            "type": "string"
+          }
+        },
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The name of the resource. This is not required if `unique_id` is provided. Only use name when `unique_id` is unknown.",
+            "title": "Name"
+          },
+          "resource_type": {
+            "$ref": "#/$defs/AppliedResourceType",
+            "description": "The type of dbt resource to fetch details for. One of: model, source, exposure, test, seed, snapshot, macro, semantic_model. Tip: the resource_type is encoded in the unique_id prefix (e.g. `model.my_project.orders` \u2192 model)."
+          },
+          "unique_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Fully-qualified unique ID of the resource. This will follow the format `<resource_type>.<package_name>.<resource_name>` (e.g. `model.analytics.stg_orders`). Strongly preferred over the `name` parameter for deterministic lookups.",
+            "title": "Unique Id"
+          }
+        },
+        "required": [
+          "resource_type"
+        ],
+        "title": "get_node_detailsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_node_details",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_node_detailsOutput",
+        "type": "object"
+      },
+      "title": "Get Details",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
         "title": "Get Product Doc Pages"
       },
       "description": "Retrieve the Markdown content of one or more dbt documentation pages from docs.getdbt.com. Pass a list of URLs or relative paths (e.g. from search_product_docs results). Up to 5 pages can be fetched per call; pages are fetched in parallel for speed. Pass the optional `query` parameter to retrieve only the most relevant sections of each page rather than the full content \u2014 this significantly reduces response size and is recommended when you already know what topic you are looking for.\n\nIMPORTANT \u2014 how to present docs content to the user:\n1. Give a direct answer first, then explain. Don't just summarize \u2014 be specific about WHERE to find a feature in the UI and HOW it works.\n2. Structure around the user's task: lead with what they asked, not the doc's own structure. Include step-by-step actionable detail when the docs describe a workflow or UI feature.\n3. Call out practical limitations and edge cases from the docs.\n4. Close with clear guidance: if the feature only partially answers the question, say what else they can do and where.\n5. ALWAYS include the docs page URL(s) as markdown hyperlinks at the end of your response, e.g. [Page title](https://docs.getdbt.com/...).\n\nVERSION AWARENESS:\nThe response includes a `dbt_project_version` field with the user's installed dbt version (detected via `dbt --version`). Page content is automatically filtered to show only sections relevant to the detected version \u2014 VersionBlock tags from the docs site are resolved so you receive clean, version-appropriate markdown. Pages may also have a `version_note` field if they cover an EOL version. If `dbt_project_version` is null, the version could not be detected \u2014 all version-specific content is kept with tags stripped.\n\nWhen presenting page content to the user, you MUST:\n1. If `dbt_project_version` is set, tell the user their detected version upfront (e.g. \"You're on dbt 1.8\").\n2. If `version_note` is set, prominently warn the user that the page is for an end-of-life version and the information may be outdated. Suggest they look at the current docs instead.\n3. Page content has already been filtered to show only sections relevant to the detected version. If the content seems sparse or incomplete, let the user know that some sections may have been filtered out because they apply to a different dbt version, and suggest they check the full page on docs.getdbt.com.\n",
@@ -1731,7 +1730,7 @@
         "readOnlyHint": true,
         "title": "Get Seed Details"
       },
-      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
+      "description": "**DEPRECATED \u2014 use `get_node_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1766,7 +1765,7 @@
       },
       "meta": {
         "deprecated": true,
-        "replacement": "get_details"
+        "replacement": "get_node_details"
       },
       "name": "get_seed_details",
       "output_schema": {
@@ -1797,7 +1796,7 @@
         "readOnlyHint": true,
         "title": "Get Semantic Model Details"
       },
-      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
+      "description": "**DEPRECATED \u2014 use `get_node_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1832,7 +1831,7 @@
       },
       "meta": {
         "deprecated": true,
-        "replacement": "get_details"
+        "replacement": "get_node_details"
       },
       "name": "get_semantic_model_details",
       "output_schema": {
@@ -1863,7 +1862,7 @@
         "readOnlyHint": true,
         "title": "Get Snapshot Details"
       },
-      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
+      "description": "**DEPRECATED \u2014 use `get_node_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1898,7 +1897,7 @@
       },
       "meta": {
         "deprecated": true,
-        "replacement": "get_details"
+        "replacement": "get_node_details"
       },
       "name": "get_snapshot_details",
       "output_schema": {
@@ -1929,7 +1928,7 @@
         "readOnlyHint": true,
         "title": "Get Source Details"
       },
-      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
+      "description": "**DEPRECATED \u2014 use `get_node_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1964,7 +1963,7 @@
       },
       "meta": {
         "deprecated": true,
-        "replacement": "get_details"
+        "replacement": "get_node_details"
       },
       "name": "get_source_details",
       "output_schema": {
@@ -1995,7 +1994,7 @@
         "readOnlyHint": true,
         "title": "Get Test Details"
       },
-      "description": "**DEPRECATED \u2014 use `get_details` instead.** This tool will be removed in a future release.",
+      "description": "**DEPRECATED \u2014 use `get_node_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
         "properties": {
           "name": {
@@ -2030,7 +2029,7 @@
       },
       "meta": {
         "deprecated": true,
-        "replacement": "get_details"
+        "replacement": "get_node_details"
       },
       "name": "get_test_details",
       "output_schema": {
@@ -2506,7 +2505,6 @@
       "input_schema": {
         "$defs": {
           "GroupByParam": {
-            "description": "Parameter for a group_by, i.e a dimension or an entity.",
             "properties": {
               "grain": {
                 "anyOf": [

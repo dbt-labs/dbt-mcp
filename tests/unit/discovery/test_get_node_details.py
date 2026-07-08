@@ -5,13 +5,13 @@ import pytest
 from dbt_mcp.discovery.client import AppliedResourceType
 from dbt_mcp.discovery.tools import (
     DISCOVERY_TOOLS,
-    get_details,
+    get_node_details,
 )
 from dbt_mcp.discovery.tools_multiproject import (
     MULTIPROJECT_DISCOVERY_TOOLS,
 )
 from dbt_mcp.discovery.tools_multiproject import (
-    get_details as get_details_multiproject,
+    get_node_details as get_node_details_multiproject,
 )
 from dbt_mcp.tools.tool_names import ToolName
 
@@ -28,13 +28,15 @@ DEPRECATED_DETAIL_TOOLS = [
 
 
 @pytest.mark.parametrize("resource_type", list(AppliedResourceType))
-async def test_get_details_delegates_to_fetcher(resource_type: AppliedResourceType):
+async def test_get_node_details_delegates_to_fetcher(
+    resource_type: AppliedResourceType,
+):
     config = object()
     context = Mock()
     context.config_provider.get_config = AsyncMock(return_value=config)
     context.resource_details_fetcher.fetch_details = AsyncMock(return_value=["row"])
 
-    result = await get_details.fn(
+    result = await get_node_details.fn(
         context=context,
         resource_type=resource_type,
         name=None,
@@ -51,7 +53,7 @@ async def test_get_details_delegates_to_fetcher(resource_type: AppliedResourceTy
 
 
 @pytest.mark.parametrize("resource_type", list(AppliedResourceType))
-async def test_get_details_multiproject_delegates_to_fetcher(
+async def test_get_node_details_multiproject_delegates_to_fetcher(
     resource_type: AppliedResourceType,
 ):
     config = object()
@@ -59,7 +61,7 @@ async def test_get_details_multiproject_delegates_to_fetcher(
     context.config_provider.get_config = AsyncMock(return_value=config)
     context.resource_details_fetcher.fetch_details = AsyncMock(return_value=["row"])
 
-    result = await get_details_multiproject.fn(
+    result = await get_node_details_multiproject.fn(
         context=context,
         project_id=42,
         resource_type=resource_type,
@@ -82,7 +84,7 @@ def test_detail_tools_are_deprecated(tool_name: ToolName):
     tool = next(t for t in DISCOVERY_TOOLS if t.get_name() == tool_name)
     assert tool.meta is not None
     assert tool.meta["deprecated"] is True
-    assert tool.meta["replacement"] == "get_details"
+    assert tool.meta["replacement"] == "get_node_details"
     assert tool.description.startswith("**DEPRECATED")
     # A short, blunt description (not the original prompt) speeds the soak.
     assert len(tool.description) < 200
@@ -93,11 +95,11 @@ def test_detail_tools_are_deprecated_multiproject(tool_name: ToolName):
     tool = next(t for t in MULTIPROJECT_DISCOVERY_TOOLS if t.get_name() == tool_name)
     assert tool.meta is not None
     assert tool.meta["deprecated"] is True
-    assert tool.meta["replacement"] == "get_details"
+    assert tool.meta["replacement"] == "get_node_details"
     assert tool.description.startswith("**DEPRECATED")
     assert len(tool.description) < 200
 
 
-def test_get_details_not_deprecated():
-    assert get_details.meta is None
-    assert get_details_multiproject.meta is None
+def test_get_node_details_not_deprecated():
+    assert get_node_details.meta is None
+    assert get_node_details_multiproject.meta is None

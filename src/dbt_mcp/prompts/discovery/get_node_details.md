@@ -10,11 +10,11 @@ Use this tool when you need the full schema, definition, or metadata for a speci
 **Usage examples:**
 ```python
 # Get details for a model by unique_id
-get_details(resource_type="model", unique_id="model.analytics.orders")
+get_node_details(resource_type="model", unique_id="model.analytics.orders")
 
 # Get details for a source by name
-get_details(resource_type="source", name="raw_users")
+get_node_details(resource_type="source", name="raw_users")
 
 # Get details for a semantic model
-get_details(resource_type="semantic_model", unique_id="semantic_model.analytics.orders")
+get_node_details(resource_type="semantic_model", unique_id="semantic_model.analytics.orders")
 ```
