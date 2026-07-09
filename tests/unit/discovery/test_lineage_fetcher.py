@@ -642,7 +642,7 @@ async def test_fetch_lineage_depth_boundary_includes_nodes_at_exact_depth(
 async def test_fetch_lineage_direction_upstream_excludes_children(
     lineage_fetcher, mock_api_client, unit_discovery_config
 ):
-    """direction=upstream returns the target and its ancestors, not descendants."""
+    """direction=upstream returns ancestors only, excluding the target and descendants."""
     mock_api_client.return_value = {
         "data": {
             "environment": {
@@ -680,14 +680,15 @@ async def test_fetch_lineage_direction_upstream_excludes_children(
     )
 
     unique_ids = {node["uniqueId"] for node in result}
-    assert unique_ids == {"model.test.staging", "source.test.raw"}
+    assert unique_ids == {"source.test.raw"}
+    assert "model.test.staging" not in unique_ids
     assert "model.test.mart" not in unique_ids
 
 
 async def test_fetch_lineage_direction_downstream_excludes_parents(
     lineage_fetcher, mock_api_client, unit_discovery_config
 ):
-    """direction=downstream returns the target and its descendants, not ancestors."""
+    """direction=downstream returns descendants only, excluding the target and ancestors."""
     mock_api_client.return_value = {
         "data": {
             "environment": {
@@ -725,7 +726,8 @@ async def test_fetch_lineage_direction_downstream_excludes_parents(
     )
 
     unique_ids = {node["uniqueId"] for node in result}
-    assert unique_ids == {"model.test.staging", "model.test.mart"}
+    assert unique_ids == {"model.test.mart"}
+    assert "model.test.staging" not in unique_ids
     assert "source.test.raw" not in unique_ids
 
 

@@ -983,6 +983,14 @@ class LineageFetcher:
                         connected.add(candidate_id)
                         queue.append((candidate_id, current_depth + 1))
 
+        # One-directional queries return only ancestors (upstream) or
+        # descendants (downstream), excluding the target node itself — this
+        # makes get_lineage a true drop-in for get_model_parents/
+        # get_model_children. direction="both" keeps the target as the
+        # anchor of the full connected subgraph.
+        if direction != LineageDirection.BOTH:
+            connected.discard(target_id)
+
         # Return in original order
         return [node_map[uid] for uid in connected]
 

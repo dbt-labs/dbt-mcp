@@ -13,9 +13,12 @@ A list of all nodes in the connected subgraph, where each node contains:
 Call `get_lineage(unique_id=..., depth=1)` to retrieve the target node plus only its immediate parents and children.
 
 Use `direction` to narrow the response to one side of the graph and reduce payload size:
-- `direction="upstream"`: target node plus ancestors only (no descendants)
-- `direction="downstream"`: target node plus descendants only (no ancestors)
-- `direction="both"` (default): target node plus both ancestors and descendants
+- `direction="upstream"`: ancestors only — excludes the target node and descendants
+- `direction="downstream"`: descendants only — excludes the target node and ancestors
+- `direction="both"` (default): the target node plus both ancestors and descendants
+
+`direction="upstream"`/`"downstream"` are drop-in replacements for
+`get_model_parents`/`get_model_children`: same node set, target excluded either way.
 
 **Example Response:**
 ```json
@@ -90,7 +93,7 @@ direct_children = [
 
 **Understanding the Results:**
 
-- The target node is always included in the response
+- The target node is included only when `direction="both"` (the default); it is excluded for `direction="upstream"`/`"downstream"`
 - All returned nodes are connected to the target (no disconnected nodes)
 - To get full lineage, omit the `types` parameter
 - To reduce payload size, specify relevant `types`
