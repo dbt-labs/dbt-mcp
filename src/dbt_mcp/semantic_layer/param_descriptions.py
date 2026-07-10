@@ -55,3 +55,14 @@ SEMANTIC_DIMENSION_VALUES_LIMIT = (
     "If the result is truncated, the response `truncated` field will be True — "
     "increase this limit to retrieve more values."
 )
+
+SEMANTIC_META_FILTER = (
+    "Filter metrics by their config.meta key-value pairs. "
+    "Only metrics whose metadata contains all specified key-value pairs are returned. "
+    'Example: {"agent_accessible": true} returns only metrics where '
+    "config.meta.agent_accessible is true. "
+    'Use JSON booleans (true/false), not strings — "true" and "false" strings '
+    "are normalized to booleans automatically. "
+    "Use this to narrow a broad listing before the size budget is evaluated, "
+    "so that the metadata column is preserved in the response."
+)
