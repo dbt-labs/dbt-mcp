@@ -9,8 +9,6 @@ from dbt_mcp.discovery.tools import (
 )
 from dbt_mcp.discovery.tools_multiproject import (
     MULTIPROJECT_DISCOVERY_TOOLS,
-)
-from dbt_mcp.discovery.tools_multiproject import (
     get_node_details as get_node_details_multiproject,
 )
 from dbt_mcp.tools.tool_names import ToolName
