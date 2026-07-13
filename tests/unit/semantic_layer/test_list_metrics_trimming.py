@@ -6,7 +6,7 @@ from dbtsl.models.metric import MetricType
 from dbt_mcp.config.config_providers.base import SemanticLayerConfig
 from dbt_mcp.semantic_layer.tools import (
     SemanticLayerToolContext,
-    _filter_metrics_by_meta,
+    filter_metrics_by_meta,
     list_metrics,
     metrics_to_csv,
 )
@@ -274,7 +274,7 @@ async def test_meta_filter_multikey_requires_all_pairs():
     assert "b_missing" not in result
 
 
-def test_filter_metrics_by_meta_normalizes_string_booleans():
+def testfilter_metrics_by_meta_normalizes_string_booleans():
     """String 'true'/'false' in meta_filter are normalized to Python booleans."""
     metrics = [
         MetricToolResponse(
@@ -291,15 +291,15 @@ def test_filter_metrics_by_meta_normalizes_string_booleans():
     response = ListMetricsResponse(metrics=metrics)
 
     # String "true" should match boolean True stored in metadata
-    result = _filter_metrics_by_meta(response, {"agent_accessible": "true"})
+    result = filter_metrics_by_meta(response, {"agent_accessible": "true"})
     assert len(result.metrics) == 1
     assert result.metrics[0].name == "accessible"
 
     # String "false" should match boolean False
-    result = _filter_metrics_by_meta(response, {"agent_accessible": "false"})
+    result = filter_metrics_by_meta(response, {"agent_accessible": "false"})
     assert len(result.metrics) == 1
     assert result.metrics[0].name == "not_accessible"
 
     # Non-boolean strings are not coerced
-    result = _filter_metrics_by_meta(response, {"agent_accessible": "yes"})
+    result = filter_metrics_by_meta(response, {"agent_accessible": "yes"})
     assert len(result.metrics) == 0

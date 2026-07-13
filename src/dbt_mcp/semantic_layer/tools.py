@@ -23,8 +23,8 @@ from dbt_mcp.semantic_layer.param_descriptions import (
     SEMANTIC_METRICS,
     SEMANTIC_ORDER_BY,
     SEMANTIC_SEARCH_DIMENSIONS,
-    SEMANTIC_SEARCH_ENTITIES,
     SEMANTIC_META_FILTER,
+    SEMANTIC_SEARCH_ENTITIES,
     SEMANTIC_SEARCH_METRICS,
     SEMANTIC_SEARCH_SAVED_QUERIES,
     SEMANTIC_WHERE,
@@ -118,7 +118,7 @@ def metrics_to_csv(response: ListMetricsResponse, max_response_chars: int = 0) -
     return result
 
 
-def _filter_metrics_by_meta(
+def filter_metrics_by_meta(
     response: ListMetricsResponse, meta_filter: dict[str, Any]
 ) -> ListMetricsResponse:
     """Return a new response containing only metrics whose metadata matches all filter pairs.
@@ -185,7 +185,7 @@ async def list_metrics(
         config=config, search=search
     )
     if meta_filter:
-        response = _filter_metrics_by_meta(response, meta_filter)
+        response = filter_metrics_by_meta(response, meta_filter)
     # Only trim broad listings. Below the related-metrics threshold the
     # response already includes per-metric dimensions/entities — meaning the
     # caller asked about a small, specific set, so return full data even if

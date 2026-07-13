@@ -32,7 +32,7 @@ from dbt_mcp.semantic_layer.param_descriptions import (
     SEMANTIC_SEARCH_SAVED_QUERIES,
     SEMANTIC_WHERE,
 )
-from dbt_mcp.semantic_layer.tools import _filter_metrics_by_meta, metrics_to_csv
+from dbt_mcp.semantic_layer.tools import filter_metrics_by_meta, metrics_to_csv
 from dbt_mcp.semantic_layer.types import (
     DimensionValuesError,
     DimensionToolResponse,
@@ -85,7 +85,7 @@ async def list_metrics(
         client_provider=context.client_provider,
     ).list_metrics(config=config, search=search)
     if meta_filter:
-        response = _filter_metrics_by_meta(response, meta_filter)
+        response = filter_metrics_by_meta(response, meta_filter)
     # See note in single-project list_metrics: only trim broad listings; below
     # the related-metrics threshold the user is asking about a specific subset
     # and should get full description/metadata even if verbose.
