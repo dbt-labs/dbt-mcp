@@ -274,7 +274,7 @@ async def test_meta_filter_multikey_requires_all_pairs():
     assert "b_missing" not in result
 
 
-def testfilter_metrics_by_meta_normalizes_string_booleans():
+def test_filter_metrics_by_meta_normalizes_string_booleans():
     """String 'true'/'false' in meta_filter are normalized to Python booleans."""
     metrics = [
         MetricToolResponse(
