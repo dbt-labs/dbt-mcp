@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: "Add meta_filter param to list_metrics to pre-filter by config.meta and preserve metadata column under progressive trimming"
+time: 2026-07-10T08:56:49.970886-07:00
