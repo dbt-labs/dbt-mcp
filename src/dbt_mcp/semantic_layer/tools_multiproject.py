@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Any
 
 from dbtsl.api.shared.query_params import GroupByParam
 from mcp.server.fastmcp import FastMCP
@@ -23,6 +23,7 @@ from dbt_mcp.semantic_layer.param_descriptions import (
     SEMANTIC_DIMENSION_VALUES_LIMIT,
     SEMANTIC_GROUP_BY,
     SEMANTIC_LAYER_PROJECT_ID,
+    SEMANTIC_META_FILTER,
     SEMANTIC_METRICS,
     SEMANTIC_ORDER_BY,
     SEMANTIC_SEARCH_DIMENSIONS,
@@ -31,7 +32,7 @@ from dbt_mcp.semantic_layer.param_descriptions import (
     SEMANTIC_SEARCH_SAVED_QUERIES,
     SEMANTIC_WHERE,
 )
-from dbt_mcp.semantic_layer.tools import metrics_to_csv
+from dbt_mcp.semantic_layer.tools import filter_metrics_by_meta, metrics_to_csv
 from dbt_mcp.semantic_layer.types import (
     DimensionValuesError,
     DimensionToolResponse,
@@ -75,11 +76,16 @@ async def list_metrics(
     search: Annotated[
         str | list[str] | None, Field(description=SEMANTIC_SEARCH_METRICS)
     ] = None,
+    meta_filter: Annotated[
+        dict[str, Any] | None, Field(description=SEMANTIC_META_FILTER)
+    ] = None,
 ) -> str:
     config = await context.semantic_layer_config_provider.get_config(project_id)
     response = await SemanticLayerFetcher(
         client_provider=context.client_provider,
     ).list_metrics(config=config, search=search)
+    if meta_filter:
+        response = filter_metrics_by_meta(response, meta_filter)
     # See note in single-project list_metrics: only trim broad listings; below
     # the related-metrics threshold the user is asking about a specific subset
     # and should get full description/metadata even if verbose.

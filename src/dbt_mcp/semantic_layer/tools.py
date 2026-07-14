@@ -3,7 +3,7 @@ import io
 import json
 import logging
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Any
 
 from dbtsl.api.shared.query_params import GroupByParam
 from mcp.server.fastmcp import FastMCP
@@ -23,6 +23,7 @@ from dbt_mcp.semantic_layer.param_descriptions import (
     SEMANTIC_METRICS,
     SEMANTIC_ORDER_BY,
     SEMANTIC_SEARCH_DIMENSIONS,
+    SEMANTIC_META_FILTER,
     SEMANTIC_SEARCH_ENTITIES,
     SEMANTIC_SEARCH_METRICS,
     SEMANTIC_SEARCH_SAVED_QUERIES,
@@ -91,11 +92,20 @@ def metrics_to_csv(response: ListMetricsResponse, max_response_chars: int = 0) -
 
     result = _build_csv(metrics, columns)
     if max_response_chars > 0 and len(result) > max_response_chars:
-        # Strip optional fields and rebuild, then prepend a notice so the LLM
-        # knows fields were dropped and can re-query with `search` for details.
-        trimmed_columns = [c for c in columns if c not in ("description", "metadata")]
-        dropped = [c for c in ("description", "metadata") if c in columns]
-        result = _build_csv(metrics, trimmed_columns)
+        # Progressive trimming: drop description first, then metadata only if needed.
+        # Metadata contains semantic flags (e.g. access controls) that agents rely on
+        # for routing — preserve it as long as dropping description alone suffices.
+        dropped: list[str] = []
+        current_columns = columns
+
+        for col in ("description", "metadata"):
+            if len(result) <= max_response_chars:
+                break
+            if col in current_columns:
+                current_columns = [c for c in current_columns if c != col]
+                result = _build_csv(metrics, current_columns)
+                dropped.append(col)
+
         if dropped:
             notice = (
                 f"# Note: {', '.join(repr(c) for c in dropped)} omitted because "
@@ -106,6 +116,36 @@ def metrics_to_csv(response: ListMetricsResponse, max_response_chars: int = 0) -
             )
             result = notice + result
     return result
+
+
+def filter_metrics_by_meta(
+    response: ListMetricsResponse, meta_filter: dict[str, Any]
+) -> ListMetricsResponse:
+    """Return a new response containing only metrics whose metadata matches all filter pairs.
+
+    String values "true"/"false" in meta_filter are normalized to Python booleans so
+    that LLM agents producing JSON strings get the same result as those producing JSON
+    booleans — the most common type mismatch against YAML-sourced metadata.
+    """
+
+    def _normalize(v: Any) -> Any:
+        if isinstance(v, str):
+            lower = v.lower()
+            if lower == "true":
+                return True
+            if lower == "false":
+                return False
+        return v
+
+    normalized = {k: _normalize(v) for k, v in meta_filter.items()}
+    return ListMetricsResponse(
+        metrics=[
+            m
+            for m in response.metrics
+            if m.metadata
+            and all(m.metadata.get(k) == normalized[k] for k in normalized)
+        ]
+    )
 
 
 @dataclass
@@ -136,11 +176,16 @@ async def list_metrics(
     search: Annotated[
         str | list[str] | None, Field(description=SEMANTIC_SEARCH_METRICS)
     ] = None,
+    meta_filter: Annotated[
+        dict[str, Any] | None, Field(description=SEMANTIC_META_FILTER)
+    ] = None,
 ) -> str:
     config = await context.config_provider.get_config()
     response = await context.semantic_layer_fetcher.list_metrics(
         config=config, search=search
     )
+    if meta_filter:
+        response = filter_metrics_by_meta(response, meta_filter)
     # Only trim broad listings. Below the related-metrics threshold the
     # response already includes per-metric dimensions/entities — meaning the
     # caller asked about a small, specific set, so return full data even if
