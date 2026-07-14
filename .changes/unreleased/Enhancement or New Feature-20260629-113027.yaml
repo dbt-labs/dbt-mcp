@@ -1,3 +1,0 @@
-kind: Enhancement or New Feature
-body: Enrich get_lineage results with a description field per node; add a direction param (upstream/downstream/both) to narrow results to one side of the graph; deprecate get_model_parents and get_model_children in favor of get_lineage(depth=1, direction=...)
-time: 2026-06-29T11:30:27.420545-07:00
