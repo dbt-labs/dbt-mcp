@@ -18,24 +18,29 @@ from dbt_mcp.discovery.client import (
     SourcesFetcher,
 )
 from dbt_mcp.discovery.param_descriptions import (
+    GET_MODEL_CHILDREN_ARG_MAPPING,
+    GET_MODEL_PARENTS_ARG_MAPPING,
     MACRO_INCLUDE_DEFAULT_DBT_PACKAGES,
     MACRO_PACKAGE_NAMES,
     MACRO_RETURN_PACKAGE_NAMES_ONLY,
     MODEL_PERF_INCLUDE_TESTS,
     MODEL_PERF_NUM_RUNS,
+    RESOURCE_TYPE_DESCRIPTION,
     SOURCE_NAMES_FILTER,
     SOURCE_UNIQUE_IDS_FILTER,
 )
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
+from dbt_mcp.tools.deprecation import deprecated_description, deprecation_meta
 from dbt_mcp.tools.fields import (
     DEPTH_FIELD,
+    DIRECTION_FIELD,
     NAME_FIELD,
     TYPES_FIELD,
     UNIQUE_ID_FIELD,
     UNIQUE_ID_REQUIRED_FIELD,
 )
-from dbt_mcp.tools.parameters import LineageResourceType
+from dbt_mcp.tools.parameters import LineageDirection, LineageResourceType
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
@@ -141,11 +146,36 @@ async def get_all_models(
 
 
 @dbt_mcp_tool(
-    description=get_prompt("discovery/get_model_details"),
+    description=get_prompt("discovery/get_node_details"),
+    title="Get Details",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+)
+async def get_node_details(
+    context: DiscoveryToolContext,
+    resource_type: Annotated[
+        AppliedResourceType, Field(description=RESOURCE_TYPE_DESCRIPTION)
+    ],
+    name: str | None = NAME_FIELD,
+    unique_id: str | None = UNIQUE_ID_FIELD,
+) -> list[dict]:
+    config = await context.config_provider.get_config()
+    return await context.resource_details_fetcher.fetch_details(
+        resource_type=resource_type,
+        unique_id=unique_id,
+        name=name,
+        config=config,
+    )
+
+
+@dbt_mcp_tool(
+    description=deprecated_description(replacement="get_node_details"),
     title="Get Model Details",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
+    meta=deprecation_meta(replacement="get_node_details"),
 )
 async def get_model_details(
     context: DiscoveryToolContext,
@@ -162,7 +192,10 @@ async def get_model_details(
 
 
 @dbt_mcp_tool(
-    description=get_prompt("discovery/get_model_parents"),
+    description=deprecated_description(
+        replacement="get_lineage", arg_mapping=GET_MODEL_PARENTS_ARG_MAPPING
+    ),
+    meta=deprecation_meta(replacement="get_lineage"),
     title="Get Model Parents",
     read_only_hint=True,
     destructive_hint=False,
@@ -180,7 +213,10 @@ async def get_model_parents(
 
 
 @dbt_mcp_tool(
-    description=get_prompt("discovery/get_model_children"),
+    description=deprecated_description(
+        replacement="get_lineage", arg_mapping=GET_MODEL_CHILDREN_ARG_MAPPING
+    ),
+    meta=deprecation_meta(replacement="get_lineage"),
     title="Get Model Children",
     read_only_hint=True,
     destructive_hint=False,
@@ -260,10 +296,15 @@ async def get_lineage(
     unique_id: str = UNIQUE_ID_REQUIRED_FIELD,
     types: list[LineageResourceType] | None = TYPES_FIELD,
     depth: int = DEPTH_FIELD,
+    direction: LineageDirection = DIRECTION_FIELD,
 ) -> list[dict]:
     config = await context.config_provider.get_config()
     return await context.lineage_fetcher.fetch_lineage(
-        unique_id=unique_id, types=types, depth=depth, config=config
+        unique_id=unique_id,
+        types=types,
+        depth=depth,
+        direction=direction,
+        config=config,
     )
 
 
@@ -282,11 +323,12 @@ async def get_exposures(
 
 
 @dbt_mcp_tool(
-    description=get_prompt("discovery/get_exposure_details"),
+    description=deprecated_description(replacement="get_node_details"),
     title="Get Exposure Details",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
+    meta=deprecation_meta(replacement="get_node_details"),
 )
 async def get_exposure_details(
     context: DiscoveryToolContext,
@@ -325,11 +367,12 @@ async def get_all_sources(
 
 
 @dbt_mcp_tool(
-    description=get_prompt("discovery/get_source_details"),
+    description=deprecated_description(replacement="get_node_details"),
     title="Get Source Details",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
+    meta=deprecation_meta(replacement="get_node_details"),
 )
 async def get_source_details(
     context: DiscoveryToolContext,
@@ -374,11 +417,12 @@ async def get_all_macros(
 
 
 @dbt_mcp_tool(
-    description=get_prompt("discovery/get_macro_details"),
+    description=deprecated_description(replacement="get_node_details"),
     title="Get Macro Details",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
+    meta=deprecation_meta(replacement="get_node_details"),
 )
 async def get_macro_details(
     context: DiscoveryToolContext,
@@ -395,11 +439,12 @@ async def get_macro_details(
 
 
 @dbt_mcp_tool(
-    description=get_prompt("discovery/get_seed_details"),
+    description=deprecated_description(replacement="get_node_details"),
     title="Get Seed Details",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
+    meta=deprecation_meta(replacement="get_node_details"),
 )
 async def get_seed_details(
     context: DiscoveryToolContext,
@@ -416,11 +461,12 @@ async def get_seed_details(
 
 
 @dbt_mcp_tool(
-    description=get_prompt("discovery/get_semantic_model_details"),
+    description=deprecated_description(replacement="get_node_details"),
     title="Get Semantic Model Details",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
+    meta=deprecation_meta(replacement="get_node_details"),
 )
 async def get_semantic_model_details(
     context: DiscoveryToolContext,
@@ -437,11 +483,12 @@ async def get_semantic_model_details(
 
 
 @dbt_mcp_tool(
-    description=get_prompt("discovery/get_snapshot_details"),
+    description=deprecated_description(replacement="get_node_details"),
     title="Get Snapshot Details",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
+    meta=deprecation_meta(replacement="get_node_details"),
 )
 async def get_snapshot_details(
     context: DiscoveryToolContext,
@@ -458,11 +505,12 @@ async def get_snapshot_details(
 
 
 @dbt_mcp_tool(
-    description=get_prompt("discovery/get_test_details"),
+    description=deprecated_description(replacement="get_node_details"),
     title="Get Test Details",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
+    meta=deprecation_meta(replacement="get_node_details"),
 )
 async def get_test_details(
     context: DiscoveryToolContext,
@@ -481,6 +529,7 @@ async def get_test_details(
 DISCOVERY_TOOLS = [
     get_mart_models,
     get_all_models,
+    get_node_details,
     get_model_details,
     get_model_parents,
     get_model_children,

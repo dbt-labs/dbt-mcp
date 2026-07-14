@@ -12,7 +12,7 @@ from dbt_mcp.discovery.graphql import load_query
 from dbt_mcp.errors import InvalidParameterError, ToolCallError
 from dbt_mcp.errors.common import NotFoundError
 from dbt_mcp.gql.errors import raise_gql_error
-from dbt_mcp.tools.parameters import LineageResourceType
+from dbt_mcp.tools.parameters import LineageDirection, LineageResourceType
 
 DEFAULT_PAGE_SIZE = 100
 DEFAULT_MAX_NODE_QUERY_LIMIT = 10000
@@ -870,6 +870,7 @@ class LineageFetcher:
         unique_id: str,
         depth: int,
         types: list[LineageResourceType] | None = None,
+        direction: LineageDirection = LineageDirection.BOTH,
         *,
         config: DiscoveryConfig,
     ) -> list[dict]:
@@ -879,10 +880,11 @@ class LineageFetcher:
             unique_id: The dbt unique ID of the resource to get lineage for.
             depth: how many levels to traverse (0 = infinite, 1 = immediate neighbors only, higher = deeper)
             types: List of resource types to include. If None, includes all types.
+            direction: Which direction(s) to traverse relative to unique_id.
             config: Discovery API connection and environment.
 
         Returns:
-            List of nodes connected to unique_id (upstream + downstream).
+            List of nodes connected to unique_id, filtered to `direction`.
         """
         if depth < 0:
             raise ToolCallError("Depth must be greater than or equal to 0")
@@ -908,17 +910,22 @@ class LineageFetcher:
         )
 
         # Filter to connected nodes only
-        return self._filter_connected_nodes(all_nodes, unique_id, depth)
+        return self._filter_connected_nodes(all_nodes, unique_id, depth, direction)
 
     def _filter_connected_nodes(
-        self, nodes: list[dict], target_id: str, depth: int
+        self,
+        nodes: list[dict],
+        target_id: str,
+        depth: int,
+        direction: LineageDirection = LineageDirection.BOTH,
     ) -> list[dict]:
-        """Return only nodes connected to target_id (upstream and downstream).
-        Uses BFS to find all nodes reachable from target in both directions.
+        """Return only nodes connected to target_id, filtered to `direction`.
+        Uses BFS to find all nodes reachable from target in the requested direction(s).
         Args:
             nodes: List of all nodes in the lineage graph.
             target_id: The unique ID of the target node.
             depth: how many levels to traverse (0 = infinite, 1 = immediate neighbors only, higher = deeper)
+            direction: Which direction(s) to traverse relative to target_id.
         """
         node_map = {
             n["uniqueId"]: n
@@ -932,6 +939,15 @@ class LineageFetcher:
 
         if target_id not in node_map:
             return []
+
+        include_upstream = direction in (
+            LineageDirection.UPSTREAM,
+            LineageDirection.BOTH,
+        )
+        include_downstream = direction in (
+            LineageDirection.DOWNSTREAM,
+            LineageDirection.BOTH,
+        )
 
         # BFS to find all connected nodes
         connected = {target_id}
@@ -948,22 +964,32 @@ class LineageFetcher:
                 continue
 
             # Traverse upstream (parents)
-            for parent_id in node.get("parentIds", []):
-                if parent_id not in connected and parent_id in node_map:
-                    connected.add(parent_id)
-                    queue.append((parent_id, current_depth + 1))
+            if include_upstream:
+                for parent_id in node.get("parentIds", []):
+                    if parent_id not in connected and parent_id in node_map:
+                        connected.add(parent_id)
+                        queue.append((parent_id, current_depth + 1))
 
             # Traverse downstream (children)
-            for candidate in nodes:
-                candidate_id = candidate.get("uniqueId")
-                if not candidate_id or candidate_id not in node_map:
-                    continue
-                if (
-                    current_id in candidate.get("parentIds", [])
-                    and candidate_id not in connected
-                ):
-                    connected.add(candidate_id)
-                    queue.append((candidate_id, current_depth + 1))
+            if include_downstream:
+                for candidate in nodes:
+                    candidate_id = candidate.get("uniqueId")
+                    if not candidate_id or candidate_id not in node_map:
+                        continue
+                    if (
+                        current_id in candidate.get("parentIds", [])
+                        and candidate_id not in connected
+                    ):
+                        connected.add(candidate_id)
+                        queue.append((candidate_id, current_depth + 1))
+
+        # One-directional queries return only ancestors (upstream) or
+        # descendants (downstream), excluding the target node itself — this
+        # makes get_lineage a true drop-in for get_model_parents/
+        # get_model_children. direction="both" keeps the target as the
+        # anchor of the full connected subgraph.
+        if direction != LineageDirection.BOTH:
+            connected.discard(target_id)
 
         # Return in original order
         return [node_map[uid] for uid in connected]

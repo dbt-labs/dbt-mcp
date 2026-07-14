@@ -7,7 +7,18 @@ A list of all nodes in the connected subgraph, where each node contains:
 - `uniqueId`: The resource's unique identifier
 - `name`: The resource name
 - `resourceType`: The type of resource (Model, Source, etc.)
+- `description`: The resource's description, if one is defined (may be null)
 - `parentIds`: List of unique IDs that this resource directly depends on
+
+Call `get_lineage(unique_id=..., depth=1)` to retrieve the target node plus only its immediate parents and children.
+
+Use `direction` to narrow the response to one side of the graph and reduce payload size:
+- `direction="upstream"`: ancestors only — excludes the target node and descendants
+- `direction="downstream"`: descendants only — excludes the target node and ancestors
+- `direction="both"` (default): the target node plus both ancestors and descendants
+
+`direction="upstream"`/`"downstream"` are drop-in replacements for
+`get_model_parents`/`get_model_children`: same node set, target excluded either way.
 
 **Example Response:**
 ```json
@@ -16,18 +27,21 @@ A list of all nodes in the connected subgraph, where each node contains:
     "uniqueId": "source.raw.users",
     "name": "users",
     "resourceType": "Source",
+    "description": "Raw user records ingested from the application database.",
     "parentIds": []
   },
   {
     "uniqueId": "model.stg_customers",
     "name": "stg_customers",
     "resourceType": "Model",
+    "description": "Cleaned and typed customer staging model.",
     "parentIds": ["source.raw.users"]
   },
   {
     "uniqueId": "model.customers",
     "name": "customers",
     "resourceType": "Model",
+    "description": "One row per customer with enriched attributes.",
     "parentIds": ["model.stg_customers"]
   }
 ]
@@ -46,6 +60,12 @@ get_lineage(unique_id="model.analytics.customers", depth=1)
 
 # Get deeper lineage for comprehensive analysis
 get_lineage(unique_id="model.analytics.customers", depth=10)
+
+# Get only upstream dependencies (ancestors), e.g. for dependency tracking
+get_lineage(unique_id="model.analytics.customers", direction="upstream")
+
+# Get only downstream dependents (descendants), e.g. for impact analysis
+get_lineage(unique_id="model.analytics.customers", direction="downstream")
 ```
 
 **Traversing the Graph:**
@@ -73,7 +93,7 @@ direct_children = [
 
 **Understanding the Results:**
 
-- The target node is always included in the response
+- The target node is included only when `direction="both"` (the default); it is excluded for `direction="upstream"`/`"downstream"`
 - All returned nodes are connected to the target (no disconnected nodes)
 - To get full lineage, omit the `types` parameter
 - To reduce payload size, specify relevant `types`
