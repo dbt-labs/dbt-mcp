@@ -28,8 +28,10 @@ def register_app_resource(
         name=app_name,
         mime_type="text/html;profile=mcp-app",
     )
-    def get_app_ui() -> str:
-        with httpx.Client(timeout=_HTTP_TIMEOUT_SECONDS) as client:
-            response = client.get(app_url)
+    async def get_app_ui() -> str:
+        async with httpx.AsyncClient(
+            timeout=_HTTP_TIMEOUT_SECONDS, follow_redirects=True
+        ) as client:
+            response = await client.get(app_url)
             response.raise_for_status()
             return response.text

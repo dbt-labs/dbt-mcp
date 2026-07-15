@@ -86,10 +86,16 @@ async def test_mcp_app_resource_content_is_out_of_contract(monkeypatch):
     not fetch it over the network."""
     import dbt_mcp.contract.snapshot as snapshot_mod
 
-    async def _fail(*_args, **_kwargs):
-        raise AssertionError("mcp-app resource content must not be fetched")
+    original_read_resource_hash = snapshot_mod._read_resource_hash
 
-    monkeypatch.setattr(snapshot_mod, "_read_resource_hash", _fail)
+    async def _fail_for_ui_resources(dbt_mcp, uri, *args, **kwargs):
+        # Only mcp-app (ui://) resources are exempt from hashing; any other
+        # resource added later must still be fetched and hashed as usual.
+        if str(uri).startswith("ui://"):
+            raise AssertionError("mcp-app resource content must not be fetched")
+        return await original_read_resource_hash(dbt_mcp, uri, *args, **kwargs)
+
+    monkeypatch.setattr(snapshot_mod, "_read_resource_hash", _fail_for_ui_resources)
 
     snapshot = await generate_snapshot()
     app_resources = [

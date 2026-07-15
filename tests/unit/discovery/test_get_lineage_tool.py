@@ -1,5 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
+from dbt_mcp.tools.parameters import LineageDirection
 from dbt_mcp.discovery.tools import (
     LineageEdge,
     LineageGraph,
@@ -31,7 +32,11 @@ async def test_get_lineage_builds_graph_from_nodes():
     context.lineage_fetcher.fetch_lineage = AsyncMock(return_value=nodes)
 
     result = await get_lineage.fn(
-        context=context, unique_id="model.p.a", types=None, depth=2
+        context=context,
+        unique_id="model.p.a",
+        types=None,
+        depth=2,
+        direction=LineageDirection.BOTH,
     )
 
     assert isinstance(result, LineageGraph)
