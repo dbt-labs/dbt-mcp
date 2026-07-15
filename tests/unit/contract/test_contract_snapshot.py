@@ -93,7 +93,9 @@ async def test_mcp_app_resource_content_is_out_of_contract(monkeypatch):
 
     snapshot = await generate_snapshot()
     app_resources = [
-        r for r in snapshot.resources if r.mime_type and "profile=mcp-app" in r.mime_type
+        r
+        for r in snapshot.resources
+        if r.mime_type and "profile=mcp-app" in r.mime_type
     ]
     assert app_resources, "expected at least one mcp-app resource (get-lineage)"
     assert all(r.content_sha256 is None for r in app_resources)

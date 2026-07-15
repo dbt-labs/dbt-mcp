@@ -277,7 +277,7 @@ async def generate_snapshot() -> ContractSnapshot:
             # change. We still guard the resource's existence and shape
             # (uri/name/mime/_meta); the server<->app interface is guarded by the
             # linked tool's input/output schema and _meta.resourceUri.
-            is_mcp_app = bool(mime_type) and "profile=mcp-app" in mime_type
+            is_mcp_app = mime_type is not None and "profile=mcp-app" in mime_type
             content_sha256 = (
                 None if is_mcp_app else await _read_resource_hash(dbt_mcp, uri)
             )
