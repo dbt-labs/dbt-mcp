@@ -439,6 +439,43 @@ class TestLoadConfig:
 
         assert config.semantic_layer_config_provider is not None
 
+    def test_mcp_apps_enabled_by_default(self):
+        env_vars = {
+            "DBT_HOST": "test.dbt.com",
+            "DBT_PROD_ENV_ID": "123",
+            "DBT_TOKEN": "test_token",
+            "DISABLE_DBT_CLI": "true",
+            "DISABLE_DISCOVERY": "true",
+            "DISABLE_SEMANTIC_LAYER": "true",
+            "DISABLE_REMOTE": "true",
+        }
+
+        config = self._load_config_with_env(env_vars)
+
+        assert config.apps_config is not None
+        assert (
+            config.apps_config.cdn_base
+            == "https://cloud-ui.cdn.getdbt.com/dbt-ui/mcp-apps"
+        )
+
+    def test_mcp_apps_disabled_omits_apps_config(self):
+        env_vars = {
+            "DBT_HOST": "test.dbt.com",
+            "DBT_PROD_ENV_ID": "123",
+            "DBT_TOKEN": "test_token",
+            "DISABLE_DBT_CLI": "true",
+            "DISABLE_DISCOVERY": "true",
+            "DISABLE_SEMANTIC_LAYER": "true",
+            "DISABLE_REMOTE": "true",
+            "DISABLE_MCP_APPS": "true",
+        }
+
+        config = self._load_config_with_env(env_vars)
+
+        # No apps_config -> create_dbt_mcp skips registering the ui:// resource,
+        # so the server carries no dependency on the dbt-owned CDN.
+        assert config.apps_config is None
+
     def test_warn_error_options_default_setting(self):
         env_vars = {
             "DBT_TOKEN": "test_token",

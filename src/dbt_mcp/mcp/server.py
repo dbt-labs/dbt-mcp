@@ -384,5 +384,10 @@ async def create_dbt_mcp(config: Config) -> FastMCP:
     )
     # MCP App UI resources are served by the dispatcher itself (it only routes
     # tool calls, not resources). The bundle is fetched from the CDN on read.
-    register_app_resource(tool_dispatcher, config.apps_config, app_name="get-lineage")
+    # Skipped when MCP apps are disabled (DISABLE_MCP_APPS) so the server carries
+    # no dependency on the dbt-owned CDN — tools still return structured data.
+    if config.apps_config:
+        register_app_resource(
+            tool_dispatcher, config.apps_config, app_name="get-lineage"
+        )
     return tool_dispatcher

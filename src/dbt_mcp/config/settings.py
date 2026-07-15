@@ -101,6 +101,10 @@ class DbtMcpSettings(BaseSettings):
     )
 
     # MCP Apps settings
+    # Registers the ui:// app resources (e.g. get-lineage) that let MCP hosts
+    # render a tool's result as an interactive app. Disable to run without any
+    # dependency on the dbt-owned CDN — the tools still return structured data.
+    disable_mcp_apps: bool = Field(False, alias="DISABLE_MCP_APPS")
     cdn_base: str = Field(
         "https://cloud-ui.cdn.getdbt.com/dbt-ui/mcp-apps",
         alias="DBT_MCP_CDN_BASE",
@@ -137,6 +141,7 @@ class DbtMcpSettings(BaseSettings):
             f"disable_product_docs={self.disable_product_docs}, "
             f"disable_tools={self.disable_tools}, "
             f"disable_lsp={self.disable_lsp}, "
+            f"disable_mcp_apps={self.disable_mcp_apps}, "
             # enable settings
             f"enable_tools={self.enable_tools}, "
             f"enable_semantic_layer={self.enable_semantic_layer}, "
