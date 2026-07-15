@@ -1,5 +1,7 @@
 import inspect
+import json
 import subprocess
+from pathlib import Path
 
 import pytest
 from pytest import MonkeyPatch
@@ -841,3 +843,39 @@ def test_resource_type_accepts_valid_values(
     )
 
     tools["ls"](resource_type=valid_types)
+
+
+def test_get_lineage_dev_resolves_manifest_from_relative_project_dir(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, tmp_path: Path
+):
+    """Manifest must be read from <project_dir>/target/manifest.json even when
+    project_dir is a relative path — not from ./target/manifest.json in cwd."""
+    project_name = "my_project"
+    manifest_dir = tmp_path / project_name / "target"
+    manifest_dir.mkdir(parents=True)
+    (manifest_dir / "manifest.json").write_text(json.dumps({}))
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: mock_process)
+
+    relative_config = DbtCliConfig(
+        project_dir=project_name,
+        dbt_path="/path/to/dbt",
+        dbt_cli_timeout=10,
+        binary_type=BinaryType.DBT_CORE,
+    )
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        relative_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    result = tools["get_lineage_dev"](
+        unique_id="model.my_project.some_model", types=None, depth=5
+    )
+    assert isinstance(result, dict)
