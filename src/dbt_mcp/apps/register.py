@@ -3,6 +3,9 @@ from mcp.server.fastmcp import FastMCP
 
 from dbt_mcp.config.config import AppsConfig
 
+# Bound the CDN fetch so a slow/unreachable CDN can't hang the resources/read.
+_HTTP_TIMEOUT_SECONDS = 10.0
+
 
 def register_app_resource(
     dbt_mcp: FastMCP,
@@ -26,5 +29,7 @@ def register_app_resource(
         mime_type="text/html;profile=mcp-app",
     )
     def get_app_ui() -> str:
-        with httpx.Client() as client:
-            return client.get(app_url).raise_for_status().text
+        with httpx.Client(timeout=_HTTP_TIMEOUT_SECONDS) as client:
+            response = client.get(app_url)
+            response.raise_for_status()
+            return response.text
