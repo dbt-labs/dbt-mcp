@@ -303,7 +303,10 @@ class LineageGraph(BaseModel):
 
 
 @dbt_mcp_tool(
-    description=get_prompt("discovery/get_lineage"),
+    # Single-project get_lineage returns a structured LineageGraph, so it uses
+    # the graph-shaped prompt. The multiproject variant still returns list[dict]
+    # and keeps the list-shaped discovery/get_lineage prompt.
+    description=get_prompt("discovery/get_lineage_graph"),
     title="Get Lineage",
     read_only_hint=True,
     destructive_hint=False,

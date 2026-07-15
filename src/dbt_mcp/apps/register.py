@@ -21,7 +21,9 @@ def register_app_resource(
     self-contained app with no further external requests.
     """
     uri = f"ui://dbt-mcp/{app_name}"
-    app_url = f"{config.cdn_base}/{app_name}/index.html"
+    # Normalize cdn_base so a configured trailing slash doesn't produce a
+    # double-slash URL (e.g. ``https://cdn//get-lineage/index.html``).
+    app_url = f"{config.cdn_base.rstrip('/')}/{app_name}/index.html"
 
     @dbt_mcp.resource(
         uri=uri,

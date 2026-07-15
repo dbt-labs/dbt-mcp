@@ -49,7 +49,7 @@ Use `direction` to narrow the response to one side of the graph and reduce paylo
 
 **Usage Examples:**
 ```python
-# Get complete lineage (all connected nodes, all types, default depth of 5)
+# Get lineage (immediate parents and children — default depth of 1)
 get_lineage(unique_id="model.analytics.customers")
 
 # Get lineage filtered to only models and sources
