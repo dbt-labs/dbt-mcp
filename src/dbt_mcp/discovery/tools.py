@@ -33,8 +33,8 @@ from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.deprecation import deprecated_description, deprecation_meta
 from dbt_mcp.tools.fields import (
-    DEPTH_FIELD,
     DIRECTION_FIELD,
+    LINEAGE_DEPTH_FIELD,
     NAME_FIELD,
     TYPES_FIELD,
     UNIQUE_ID_FIELD,
@@ -318,7 +318,7 @@ async def get_lineage(
     context: DiscoveryToolContext,
     unique_id: str = UNIQUE_ID_REQUIRED_FIELD,
     types: list[LineageResourceType] | None = TYPES_FIELD,
-    depth: int = DEPTH_FIELD,
+    depth: int = LINEAGE_DEPTH_FIELD,
     direction: LineageDirection = DIRECTION_FIELD,
 ) -> LineageGraph:
     config = await context.config_provider.get_config()
