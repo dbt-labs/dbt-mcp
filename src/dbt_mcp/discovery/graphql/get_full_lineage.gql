@@ -5,7 +5,6 @@ query GetFullLineage($environmentId: BigInt!, $types: [ResourceNodeType!]!) {
         name
         uniqueId
         resourceType
-        description
         ... on LineageNodeWithParents {
           parentIds
         }
