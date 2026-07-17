@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Fix manifest path resolution when DBT_PROJECT_DIR is a relative path
+time: 2026-07-15T15:41:16.841703-07:00
