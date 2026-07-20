@@ -1,3 +1,0 @@
-kind: Under the Hood
-body: Bump the pinned Node version to 22.18.0 in .tool-versions so the ui/ ESLint 9 flat-config check runs locally (Node 20.17 hits ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING).
-time: 2026-07-16T08:11:37.386980-07:00
