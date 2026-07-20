@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Fix get_lineage 400 Bad Request caused by requesting description field not present in the Discovery API lineage GraphQL schema
+time: 2026-07-17T12:19:57.263714-07:00
