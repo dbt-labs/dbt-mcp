@@ -1,3 +1,0 @@
-kind: Enhancement or New Feature
-body: get_lineage now returns a structured lineage graph and links an interactive MCP-app UI that supporting MCP hosts can render; its default depth is now 1 (direct parents/children). Set DISABLE_MCP_APPS to opt out of the app resource.
-time: 2026-07-15T13:44:17.191047-07:00
