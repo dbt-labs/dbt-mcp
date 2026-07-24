@@ -34,6 +34,7 @@ from dbt_mcp.discovery.param_descriptions import (
     SOURCE_NAMES_FILTER,
     SOURCE_UNIQUE_IDS_FILTER,
 )
+from dbt_mcp.discovery.tools import LineageGraph, build_lineage_graph
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.deprecation import deprecated_description, deprecation_meta
@@ -303,11 +304,13 @@ async def get_model_performance(
 
 
 @dbt_mcp_tool(
-    description=get_prompt("discovery/get_lineage"),
+    description=get_prompt("discovery/get_lineage_graph"),
     title="Get Lineage",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
+    structured_output=True,
+    meta={"ui": {"resourceUri": "ui://dbt-mcp/get-lineage"}},
 )
 async def get_lineage(
     context: MultiProjectDiscoveryToolContext,
@@ -316,15 +319,16 @@ async def get_lineage(
     types: list[LineageResourceType] | None = TYPES_FIELD,
     depth: int = LINEAGE_DEPTH_FIELD,
     direction: LineageDirection = DIRECTION_FIELD,
-) -> list[dict]:
+) -> LineageGraph:
     config = await context.config_provider.get_config(project_id=project_id)
-    return await context.lineage_fetcher.fetch_lineage(
+    nodes = await context.lineage_fetcher.fetch_lineage(
         unique_id=unique_id,
         types=types,
         depth=depth,
         direction=direction,
         config=config,
     )
+    return build_lineage_graph(root_id=unique_id, nodes=nodes)
 
 
 @dbt_mcp_tool(

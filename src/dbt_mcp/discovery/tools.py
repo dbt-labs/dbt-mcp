@@ -302,10 +302,37 @@ class LineageGraph(BaseModel):
     edges: list[LineageEdge]
 
 
+def build_lineage_graph(root_id: str, nodes: list[dict]) -> LineageGraph:
+    """Map the lineage fetcher's list-of-dicts output into a LineageGraph.
+
+    Shared by the single- and multi-project get_lineage tools so both emit the
+    same structured shape. Edges are kept only when both endpoints are present
+    in the returned node set.
+    """
+    node_ids = {n["uniqueId"] for n in nodes}
+    return LineageGraph(
+        root_id=root_id,
+        nodes=[
+            LineageNode(
+                unique_id=n["uniqueId"],
+                name=n["name"],
+                resource_type=n["resourceType"],
+            )
+            for n in nodes
+        ],
+        edges=[
+            LineageEdge(source=parent_id, target=n["uniqueId"])
+            for n in nodes
+            for parent_id in n.get("parentIds", [])
+            if parent_id in node_ids
+        ],
+    )
+
+
 @dbt_mcp_tool(
-    # Single-project get_lineage returns a structured LineageGraph, so it uses
-    # the graph-shaped prompt. The multiproject variant still returns list[dict]
-    # and keeps the list-shaped discovery/get_lineage prompt.
+    # Both the single- and multi-project get_lineage tools return a structured
+    # LineageGraph and link the interactive MCP-app UI, so both use the
+    # graph-shaped prompt.
     description=get_prompt("discovery/get_lineage_graph"),
     title="Get Lineage",
     read_only_hint=True,
@@ -329,24 +356,7 @@ async def get_lineage(
         direction=direction,
         config=config,
     )
-    node_ids = {n["uniqueId"] for n in nodes}
-    return LineageGraph(
-        root_id=unique_id,
-        nodes=[
-            LineageNode(
-                unique_id=n["uniqueId"],
-                name=n["name"],
-                resource_type=n["resourceType"],
-            )
-            for n in nodes
-        ],
-        edges=[
-            LineageEdge(source=parent_id, target=n["uniqueId"])
-            for n in nodes
-            for parent_id in n.get("parentIds", [])
-            if parent_id in node_ids
-        ],
-    )
+    return build_lineage_graph(root_id=unique_id, nodes=nodes)
 
 
 @dbt_mcp_tool(
