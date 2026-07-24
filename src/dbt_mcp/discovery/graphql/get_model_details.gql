@@ -27,6 +27,7 @@ query ModelDetails(
               modelingLayer
               name
               rawCode
+              relationName
               resourceType
               schema
               tags

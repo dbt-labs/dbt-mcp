@@ -91,6 +91,7 @@ async def test_fetch_details_with_unique_id(
     mock_api_client.assert_called_once()
     query, variables = mock_api_client.call_args[0]
     assert query == ResourceDetailsFetcher.GQL_QUERIES[AppliedResourceType.MODEL]
+    assert "relationName" in query
     assert variables["filter"]["uniqueIds"] == ["model.jaffle.orders"]
     assert variables["filter"]["types"] == ["Model"]
     assert variables["first"] == 1
