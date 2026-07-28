@@ -304,7 +304,7 @@ async def get_model_performance(
 
 
 @dbt_mcp_tool(
-    description=get_prompt("discovery/get_lineage_graph"),
+    description=get_prompt("discovery/get_lineage"),
     title="Get Lineage",
     read_only_hint=True,
     destructive_hint=False,

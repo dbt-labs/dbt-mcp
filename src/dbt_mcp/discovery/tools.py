@@ -330,10 +330,7 @@ def build_lineage_graph(root_id: str, nodes: list[dict]) -> LineageGraph:
 
 
 @dbt_mcp_tool(
-    # Both the single- and multi-project get_lineage tools return a structured
-    # LineageGraph and link the interactive MCP-app UI, so both use the
-    # graph-shaped prompt.
-    description=get_prompt("discovery/get_lineage_graph"),
+    description=get_prompt("discovery/get_lineage"),
     title="Get Lineage",
     read_only_hint=True,
     destructive_hint=False,
