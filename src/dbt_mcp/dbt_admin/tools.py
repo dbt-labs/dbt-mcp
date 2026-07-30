@@ -273,8 +273,8 @@ async def list_job_run_artifacts(
 @dbt_mcp_tool(
     description=get_prompt("admin_api/get_job_run_artifacts"),
     title="Get Job Run Artifacts",
-    read_only_hint=True,
-    destructive_hint=False,
+    read_only_hint=False,
+    destructive_hint=True,
     idempotent_hint=True,
 )
 async def get_job_run_artifacts(
@@ -287,7 +287,7 @@ async def get_job_run_artifacts(
 ) -> str:
     """Get a specific artifact from a job run."""
     if output_path is not None and jq_filter is not None:
-        return (
+        raise ValueError(
             "output_path and jq_filter cannot be used together; "
             "use jq_filter to filter inline or output_path to write the full artifact"
         )
@@ -301,19 +301,24 @@ async def get_job_run_artifacts(
                 Path(output_path).write_text, content, encoding="utf-8"
             )
         except OSError as e:
-            return f"Could not write to {output_path}: {e}"
+            raise ValueError(f"Could not write to {output_path}: {e}") from e
         return f"Artifact written to {output_path}"
     if jq_filter is not None:
         try:
             parsed = json.loads(content)
         except json.JSONDecodeError:
-            return "jq_filter requires a JSON artifact; this artifact is not valid JSON"
+            raise ValueError(
+                "jq_filter requires a JSON artifact; this artifact is not valid JSON"
+            )
         try:
             results = jq.compile(jq_filter).input(parsed).all()
         except ValueError as e:
-            return f"Invalid jq filter: {e}"
+            raise ValueError(f"Invalid jq filter: {e}") from e
         return json.dumps(results, indent=2)
-    if len(content.encode("utf-8")) > INLINE_CONTENT_LIMIT:
+    if (
+        len(content) > INLINE_CONTENT_LIMIT
+        or len(content.encode("utf-8")) > INLINE_CONTENT_LIMIT
+    ):
         suffix = Path(artifact_path).suffix or ".json"
         tmp_path = await asyncio.to_thread(_write_to_temp_file, content, suffix)
         return f"Artifact written to {tmp_path}"

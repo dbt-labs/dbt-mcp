@@ -377,15 +377,14 @@ async def test_get_job_run_artifacts_output_path_and_jq_filter_conflict(admin_co
         return_value='{"nodes": {}}'
     )
 
-    result = await get_job_run_artifacts.fn(
-        admin_context,
-        run_id=100,
-        artifact_path="manifest.json",
-        output_path="/tmp/out.json",
-        jq_filter=".nodes",
-    )
-
-    assert "cannot be used together" in result
+    with pytest.raises(ValueError, match="cannot be used together"):
+        await get_job_run_artifacts.fn(
+            admin_context,
+            run_id=100,
+            artifact_path="manifest.json",
+            output_path="/tmp/out.json",
+            jq_filter=".nodes",
+        )
     admin_context.admin_client.get_job_run_artifact.assert_not_called()
 
 
@@ -394,14 +393,13 @@ async def test_get_job_run_artifacts_jq_filter_invalid_syntax(admin_context):
         return_value='{"key": "value"}'
     )
 
-    result = await get_job_run_artifacts.fn(
-        admin_context,
-        run_id=100,
-        artifact_path="run_results.json",
-        jq_filter="not valid jq |||",
-    )
-
-    assert result.startswith("Invalid jq filter:")
+    with pytest.raises(ValueError, match="Invalid jq filter:"):
+        await get_job_run_artifacts.fn(
+            admin_context,
+            run_id=100,
+            artifact_path="run_results.json",
+            jq_filter="not valid jq |||",
+        )
 
 
 async def test_get_job_run_artifacts_output_path_nonexistent_directory_returns_error(
@@ -411,14 +409,15 @@ async def test_get_job_run_artifacts_output_path_nonexistent_directory_returns_e
         return_value='{"nodes": {}}'
     )
 
-    result = await get_job_run_artifacts.fn(
-        admin_context,
-        run_id=100,
-        artifact_path="manifest.json",
-        output_path="/nonexistent/dir/out.json",
-    )
-
-    assert result.startswith("Could not write to /nonexistent/dir/out.json:")
+    with pytest.raises(
+        ValueError, match="Could not write to /nonexistent/dir/out.json:"
+    ):
+        await get_job_run_artifacts.fn(
+            admin_context,
+            run_id=100,
+            artifact_path="manifest.json",
+            output_path="/nonexistent/dir/out.json",
+        )
 
 
 async def test_get_job_run_artifacts_jq_filter_non_json_artifact(admin_context):
@@ -426,14 +425,13 @@ async def test_get_job_run_artifacts_jq_filter_non_json_artifact(admin_context):
         return_value="SELECT * FROM my_table"
     )
 
-    result = await get_job_run_artifacts.fn(
-        admin_context,
-        run_id=100,
-        artifact_path="compiled/model.sql",
-        jq_filter=".nodes",
-    )
-
-    assert "not valid JSON" in result
+    with pytest.raises(ValueError, match="not valid JSON"):
+        await get_job_run_artifacts.fn(
+            admin_context,
+            run_id=100,
+            artifact_path="compiled/model.sql",
+            jq_filter=".nodes",
+        )
 
 
 async def test_tools_handle_exceptions():
