@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Mark job-run MCP tools as destructive.
+time: 2026-07-31T00:18:17.184167+02:00

@@ -110,7 +110,7 @@ async def get_job_details(
     description=get_prompt("admin_api/trigger_job_run"),
     title="Trigger Job Run",
     read_only_hint=False,
-    destructive_hint=False,
+    destructive_hint=True,
     idempotent_hint=False,
 )
 async def trigger_job_run(
@@ -200,7 +200,7 @@ async def get_job_run_details(
     description=get_prompt("admin_api/cancel_job_run"),
     title="Cancel Job Run",
     read_only_hint=False,
-    destructive_hint=False,
+    destructive_hint=True,
     idempotent_hint=False,
 )
 async def cancel_job_run(
@@ -218,7 +218,7 @@ async def cancel_job_run(
     description=get_prompt("admin_api/retry_job_run"),
     title="Retry Job Run",
     read_only_hint=False,
-    destructive_hint=False,
+    destructive_hint=True,
     idempotent_hint=False,
 )
 async def retry_job_run(
