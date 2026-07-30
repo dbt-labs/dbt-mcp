@@ -743,6 +743,93 @@
         "idempotentHint": true,
         "openWorldHint": true,
         "readOnlyHint": true,
+        "title": "Get Job Run Artifacts"
+      },
+      "description": "Get a specific artifact file from a dbt job run.\n\nThis tool retrieves the content of a specific artifact file generated during run execution, such as manifest.json, catalog.json, or run_results.json.\n\n## Common Artifact Paths\n\n- **manifest.json**: Complete dbt project metadata, models, and lineage\n- **catalog.json**: Table and column documentation with statistics\n- **run_results.json**: Execution results, timing, and status information\n- **sources.json**: Source freshness check results\n- **logs/dbt.log**: Complete execution logs\n\nUse `list_job_run_artifacts` first to see which artifacts are available for a run.\n\n## Output Options\n\n- **Default (no output_path, no jq_filter)**: Returns artifact content as a string for artifacts under 500 KB. For artifacts 500 KB and above, the tool automatically writes to a temp file and returns the path \u2014 no extra parameters needed. This covers the full range from small `run_results.json` files up to `manifest.json` on projects with thousands of models.\n- **jq_filter set**: Applies a jq filter to the artifact and returns only the matching result inline, regardless of the artifact's original size. This is the universal approach \u2014 it works identically in local and remote MCP deployments. For large artifacts like `manifest.json` on projects with thousands of models, this is the only practical option: the raw artifact is too large to process in context even when written to a temp file locally. Only valid for JSON artifacts.\n- **output_path set**: Writes the full artifact to the specified local file path and returns a confirmation message. Use this when you want control over where the file lands \u2014 e.g. writing `manifest.json` directly to your project directory. **Important:** `output_path` is a write on the MCP server's filesystem, not the client's. When the server runs locally (stdio transport), this is your local machine and works as expected. When connected to a remote MCP server (SSE or streamable-HTTP transport), the path must be valid on the remote host \u2014 writing to a local client path like `/Users/you/...` will fail or produce a file you cannot access.\n- **Both output_path and jq_filter set**: `output_path` takes priority; the jq_filter is ignored and the full artifact is written to the path.\n\n## jq Filter Reference\n\nThe three most-used artifacts have stable, well-known schemas. Common filters:\n\n**Prefer aggregation over enumeration on large manifests.** Filters that enumerate all matching nodes (e.g. listing every table-materialized model by name) can return hundreds of kilobytes on large projects and exceed context limits. Aggregate or count when you don't need every name:\n```\n# Instead of listing all table-materialized models:\n[.nodes | to_entries[] | select(.value.config.materialized == \"table\") | .value.name] | length\n```\n\n**run_results.json**\n- All failed nodes: `.results[] | select(.status == \"error\") | {unique_id, message, execution_time}`\n- All warned nodes: `.results[] | select(.status == \"warn\") | {unique_id, message}`\n- Slowest 10 models: `[.results[] | {unique_id, execution_time}] | sort_by(-.execution_time) | .[0:10]`\n- Summary counts: `.results | group_by(.status) | map({status: .[0].status, count: length})`\n\n**manifest.json**\n- All model names: `.nodes | keys[] | select(startswith(\"model.\"))`\n- Models in a specific package: `.nodes | to_entries[] | select(.key | startswith(\"model.my_project.\")) | .value.name`\n- Models referencing a source: `.nodes | to_entries[] | select(.value.depends_on.nodes[] | contains(\"source.\")) | .key`\n- Tags on a model: `.nodes[\"model.my_project.my_model\"].config.tags`\n\n**catalog.json**\n- Column names for a model: `.nodes[\"model.my_project.my_model\"].columns | keys`\n- All models with row counts: `.nodes | to_entries[] | {name: .key, rows: .value.stats.row_count.value}`\n\n## Step Selection\n\nBy default, artifacts from the **last step** are returned \u2014 but this is often not what you want.\n\nTwo important caveats:\n\n1. **Docs generation footgun**: Jobs that include a `dbt docs generate` step will have that step's compilation results as the default artifact, not the model execution results. `run_results.json` without a `step` will show all nodes as successful even when an earlier model run step had failures.\n\n2. **Infrastructure steps produce no artifacts**: Steps like git clone, profile creation, and `dbt deps` do not write a `run_results.json`. Requesting an artifact from one of those steps raises a not-found error. The `step` parameter refers only to steps that run a dbt command (`dbt build`, `dbt run`, `dbt test`, `dbt docs generate`, etc.).\n\nAlways use `get_job_run_details` to inspect step names and statuses before specifying `step`, so you can identify which step index corresponds to the actual model execution.\n\n- Step indexing starts at 1 for the first step\n\n## Use Cases\n\n- Inspect run_results.json for execution monitoring and test outcomes \u2014 use `step` to target the model run step specifically\n- Retrieve manifest.json for lineage analysis or dbt Mesh audits \u2014 auto-written to a temp file on large projects; use `output_path` to control the destination\n- Get catalog.json for documentation systems\n- Access logs for debugging failed runs\n- Inspect artifacts from non-production jobs not covered by the Discovery API (ad-hoc environments, test jobs, etc.)\n\n## Example Usage\n\nFetch run results from a specific step (recommended when job includes docs generation):\n```json\n{\n  \"run_id\": 789,\n  \"artifact_path\": \"run_results.json\",\n  \"step\": 4\n}\n```\n\nWrite a large manifest to disk instead of returning it as a string:\n```json\n{\n  \"run_id\": 789,\n  \"artifact_path\": \"manifest.json\",\n  \"output_path\": \"/tmp/manifest.json\"\n}\n```\n\nFetch the default artifact (last step):\n```json\n{\n  \"run_id\": 789,\n  \"artifact_path\": \"run_results.json\"\n}\n```\n",
+      "input_schema": {
+        "properties": {
+          "artifact_path": {
+            "description": "Path to the artifact file (e.g. 'manifest.json', 'run_results.json', 'catalog.json'). Use list_job_run_artifacts to see available paths.",
+            "title": "Artifact Path",
+            "type": "string"
+          },
+          "jq_filter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "A jq filter expression to apply to the artifact before returning. Only valid for JSON artifacts. The filtered result is always returned inline regardless of size, making this the recommended approach for remote MCP where temp file paths are inaccessible. Examples: '.results[] | select(.status == \"error\")' to extract failures; '.nodes | keys' to list all node IDs; '.metadata' to inspect artifact metadata.",
+            "title": "Jq Filter"
+          },
+          "output_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "If provided, write the artifact content to this local file path and return a confirmation message. Artifacts larger than 500 KB are automatically written to a temp file \u2014 use output_path to control the destination instead.",
+            "title": "Output Path"
+          },
+          "run_id": {
+            "description": "The dbt job run ID",
+            "title": "Run Id",
+            "type": "integer"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Step number to retrieve the artifact from (1-indexed). Defaults to the last step when omitted. Only dbt command steps (dbt build, dbt run, dbt test, dbt docs generate) produce artifacts \u2014 infrastructure steps (git clone, profile creation, dbt deps) will raise a not-found error.",
+            "title": "Step"
+          }
+        },
+        "required": [
+          "run_id",
+          "artifact_path"
+        ],
+        "title": "get_job_run_artifactsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_job_run_artifacts",
+      "output_schema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_job_run_artifactsOutput",
+        "type": "object"
+      },
+      "title": "Get Job Run Artifacts",
+      "toolset": "admin_api"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
         "title": "Get Job Run Details"
       },
       "description": "Get detailed information for a specific dbt job run.\n\nThis tool retrieves comprehensive run information including execution details, steps, and artifacts.\n\n## Returns\n\nRun object with detailed execution information including:\n\n- Run metadata (ID, status, timing information)\n- Job and environment details\n- Git branch and SHA information\n- Execution steps and their status\n- Artifacts and logs availability\n- Trigger information and cause\n- Performance metrics and timing\n\n## Use Cases\n\n- Monitor run progress and status\n- Debug failed runs with detailed logs\n- Review run performance and timing\n- Check artifact generation status\n- Audit run execution details\n- Troubleshoot run failures\n\n## Example Usage\n\n```json\n{\n  \"run_id\": 789\n}\n```\n\n```json\n{\n  \"run_id\": 789\n}\n```\n\n## Response Information\n\nThe detailed response includes timing, status, and execution context to help with monitoring and debugging dbt job runs.\n",
@@ -1602,22 +1689,6 @@
       },
       "description": "Retrieves full details for a dbt resource by type and name or unique ID.\n\nUse this tool when you need the full schema, definition, or metadata for a specific dbt resource. The `resource_type` determines what fields are returned.\n\n**Parameters:**\n- `resource_type`: The type of dbt resource. One of: `model`, `source`, `exposure`, `test`, `seed`, `snapshot`, `macro`, `semantic_model`. The resource type is also encoded in the `unique_id` prefix (e.g. `model.my_project.orders` \u2192 `model`).\n- `name`: The resource's short name (e.g. `orders`). Provide `name` or `unique_id`, not both.\n- `unique_id`: The resource's fully qualified unique ID (e.g. `model.my_project.orders`). Preferred when available \u2014 avoids ambiguity when multiple resources share a name.\n\n**Usage examples:**\n```python\n# Get details for a model by unique_id\nget_node_details(resource_type=\"model\", unique_id=\"model.analytics.orders\")\n\n# Get details for a source by name\nget_node_details(resource_type=\"source\", name=\"raw_users\")\n\n# Get details for a semantic model\nget_node_details(resource_type=\"semantic_model\", unique_id=\"semantic_model.analytics.orders\")\n```\n",
       "input_schema": {
-        "$defs": {
-          "AppliedResourceType": {
-            "enum": [
-              "model",
-              "source",
-              "exposure",
-              "test",
-              "seed",
-              "snapshot",
-              "macro",
-              "semantic_model"
-            ],
-            "title": "AppliedResourceType",
-            "type": "string"
-          }
-        },
         "properties": {
           "name": {
             "anyOf": [
@@ -1633,8 +1704,19 @@
             "title": "Name"
           },
           "resource_type": {
-            "$ref": "#/$defs/AppliedResourceType",
-            "description": "The type of dbt resource to fetch details for. One of: model, source, exposure, test, seed, snapshot, macro, semantic_model. Tip: the resource_type is encoded in the unique_id prefix (e.g. `model.my_project.orders` \u2192 model)."
+            "description": "The type of dbt resource to fetch details for. One of: model, source, exposure, test, seed, snapshot, macro, semantic_model. Tip: the resource_type is encoded in the unique_id prefix (e.g. `model.my_project.orders` \u2192 model).",
+            "enum": [
+              "model",
+              "source",
+              "exposure",
+              "test",
+              "seed",
+              "snapshot",
+              "macro",
+              "semantic_model"
+            ],
+            "title": "Resource Type",
+            "type": "string"
           },
           "unique_id": {
             "anyOf": [

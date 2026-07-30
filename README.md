@@ -84,6 +84,7 @@ Allowing your client to utilize dbt commands through the MCP tooling could modif
 To learn more about the dbt Administrative API, click [here](https://docs.getdbt.com/docs/dbt-cloud-apis/admin-cloud-api).
 - `cancel_job_run`: Cancels a running job.
 - `get_job_details`: Gets job configuration including triggers, schedule, and dbt commands.
+- `get_job_run_artifacts`: Downloads a specific artifact from a job run; supports inline string, auto-temp file for large artifacts, and jq filtering.
 - `get_job_run_details`: Gets run details including status, timing, steps, and artifacts.
 - `get_job_run_error`: Gets error and/or warning details for a job run; option to include or show warnings only.
 - `list_job_run_artifacts`: Lists available artifacts from a job run.
