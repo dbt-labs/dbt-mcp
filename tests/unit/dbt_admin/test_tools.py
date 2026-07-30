@@ -404,6 +404,23 @@ async def test_get_job_run_artifacts_jq_filter_invalid_syntax(admin_context):
     assert result.startswith("Invalid jq filter:")
 
 
+async def test_get_job_run_artifacts_output_path_nonexistent_directory_returns_error(
+    admin_context,
+):
+    admin_context.admin_client.get_job_run_artifact = AsyncMock(
+        return_value='{"nodes": {}}'
+    )
+
+    result = await get_job_run_artifacts.fn(
+        admin_context,
+        run_id=100,
+        artifact_path="manifest.json",
+        output_path="/nonexistent/dir/out.json",
+    )
+
+    assert result.startswith("Could not write to /nonexistent/dir/out.json:")
+
+
 async def test_get_job_run_artifacts_jq_filter_non_json_artifact(admin_context):
     admin_context.admin_client.get_job_run_artifact = AsyncMock(
         return_value="SELECT * FROM my_table"

@@ -296,7 +296,12 @@ async def get_job_run_artifacts(
         admin_api_config.account_id, run_id, artifact_path, step=step
     )
     if output_path is not None:
-        await asyncio.to_thread(Path(output_path).write_text, content, encoding="utf-8")
+        try:
+            await asyncio.to_thread(
+                Path(output_path).write_text, content, encoding="utf-8"
+            )
+        except OSError as e:
+            return f"Could not write to {output_path}: {e}"
         return f"Artifact written to {output_path}"
     if jq_filter is not None:
         try:
