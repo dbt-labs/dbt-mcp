@@ -28,11 +28,24 @@ NAME_FIELD = Field(
     "Only use name when `unique_id` is unknown.",
 )
 
+# Default depth for the dev/CLI lineage tool (get_lineage_dev). The MCP
+# get_lineage tools use LINEAGE_DEPTH_FIELD (default 1) instead — keep the two
+# separate so get_lineage's smaller default doesn't change dev-tool behavior.
 DEPTH_FIELD = Field(
     default=5,
     description="The depth of the lineage graph to return. "
-    "Controls how many levels to traverse from the target node."
-    "A depth of 1 returns only direct parents/children."
+    "Controls how many levels to traverse from the target node. "
+    "A depth of 1 returns only direct parents/children. "
+    "A depth of 0 returns the entire lineage graph.",
+)
+
+# Default depth for the MCP get_lineage tools: 1 (direct parents/children) keeps
+# the default response small for inline app rendering.
+LINEAGE_DEPTH_FIELD = Field(
+    default=1,
+    description="The depth of the lineage graph to return. "
+    "Controls how many levels to traverse from the target node. "
+    "A depth of 1 returns only direct parents/children. "
     "A depth of 0 returns the entire lineage graph.",
 )
 

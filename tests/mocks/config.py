@@ -1,4 +1,5 @@
 from dbt_mcp.config.config import (
+    AppsConfig,
     Config,
     DbtCliConfig,
     DbtCodegenConfig,
@@ -177,6 +178,7 @@ mock_config = Config(
     semantic_layer_config_provider=MockSemanticLayerConfigProvider(),
     admin_api_config_provider=MockAdminApiConfigProvider(),
     lsp_config=mock_lsp_config,
+    apps_config=AppsConfig(cdn_base="https://example.test/mcp-apps"),
     disable_tools=[],
     enable_tools=None,  # None means not set, [] would mean allowlist mode
     disabled_toolsets=set(),
