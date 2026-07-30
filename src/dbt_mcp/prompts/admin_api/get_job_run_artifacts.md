@@ -25,6 +25,8 @@ The three most-used artifacts have stable, well-known schemas. Common filters:
 
 **Output shape:** jq results are always returned as a JSON array — the array contains each top-level value the filter emits. A filter that emits one object returns `[{...}]`; a filter that emits three strings returns `["a", "b", "c"]`; a filter that matches nothing returns `[]`. If you need just the inner value, read `result[0]` after parsing.
 
+**Double-wrap:** If your filter constructs a jq array (`[...]`, `group_by | map(...)`, etc.), that array is one emitted value and the result is `[[...]]`, not `[...]`. Prefer iterator-style filters (`.results[] | select(...)`) for flat output, or read `result[0]` to unwrap the outer array.
+
 **Prefer aggregation over enumeration on large manifests.** Filters that enumerate all matching nodes (e.g. listing every table-materialized model by name) can return hundreds of kilobytes on large projects and exceed context limits. Aggregate or count when you don't need every name:
 ```
 # Instead of listing all table-materialized models:
