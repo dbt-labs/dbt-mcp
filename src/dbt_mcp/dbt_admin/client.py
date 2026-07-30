@@ -386,7 +386,7 @@ class DbtAdminAPIClient:
     ) -> Any:
         """Get a specific job run artifact."""
         params = {}
-        if step:
+        if step is not None:
             params["step"] = step
 
         config = await self.config_provider.get_config()

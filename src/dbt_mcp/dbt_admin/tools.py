@@ -1,6 +1,12 @@
+import asyncio
+import json
 import logging
+import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Annotated, Any
+
+import jq
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -12,6 +18,10 @@ from dbt_mcp.config.config_providers import (
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.dbt_admin.constants import STATUS_MAP, JobRunStatus
 from dbt_mcp.dbt_admin.param_descriptions import (
+    ARTIFACT_JQ_FILTER,
+    ARTIFACT_OUTPUT_PATH,
+    ARTIFACT_PATH,
+    ARTIFACT_STEP,
     INCLUDE_WARNINGS_WITH_ERRORS,
     JOB_DEFINITION_ID,
     JOB_RUN_ID,
@@ -35,6 +45,18 @@ from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
+
+# Limit for returned dbt Artifacts
+INLINE_CONTENT_LIMIT = 500 * 1024  # 500 KB; above this, write to a temp file
+
+
+def _write_to_temp_file(content: str, suffix: str) -> str:
+    """Private function for get_job_run_artifacts"""
+    with tempfile.NamedTemporaryFile(
+        delete=False, suffix=suffix, mode="w", encoding="utf-8"
+    ) as tmp:
+        tmp.write(content)
+        return tmp.name
 
 
 @dataclass
@@ -249,6 +271,51 @@ async def list_job_run_artifacts(
 
 
 @dbt_mcp_tool(
+    description=get_prompt("admin_api/get_job_run_artifacts"),
+    title="Get Job Run Artifacts",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+)
+async def get_job_run_artifacts(
+    context: AdminToolContext,
+    run_id: Annotated[int, Field(description=JOB_RUN_ID)],
+    artifact_path: Annotated[str, Field(description=ARTIFACT_PATH)],
+    step: Annotated[int | None, Field(ge=1, description=ARTIFACT_STEP)] = None,
+    output_path: Annotated[str | None, Field(description=ARTIFACT_OUTPUT_PATH)] = None,
+    jq_filter: Annotated[str | None, Field(description=ARTIFACT_JQ_FILTER)] = None,
+) -> str:
+    """Get a specific artifact from a job run."""
+    if output_path is not None and jq_filter is not None:
+        return (
+            "output_path and jq_filter cannot be used together; "
+            "use jq_filter to filter inline or output_path to write the full artifact"
+        )
+    admin_api_config = await context.admin_api_config_provider.get_config()
+    content = await context.admin_client.get_job_run_artifact(
+        admin_api_config.account_id, run_id, artifact_path, step=step
+    )
+    if output_path is not None:
+        await asyncio.to_thread(Path(output_path).write_text, content, encoding="utf-8")
+        return f"Artifact written to {output_path}"
+    if jq_filter is not None:
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            return "jq_filter requires a JSON artifact; this artifact is not valid JSON"
+        try:
+            results = jq.compile(jq_filter).input(parsed).all()
+        except ValueError as e:
+            return f"Invalid jq filter: {e}"
+        return json.dumps(results, indent=2)
+    if len(content.encode("utf-8")) > INLINE_CONTENT_LIMIT:
+        suffix = Path(artifact_path).suffix or ".json"
+        tmp_path = await asyncio.to_thread(_write_to_temp_file, content, suffix)
+        return f"Artifact written to {tmp_path}"
+    return content
+
+
+@dbt_mcp_tool(
     description=get_prompt("admin_api/get_job_run_error"),
     title="Get Job Run Error",
     read_only_hint=True,
@@ -307,6 +374,7 @@ ADMIN_TOOLS = [
     cancel_job_run,
     retry_job_run,
     list_job_run_artifacts,
+    get_job_run_artifacts,
     get_job_run_error,
 ]
 
