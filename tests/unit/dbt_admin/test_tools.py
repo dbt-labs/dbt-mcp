@@ -354,7 +354,7 @@ async def test_get_job_run_artifacts_jq_filter_empty_result_returns_json_array(
     assert json.loads(result) == []
 
 
-async def test_get_job_run_artifacts_jq_filter_returns_inline_regardless_of_size(
+async def test_get_job_run_artifacts_jq_filter_small_output_from_large_input(
     admin_context,
 ):
     padding = "x" * (INLINE_CONTENT_LIMIT + 1)
@@ -370,6 +370,40 @@ async def test_get_job_run_artifacts_jq_filter_returns_inline_regardless_of_size
     )
 
     assert json.loads(result) == [INLINE_CONTENT_LIMIT + 1]
+
+
+async def test_get_job_run_artifacts_jq_filter_oversized_output_raises(
+    admin_context,
+):
+    # Each node has a long value to push the filtered output past INLINE_CONTENT_LIMIT
+    large_nodes = {f"n{i}": "x" * 100 for i in range(6000)}
+    content = json.dumps({"nodes": large_nodes})
+    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
+
+    with pytest.raises(ValueError, match="Filtered output exceeds"):
+        await get_job_run_artifacts.fn(
+            admin_context,
+            run_id=100,
+            artifact_path="manifest.json",
+            jq_filter=".nodes",
+        )
+
+
+@pytest.mark.parametrize("blocked_filter", ["env", "$ENV", "$ENV.SECRET", ".foo | env"])
+async def test_get_job_run_artifacts_jq_filter_blocks_env_access(
+    admin_context, blocked_filter: str
+):
+    admin_context.admin_client.get_job_run_artifact = AsyncMock(
+        return_value='{"key": "value"}'
+    )
+
+    with pytest.raises(ValueError, match="may not access environment variables"):
+        await get_job_run_artifacts.fn(
+            admin_context,
+            run_id=100,
+            artifact_path="manifest.json",
+            jq_filter=blocked_filter,
+        )
 
 
 async def test_get_job_run_artifacts_output_path_and_jq_filter_conflict(admin_context):

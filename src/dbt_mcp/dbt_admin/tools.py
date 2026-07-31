@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -49,6 +50,10 @@ logger = logging.getLogger(__name__)
 
 # Limit for returned dbt Artifacts
 INLINE_CONTENT_LIMIT = 500 * 1024  # 500 KB; above this, write to a temp file
+
+# jq builtins that expose the server's process environment
+_BLOCKED_JQ_PATTERNS = re.compile(r"\benv\b|\$ENV")
+JQ_TIMEOUT_SECONDS = 10
 
 
 def _write_to_temp_file(content: str, suffix: str) -> str:
@@ -310,17 +315,38 @@ async def get_job_run_artifacts(
             raise ValueError(f"Could not write to {output_path}: {e}") from e
         return f"Artifact written to {output_path}"
     if jq_filter is not None:
+        if _BLOCKED_JQ_PATTERNS.search(jq_filter):
+            raise ValueError(
+                "jq_filter may not access environment variables (env/$ENV)"
+            )
         try:
             parsed = json.loads(content)
         except json.JSONDecodeError:
             raise ValueError(
                 "jq_filter requires a JSON artifact; this artifact is not valid JSON"
             )
+
+        def _run_jq() -> list[Any]:
+            return jq.compile(jq_filter).input(parsed).all()
+
         try:
-            results = jq.compile(jq_filter).input(parsed).all()
+            results = await asyncio.wait_for(
+                asyncio.to_thread(_run_jq), timeout=JQ_TIMEOUT_SECONDS
+            )
+        except TimeoutError:
+            raise ValueError(
+                f"jq filter timed out after {JQ_TIMEOUT_SECONDS}s; simplify the filter"
+            )
         except ValueError as e:
             raise ValueError(f"Invalid jq filter: {e}") from e
-        return json.dumps(results, indent=2)
+        filtered = json.dumps(results, indent=2)
+        if len(filtered.encode("utf-8")) > INLINE_CONTENT_LIMIT:
+            raise ValueError(
+                f"Filtered output exceeds {INLINE_CONTENT_LIMIT // 1024} KB; "
+                "narrow the filter to return fewer results "
+                "(e.g. use select(), keys, or length instead of enumerating all nodes)"
+            )
+        return filtered
     if (
         len(content) > INLINE_CONTENT_LIMIT
         or len(content.encode("utf-8")) > INLINE_CONTENT_LIMIT
