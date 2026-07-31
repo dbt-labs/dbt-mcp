@@ -1,4 +1,6 @@
 # dbt MCP Server
+
+[![MCP Toplist](https://mcptoplist.com/badge/glama%2Fdbt-labs%2Fdbt-mcp.svg)](https://mcptoplist.com/server/glama%2Fdbt-labs%2Fdbt-mcp)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/11137/badge)](https://www.bestpractices.dev/projects/11137)
 
 This MCP (Model Context Protocol) server provides various tools to interact with dbt. You can use this MCP server to provide AI agents with context of your project in dbt Core, dbt Fusion, and dbt Platform.
