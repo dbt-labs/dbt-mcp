@@ -52,17 +52,10 @@ ARTIFACT_STEP = (
     "produce artifacts — infrastructure steps (git clone, profile creation, dbt deps) "
     "will raise a not-found error."
 )
-ARTIFACT_OUTPUT_PATH = (
-    "If provided, write the artifact content to this local file path and return a "
-    "confirmation message. Artifacts larger than 500 KB are automatically written to "
-    "a temp file — use output_path to control the destination instead. "
-    "Cannot be combined with jq_filter."
-)
 ARTIFACT_JQ_FILTER = (
     "A jq filter expression to apply to the artifact before returning. "
     "Only valid for JSON artifacts. Results are always returned as a JSON array inline "
     "regardless of artifact size — if the filter matches nothing, '[]' is returned. "
-    "Cannot be combined with output_path. "
     "Examples: '.results[] | select(.status == \"error\")' to extract failures; "
     "'.nodes | keys[]' to list all node IDs; "
     "'.metadata' to inspect artifact metadata."

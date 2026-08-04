@@ -265,6 +265,37 @@ class TestMcpClientInfo:
         assert version == ""
 
 
+class TestAppLifespanArtifactCleanup:
+    async def test_lifespan_cleans_up_artifact_cache_on_exit(self, tmp_path):
+        from dbt_mcp.mcp.server import app_lifespan
+        from dbt_mcp.dbt_admin.tools import _written_artifact_paths
+
+        server = _make_dispatcher()
+        server.config.proxied_tool_config_provider = None
+        server.config.lsp_config = None
+
+        artifact = tmp_path / "run_123_manifest_steplatest.json"
+        artifact.write_text('{"nodes": {}}')
+        _written_artifact_paths.add(artifact)
+
+        try:
+            with (
+                patch(
+                    "dbt_mcp.mcp.server.ProxiedToolsManager.close",
+                    new_callable=AsyncMock,
+                ),
+                patch("dbt_mcp.mcp.server.shutdown"),
+            ):
+                async with app_lifespan(server):
+                    assert artifact.exists()
+
+            assert not artifact.exists()
+            assert artifact not in _written_artifact_paths
+        finally:
+            _written_artifact_paths.discard(artifact)
+            artifact.unlink(missing_ok=True)
+
+
 class TestAppLifespanLogging:
     async def test_lifespan_logs_exception_with_traceback(self, caplog):
         """Regression: app_lifespan used logger.error() without exc_info=True, so an
