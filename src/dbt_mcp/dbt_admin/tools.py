@@ -1,8 +1,9 @@
 import asyncio
+import hashlib
 import json
 import logging
+import multiprocessing
 import re
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any
@@ -20,7 +21,6 @@ from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.dbt_admin.constants import STATUS_MAP, JobRunStatus
 from dbt_mcp.dbt_admin.param_descriptions import (
     ARTIFACT_JQ_FILTER,
-    ARTIFACT_OUTPUT_PATH,
     ARTIFACT_PATH,
     ARTIFACT_STEP,
     INCLUDE_WARNINGS_WITH_ERRORS,
@@ -48,20 +48,40 @@ from dbt_mcp.tools.toolsets import Toolset
 logger = logging.getLogger(__name__)
 
 # Limit for returned dbt Artifacts
-INLINE_CONTENT_LIMIT = 500 * 1024  # 500 KB; above this, write to a temp file
+INLINE_CONTENT_LIMIT = 500 * 1024  # 500 KB; above this, write to a cache file
 
 # jq builtins that expose the server's process environment
 _BLOCKED_JQ_PATTERNS = re.compile(r"\benv\b|\$ENV")
 JQ_TIMEOUT_SECONDS = 10
 
+DBT_ARTIFACTS_DIR = Path.home() / ".dbt" / "artifacts"
 
-def _write_to_temp_file(content: str, suffix: str) -> str:
-    """Private function for get_job_run_artifacts"""
-    with tempfile.NamedTemporaryFile(
-        delete=False, suffix=suffix, mode="w", encoding="utf-8"
-    ) as tmp:
-        tmp.write(content)
-        return tmp.name
+_written_artifact_paths: set[Path] = set()
+
+
+def _jq_eval_worker(jq_filter: str, content: str) -> list[Any]:
+    """Run jq in a spawned subprocess; module-level so it's picklable."""
+    return jq.compile(jq_filter).input(json.loads(content)).all()
+
+
+def _cleanup_artifact_cache() -> None:
+    for path in list(_written_artifact_paths):
+        path.unlink(missing_ok=True)
+        _written_artifact_paths.discard(path)
+
+
+def _artifact_cache_path(run_id: int, artifact_path: str, step: int | None) -> Path:
+    no_ext = artifact_path.rsplit(".", 1)[0].replace("/", "_").replace("\\", "_")
+    suffix = Path(artifact_path).suffix or ".json"
+    step_str = str(step) if step is not None else "latest"
+    slug = hashlib.md5(artifact_path.encode()).hexdigest()[:8]
+    return DBT_ARTIFACTS_DIR / f"run_{run_id}_{no_ext}_{slug}_step{step_str}{suffix}"
+
+
+def _write_artifact_cache(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    _written_artifact_paths.add(path)
 
 
 @dataclass
@@ -279,7 +299,7 @@ async def list_job_run_artifacts(
     description=get_prompt("admin_api/get_job_run_artifacts"),
     title="Get Job Run Artifacts",
     read_only_hint=False,
-    destructive_hint=True,
+    destructive_hint=False,
     idempotent_hint=True,
 )
 async def get_job_run_artifacts(
@@ -287,53 +307,38 @@ async def get_job_run_artifacts(
     run_id: Annotated[int, Field(description=JOB_RUN_ID)],
     artifact_path: Annotated[str, Field(description=ARTIFACT_PATH)],
     step: Annotated[int | None, Field(ge=1, description=ARTIFACT_STEP)] = None,
-    output_path: Annotated[str | None, Field(description=ARTIFACT_OUTPUT_PATH)] = None,
     jq_filter: Annotated[str | None, Field(description=ARTIFACT_JQ_FILTER)] = None,
 ) -> str:
     """Get a specific artifact from a job run."""
-    if output_path is not None and jq_filter is not None:
-        raise ValueError(
-            "output_path and jq_filter cannot be used together; "
-            "use jq_filter to filter inline or output_path to write the full artifact"
-        )
     admin_api_config = await context.admin_api_config_provider.get_config()
     content = await context.admin_client.get_job_run_artifact(
         admin_api_config.account_id, run_id, artifact_path, step=step
     )
-    if output_path is not None:
-        try:
-            await asyncio.to_thread(
-                Path(output_path).write_text, content, encoding="utf-8"
-            )
-        except OSError as e:
-            raise ValueError(f"Could not write to {output_path}: {e}") from e
-        return f"Artifact written to {output_path}"
     if jq_filter is not None:
         if _BLOCKED_JQ_PATTERNS.search(jq_filter):
             raise ValueError(
                 "jq_filter may not access environment variables (env/$ENV)"
             )
-        try:
-            parsed = json.loads(content)
-        except json.JSONDecodeError:
-            raise ValueError(
-                "jq_filter requires a JSON artifact; this artifact is not valid JSON"
-            )
-
-        def _run_jq() -> list[Any]:
-            return jq.compile(jq_filter).input(parsed).all()
-
-        try:
-            results = await asyncio.wait_for(
-                asyncio.to_thread(_run_jq), timeout=JQ_TIMEOUT_SECONDS
-            )
-        except TimeoutError:
-            raise ValueError(
-                f"jq filter timed out after {JQ_TIMEOUT_SECONDS}s; simplify the filter"
-            )
-        except ValueError as e:
-            raise ValueError(f"Invalid jq filter: {e}") from e
-        filtered = json.dumps(results, indent=2)
+        ctx = multiprocessing.get_context("spawn")
+        with ctx.Pool(processes=1) as pool:
+            future = pool.apply_async(_jq_eval_worker, (jq_filter, content))
+            try:
+                results = await asyncio.wait_for(
+                    asyncio.to_thread(future.get),
+                    timeout=JQ_TIMEOUT_SECONDS,
+                )
+            except TimeoutError:
+                pool.terminate()
+                raise ValueError(
+                    f"jq filter timed out after {JQ_TIMEOUT_SECONDS}s; simplify the filter"
+                )
+            except json.JSONDecodeError:
+                raise ValueError(
+                    "jq_filter requires a JSON artifact; this artifact is not valid JSON"
+                )
+            except Exception as e:
+                raise ValueError(f"Invalid jq filter: {e}") from e
+        filtered = json.dumps(results, separators=(",", ":"))
         if len(filtered.encode("utf-8")) > INLINE_CONTENT_LIMIT:
             raise ValueError(
                 f"Filtered output exceeds {INLINE_CONTENT_LIMIT // 1024} KB; "
@@ -345,9 +350,12 @@ async def get_job_run_artifacts(
         len(content) > INLINE_CONTENT_LIMIT
         or len(content.encode("utf-8")) > INLINE_CONTENT_LIMIT
     ):
-        suffix = Path(artifact_path).suffix or ".json"
-        tmp_path = await asyncio.to_thread(_write_to_temp_file, content, suffix)
-        return f"Artifact written to {tmp_path}"
+        cache_path = _artifact_cache_path(run_id, artifact_path, step)
+        try:
+            await asyncio.to_thread(_write_artifact_cache, cache_path, content)
+        except OSError as e:
+            raise ValueError(f"Could not write artifact to {cache_path}: {e}") from e
+        return f"Artifact written to {cache_path}"
     return content
 
 

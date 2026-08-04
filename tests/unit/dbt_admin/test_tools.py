@@ -11,6 +11,8 @@ from dbt_mcp.dbt_admin.tools import (
     AdminToolContext,
     JobRunStatus,
     INLINE_CONTENT_LIMIT,
+    _cleanup_artifact_cache,
+    _written_artifact_paths,
     cancel_job_run,
     get_job_details,
     get_job_run_artifacts,
@@ -238,22 +240,6 @@ async def test_get_job_run_artifacts_tool_string_output(admin_context):
     )
 
 
-async def test_get_job_run_artifacts_tool_file_output(admin_context, tmp_path):
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(
-        return_value='{"nodes": {}}'
-    )
-    output_file = tmp_path / "manifest.json"
-    result = await get_job_run_artifacts.fn(
-        admin_context,
-        run_id=100,
-        artifact_path="manifest.json",
-        output_path=str(output_file),
-    )
-
-    assert result == f"Artifact written to {output_file}"
-    assert output_file.read_text() == '{"nodes": {}}'
-
-
 async def test_get_job_run_artifacts_tool_with_step(admin_context):
     admin_context.admin_client.get_job_run_artifact = AsyncMock(
         return_value="log content"
@@ -273,13 +259,14 @@ async def test_get_job_run_artifacts_tool_with_step(admin_context):
         (1024, True),  # 1 KB — well below limit
         (INLINE_CONTENT_LIMIT - 1, True),  # 1 byte below limit — inline
         (INLINE_CONTENT_LIMIT, True),  # exactly at limit — still inline (strict >)
-        (INLINE_CONTENT_LIMIT + 1, False),  # 1 byte over limit — temp file
+        (INLINE_CONTENT_LIMIT + 1, False),  # 1 byte over limit — cache file
         (INLINE_CONTENT_LIMIT * 2, False),  # well over limit
     ],
 )
 async def test_get_job_run_artifacts_size_routing(
-    admin_context, content_size, expect_inline
+    admin_context, content_size, expect_inline, monkeypatch, tmp_path
 ):
+    monkeypatch.setattr("dbt_mcp.dbt_admin.tools.DBT_ARTIFACTS_DIR", tmp_path)
     content = "x" * content_size
     admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
 
@@ -291,12 +278,15 @@ async def test_get_job_run_artifacts_size_routing(
         assert result == content
     else:
         path = Path(result.removeprefix("Artifact written to "))
+        assert path.parent == tmp_path
         assert path.exists()
         assert path.read_text() == content
-        path.unlink()
 
 
-async def test_get_job_run_artifacts_auto_temp_preserves_suffix(admin_context):
+async def test_get_job_run_artifacts_auto_cache_preserves_suffix(
+    admin_context, monkeypatch, tmp_path
+):
+    monkeypatch.setattr("dbt_mcp.dbt_admin.tools.DBT_ARTIFACTS_DIR", tmp_path)
     content = "x" * (INLINE_CONTENT_LIMIT + 1)
     admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
 
@@ -305,23 +295,42 @@ async def test_get_job_run_artifacts_auto_temp_preserves_suffix(admin_context):
     )
 
     path = Path(result.removeprefix("Artifact written to "))
+    assert path.parent == tmp_path
     assert path.suffix == ".json"
-    path.unlink()
 
 
-async def test_get_job_run_artifacts_explicit_output_path_bypasses_size_check(
-    admin_context, tmp_path
+async def test_get_job_run_artifacts_deterministic_path(
+    admin_context, monkeypatch, tmp_path
 ):
-    content = "x" * 100  # tiny — would be inline without output_path
+    monkeypatch.setattr("dbt_mcp.dbt_admin.tools.DBT_ARTIFACTS_DIR", tmp_path)
+    content = "x" * (INLINE_CONTENT_LIMIT + 1)
     admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
-    out = tmp_path / "out.json"
 
-    result = await get_job_run_artifacts.fn(
-        admin_context, run_id=100, artifact_path="manifest.json", output_path=str(out)
+    result1 = await get_job_run_artifacts.fn(
+        admin_context, run_id=100, artifact_path="manifest.json", step=2
+    )
+    result2 = await get_job_run_artifacts.fn(
+        admin_context, run_id=100, artifact_path="manifest.json", step=2
     )
 
-    assert result == f"Artifact written to {out}"
-    assert out.read_text() == content
+    assert result1 == result2
+
+
+async def test_get_job_run_artifacts_cleanup(admin_context, monkeypatch, tmp_path):
+    monkeypatch.setattr("dbt_mcp.dbt_admin.tools.DBT_ARTIFACTS_DIR", tmp_path)
+    content = "x" * (INLINE_CONTENT_LIMIT + 1)
+    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
+
+    result = await get_job_run_artifacts.fn(
+        admin_context, run_id=999, artifact_path="manifest.json"
+    )
+
+    path = Path(result.removeprefix("Artifact written to "))
+    assert path in _written_artifact_paths
+    assert path.exists()
+
+    _cleanup_artifact_cache()
+    assert not path.exists()
 
 
 async def test_get_job_run_artifacts_jq_filter_extracts_field(admin_context):
@@ -406,22 +415,6 @@ async def test_get_job_run_artifacts_jq_filter_blocks_env_access(
         )
 
 
-async def test_get_job_run_artifacts_output_path_and_jq_filter_conflict(admin_context):
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(
-        return_value='{"nodes": {}}'
-    )
-
-    with pytest.raises(ValueError, match="cannot be used together"):
-        await get_job_run_artifacts.fn(
-            admin_context,
-            run_id=100,
-            artifact_path="manifest.json",
-            output_path="/tmp/out.json",
-            jq_filter=".nodes",
-        )
-    admin_context.admin_client.get_job_run_artifact.assert_not_called()
-
-
 async def test_get_job_run_artifacts_jq_filter_invalid_syntax(admin_context):
     admin_context.admin_client.get_job_run_artifact = AsyncMock(
         return_value='{"key": "value"}'
@@ -433,24 +426,6 @@ async def test_get_job_run_artifacts_jq_filter_invalid_syntax(admin_context):
             run_id=100,
             artifact_path="run_results.json",
             jq_filter="not valid jq |||",
-        )
-
-
-async def test_get_job_run_artifacts_output_path_nonexistent_directory_returns_error(
-    admin_context,
-):
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(
-        return_value='{"nodes": {}}'
-    )
-
-    with pytest.raises(
-        ValueError, match="Could not write to /nonexistent/dir/out.json:"
-    ):
-        await get_job_run_artifacts.fn(
-            admin_context,
-            run_id=100,
-            artifact_path="manifest.json",
-            output_path="/nonexistent/dir/out.json",
         )
 
 
