@@ -339,7 +339,7 @@ async def get_job_run_artifacts(
             except Exception as e:
                 raise ValueError(f"Invalid jq filter: {e}") from e
         filtered = json.dumps(results, separators=(",", ":"))
-        if len(filtered.encode("utf-8")) > INLINE_CONTENT_LIMIT:
+        if len(filtered.encode("utf-8")) >= INLINE_CONTENT_LIMIT:
             raise ValueError(
                 f"Filtered output exceeds {INLINE_CONTENT_LIMIT // 1024} KB; "
                 "narrow the filter to return fewer results "
@@ -347,8 +347,8 @@ async def get_job_run_artifacts(
             )
         return filtered
     if (
-        len(content) > INLINE_CONTENT_LIMIT
-        or len(content.encode("utf-8")) > INLINE_CONTENT_LIMIT
+        len(content) >= INLINE_CONTENT_LIMIT
+        or len(content.encode("utf-8")) >= INLINE_CONTENT_LIMIT
     ):
         cache_path = _artifact_cache_path(run_id, artifact_path, step)
         try:

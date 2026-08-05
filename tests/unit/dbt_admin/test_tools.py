@@ -258,7 +258,7 @@ async def test_get_job_run_artifacts_tool_with_step(admin_context):
     [
         (1024, True),  # 1 KB — well below limit
         (INLINE_CONTENT_LIMIT - 1, True),  # 1 byte below limit — inline
-        (INLINE_CONTENT_LIMIT, True),  # exactly at limit — still inline (strict >)
+        (INLINE_CONTENT_LIMIT, False),  # exactly at limit — cached (>=)
         (INLINE_CONTENT_LIMIT + 1, False),  # 1 byte over limit — cache file
         (INLINE_CONTENT_LIMIT * 2, False),  # well over limit
     ],
