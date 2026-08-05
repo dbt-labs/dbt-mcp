@@ -14,7 +14,7 @@ Use `list_job_run_artifacts` first to see which artifacts are available for a ru
 
 ## Output Options
 
-- **Default**: Returns content inline for artifacts under 500 KB. For larger artifacts, writes to `~/.dbt/artifacts/run_{run_id}_{name}_step{step}.{ext}` and returns the path. Repeated calls with the same arguments overwrite the same file.
+- **Default**: Returns content inline for artifacts under 500 KB. For larger artifacts, writes to `~/.dbt/artifacts/run_{run_id}_{name}_{hash}_step{step}.{ext}` (where `{hash}` is an 8-character collision-avoidance suffix) and returns the path. Repeated calls with the same arguments overwrite the same file.
 - **jq_filter set**: Applies a jq filter and returns results as a JSON array inline. Works in both local and remote deployments. Required for large artifacts like `manifest.json` that exceed context limits. Only valid for JSON artifacts; returns `[]` on no match. Filtered output is also capped at 500 KB — use aggregation filters if you hit the limit.
 
 ## jq Filter Reference

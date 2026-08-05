@@ -66,16 +66,20 @@ def _jq_eval_worker(jq_filter: str, content: str) -> list[Any]:
 
 def _cleanup_artifact_cache() -> None:
     for path in list(_written_artifact_paths):
-        path.unlink(missing_ok=True)
-        _written_artifact_paths.discard(path)
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        else:
+            _written_artifact_paths.discard(path)
 
 
 def _artifact_cache_path(run_id: int, artifact_path: str, step: int | None) -> Path:
     no_ext = artifact_path.rsplit(".", 1)[0].replace("/", "_").replace("\\", "_")
     suffix = Path(artifact_path).suffix or ".json"
     step_str = str(step) if step is not None else "latest"
-    slug = hashlib.md5(artifact_path.encode()).hexdigest()[:8]
-    return DBT_ARTIFACTS_DIR / f"run_{run_id}_{no_ext}_{slug}_step{step_str}{suffix}"
+    hash = hashlib.md5(artifact_path.encode(), usedforsecurity=False).hexdigest()[:8]
+    return DBT_ARTIFACTS_DIR / f"run_{run_id}_{no_ext}_{hash}_step{step_str}{suffix}"
 
 
 def _write_artifact_cache(path: Path, content: str) -> None:
