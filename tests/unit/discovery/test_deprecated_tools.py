@@ -92,13 +92,13 @@ def test_deprecated_tool_description_is_trimmed(mock_fastmcp):
 def test_deprecated_tool_description_maps_args_to_replacement(mock_fastmcp):
     """get_lineage isn't a drop-in for get_model_parents/children on its own: it
 
-    requires unique_id (these tools accept name alone) and defaults to depth=5
-    (these tools only ever return immediate parents/children). The `direction`
-    param closes the remaining gap — direction="upstream"/"downstream" narrows
-    get_lineage to one side, matching get_model_parents/get_model_children
-    exactly. The deprecation description must spell out unique_id, depth=1,
-    and the tool-specific direction value — otherwise a caller gets a
-    different node set than the old tool, not just a deeper one.
+    requires unique_id (these tools accept name alone), and these tools only ever
+    return immediate parents/children. The `direction` param closes the remaining
+    gap — direction="upstream"/"downstream" narrows get_lineage to one side,
+    matching get_model_parents/get_model_children exactly. The deprecation
+    description must spell out unique_id, depth=1, and the tool-specific direction
+    value — otherwise a caller gets a different node set than the old tool, not
+    just a deeper one.
     """
     fastmcp = _register_single_project(mock_fastmcp)
     expected_direction = {

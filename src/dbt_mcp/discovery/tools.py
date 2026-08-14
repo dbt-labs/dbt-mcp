@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
 from dbt_mcp.discovery.client import (
@@ -33,8 +33,8 @@ from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.deprecation import deprecated_description, deprecation_meta
 from dbt_mcp.tools.fields import (
-    DEPTH_FIELD,
     DIRECTION_FIELD,
+    LINEAGE_DEPTH_FIELD,
     NAME_FIELD,
     TYPES_FIELD,
     UNIQUE_ID_FIELD,
@@ -284,28 +284,76 @@ async def get_model_performance(
     )
 
 
+class LineageNode(BaseModel):
+    unique_id: str
+    name: str
+    resource_type: str
+
+
+class LineageEdge(BaseModel):
+    source: str
+    target: str
+
+
+class LineageGraph(BaseModel):
+    type: str = "lineage_graph"
+    root_id: str
+    nodes: list[LineageNode]
+    edges: list[LineageEdge]
+
+
+def build_lineage_graph(root_id: str, nodes: list[dict]) -> LineageGraph:
+    """Map the lineage fetcher's list-of-dicts output into a LineageGraph.
+
+    Shared by the single- and multi-project get_lineage tools so both emit the
+    same structured shape. Edges are kept only when both endpoints are present
+    in the returned node set.
+    """
+    node_ids = {n["uniqueId"] for n in nodes}
+    return LineageGraph(
+        root_id=root_id,
+        nodes=[
+            LineageNode(
+                unique_id=n["uniqueId"],
+                name=n["name"],
+                resource_type=n["resourceType"],
+            )
+            for n in nodes
+        ],
+        edges=[
+            LineageEdge(source=parent_id, target=n["uniqueId"])
+            for n in nodes
+            for parent_id in n.get("parentIds", [])
+            if parent_id in node_ids
+        ],
+    )
+
+
 @dbt_mcp_tool(
     description=get_prompt("discovery/get_lineage"),
     title="Get Lineage",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
+    structured_output=True,
+    meta={"ui": {"resourceUri": "ui://dbt-mcp/get-lineage"}},
 )
 async def get_lineage(
     context: DiscoveryToolContext,
     unique_id: str = UNIQUE_ID_REQUIRED_FIELD,
     types: list[LineageResourceType] | None = TYPES_FIELD,
-    depth: int = DEPTH_FIELD,
+    depth: int = LINEAGE_DEPTH_FIELD,
     direction: LineageDirection = DIRECTION_FIELD,
-) -> list[dict]:
+) -> LineageGraph:
     config = await context.config_provider.get_config()
-    return await context.lineage_fetcher.fetch_lineage(
+    nodes = await context.lineage_fetcher.fetch_lineage(
         unique_id=unique_id,
         types=types,
         depth=depth,
         direction=direction,
         config=config,
     )
+    return build_lineage_graph(root_id=unique_id, nodes=nodes)
 
 
 @dbt_mcp_tool(

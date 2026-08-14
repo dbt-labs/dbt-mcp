@@ -12,7 +12,15 @@
     "product_docs",
     "semantic_layer"
   ],
-  "resources": [],
+  "resources": [
+    {
+      "content_sha256": null,
+      "meta": null,
+      "mime_type": "text/html;profile=mcp-app",
+      "name": "get-lineage",
+      "uri": "ui://dbt-mcp/get-lineage"
+    }
+  ],
   "server_instructions": "Use these tools to interact with dbt resources (typically via dbt Platform):\n\n- Understand how the project is structured: what exists in the environment, how objects depend on one another, and where to look when something looks wrong or slow.\n- Reason over governed business meaning -- named measures and breakdowns the project maintains -- and answer questions with validated aggregates or the warehouse logic behind them when that helps.\n- Work with platform automation when available: see what runs on a schedule, inspect past outcomes, act on failures or reruns, and dig into logs and outputs.\n- Assist with engineering work on dbt projects: take action on the project and reason about the underlying SQL.\n\nExample data-oriented questions (users may not use dbt vocabulary):\n\n- Revenue, ARR, bookings, pipeline, or quota: \"how are we doing this quarter?\"; \"split it by region or product\"; \"this total doesn't match finance.\"\n- Customers, users, signups, or retention: \"how many active ...?\" \"is churn getting worse?\" \"cohorts or segments -- whatever we already track.\"\n- Orders, inventory, SKUs, or fulfillment: \"what's selling?\" \"stock or backorder questions\" when they only describe the business problem.\n- Funnel, marketing, or web activity: \"conversion from visit to purchase\" \"campaign performance\" with loose wording and no metric names.\n- Trust and definitions: \"where does this dashboard number come from?\" \"two reports disagree -- help me find why\" \"what's the official definition of ...?\"\n- Quality and freshness: \"is this table up to date?\" \"missing yesterday's data\" \"something looks stale in our reporting.\"\n- Orchestration tied to data: \"did last night's refresh finish?\" \"prod load failed and Finance is blocked\" without run or job IDs.\n- Engineering on a dbt project: \"help me with this model,\" \"what's wrong with my project?\"",
   "tools": [
     {
@@ -815,7 +823,7 @@
         "readOnlyHint": true,
         "title": "Get Lineage"
       },
-      "description": "Retrieves the lineage graph for a dbt resource.\n\nReturns all nodes connected to the specified resource, including both upstream dependencies (ancestors) and downstream dependents (descendants).\n\n**Returns:**\nA list of all nodes in the connected subgraph, where each node contains:\n- `uniqueId`: The resource's unique identifier\n- `name`: The resource name\n- `resourceType`: The type of resource (Model, Source, etc.)\n- `parentIds`: List of unique IDs that this resource directly depends on\n\nCall `get_lineage(unique_id=..., depth=1)` to retrieve the target node plus only its immediate parents and children.\n\nUse `direction` to narrow the response to one side of the graph and reduce payload size:\n- `direction=\"upstream\"`: ancestors only \u2014 excludes the target node and descendants\n- `direction=\"downstream\"`: descendants only \u2014 excludes the target node and ancestors\n- `direction=\"both\"` (default): the target node plus both ancestors and descendants\n\n`direction=\"upstream\"`/`\"downstream\"` are drop-in replacements for\n`get_model_parents`/`get_model_children`: same node set, target excluded either way.\n\n**Example Response:**\n```json\n[\n  {\n    \"uniqueId\": \"source.raw.users\",\n    \"name\": \"users\",\n    \"resourceType\": \"Source\",\n    \"parentIds\": []\n  },\n  {\n    \"uniqueId\": \"model.stg_customers\",\n    \"name\": \"stg_customers\",\n    \"resourceType\": \"Model\",\n    \"parentIds\": [\"source.raw.users\"]\n  },\n  {\n    \"uniqueId\": \"model.customers\",\n    \"name\": \"customers\",\n    \"resourceType\": \"Model\",\n    \"parentIds\": [\"model.stg_customers\"]\n  }\n]\n```\n\n**Usage Examples:**\n```python\n# Get complete lineage (all connected nodes, all types, default depth of 5)\nget_lineage(unique_id=\"model.analytics.customers\")\n\n# Get lineage filtered to only models and sources\nget_lineage(unique_id=\"model.analytics.customers\", types=[\"Model\", \"Source\"])\n\n# Get only immediate neighbors (depth=1)\nget_lineage(unique_id=\"model.analytics.customers\", depth=1)\n\n# Get deeper lineage for comprehensive analysis\nget_lineage(unique_id=\"model.analytics.customers\", depth=10)\n\n# Get only upstream dependencies (ancestors), e.g. for dependency tracking\nget_lineage(unique_id=\"model.analytics.customers\", direction=\"upstream\")\n\n# Get only downstream dependents (descendants), e.g. for impact analysis\nget_lineage(unique_id=\"model.analytics.customers\", direction=\"downstream\")\n```\n\n**Traversing the Graph:**\n\nThe graph is represented by parent-child relationships. To navigate:\n\n**Finding Upstream Dependencies (Parents):**\n```python\n# Direct: What does this node depend on?\ntarget_node = find_node_by_id(result, \"model.customers\")\ndirect_parents = target_node[\"parentIds\"]\n# Result: [\"model.stg_customers\"]\n```\n\n**Finding Downstream Dependents (Children):**\n```python\n# Search: What depends on this node?\ntarget_id = \"model.customers\"\ndirect_children = [\n    node for node in result\n    if target_id in node.get(\"parentIds\", [])\n]\n# Result: nodes that list \"model.customers\" in their parentIds\n```\n\n**Understanding the Results:**\n\n- The target node is included only when `direction=\"both\"` (the default); it is excluded for `direction=\"upstream\"`/`\"downstream\"`\n- All returned nodes are connected to the target (no disconnected nodes)\n- To get full lineage, omit the `types` parameter\n- To reduce payload size, specify relevant `types`\n\n**Common Use Cases:**\n\n1. **Impact Analysis**: \"What will break if I change this model?\"\n   - Look at downstream dependents (nodes that have target in `parentIds`)\n\n2. **Dependency Tracking**: \"What does this model depend on?\"\n   - Look at upstream dependencies (`parentIds` of the target node)\n\n3. **Data Lineage**: \"Show the complete data flow for this entity\"\n   - Use all returned nodes to build a complete graph\n\n4. **Finding Tests**: \"What tests exist for this model and its dependencies?\"\n   - Filter results where `resourceType == \"Test\"`\n",
+      "description": "Retrieves the lineage graph for a dbt resource.\n\nReturns the subgraph of nodes connected to the specified resource, including both upstream dependencies (ancestors) and downstream dependents (descendants).\n\n**Returns:**\nA structured `LineageGraph` object:\n- `root_id`: the `unique_id` the lineage was computed relative to (the target node).\n- `nodes`: the connected nodes, each with:\n  - `unique_id`: the resource's unique identifier\n  - `name`: the resource name\n  - `resource_type`: the type of resource (Model, Source, etc.)\n- `edges`: the dependency edges, each with `source` and `target` `unique_id`s, where `source` is an upstream parent of `target` (data flows `source` \u2192 `target`).\n\nThe target node (`root_id`) is present in `nodes` for `direction=\"both\"` (the default). For `direction=\"upstream\"`/`\"downstream\"` the target is excluded, so `root_id` may not appear in `nodes`.\n\nCall `get_lineage(unique_id=...)` to retrieve the target node plus only its immediate parents and children (the default `depth=1`).\n\nUse `direction` to narrow the response to one side of the graph and reduce payload size:\n- `direction=\"upstream\"`: ancestors only \u2014 excludes the target node and descendants\n- `direction=\"downstream\"`: descendants only \u2014 excludes the target node and ancestors\n- `direction=\"both\"` (default): the target node plus both ancestors and descendants\n\n`direction=\"upstream\"`/`\"downstream\"` are drop-in replacements for `get_model_parents`/`get_model_children`: same node set, target excluded either way.\n\n**Example Response:**\n```json\n{\n  \"type\": \"lineage_graph\",\n  \"root_id\": \"model.customers\",\n  \"nodes\": [\n    {\"unique_id\": \"source.raw.users\", \"name\": \"users\", \"resource_type\": \"Source\"},\n    {\"unique_id\": \"model.stg_customers\", \"name\": \"stg_customers\", \"resource_type\": \"Model\"},\n    {\"unique_id\": \"model.customers\", \"name\": \"customers\", \"resource_type\": \"Model\"}\n  ],\n  \"edges\": [\n    {\"source\": \"source.raw.users\", \"target\": \"model.stg_customers\"},\n    {\"source\": \"model.stg_customers\", \"target\": \"model.customers\"}\n  ]\n}\n```\n\n**Usage Examples:**\n```python\n# Get lineage (immediate parents and children \u2014 default depth of 1)\nget_lineage(unique_id=\"model.analytics.customers\")\n\n# Get lineage filtered to only models and sources\nget_lineage(unique_id=\"model.analytics.customers\", types=[\"Model\", \"Source\"])\n\n# Get deeper lineage for comprehensive analysis\nget_lineage(unique_id=\"model.analytics.customers\", depth=10)\n\n# Get the full connected graph (depth=0 traverses without a limit)\nget_lineage(unique_id=\"model.analytics.customers\", depth=0)\n\n# Get only upstream dependencies (ancestors), e.g. for dependency tracking\nget_lineage(unique_id=\"model.analytics.customers\", direction=\"upstream\")\n\n# Get only downstream dependents (descendants), e.g. for impact analysis\nget_lineage(unique_id=\"model.analytics.customers\", direction=\"downstream\")\n```\n\n**Traversing the Graph:**\n\nRelationships are explicit in `edges` (`source` \u2192 `target`, parent \u2192 child).\n\n**Finding Upstream Dependencies (Parents):** the parents of a node are the `edges` whose `target` is that node \u2014 read their `source`.\n\n**Finding Downstream Dependents (Children):** the children of a node are the `edges` whose `source` is that node \u2014 read their `target`.\n\n**Understanding the Results:**\n\n- The target node is included only when `direction=\"both\"` (the default); it is excluded for `direction=\"upstream\"`/`\"downstream\"`\n- All returned nodes are connected to the target (no disconnected nodes)\n- To get full lineage, omit the `types` parameter\n- To reduce payload size, specify relevant `types`\n\n**Common Use Cases:**\n\n1. **Impact Analysis**: \"What will break if I change this model?\"\n   - Follow `edges` downstream from the target (edges where `source` is the target)\n\n2. **Dependency Tracking**: \"What does this model depend on?\"\n   - Follow `edges` upstream to the target (edges where `target` is the target node)\n\n3. **Data Lineage**: \"Show the complete data flow for this entity\"\n   - Use `nodes` and `edges` to build the complete graph\n\n4. **Finding Tests**: \"What tests exist for this model and its dependencies?\"\n   - Filter `nodes` where `resource_type == \"Test\"`\n",
       "input_schema": {
         "$defs": {
           "LineageDirection": {
@@ -847,8 +855,8 @@
         },
         "properties": {
           "depth": {
-            "default": 5,
-            "description": "The depth of the lineage graph to return. Controls how many levels to traverse from the target node.A depth of 1 returns only direct parents/children.A depth of 0 returns the entire lineage graph.",
+            "default": 1,
+            "description": "The depth of the lineage graph to return. Controls how many levels to traverse from the target node. A depth of 1 returns only direct parents/children. A depth of 0 returns the entire lineage graph.",
             "title": "Depth",
             "type": "integer"
           },
@@ -885,23 +893,87 @@
         "title": "get_lineageArguments",
         "type": "object"
       },
-      "meta": null,
+      "meta": {
+        "ui": {
+          "resourceUri": "ui://dbt-mcp/get-lineage"
+        }
+      },
       "name": "get_lineage",
       "output_schema": {
-        "properties": {
-          "result": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
+        "$defs": {
+          "LineageEdge": {
+            "properties": {
+              "source": {
+                "title": "Source",
+                "type": "string"
+              },
+              "target": {
+                "title": "Target",
+                "type": "string"
+              }
             },
-            "title": "Result",
+            "required": [
+              "source",
+              "target"
+            ],
+            "title": "LineageEdge",
+            "type": "object"
+          },
+          "LineageNode": {
+            "properties": {
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "resource_type": {
+                "title": "Resource Type",
+                "type": "string"
+              },
+              "unique_id": {
+                "title": "Unique Id",
+                "type": "string"
+              }
+            },
+            "required": [
+              "unique_id",
+              "name",
+              "resource_type"
+            ],
+            "title": "LineageNode",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/$defs/LineageEdge"
+            },
+            "title": "Edges",
             "type": "array"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/$defs/LineageNode"
+            },
+            "title": "Nodes",
+            "type": "array"
+          },
+          "root_id": {
+            "title": "Root Id",
+            "type": "string"
+          },
+          "type": {
+            "default": "lineage_graph",
+            "title": "Type",
+            "type": "string"
           }
         },
         "required": [
-          "result"
+          "root_id",
+          "nodes",
+          "edges"
         ],
-        "title": "get_lineageOutput",
+        "title": "LineageGraph",
         "type": "object"
       },
       "title": "Get Lineage",
@@ -1190,7 +1262,7 @@
         "readOnlyHint": true,
         "title": "Get Model Children"
       },
-      "description": "**DEPRECATED \u2014 use `get_lineage` instead.** This tool will be removed in a future release.\n\nCall get_lineage(unique_id=..., depth=1, direction=\"downstream\") \u2014 it requires unique_id (not name) and defaults to depth=5; direction=\"downstream\" returns only children, matching this tool's behavior.",
+      "description": "**DEPRECATED \u2014 use `get_lineage` instead.** This tool will be removed in a future release.\n\nCall get_lineage(unique_id=..., depth=1, direction=\"downstream\") \u2014 it requires unique_id (not name); direction=\"downstream\" returns only children, matching this tool's behavior.",
       "input_schema": {
         "properties": {
           "name": {
@@ -1385,7 +1457,7 @@
         "readOnlyHint": true,
         "title": "Get Model Parents"
       },
-      "description": "**DEPRECATED \u2014 use `get_lineage` instead.** This tool will be removed in a future release.\n\nCall get_lineage(unique_id=..., depth=1, direction=\"upstream\") \u2014 it requires unique_id (not name) and defaults to depth=5; direction=\"upstream\" returns only parents, matching this tool's behavior.",
+      "description": "**DEPRECATED \u2014 use `get_lineage` instead.** This tool will be removed in a future release.\n\nCall get_lineage(unique_id=..., depth=1, direction=\"upstream\") \u2014 it requires unique_id (not name); direction=\"upstream\" returns only parents, matching this tool's behavior.",
       "input_schema": {
         "properties": {
           "name": {

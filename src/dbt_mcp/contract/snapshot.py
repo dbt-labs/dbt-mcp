@@ -28,10 +28,15 @@ Notes on completeness:
   - The ``Tool.icons`` and ``Tool.execution`` fields are not part of OpenAI's
     documented cached contract and are unpopulated for every current tool, so
     they are intentionally omitted. Add them here if that changes.
-  - The published app currently exposes no MCP App / UI resource (resource
-    registration is server-level, not toolset-gated, so force-enabling only the
-    included toolsets does not hide one). The resource content-hash guard is
-    therefore dormant until the first UI resource is added.
+  - MCP App / UI resources (mime ``profile=mcp-app``) are captured for their
+    shape (uri/name/mime/_meta) but their rendered content is intentionally
+    left out of the content hash: the bundle is released independently on a
+    CDN owned by the frontend repo, so hashing its bytes here would couple this
+    repo to content it does not own and flag every independent UI release as a
+    contract change. The server<->app interface is instead guarded by the
+    linked tool's input/output schema and its ``meta.ui.resourceUri`` pointer.
+    Resource registration is server-level (not toolset-gated), so these
+    resources appear in the snapshot regardless of which toolsets are enabled.
 """
 
 import argparse
@@ -269,16 +274,29 @@ async def generate_snapshot() -> ContractSnapshot:
             resources = []
         for resource in resources:
             uri = str(resource.uri)
+            mime_type = getattr(resource, "mimeType", None)
+            # MCP App UIs are released independently on a CDN (owned by the
+            # frontend repo), so their rendered content is intentionally
+            # out-of-contract: hashing it here would couple this repo to bytes it
+            # does not own and flag every independent UI release as a contract
+            # change. We still guard the resource's existence and shape
+            # (uri/name/mime/_meta); the server<->app interface is guarded by the
+            # linked tool's input/output schema and its meta.ui.resourceUri
+            # pointer (carried on the tool metadata, not the resource's _meta).
+            is_mcp_app = mime_type is not None and "profile=mcp-app" in mime_type
+            content_sha256 = (
+                None if is_mcp_app else await _read_resource_hash(dbt_mcp, uri)
+            )
             resource_contracts.append(
                 ResourceContract(
                     uri=uri,
                     name=getattr(resource, "name", None),
-                    mime_type=getattr(resource, "mimeType", None),
+                    mime_type=mime_type,
                     meta=_normalize(
                         getattr(resource, "meta", None)
                         or getattr(resource, "_meta", None)
                     ),
-                    content_sha256=await _read_resource_hash(dbt_mcp, uri),
+                    content_sha256=content_sha256,
                 )
             )
 
