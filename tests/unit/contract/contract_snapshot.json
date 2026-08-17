@@ -26,7 +26,7 @@
     {
       "annotations": {
         "destructiveHint": true,
-        "idempotentHint": false,
+        "idempotentHint": true,
         "openWorldHint": true,
         "readOnlyHint": false,
         "title": "Cancel Job Run"
@@ -2754,7 +2754,7 @@
     },
     {
       "annotations": {
-        "destructiveHint": true,
+        "destructiveHint": false,
         "idempotentHint": false,
         "openWorldHint": true,
         "readOnlyHint": false,
@@ -2911,7 +2911,7 @@
     },
     {
       "annotations": {
-        "destructiveHint": true,
+        "destructiveHint": false,
         "idempotentHint": false,
         "openWorldHint": true,
         "readOnlyHint": false,

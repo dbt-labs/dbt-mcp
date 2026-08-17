@@ -394,15 +394,15 @@ async def test_admin_tools_list_jobs_params():
 
 
 @pytest.mark.parametrize(
-    ("name", "title"),
+    ("name", "title", "destructive", "idempotent"),
     [
-        ("trigger_job_run", "Trigger Job Run"),
-        ("cancel_job_run", "Cancel Job Run"),
-        ("retry_job_run", "Retry Job Run"),
+        ("trigger_job_run", "Trigger Job Run", False, False),
+        ("cancel_job_run", "Cancel Job Run", True, True),
+        ("retry_job_run", "Retry Job Run", False, False),
     ],
 )
 async def test_job_run_write_tools_list_complete_safety_annotations(
-    name: str, title: str
+    name: str, title: str, destructive: bool, idempotent: bool
 ):
     """Job-run write tools disclose their complete safety contract."""
     async with client_session_context() as client:
@@ -413,7 +413,7 @@ async def test_job_run_write_tools_list_complete_safety_annotations(
     assert annotations.model_dump(exclude_none=True) == {
         "title": title,
         "readOnlyHint": False,
-        "destructiveHint": True,
-        "idempotentHint": False,
+        "destructiveHint": destructive,
+        "idempotentHint": idempotent,
         "openWorldHint": True,
     }
