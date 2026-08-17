@@ -1,3 +1,0 @@
-kind: Enhancement or New Feature
-body: Return the exact adapter-rendered relation name for models from node detail queries.
-time: 2026-07-24T14:16:09.263851-05:00
