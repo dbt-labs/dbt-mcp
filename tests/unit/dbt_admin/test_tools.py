@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -11,8 +10,6 @@ from dbt_mcp.dbt_admin.tools import (
     AdminToolContext,
     JobRunStatus,
     INLINE_CONTENT_LIMIT,
-    _cleanup_artifact_cache,
-    _written_artifact_paths,
     cancel_job_run,
     get_job_details,
     get_job_run_artifacts,
@@ -258,15 +255,14 @@ async def test_get_job_run_artifacts_tool_with_step(admin_context):
     [
         (1024, True),  # 1 KB — well below limit
         (INLINE_CONTENT_LIMIT - 1, True),  # 1 byte below limit — inline
-        (INLINE_CONTENT_LIMIT, False),  # exactly at limit — cached (>=)
-        (INLINE_CONTENT_LIMIT + 1, False),  # 1 byte over limit — cache file
+        (INLINE_CONTENT_LIMIT, False),  # exactly at limit — guidance (>=)
+        (INLINE_CONTENT_LIMIT + 1, False),  # 1 byte over limit — guidance
         (INLINE_CONTENT_LIMIT * 2, False),  # well over limit
     ],
 )
 async def test_get_job_run_artifacts_size_routing(
-    admin_context, content_size, expect_inline, monkeypatch, tmp_path
+    admin_context, content_size, expect_inline
 ):
-    monkeypatch.setattr("dbt_mcp.dbt_admin.tools.DBT_ARTIFACTS_DIR", tmp_path)
     content = "x" * content_size
     admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
 
@@ -277,60 +273,12 @@ async def test_get_job_run_artifacts_size_routing(
     if expect_inline:
         assert result == content
     else:
-        path = Path(result.removeprefix("Artifact written to "))
-        assert path.parent == tmp_path
-        assert path.exists()
-        assert path.read_text() == content
-
-
-async def test_get_job_run_artifacts_auto_cache_preserves_suffix(
-    admin_context, monkeypatch, tmp_path
-):
-    monkeypatch.setattr("dbt_mcp.dbt_admin.tools.DBT_ARTIFACTS_DIR", tmp_path)
-    content = "x" * (INLINE_CONTENT_LIMIT + 1)
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
-
-    result = await get_job_run_artifacts.fn(
-        admin_context, run_id=100, artifact_path="run_results.json"
-    )
-
-    path = Path(result.removeprefix("Artifact written to "))
-    assert path.parent == tmp_path
-    assert path.suffix == ".json"
-
-
-async def test_get_job_run_artifacts_deterministic_path(
-    admin_context, monkeypatch, tmp_path
-):
-    monkeypatch.setattr("dbt_mcp.dbt_admin.tools.DBT_ARTIFACTS_DIR", tmp_path)
-    content = "x" * (INLINE_CONTENT_LIMIT + 1)
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
-
-    result1 = await get_job_run_artifacts.fn(
-        admin_context, run_id=100, artifact_path="manifest.json", step=2
-    )
-    result2 = await get_job_run_artifacts.fn(
-        admin_context, run_id=100, artifact_path="manifest.json", step=2
-    )
-
-    assert result1 == result2
-
-
-async def test_get_job_run_artifacts_cleanup(admin_context, monkeypatch, tmp_path):
-    monkeypatch.setattr("dbt_mcp.dbt_admin.tools.DBT_ARTIFACTS_DIR", tmp_path)
-    content = "x" * (INLINE_CONTENT_LIMIT + 1)
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
-
-    result = await get_job_run_artifacts.fn(
-        admin_context, run_id=999, artifact_path="manifest.json"
-    )
-
-    path = Path(result.removeprefix("Artifact written to "))
-    assert path in _written_artifact_paths
-    assert path.exists()
-
-    _cleanup_artifact_cache()
-    assert not path.exists()
+        # Large artifacts return an actionable guidance string — never the raw
+        # content and never a filesystem path.
+        assert result != content
+        assert "too large" in result
+        assert "jq_filter" in result
+        assert "written to" not in result
 
 
 async def test_get_job_run_artifacts_jq_filter_extracts_field(admin_context):
@@ -398,21 +346,65 @@ async def test_get_job_run_artifacts_jq_filter_oversized_output_raises(
         )
 
 
-@pytest.mark.parametrize("blocked_filter", ["env", "$ENV", "$ENV.SECRET", ".foo | env"])
-async def test_get_job_run_artifacts_jq_filter_blocks_env_access(
-    admin_context, blocked_filter: str
-):
+async def test_get_job_run_artifacts_jq_filter_scrubs_env(admin_context, monkeypatch):
+    # A secret in the parent process environment must not leak through jq's
+    # env/$ENV builtins — the spawned worker clears its environment before eval.
+    monkeypatch.setenv("SENTINEL", "leakme")
     admin_context.admin_client.get_job_run_artifact = AsyncMock(
         return_value='{"key": "value"}'
     )
 
-    with pytest.raises(ValueError, match="may not access environment variables"):
-        await get_job_run_artifacts.fn(
-            admin_context,
-            run_id=100,
-            artifact_path="manifest.json",
-            jq_filter=blocked_filter,
-        )
+    # `env` returns the whole environment as an object — scrubbed to empty.
+    env_result = await get_job_run_artifacts.fn(
+        admin_context,
+        run_id=100,
+        artifact_path="manifest.json",
+        jq_filter="env",
+    )
+    assert json.loads(env_result) == [{}]
+    assert "leakme" not in env_result
+
+    # $ENV lookups resolve to null, so the `//` fallback wins.
+    secret_result = await get_job_run_artifacts.fn(
+        admin_context,
+        run_id=100,
+        artifact_path="manifest.json",
+        jq_filter='$ENV.SECRET // "gone"',
+    )
+    assert json.loads(secret_result) == ["gone"]
+    assert "leakme" not in secret_result
+
+
+@pytest.mark.parametrize(
+    "jq_filter,expected",
+    [
+        (".env", [{"host": "prod"}]),
+        (".metadata.env", ["production"]),
+        ('.nodes[] | select(.name == "prod_env") | .name', ["prod_env"]),
+    ],
+)
+async def test_get_job_run_artifacts_jq_filter_allows_env_fields(
+    admin_context, jq_filter: str, expected: list
+):
+    # Field access on data named "env" was previously blocked by an over-broad
+    # regex; it is now allowed because only jq's env/$ENV builtins are neutralized.
+    content = json.dumps(
+        {
+            "env": {"host": "prod"},
+            "metadata": {"env": "production"},
+            "nodes": [{"name": "prod_env"}, {"name": "staging"}],
+        }
+    )
+    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
+
+    result = await get_job_run_artifacts.fn(
+        admin_context,
+        run_id=100,
+        artifact_path="manifest.json",
+        jq_filter=jq_filter,
+    )
+
+    assert json.loads(result) == expected
 
 
 async def test_get_job_run_artifacts_jq_filter_invalid_syntax(admin_context):

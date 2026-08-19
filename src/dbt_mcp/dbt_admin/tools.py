@@ -1,11 +1,9 @@
 import asyncio
-import hashlib
 import json
 import logging
 import multiprocessing
-import re
+import os
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Annotated, Any
 
 import jq
@@ -49,44 +47,15 @@ from dbt_mcp.tools.toolsets import Toolset
 logger = logging.getLogger(__name__)
 
 # Limit for returned dbt Artifacts
-INLINE_CONTENT_LIMIT = 500 * 1024  # 500 KB; above this, write to a cache file
+INLINE_CONTENT_LIMIT = 500 * 1024  # 500 KB; above this, require a jq_filter
 
-# jq builtins that expose the server's process environment
-_BLOCKED_JQ_PATTERNS = re.compile(r"\benv\b|\$ENV")
-JQ_TIMEOUT_SECONDS = 10
-
-DBT_ARTIFACTS_DIR = Path.home() / ".dbt" / "artifacts"
-
-_written_artifact_paths: set[Path] = set()
+JQ_TIMEOUT_SECONDS = 120
 
 
 def _jq_eval_worker(jq_filter: str, content: str) -> list[Any]:
     """Run jq in a spawned subprocess; module-level so it's picklable."""
+    os.environ.clear()  # neutralize jq's env/$ENV in the child; parent unaffected (spawn)
     return jq.compile(jq_filter).input(json.loads(content)).all()
-
-
-def _cleanup_artifact_cache() -> None:
-    for path in list(_written_artifact_paths):
-        try:
-            path.unlink(missing_ok=True)
-        except OSError:
-            pass
-        else:
-            _written_artifact_paths.discard(path)
-
-
-def _artifact_cache_path(run_id: int, artifact_path: str, step: int | None) -> Path:
-    no_ext = artifact_path.rsplit(".", 1)[0].replace("/", "_").replace("\\", "_")
-    suffix = Path(artifact_path).suffix or ".json"
-    step_str = str(step) if step is not None else "latest"
-    hash = hashlib.md5(artifact_path.encode(), usedforsecurity=False).hexdigest()[:8]
-    return DBT_ARTIFACTS_DIR / f"run_{run_id}_{no_ext}_{hash}_step{step_str}{suffix}"
-
-
-def _write_artifact_cache(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-    _written_artifact_paths.add(path)
 
 
 @dataclass
@@ -308,7 +277,7 @@ async def list_job_run_artifacts(
 @dbt_mcp_tool(
     description=get_prompt("admin_api/get_job_run_artifacts"),
     title="Get Job Run Artifacts",
-    read_only_hint=False,
+    read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
 )
@@ -325,10 +294,6 @@ async def get_job_run_artifacts(
         admin_api_config.account_id, run_id, artifact_path, step=step
     )
     if jq_filter is not None:
-        if _BLOCKED_JQ_PATTERNS.search(jq_filter):
-            raise ValueError(
-                "jq_filter may not access environment variables (env/$ENV)"
-            )
         ctx = multiprocessing.get_context("spawn")
         with ctx.Pool(processes=1) as pool:
             future = pool.apply_async(_jq_eval_worker, (jq_filter, content))
@@ -340,7 +305,10 @@ async def get_job_run_artifacts(
             except TimeoutError:
                 pool.terminate()
                 raise ValueError(
-                    f"jq filter timed out after {JQ_TIMEOUT_SECONDS}s; simplify the filter"
+                    f"jq filter timed out after {JQ_TIMEOUT_SECONDS}s. Very large "
+                    "artifacts are slow to traverse — prefer a structural or "
+                    "aggregation filter ('keys', '.metadata', '... | length') over "
+                    "one that enumerates every node, or target a specific step."
                 )
             except json.JSONDecodeError:
                 raise ValueError(
@@ -360,12 +328,17 @@ async def get_job_run_artifacts(
         len(content) >= INLINE_CONTENT_LIMIT
         or len(content.encode("utf-8")) >= INLINE_CONTENT_LIMIT
     ):
-        cache_path = _artifact_cache_path(run_id, artifact_path, step)
-        try:
-            await asyncio.to_thread(_write_artifact_cache, cache_path, content)
-        except OSError as e:
-            raise ValueError(f"Could not write artifact to {cache_path}: {e}") from e
-        return f"Artifact written to {cache_path}"
+        kb = len(content.encode("utf-8")) // 1024
+        hint = (
+            f"Artifact '{artifact_path}' (run {run_id}) is ~{kb} KB — too large to "
+            "return inline. Re-call get_job_run_artifacts with a jq_filter to extract "
+            "just what you need. To explore structure first, try jq_filter='keys' or "
+            "'.metadata'; to list nodes use '.nodes | keys'; to find failures use "
+            "'.results[] | select(.status == \"error\")'."
+        )
+        if artifact_path.endswith("run_results.json"):
+            hint += " For run failures specifically, use get_job_run_error tool."
+        return hint
     return content
 
 

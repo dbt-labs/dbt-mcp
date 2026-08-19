@@ -54,7 +54,9 @@ ARTIFACT_STEP = (
 )
 ARTIFACT_JQ_FILTER = (
     "A jq filter expression to apply to the artifact before returning. "
-    "Only valid for JSON artifacts. Results are always returned as a JSON array inline "
+    "Only valid for JSON artifacts. Required to read large artifacts (e.g. manifest.json) "
+    "that are too big to return inline. "
+    "Results are always returned as a JSON array inline "
     "regardless of artifact size — if the filter matches nothing, '[]' is returned. "
     "Examples: '.results[] | select(.status == \"error\")' to extract failures; "
     "'.nodes | keys[]' to list all node IDs; "

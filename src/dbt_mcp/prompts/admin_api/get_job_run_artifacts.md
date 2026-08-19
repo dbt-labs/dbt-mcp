@@ -14,8 +14,8 @@ Use `list_job_run_artifacts` first to see which artifacts are available for a ru
 
 ## Output Options
 
-- **Default**: Returns content inline for artifacts under 500 KB. For larger artifacts, writes to `~/.dbt/artifacts/run_{run_id}_{name}_{hash}_step{step}.{ext}` (where `{hash}` is an 8-character collision-avoidance suffix) and returns the path. Repeated calls with the same arguments overwrite the same file.
-- **jq_filter set**: Applies a jq filter and returns results as a JSON array inline. Works in both local and remote deployments. Required for large artifacts like `manifest.json` that exceed context limits. Only valid for JSON artifacts; returns `[]` on no match. Filtered output is also capped at 500 KB — use aggregation filters if you hit the limit.
+- **Default (no filter)**: Returns content inline for artifacts under 500 KB. Large artifacts (like a full `manifest.json`) are not returned inline — instead you get a short guidance message telling you to re-call with a `jq_filter` to extract just the part you need.
+- **jq_filter set**: Applies a jq filter and returns results as a JSON array inline. Works in both local and remote deployments and is the primary way to read large artifacts like `manifest.json`. Only valid for JSON artifacts; returns `[]` on no match. Filtered output is also capped at 500 KB — use aggregation filters (e.g. `keys`, `length`, `select()`) if you hit the limit.
 
 ## jq Filter Reference
 
@@ -27,6 +27,8 @@ Use `list_job_run_artifacts` first to see which artifacts are available for a ru
 ```
 [.nodes | to_entries[] | select(.value.config.materialized == "table")] | length
 ```
+
+**Structural filters are fast; node-traversal filters are slow.** `keys` and `.metadata` touch only the top-level object and return quickly. Any filter that iterates `.nodes` values (even an aggregation that returns a small result) scans the entire manifest, and on a very large project can take tens of seconds and approach the evaluation timeout. Start with `keys`/`.metadata` to orient, then reach for a single targeted traversal rather than several.
 
 **Top-level keys by artifact:**
 - `run_results.json` — `.results[]` (array of node results with `.status`, `.unique_id`, `.execution_time`, `.message`)
