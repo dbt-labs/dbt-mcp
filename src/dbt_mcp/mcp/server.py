@@ -14,7 +14,7 @@ from mcp.server.lowlevel.server import LifespanResultT
 from mcp.types import ContentBlock, Tool
 
 from dbt_mcp.config.config import Config
-from dbt_mcp.dbt_admin.tools import _cleanup_artifact_cache, register_admin_api_tools
+from dbt_mcp.dbt_admin.tools import register_admin_api_tools
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.dbt_codegen.tools import register_dbt_codegen_tools
 from dbt_mcp.apps.register import register_app_resource
@@ -217,10 +217,6 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
             shutdown()
         except Exception:
             logger.exception("Error shutting down MCP server")
-        try:
-            _cleanup_artifact_cache()
-        except Exception:
-            logger.exception("Error cleaning up artifact cache")
         if previous_sigterm is not None:
             signal.signal(signal.SIGTERM, previous_sigterm)
 
