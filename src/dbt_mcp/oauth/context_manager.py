@@ -55,7 +55,7 @@ class DbtPlatformContextManager:
         """Ensure the config file location and its parent directories exist."""
         self.config_location.parent.mkdir(parents=True, exist_ok=True)
         if not self.config_location.exists():
-            self.config_location.touch()
+            self.config_location.touch(mode=0o600)
 
     def write_context_to_file(self, context: DbtPlatformContext) -> None:
         """Write context to file with proper locking."""
@@ -64,3 +64,14 @@ class DbtPlatformContextManager:
             yaml.dump(context.model_dump(), default_flow_style=False),
             encoding="utf-8",
         )
+        # Self-heal permissions on every write, since files created by older
+        # versions (or with a permissive umask) may be world/group readable
+        # despite holding plaintext OAuth tokens. chmod requires owning the
+        # file, so this is best-effort: a mismatch (e.g. the file was created
+        # by a different user) must not block the write itself.
+        try:
+            self.config_location.chmod(0o600)
+        except OSError as e:
+            logger.warning(
+                f"Failed to restrict permissions on {self.config_location}: {e}"
+            )
