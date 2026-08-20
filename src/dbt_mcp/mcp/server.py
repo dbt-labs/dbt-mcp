@@ -135,6 +135,7 @@ class DbtMCP(FastMCP):
                     error_message=None,
                     mcp_client_name=mcp_client_name,
                     mcp_client_version=mcp_client_version,
+                    result=result,
                 ),
             )
         except Exception:
