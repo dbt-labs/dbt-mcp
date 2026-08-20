@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Fix cancel_job_run tool annotations (destructive, idempotent).
+time: 2026-07-31T00:18:17.184167+02:00

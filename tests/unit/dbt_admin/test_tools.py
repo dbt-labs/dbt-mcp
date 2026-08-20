@@ -391,3 +391,29 @@ async def test_admin_tools_list_jobs_params():
         assert props is not None
         assert props["limit"]["description"] == PAGINATION_LIMIT
         assert props["offset"]["description"] == PAGINATION_OFFSET
+
+
+@pytest.mark.parametrize(
+    ("name", "title", "destructive", "idempotent"),
+    [
+        ("trigger_job_run", "Trigger Job Run", False, False),
+        ("cancel_job_run", "Cancel Job Run", True, True),
+        ("retry_job_run", "Retry Job Run", False, False),
+    ],
+)
+async def test_job_run_write_tools_list_complete_safety_annotations(
+    name: str, title: str, destructive: bool, idempotent: bool
+):
+    """Job-run write tools disclose their complete safety contract."""
+    async with client_session_context() as client:
+        listed_tools = {tool.name: tool for tool in (await client.list_tools()).tools}
+
+    annotations = listed_tools[name].annotations
+    assert annotations is not None
+    assert annotations.model_dump(exclude_none=True) == {
+        "title": title,
+        "readOnlyHint": False,
+        "destructiveHint": destructive,
+        "idempotentHint": idempotent,
+        "openWorldHint": True,
+    }
