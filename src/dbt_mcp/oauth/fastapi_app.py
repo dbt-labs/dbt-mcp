@@ -167,7 +167,7 @@ def create_app(
     @app.post("/selected_projects")
     async def set_selected_projects(
         selected_projects_request: SelectedProjectsRequest,
-    ) -> DbtPlatformContext:
+    ) -> dict[str, bool]:
         logger.info("Selected projects received")
         if app.state.decoded_access_token is None:
             raise RuntimeError("Access token missing; OAuth flow not completed")
@@ -231,7 +231,7 @@ def create_app(
             ),
         )
         app.state.dbt_platform_context = dbt_platform_context
-        return dbt_platform_context
+        return {"ok": True}
 
     app.mount(
         path="/",
