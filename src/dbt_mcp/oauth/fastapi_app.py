@@ -36,6 +36,11 @@ from dbt_mcp.project.project_resolver import (
 logger = logging.getLogger(__name__)
 
 
+def _redact_context(context: DbtPlatformContext) -> DbtPlatformContext:
+    """Strip the access/refresh tokens before a context is sent over HTTP."""
+    return context.model_copy(update={"decoded_access_token": None})
+
+
 def error_redirect(error_code: str, description: str) -> RedirectResponse:
     return RedirectResponse(
         url=f"/index.html#status=error&error={quote(error_code)}&error_description={quote(description)}",
@@ -231,7 +236,7 @@ def create_app(
             ),
         )
         app.state.dbt_platform_context = dbt_platform_context
-        return dbt_platform_context
+        return _redact_context(dbt_platform_context)
 
     app.mount(
         path="/",
