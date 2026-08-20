@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: 'Cleanup of the local OAuth helper: file permissions and response payload.'
-time: 2026-08-20T14:37:38.473546+02:00
