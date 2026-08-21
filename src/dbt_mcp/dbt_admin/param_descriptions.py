@@ -34,6 +34,30 @@ TRIGGER_STEPS_OVERRIDE = (
     '(e.g. "dbt run --select my_model+ --full-refresh")'
 )
 
+# --- get_job_run_artifacts ---
+
+ARTIFACT_PATH = (
+    "Path to the artifact file (e.g. 'manifest.json', 'run_results.json', "
+    "'catalog.json'). Use list_job_run_artifacts to see available paths."
+)
+ARTIFACT_STEP = (
+    "Step number to retrieve the artifact from (1-indexed). "
+    "Defaults to the last step when omitted. "
+    "Only dbt command steps (dbt build, dbt run, dbt test, dbt docs generate) "
+    "produce artifacts — infrastructure steps (git clone, profile creation, dbt deps) "
+    "will raise a not-found error."
+)
+ARTIFACT_JQ_FILTER = (
+    "A jq filter expression to apply to the artifact before returning. "
+    "Only valid for JSON artifacts. Required to read large artifacts (e.g. manifest.json) "
+    "that are too big to return inline. "
+    "Results are always returned as a JSON array inline "
+    "regardless of artifact size — if the filter matches nothing, '[]' is returned. "
+    "Examples: '.results[] | select(.status == \"error\")' to extract failures; "
+    "'.nodes | keys[]' to list all node IDs; "
+    "'.metadata' to inspect artifact metadata."
+)
+
 # --- get_job_run_error ---
 
 INCLUDE_WARNINGS_WITH_ERRORS = (

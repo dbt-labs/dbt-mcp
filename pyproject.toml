@@ -45,6 +45,7 @@ dependencies = [
   "filelock~=3.20.3",
   "starlette~=0.50.0",
   "dbt-artifacts-parser>=0.13.2",
+  "jq>=1.12.0",
 ]
 [tool.uv]
 exclude-newer = "7 days"
@@ -87,6 +88,11 @@ fallback-version = "0.0.0"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 pythonpath = [".", "src"]
+
+[tool.mypy]
+[[tool.mypy.overrides]]
+module = "jq"
+ignore_missing_imports = true
 
 [tool.ruff.lint]
 extend-select = ["UP"] # UP=pyupgrade

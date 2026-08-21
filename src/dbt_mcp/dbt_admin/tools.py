@@ -1,6 +1,12 @@
+import asyncio
+import json
 import logging
+import multiprocessing
+import os
 from dataclasses import dataclass
 from typing import Annotated, Any
+
+import jq
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -12,6 +18,9 @@ from dbt_mcp.config.config_providers import (
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.dbt_admin.constants import STATUS_MAP, JobRunStatus
 from dbt_mcp.dbt_admin.param_descriptions import (
+    ARTIFACT_JQ_FILTER,
+    ARTIFACT_PATH,
+    ARTIFACT_STEP,
     INCLUDE_WARNINGS_WITH_ERRORS,
     JOB_DEFINITION_ID,
     JOB_RUN_ID,
@@ -35,6 +44,17 @@ from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
+
+# Limit for returned dbt Artifacts
+INLINE_CONTENT_LIMIT = 500 * 1024  # 500 KB; above this, require a jq_filter
+
+JQ_TIMEOUT_SECONDS = 120
+
+
+def _jq_eval_worker(jq_filter: str, content: str) -> list[Any]:
+    """Run jq in a spawned subprocess; module-level so it's picklable."""
+    os.environ.clear()  # neutralize jq's env/$ENV in the child; parent unaffected (spawn)
+    return jq.compile(jq_filter).input(json.loads(content)).all()
 
 
 @dataclass
@@ -249,6 +269,74 @@ async def list_job_run_artifacts(
 
 
 @dbt_mcp_tool(
+    description=get_prompt("admin_api/get_job_run_artifacts"),
+    title="Get Job Run Artifacts",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+)
+async def get_job_run_artifacts(
+    context: AdminToolContext,
+    run_id: Annotated[int, Field(description=JOB_RUN_ID)],
+    artifact_path: Annotated[str, Field(description=ARTIFACT_PATH)],
+    step: Annotated[int | None, Field(ge=1, description=ARTIFACT_STEP)] = None,
+    jq_filter: Annotated[str | None, Field(description=ARTIFACT_JQ_FILTER)] = None,
+) -> str:
+    """Get a specific artifact from a job run."""
+    admin_api_config = await context.admin_api_config_provider.get_config()
+    content = await context.admin_client.get_job_run_artifact(
+        admin_api_config.account_id, run_id, artifact_path, step=step
+    )
+    if jq_filter is not None:
+        ctx = multiprocessing.get_context("spawn")
+        with ctx.Pool(processes=1) as pool:
+            future = pool.apply_async(_jq_eval_worker, (jq_filter, content))
+            try:
+                results = await asyncio.wait_for(
+                    asyncio.to_thread(future.get),
+                    timeout=JQ_TIMEOUT_SECONDS,
+                )
+            except TimeoutError:
+                pool.terminate()
+                raise ValueError(
+                    f"jq filter timed out after {JQ_TIMEOUT_SECONDS}s. Very large "
+                    "artifacts are slow to traverse — prefer a structural or "
+                    "aggregation filter ('keys', '.metadata', '... | length') over "
+                    "one that enumerates every node, or target a specific step."
+                )
+            except json.JSONDecodeError:
+                raise ValueError(
+                    "jq_filter requires a JSON artifact; this artifact is not valid JSON"
+                )
+            except Exception as e:
+                raise ValueError(f"Invalid jq filter: {e}") from e
+        filtered = json.dumps(results, separators=(",", ":"))
+        if len(filtered.encode("utf-8")) >= INLINE_CONTENT_LIMIT:
+            raise ValueError(
+                f"Filtered output exceeds {INLINE_CONTENT_LIMIT // 1024} KB; "
+                "narrow the filter to return fewer results "
+                "(e.g. use select(), keys, or length instead of enumerating all nodes)"
+            )
+        return filtered
+    if (
+        len(content) >= INLINE_CONTENT_LIMIT
+        or len(content.encode("utf-8")) >= INLINE_CONTENT_LIMIT
+    ):
+        kb = len(content.encode("utf-8")) // 1024
+        hint = (
+            f"Artifact '{artifact_path}' (run {run_id}) is ~{kb} KB — too large to "
+            "return inline. Re-call get_job_run_artifacts with a jq_filter to extract "
+            "just what you need. To explore structure first, try jq_filter='keys' or "
+            "'.metadata'; to list nodes use '.nodes | keys'; to find failures use "
+            "'.results[] | select(.status == \"error\")'."
+        )
+        if artifact_path.endswith("run_results.json"):
+            hint += " For run failures specifically, use get_job_run_error tool."
+        return hint
+    return content
+
+
+@dbt_mcp_tool(
     description=get_prompt("admin_api/get_job_run_error"),
     title="Get Job Run Error",
     read_only_hint=True,
@@ -307,6 +395,7 @@ ADMIN_TOOLS = [
     cancel_job_run,
     retry_job_run,
     list_job_run_artifacts,
+    get_job_run_artifacts,
     get_job_run_error,
 ]
 

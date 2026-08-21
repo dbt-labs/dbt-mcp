@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Re-add `get_job_run_artifacts` tool with jq filtering for large artifacts
+time: 2026-07-28T15:35:17.635324-07:00
