@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: Bump Node.js version used by the setup-mcpb action from 20 to 24 ahead of GitHub Actions' Node 20 runtime deprecation
+time: 2026-08-25T12:30:02.329289+02:00
