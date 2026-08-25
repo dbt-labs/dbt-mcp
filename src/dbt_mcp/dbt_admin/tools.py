@@ -21,6 +21,7 @@ from dbt_mcp.dbt_admin.param_descriptions import (
     PAGINATION_LIMIT,
     PAGINATION_OFFSET,
     TRIGGER_CAUSE,
+    TRIGGER_DBT_VERSION_OVERRIDE,
     TRIGGER_GIT_BRANCH,
     TRIGGER_GIT_SHA,
     TRIGGER_SCHEMA_OVERRIDE,
@@ -125,6 +126,9 @@ async def trigger_job_run(
     steps_override: Annotated[
         list[str] | None, Field(description=TRIGGER_STEPS_OVERRIDE)
     ] = None,
+    dbt_version_override: Annotated[
+        str | None, Field(description=TRIGGER_DBT_VERSION_OVERRIDE)
+    ] = None,
 ) -> dict[str, Any]:
     """Trigger a job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
@@ -137,6 +141,8 @@ async def trigger_job_run(
         kwargs["schema_override"] = schema_override
     if steps_override is not None:
         kwargs["steps_override"] = steps_override
+    if dbt_version_override:
+        kwargs["dbt_version_override"] = dbt_version_override
     return await context.admin_client.trigger_job_run(
         admin_api_config.account_id, job_id, cause, **kwargs
     )

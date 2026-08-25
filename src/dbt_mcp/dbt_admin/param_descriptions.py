@@ -33,6 +33,11 @@ TRIGGER_STEPS_OVERRIDE = (
     "Replace the job's default dbt commands; each entry is a full dbt command "
     '(e.g. "dbt run --select my_model+ --full-refresh")'
 )
+TRIGGER_DBT_VERSION_OVERRIDE = (
+    "Override the dbt version this run executes on, without changing the job or "
+    'its environment. Accepts a release track (e.g. "latest", "compatible", '
+    '"extended") or a pinned version (e.g. "1.9.0")'
+)
 
 # --- get_job_run_error ---
 

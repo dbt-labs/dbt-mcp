@@ -21,6 +21,7 @@ Run object with information about the newly triggered run including:
 - Execute jobs with schema overrides for development
 - Trigger jobs via API automation or external systems
 - Run jobs with custom parameters for specific scenarios
+- Verify a project builds on a newer dbt version before switching the environment over to it
 
 ## Example Usage
 
