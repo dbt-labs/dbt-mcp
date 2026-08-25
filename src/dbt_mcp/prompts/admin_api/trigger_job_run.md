@@ -21,6 +21,7 @@ Run object with information about the newly triggered run including:
 - Execute jobs with schema overrides for development
 - Trigger jobs via API automation or external systems
 - Run jobs with custom parameters for specific scenarios
+- Verify a project builds on a newer dbt version before switching the environment over to it
 
 ## Example Usage
 
@@ -45,5 +46,15 @@ Run object with information about the newly triggered run including:
   "job_id": 456,
   "cause": "Selective production build",
   "steps_override": ["dbt run --select my_model+ --full-refresh"]
+}
+```
+
+```json
+{
+  "job_id": 456,
+  "cause": "Verifying the upgrade",
+  "git_branch": "upgrade-dbt-core",
+  "dbt_version_override": "latest",
+  "schema_override": "dbt_upgrade_verify"
 }
 ```

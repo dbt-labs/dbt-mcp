@@ -265,6 +265,7 @@ async def test_trigger_job_run_with_all_optional_params(admin_context):
         git_branch="feature-branch",
         git_sha="abc123",
         schema_override="custom_schema",
+        dbt_version_override="latest",
     )
 
     assert isinstance(result, dict)
@@ -275,6 +276,7 @@ async def test_trigger_job_run_with_all_optional_params(admin_context):
         git_branch="feature-branch",
         git_sha="abc123",
         schema_override="custom_schema",
+        dbt_version_override="latest",
     )
 
 
@@ -314,6 +316,28 @@ async def test_trigger_job_run_steps_override_none_not_passed(admin_context):
 
     admin_context.admin_client.trigger_job_run.assert_called_once_with(
         12345, 1, "No override"
+    )
+
+
+async def test_trigger_job_run_with_dbt_version_override(admin_context):
+    result = await trigger_job_run.fn(
+        admin_context,
+        job_id=1,
+        cause="Upgrade verification",
+        dbt_version_override="latest",
+    )
+
+    assert isinstance(result, dict)
+    admin_context.admin_client.trigger_job_run.assert_called_once_with(
+        12345, 1, "Upgrade verification", dbt_version_override="latest"
+    )
+
+
+async def test_trigger_job_run_dbt_version_override_none_not_passed(admin_context):
+    await trigger_job_run.fn(admin_context, job_id=1, cause="No version override")
+
+    admin_context.admin_client.trigger_job_run.assert_called_once_with(
+        12345, 1, "No version override"
     )
 
 

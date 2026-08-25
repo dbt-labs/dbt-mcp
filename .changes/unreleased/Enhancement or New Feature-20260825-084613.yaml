@@ -1,0 +1,5 @@
+kind: Enhancement or New Feature
+body: Add an optional `dbt_version_override` parameter to `trigger_job_run`, so a
+  run can be executed on a different dbt version without changing the job or its
+  environment.
+time: 2026-08-25T08:46:13.000000+05:30

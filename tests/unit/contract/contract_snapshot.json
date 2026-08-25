@@ -2917,7 +2917,7 @@
         "readOnlyHint": false,
         "title": "Trigger Job Run"
       },
-      "description": "# Trigger Job Run\n\nTrigger a dbt job run with optional parameter overrides.\n\nThis tool starts a new run for a specified job with the ability to override default settings like Git branch, schema, or other execution parameters.\n\n## Returns\n\nRun object with information about the newly triggered run including:\n\n- Run ID and status\n- Job and environment information\n- Git branch and SHA being used\n- Trigger information and cause\n- Execution queue position\n\n## Use Cases\n\n- Trigger ad-hoc job runs for testing\n- Run jobs with different Git branches for feature testing\n- Execute jobs with schema overrides for development\n- Trigger jobs via API automation or external systems\n- Run jobs with custom parameters for specific scenarios\n\n## Example Usage\n\n```json\n{\n  \"job_id\": 456,\n  \"cause\": \"Manual trigger for testing\"\n}\n```\n\n```json\n{\n  \"job_id\": 456,\n  \"cause\": \"Testing feature branch\",\n  \"git_branch\": \"feature/new-models\",\n  \"schema_override\": \"dev_testing\"\n}\n```\n\n```json\n{\n  \"job_id\": 456,\n  \"cause\": \"Selective production build\",\n  \"steps_override\": [\"dbt run --select my_model+ --full-refresh\"]\n}\n```\n",
+      "description": "# Trigger Job Run\n\nTrigger a dbt job run with optional parameter overrides.\n\nThis tool starts a new run for a specified job with the ability to override default settings like Git branch, schema, or other execution parameters.\n\n## Returns\n\nRun object with information about the newly triggered run including:\n\n- Run ID and status\n- Job and environment information\n- Git branch and SHA being used\n- Trigger information and cause\n- Execution queue position\n\n## Use Cases\n\n- Trigger ad-hoc job runs for testing\n- Run jobs with different Git branches for feature testing\n- Execute jobs with schema overrides for development\n- Trigger jobs via API automation or external systems\n- Run jobs with custom parameters for specific scenarios\n- Verify a project builds on a newer dbt version before switching the environment over to it\n\n## Example Usage\n\n```json\n{\n  \"job_id\": 456,\n  \"cause\": \"Manual trigger for testing\"\n}\n```\n\n```json\n{\n  \"job_id\": 456,\n  \"cause\": \"Testing feature branch\",\n  \"git_branch\": \"feature/new-models\",\n  \"schema_override\": \"dev_testing\"\n}\n```\n\n```json\n{\n  \"job_id\": 456,\n  \"cause\": \"Selective production build\",\n  \"steps_override\": [\"dbt run --select my_model+ --full-refresh\"]\n}\n```\n\n```json\n{\n  \"job_id\": 456,\n  \"cause\": \"Verifying the upgrade\",\n  \"git_branch\": \"upgrade-dbt-core\",\n  \"dbt_version_override\": \"latest\",\n  \"schema_override\": \"dbt_upgrade_verify\"\n}\n```\n",
       "input_schema": {
         "properties": {
           "cause": {
@@ -2925,6 +2925,19 @@
             "description": "Why this run is being triggered (recorded in run history on the dbt platform)",
             "title": "Cause",
             "type": "string"
+          },
+          "dbt_version_override": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Override the dbt version this run executes on, without changing the job or its environment. Accepts a release track (e.g. \"latest\", \"compatible\", \"extended\") or a pinned version (e.g. \"1.9.0\"). Useful for verifying that a project builds on a newer version before switching the environment over to it.",
+            "title": "Dbt Version Override"
           },
           "git_branch": {
             "anyOf": [
