@@ -23,7 +23,7 @@ jobs:
       issues: write # creating repo labels (first run) uses the issues API
     steps:
       - name: checkout code
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout@v7.0.1
         with:
           fetch-depth: 0
       - name: setup python
@@ -37,7 +37,7 @@ jobs:
         id: classify
         run: uv run python -m dbt_mcp.contract.snapshot --classify-against /tmp/base_contract_snapshot.json
       - name: Apply label
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const label = ${{ toJSON(steps.classify.outputs.label) }};
