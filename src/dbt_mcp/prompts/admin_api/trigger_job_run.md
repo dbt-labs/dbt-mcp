@@ -48,13 +48,3 @@ Run object with information about the newly triggered run including:
   "steps_override": ["dbt run --select my_model+ --full-refresh"]
 }
 ```
-
-```json
-{
-  "job_id": 456,
-  "cause": "Verifying the upgrade",
-  "git_branch": "upgrade-dbt-core",
-  "dbt_version_override": "latest",
-  "schema_override": "dbt_upgrade_verify"
-}
-```

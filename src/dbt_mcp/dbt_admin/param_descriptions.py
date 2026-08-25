@@ -36,8 +36,7 @@ TRIGGER_STEPS_OVERRIDE = (
 TRIGGER_DBT_VERSION_OVERRIDE = (
     "Override the dbt version this run executes on, without changing the job or "
     'its environment. Accepts a release track (e.g. "latest", "compatible", '
-    '"extended") or a pinned version (e.g. "1.9.0"). Useful for verifying that a '
-    "project builds on a newer version before switching the environment over to it."
+    '"extended") or a pinned version (e.g. "1.9.0")'
 )
 
 # --- get_job_run_error ---
