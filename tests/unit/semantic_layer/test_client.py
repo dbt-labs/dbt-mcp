@@ -613,7 +613,7 @@ def test_normalize_where(fetcher, input_where, expected) -> None:
 def test_format_semantic_layer_error_cleans_query_failed_error(fetcher) -> None:
     """A real QueryFailedError's message should be cleaned up.
 
-    QueryFailedError.__str__ wraps the message in a `message="...")," status=`
+    QueryFailedError.__str__ wraps the message in a `message=\"...\", status=...`
     artifact; the formatter must clean the underlying `.message` attribute, not
     that mangled `__str__` output.
     """
