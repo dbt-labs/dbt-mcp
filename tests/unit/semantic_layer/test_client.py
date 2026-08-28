@@ -607,10 +607,16 @@ def test_normalize_where(fetcher, input_where, expected) -> None:
 
 
 def test_format_semantic_layer_error_cleans_query_failed_error(fetcher) -> None:
-    """Normal QueryFailedError messages should be cleaned up."""
-    error = Exception(
-        "QueryFailedError(INVALID_ARGUMENT: [FlightSQL] Failed to prepare statement: "
-        "com.dbt.semanticlayer.exceptions.DataPlatformException: column not found"
+    """A real QueryFailedError's message should be cleaned up.
+
+    QueryFailedError.__str__ wraps the message in a `message="...")," status=`
+    artifact; the formatter must clean the underlying `.message` attribute, not
+    that mangled `__str__` output.
+    """
+    error = QueryFailedError(
+        "INVALID_ARGUMENT: [FlightSQL] Failed to prepare statement: "
+        "com.dbt.semanticlayer.exceptions.DataPlatformException: column not found",
+        "FAILED",
     )
     result = fetcher._format_semantic_layer_error(error)
     assert result == "column not found"

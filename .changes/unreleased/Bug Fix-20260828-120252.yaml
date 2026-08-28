@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Fix semantic layer query error formatting to use QueryFailedError's clean underlying message instead of its str() representation, which was leaking a message="...", status= wrapper artifact into the error shown to callers
+time: 2026-08-28T12:02:52.820897-07:00
