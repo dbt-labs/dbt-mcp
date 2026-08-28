@@ -441,7 +441,7 @@ class SemanticLayerFetcher:
 
     def _format_semantic_layer_error(self, error: Exception) -> str:
         """Format semantic layer errors by cleaning up common error message patterns."""
-        # QueryFailedError.__str__ wraps its message in a `message="...")," status=`
+        # QueryFailedError.__str__ wraps its message in a `message="...", status=...`
         # artifact of that class's __str__ implementation. Use the clean `.message`
         # attribute instead, so the cleanup chain below operates on the real
         # underlying message rather than that wrapper.
