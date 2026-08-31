@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 # detect when the method changes. Mirrors the proto ``token_estimation_method``.
 TOKEN_ESTIMATION_METHOD = "char_div_4"
 _CHARS_PER_TOKEN = 4
+_SKIP_CONTENT_TYPES = frozenset({"image", "audio"})
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,8 @@ def _to_text(obj: Any) -> str:
         return ""
     if isinstance(obj, str):
         return obj
+    if getattr(obj, "type", None) in _SKIP_CONTENT_TYPES:
+        return ""
     if isinstance(obj, Mapping):
         return json.dumps(obj, default=str, sort_keys=True)
     text = getattr(obj, "text", None)

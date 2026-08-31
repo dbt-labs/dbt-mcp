@@ -1,7 +1,5 @@
-from collections.abc import Mapping
 from dataclasses import dataclass
 
-import pytest
 from pydantic import BaseModel
 
 from dbt_mcp.tracking.token_estimation import (
@@ -137,6 +135,38 @@ class TestMeasurePayload:
         result = measure_payload("abcd")
         assert result.char_count == 4
         assert result.token_estimate == 1
+
+    def test_image_content_skipped(self):
+        """Binary content types (image, audio) are skipped to avoid serializing large blobs."""
+
+        @dataclass
+        class ImageContent:
+            type: str
+            data: str
+
+        obj = ImageContent(type="image", data="a" * 100_000)
+        result = measure_payload(obj)
+        assert result == EMPTY_MEASUREMENT
+
+    def test_sequence_skips_image_keeps_text(self):
+        """In a sequence, image blocks are skipped but text blocks are measured."""
+
+        @dataclass
+        class TextContent:
+            type: str
+            text: str
+
+        @dataclass
+        class ImageContent:
+            type: str
+            data: str
+
+        blocks: list = [
+            TextContent(type="text", text="hello"),
+            ImageContent(type="image", data="a" * 100_000),
+        ]
+        result = measure_payload(blocks)
+        assert result.char_count == len("hello")
 
     def test_nested_dict_values_use_default_str(self):
         """Non-JSON-serializable dict values use str() via default=str."""
