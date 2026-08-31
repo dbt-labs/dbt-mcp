@@ -62,6 +62,20 @@ async def test_register_lsp_tools_success(
     # Verify correct tools were registered
     tool_names = [tool.name for tool in await test_mcp_server.list_tools()]
     assert ToolName.GET_COLUMN_LINEAGE.value in tool_names
+    expected_tools = {
+        ToolName.DBT_LSP_PROJECT_STATUS.value,
+        ToolName.DBT_LSP_DIAGNOSTICS.value,
+        ToolName.DBT_LSP_NODE.value,
+        ToolName.DBT_LSP_LINEAGE.value,
+        ToolName.DBT_LSP_DEFINITION.value,
+        ToolName.DBT_LSP_REFERENCES.value,
+        ToolName.DBT_LSP_COMPILE.value,
+        ToolName.DBT_LSP_PREVIEW.value,
+        ToolName.DBT_LSP_CODE_ACTIONS.value,
+        ToolName.DBT_LSP_RENAME_PREVIEW.value,
+        ToolName.DBT_LSP_UPDATE_DOCUMENT.value,
+    }
+    assert expected_tools <= set(tool_names)
 
 
 @pytest.mark.asyncio

@@ -102,7 +102,18 @@ These tools help automate boilerplate code generation for dbt project files.
 
 ### dbt LSP
 
-A set of tools that leverage the Fusion engine for advanced SQL compilation and column-level lineage analysis.
+Compiler-backed dbt LSP tools for diagnostics, navigation, lineage, SQL previews, safe refactor previews, and incremental in-memory edits.
+- `dbt_lsp_code_actions`: Previews compiler-provided code actions without applying them.
+- `dbt_lsp_compile`: Compiles the project through the persistent local dbt LSP.
+- `dbt_lsp_definition`: Resolves a dbt symbol definition from a file position.
+- `dbt_lsp_diagnostics`: Returns compiler-backed diagnostics for a project file.
+- `dbt_lsp_lineage`: Returns compiler-backed model lineage for a dbt selector.
+- `dbt_lsp_node`: Resolves the dbt node and column metadata associated with a project file.
+- `dbt_lsp_preview`: Compiles one file and returns generated SQL without changing project files.
+- `dbt_lsp_project_status`: Returns metadata for the project indexed by the persistent dbt LSP.
+- `dbt_lsp_references`: Finds references to a dbt symbol from a file position.
+- `dbt_lsp_rename_preview`: Previews a dbt symbol rename as a workspace edit without applying it.
+- `dbt_lsp_update_document`: Updates a document in the LSP workspace and returns incremental compile feedback.
 - `fusion.compile_sql`: Compiles SQL in project context via dbt Platform.
 - `fusion.get_column_lineage`: Traces column-level lineage via dbt Platform.
 - `get_column_lineage`: Traces column-level lineage locally (requires dbt-lsp via dbt Labs VSCE).

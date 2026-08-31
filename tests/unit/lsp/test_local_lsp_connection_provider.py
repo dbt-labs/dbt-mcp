@@ -8,7 +8,7 @@ from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo
 from dbt_mcp.lsp.providers.local_lsp_connection_provider import (
     LocalLSPConnectionProvider,
 )
-from dbt_mcp.lsp.lsp_connection import SocketLSPConnection
+from dbt_mcp.lsp.lsp_connection import StdioLSPConnection
 
 
 @pytest.fixture
@@ -37,13 +37,13 @@ class TestLocalLSPConnectionProvider:
         """Test that get_connection creates a new connection on first call."""
         provider = LocalLSPConnectionProvider(lsp_binary_info, project_dir)
 
-        # Mock the SocketLSPConnection
-        mock_connection = MagicMock(spec=SocketLSPConnection)
+        # Mock the StdioLSPConnection
+        mock_connection = MagicMock(spec=StdioLSPConnection)
         mock_connection.start = AsyncMock()
         mock_connection.initialize = AsyncMock()
 
         with patch(
-            "dbt_mcp.lsp.providers.local_lsp_connection_provider.SocketLSPConnection",
+            "dbt_mcp.lsp.providers.local_lsp_connection_provider.StdioLSPConnection",
             return_value=mock_connection,
         ) as mock_conn_class:
             connection = await provider.get_connection()
@@ -71,12 +71,12 @@ class TestLocalLSPConnectionProvider:
         provider = LocalLSPConnectionProvider(lsp_binary_info, project_dir)
 
         # Mock the connection
-        mock_connection = MagicMock(spec=SocketLSPConnection)
+        mock_connection = MagicMock(spec=StdioLSPConnection)
         mock_connection.start = AsyncMock()
         mock_connection.initialize = AsyncMock()
 
         with patch(
-            "dbt_mcp.lsp.providers.local_lsp_connection_provider.SocketLSPConnection",
+            "dbt_mcp.lsp.providers.local_lsp_connection_provider.StdioLSPConnection",
             return_value=mock_connection,
         ) as mock_conn_class:
             # First call
@@ -106,12 +106,12 @@ class TestLocalLSPConnectionProvider:
         provider = LocalLSPConnectionProvider(lsp_binary_info, project_dir)
 
         # Mock connection that fails to start
-        mock_connection = MagicMock(spec=SocketLSPConnection)
+        mock_connection = MagicMock(spec=StdioLSPConnection)
         mock_connection.start = AsyncMock(side_effect=RuntimeError("Start failed"))
         mock_connection.initialize = AsyncMock()
 
         with patch(
-            "dbt_mcp.lsp.providers.local_lsp_connection_provider.SocketLSPConnection",
+            "dbt_mcp.lsp.providers.local_lsp_connection_provider.StdioLSPConnection",
             return_value=mock_connection,
         ):
             with pytest.raises(
@@ -130,14 +130,14 @@ class TestLocalLSPConnectionProvider:
         provider = LocalLSPConnectionProvider(lsp_binary_info, project_dir)
 
         # Mock connection that fails to initialize
-        mock_connection = MagicMock(spec=SocketLSPConnection)
+        mock_connection = MagicMock(spec=StdioLSPConnection)
         mock_connection.start = AsyncMock()
         mock_connection.initialize = AsyncMock(
             side_effect=RuntimeError("Initialize failed")
         )
 
         with patch(
-            "dbt_mcp.lsp.providers.local_lsp_connection_provider.SocketLSPConnection",
+            "dbt_mcp.lsp.providers.local_lsp_connection_provider.StdioLSPConnection",
             return_value=mock_connection,
         ):
             with pytest.raises(
@@ -156,13 +156,13 @@ class TestLocalLSPConnectionProvider:
         provider = LocalLSPConnectionProvider(lsp_binary_info, project_dir)
 
         # Setup a connection
-        mock_connection = MagicMock(spec=SocketLSPConnection)
+        mock_connection = MagicMock(spec=StdioLSPConnection)
         mock_connection.start = AsyncMock()
         mock_connection.initialize = AsyncMock()
         mock_connection.stop = AsyncMock()
 
         with patch(
-            "dbt_mcp.lsp.providers.local_lsp_connection_provider.SocketLSPConnection",
+            "dbt_mcp.lsp.providers.local_lsp_connection_provider.StdioLSPConnection",
             return_value=mock_connection,
         ):
             # Create connection
@@ -201,13 +201,13 @@ class TestLocalLSPConnectionProvider:
         provider = LocalLSPConnectionProvider(lsp_binary_info, project_dir)
 
         # Setup a connection that fails to stop
-        mock_connection = MagicMock(spec=SocketLSPConnection)
+        mock_connection = MagicMock(spec=StdioLSPConnection)
         mock_connection.start = AsyncMock()
         mock_connection.initialize = AsyncMock()
         mock_connection.stop = AsyncMock(side_effect=RuntimeError("Stop failed"))
 
         with patch(
-            "dbt_mcp.lsp.providers.local_lsp_connection_provider.SocketLSPConnection",
+            "dbt_mcp.lsp.providers.local_lsp_connection_provider.StdioLSPConnection",
             return_value=mock_connection,
         ):
             # Create connection
@@ -230,13 +230,13 @@ class TestLocalLSPConnectionProvider:
         provider = LocalLSPConnectionProvider(lsp_binary_info, project_dir)
 
         # Mock connection
-        mock_connection = MagicMock(spec=SocketLSPConnection)
+        mock_connection = MagicMock(spec=StdioLSPConnection)
         mock_connection.start = AsyncMock()
         mock_connection.initialize = AsyncMock()
         mock_connection.stop = AsyncMock()
 
         with patch(
-            "dbt_mcp.lsp.providers.local_lsp_connection_provider.SocketLSPConnection",
+            "dbt_mcp.lsp.providers.local_lsp_connection_provider.StdioLSPConnection",
             return_value=mock_connection,
         ):
             # Create connection

@@ -7,7 +7,10 @@ typed methods for dbt-specific operations.
 
 import asyncio
 import logging
+from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.lsp.lsp_connection import LspEventName
@@ -34,6 +37,7 @@ class LSPClient(LSPClientProtocol):
         self,
         lsp_connection: LSPConnectionProviderProtocol,
         timeout: float | None = None,
+        project_dir: str | None = None,
     ):
         """Initialize the dbt LSP client.
 
@@ -44,6 +48,7 @@ class LSPClient(LSPClientProtocol):
         """
         self.lsp_connection = lsp_connection
         self.timeout = timeout if timeout is not None else DEFAULT_LSP_TIMEOUT
+        self.project_dir = Path(project_dir).resolve() if project_dir else None
 
     async def compile(self, timeout: float | None = None) -> dict[str, Any]:
         """Compile the dbt project.
@@ -63,6 +68,9 @@ class LSPClient(LSPClientProtocol):
 
             # wait for complation to complete
             result = await compile_complete_future
+
+            if not isinstance(result, dict):
+                return {"result": result}
 
             if "error" in result and result["error"] is not None:
                 return {"error": result["error"]}
@@ -175,3 +183,291 @@ class LSPClient(LSPClientProtocol):
                 return {"nodes": result["nodes"]}
 
             return result
+
+    def _path(self, path: str) -> Path:
+        """Resolve an agent-supplied path against the dbt project."""
+        candidate = Path(path)
+        if not candidate.is_absolute() and self.project_dir is not None:
+            candidate = self.project_dir / candidate
+        return candidate.resolve()
+
+    def _uri(self, path: str) -> str:
+        return self._path(path).as_uri()
+
+    def _relative_path(self, path: str) -> str:
+        candidate = self._path(path)
+        if self.project_dir is None:
+            return candidate.as_posix()
+        try:
+            return candidate.relative_to(self.project_dir).as_posix()
+        except ValueError:
+            return candidate.as_posix()
+
+    @staticmethod
+    def _as_dict_result(result: Any) -> dict[str, Any]:
+        return result if isinstance(result, dict) else {"result": result}
+
+    @staticmethod
+    def _as_list_result(result: Any, key: str) -> dict[str, Any]:
+        if isinstance(result, list):
+            return {key: result}
+        if result is None:
+            return {key: []}
+        return result if isinstance(result, dict) else {"result": result}
+
+    async def _ensure_compiled(
+        self, timeout: float | None = None
+    ) -> dict[str, Any] | None:
+        if self.lsp_connection.compiled():
+            return None
+        result = await self.compile(timeout=timeout)
+        return result if "error" in result else None
+
+    async def get_project_info(self, timeout: float | None = None) -> dict[str, Any]:
+        """Return project metadata from the compiler-backed LSP."""
+        compile_error = await self._ensure_compiled(timeout)
+        if compile_error:
+            return compile_error
+        async with asyncio.timeout(timeout or self.timeout):
+            result = await self.lsp_connection.send_request(
+                "workspace/executeCommand",
+                {"command": "dbt.getProjectInfo", "arguments": []},
+            )
+            return self._as_dict_result(result)
+
+    async def get_node(self, path: str, timeout: float | None = None) -> dict[str, Any]:
+        """Return the dbt node associated with a model file."""
+        if not isinstance(path, str) or not path:
+            raise InvalidParameterError("path must be a non-empty string")
+        compile_error = await self._ensure_compiled(timeout)
+        if compile_error:
+            return compile_error
+        async with asyncio.timeout(timeout or self.timeout):
+            result = await self.lsp_connection.send_request(
+                "workspace/executeCommand",
+                {
+                    "command": "dbt.getCurrentNode",
+                    "arguments": [self._relative_path(path)],
+                },
+            )
+            return self._as_dict_result(result)
+
+    async def get_diagnostics(
+        self, path: str, timeout: float | None = None
+    ) -> dict[str, Any]:
+        """Return current compiler diagnostics for a model file."""
+        compile_error = await self._ensure_compiled(timeout)
+        if compile_error:
+            return compile_error
+        async with asyncio.timeout(timeout or self.timeout):
+            result = await self.lsp_connection.send_request(
+                "textDocument/diagnostic",
+                {"textDocument": {"uri": self._uri(path)}},
+            )
+        if isinstance(result, list):
+            return {"items": result}
+        if isinstance(result, dict):
+            if result.get("error") is not None:
+                return {"error": result["error"]}
+            return {
+                "items": result.get("items", []),
+                "result_id": result.get("resultId"),
+                "report": result,
+            }
+        return {"items": [], "report": result}
+
+    async def get_definition(
+        self,
+        path: str,
+        line: int,
+        character: int,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        """Resolve the symbol at a position to its dbt definition."""
+        compile_error = await self._ensure_compiled(timeout)
+        if compile_error:
+            return compile_error
+        async with asyncio.timeout(timeout or self.timeout):
+            result = await self.lsp_connection.send_request(
+                "textDocument/definition",
+                {
+                    "textDocument": {"uri": self._uri(path)},
+                    "position": {"line": line, "character": character},
+                },
+            )
+        return self._as_list_result(result, "locations")
+
+    async def get_references(
+        self,
+        path: str,
+        line: int,
+        character: int,
+        include_declaration: bool = True,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        """Find references to the symbol at a position."""
+        compile_error = await self._ensure_compiled(timeout)
+        if compile_error:
+            return compile_error
+        async with asyncio.timeout(timeout or self.timeout):
+            result = await self.lsp_connection.send_request(
+                "textDocument/references",
+                {
+                    "textDocument": {"uri": self._uri(path)},
+                    "position": {"line": line, "character": character},
+                    "context": {"includeDeclaration": include_declaration},
+                },
+            )
+        return self._as_list_result(result, "locations")
+
+    async def get_code_actions(
+        self,
+        path: str,
+        start_line: int,
+        start_character: int,
+        end_line: int,
+        end_character: int,
+        only: list[str] | None = None,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        """Return safe LSP code actions without applying them."""
+        diagnostics = await self.get_diagnostics(path, timeout=timeout)
+        if diagnostics.get("error"):
+            return diagnostics
+        context: dict[str, Any] = {"diagnostics": diagnostics.get("items", [])}
+        if only:
+            context["only"] = only
+        params = {
+            "textDocument": {"uri": self._uri(path)},
+            "range": {
+                "start": {"line": start_line, "character": start_character},
+                "end": {"line": end_line, "character": end_character},
+            },
+            "context": context,
+        }
+        async with asyncio.timeout(timeout or self.timeout):
+            result = await self.lsp_connection.send_request(
+                "textDocument/codeAction", params
+            )
+        return self._as_list_result(result, "actions")
+
+    async def get_rename_preview(
+        self,
+        path: str,
+        line: int,
+        character: int,
+        new_name: str,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        """Return the workspace edit for a rename without writing files."""
+        if not new_name:
+            raise InvalidParameterError("new_name must be a non-empty string")
+        compile_error = await self._ensure_compiled(timeout)
+        if compile_error:
+            return compile_error
+        uri = self._uri(path)
+        position = {"line": line, "character": character}
+        async with asyncio.timeout(timeout or self.timeout):
+            prepare = await self.lsp_connection.send_request(
+                "textDocument/prepareRename",
+                {"textDocument": {"uri": uri}, "position": position},
+            )
+            if isinstance(prepare, dict) and "error" in prepare:
+                return prepare
+            if prepare is None:
+                return {"prepare": None, "edit": None}
+            edit = await self.lsp_connection.send_request(
+                "textDocument/rename",
+                {
+                    "textDocument": {"uri": uri},
+                    "position": position,
+                    "newName": new_name,
+                },
+            )
+        return {"prepare": prepare, "edit": edit}
+
+    async def compile_file(
+        self, path: str, timeout: float | None = None
+    ) -> dict[str, Any]:
+        """Compile one file and return its generated SQL, when available."""
+        uri = self._uri(path)
+        async with asyncio.timeout(timeout or self.timeout):
+            result = await self.lsp_connection.send_request(
+                "workspace/executeCommand",
+                {"command": "dbt.compileFile", "arguments": [uri]},
+            )
+        if not isinstance(result, dict):
+            return {"result": result}
+        if result.get("error"):
+            return result
+        compiled_uri = result.get("file_uri") or result.get("compiled_uri")
+        response: dict[str, Any] = {"file_uri": compiled_uri}
+        if compiled_uri:
+            parsed = urlparse(compiled_uri)
+            if parsed.scheme == "file":
+                compiled_path = Path(url2pathname(parsed.path))
+                if compiled_path.exists():
+                    response["compiled_sql"] = compiled_path.read_text()
+        return response
+
+    async def update_document(
+        self,
+        path: str,
+        text: str,
+        wait_for_compile: bool = True,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        """Send a full-text document update and wait for incremental compilation."""
+        uri = self._uri(path)
+        if self.lsp_connection.is_document_open(uri):
+            version = (self.lsp_connection.document_version(uri) or 0) + 1
+            method = "textDocument/didChange"
+            params: dict[str, Any] = {
+                "textDocument": {"uri": uri, "version": version},
+                "contentChanges": [{"text": text}],
+            }
+        else:
+            version = 1
+            method = "textDocument/didOpen"
+            params = {
+                "textDocument": {
+                    "uri": uri,
+                    "languageId": (
+                        "yaml"
+                        if Path(path).suffix.lower() in {".yml", ".yaml"}
+                        else "sql"
+                    ),
+                    "version": version,
+                    "text": text,
+                }
+            }
+
+        compile_future = None
+        if wait_for_compile:
+            compile_future = self.lsp_connection.wait_for_notification(
+                LspEventName.backgroundCompileComplete
+            )
+        self.lsp_connection.send_notification(method, params)
+        result: dict[str, Any] = {
+            "uri": uri,
+            "version": version,
+            "method": method,
+        }
+        if compile_future is not None:
+            try:
+                result["compile"] = await asyncio.wait_for(
+                    compile_future, timeout=timeout or self.timeout
+                )
+            except TimeoutError:
+                result["compile"] = {
+                    "error": "Timed out waiting for incremental compile"
+                }
+        return result
+
+    async def close_document(self, path: str) -> dict[str, Any]:
+        """Close a document held in the LSP's in-memory workspace."""
+        uri = self._uri(path)
+        self.lsp_connection.send_notification(
+            "textDocument/didClose", {"textDocument": {"uri": uri}}
+        )
+        return {"uri": uri, "closed": True}

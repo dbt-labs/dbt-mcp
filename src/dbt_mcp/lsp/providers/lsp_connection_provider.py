@@ -31,6 +31,7 @@ class LspEventName(str, Enum):
     progress = "$/progress"
     workspaceDiagnostics = "workspace/diagnostics"
     fileDiagnostics = "textDocument/publishDiagnostics"
+    backgroundCompileComplete = "dbt/lspBackgroundCompileComplete"
 
 
 class LSPConnectionProviderProtocol(Protocol):
@@ -67,8 +68,8 @@ class LSPConnectionProviderProtocol(Protocol):
         method: str,
         params: dict[str, Any] | list[Any] | None = None,
         timeout: float | None = None,
-    ) -> dict[str, Any]:
-        """Send a JSON-RPC request and wait for response."""
+    ) -> Any:
+        """Send a JSON-RPC request and wait for its JSON-compatible response."""
         ...
 
     def send_notification(
@@ -85,6 +86,14 @@ class LSPConnectionProviderProtocol(Protocol):
 
     def is_running(self) -> bool:
         """Check if the LSP server process is currently running."""
+        ...
+
+    def is_document_open(self, uri: str) -> bool:
+        """Check whether a document has been opened on this connection."""
+        ...
+
+    def document_version(self, uri: str) -> int | None:
+        """Return the current version for an open document, if any."""
         ...
 
 

@@ -25,7 +25,7 @@ class LocalLSPClientProvider(LSPClientProvider):
     share the same underlying connection managed by the connection provider.
 
     Attributes:
-        lsp_connection_provider: Provider managing the underlying socket connection
+        lsp_connection_provider: Provider managing the underlying stdio connection
         timeout: Default timeout in seconds for LSP operations (or None for default)
     """
 
@@ -65,4 +65,5 @@ class LocalLSPClientProvider(LSPClientProvider):
         return LSPClient(
             lsp_connection=connection,
             timeout=timeout or self.timeout,
+            project_dir=getattr(self.lsp_connection_provider, "project_dir", None),
         )

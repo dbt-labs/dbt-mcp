@@ -73,6 +73,17 @@ class ToolName(Enum):
     # dbt LSP tools
     GET_COLUMN_LINEAGE = "get_column_lineage"
     FUSION_COMPILE_SQL = "fusion.compile_sql"
+    DBT_LSP_PROJECT_STATUS = "dbt_lsp_project_status"
+    DBT_LSP_DIAGNOSTICS = "dbt_lsp_diagnostics"
+    DBT_LSP_NODE = "dbt_lsp_node"
+    DBT_LSP_LINEAGE = "dbt_lsp_lineage"
+    DBT_LSP_DEFINITION = "dbt_lsp_definition"
+    DBT_LSP_REFERENCES = "dbt_lsp_references"
+    DBT_LSP_COMPILE = "dbt_lsp_compile"
+    DBT_LSP_PREVIEW = "dbt_lsp_preview"
+    DBT_LSP_CODE_ACTIONS = "dbt_lsp_code_actions"
+    DBT_LSP_RENAME_PREVIEW = "dbt_lsp_rename_preview"
+    DBT_LSP_UPDATE_DOCUMENT = "dbt_lsp_update_document"
     FUSION_GET_COLUMN_LINEAGE = "fusion.get_column_lineage"
 
     # Product Docs tools (docs.getdbt.com)

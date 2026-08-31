@@ -1,14 +1,14 @@
 """Local LSP Connection Provider Implementation.
 
 This module provides the concrete implementation of LSPConnectionProvider for
-managing socket-based connections to a local LSP server process.
+managing stdio connections to a local LSP server process.
 """
 
+import asyncio
 import logging
 
-
 from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo
-from dbt_mcp.lsp.lsp_connection import SocketLSPConnection
+from dbt_mcp.lsp.lsp_connection import StdioLSPConnection
 from dbt_mcp.lsp.providers.lsp_connection_provider import (
     LSPConnectionProvider,
     LSPConnectionProviderProtocol,
@@ -47,14 +47,15 @@ class LocalLSPConnectionProvider(LSPConnectionProvider):
         self.lsp_connection: LSPConnectionProviderProtocol | None = None
         self.lsp_binary_info = lsp_binary_info
         self.project_dir = project_dir
+        self._connection_lock = asyncio.Lock()
 
     async def _new_connection(self) -> LSPConnectionProviderProtocol:
         """Create and initialize a new LSP connection.
 
         This is an internal method that handles the actual connection creation
         and initialization sequence:
-        1. Create SocketLSPConnection with binary info
-        2. Start the LSP server process and establish socket connection
+        1. Create StdioLSPConnection with binary info
+        2. Start the LSP server process and establish stdio communication
         3. Send LSP initialize request and wait for server capabilities
 
         Returns:
@@ -63,24 +64,20 @@ class LocalLSPConnectionProvider(LSPConnectionProvider):
         Raises:
             RuntimeError: If connection creation or initialization fails
         """
-        # Defensive check: This shouldn't happen due to get_connection() logic,
-        # but included for clarity and safety
-        if self.lsp_connection is not None:
-            return self.lsp_connection
-
+        lsp_connection: LSPConnectionProviderProtocol | None = None
         try:
             logger.info(
                 f"Using LSP command '{' '.join(self.lsp_binary_info.cmd)}' with version {self.lsp_binary_info.version}"
             )
 
             # Create the connection wrapper (doesn't start the process yet)
-            lsp_connection = SocketLSPConnection(
+            lsp_connection = StdioLSPConnection(
                 cmd=self.lsp_binary_info.cmd,
                 args=[],
                 cwd=self.project_dir,
             )
 
-            # Start the LSP server process and establish socket connection
+            # Start the LSP server process and establish stdio communication
             # This is when the actual subprocess is spawned
             await lsp_connection.start()
             logger.info("LSP connection started successfully")
@@ -93,9 +90,16 @@ class LocalLSPConnectionProvider(LSPConnectionProvider):
             return lsp_connection
         except Exception as e:
             logger.error(f"Error starting LSP connection: {e}")
+            if lsp_connection is not None:
+                try:
+                    await lsp_connection.stop()
+                except Exception:
+                    logger.warning(
+                        "Error cleaning up failed LSP connection", exc_info=True
+                    )
             # Clean up any partial state to ensure clean retry
             self.lsp_connection = None
-            raise RuntimeError("Error: Failed to establish LSP connection")
+            raise RuntimeError("Error: Failed to establish LSP connection") from e
 
     async def get_connection(self) -> LSPConnectionProviderProtocol:
         """Get the LSP connection, creating it if needed (lazy initialization).
@@ -113,11 +117,16 @@ class LocalLSPConnectionProvider(LSPConnectionProvider):
         Raises:
             RuntimeError: If connection creation fails
         """
-        if self.lsp_connection is None:
-            # Lazy initialization: Create the connection on first use
-            # This happens AFTER the MCP server is listening for requests
+        async with self._connection_lock:
+            if self.lsp_connection is not None:
+                if self.lsp_connection.is_running():
+                    return self.lsp_connection
+                await self.lsp_connection.stop()
+                self.lsp_connection = None
+
+            # Lazy initialization: Create the connection on first use.
             self.lsp_connection = await self._new_connection()
-        return self.lsp_connection
+            return self.lsp_connection
 
     async def cleanup_connection(self) -> None:
         """Cleanup and stop the LSP connection if it exists.
@@ -134,7 +143,7 @@ class LocalLSPConnectionProvider(LSPConnectionProvider):
         if self.lsp_connection:
             try:
                 logger.info("Cleaning up LSP connection")
-                # Stop the LSP server process and close socket
+                # Stop the LSP server process and close stdio resources
                 await self.lsp_connection.stop()
             except Exception as e:
                 # Log but don't re-raise - we want shutdown to continue
