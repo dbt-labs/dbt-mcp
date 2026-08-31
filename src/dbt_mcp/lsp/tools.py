@@ -73,7 +73,7 @@ async def list_lsp_tools(
         title: str,
         prompt: str,
         *,
-        read_only: bool = False,
+        read_only: bool = True,
     ) -> ToolDefinition:
         return ToolDefinition(
             fn=call_with_lsp_client(func),
@@ -136,6 +136,7 @@ async def list_lsp_tools(
             ToolName.DBT_LSP_COMPILE,
             "Compile dbt Project with LSP",
             "lsp/compile",
+            read_only=False,
         ),
         make_definition(
             dbt_lsp_preview,

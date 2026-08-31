@@ -4,11 +4,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo
+from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo, LspTransport
 from dbt_mcp.lsp.providers.local_lsp_connection_provider import (
     LocalLSPConnectionProvider,
 )
-from dbt_mcp.lsp.lsp_connection import StdioLSPConnection
+from dbt_mcp.lsp.lsp_connection import SocketLSPConnection, StdioLSPConnection
 
 
 @pytest.fixture
@@ -16,7 +16,9 @@ def lsp_binary_info(tmp_path) -> LspBinaryInfo:
     """Create a test LSP binary info."""
     binary_path = tmp_path / "dbt-lsp"
     binary_path.touch()
-    return LspBinaryInfo(cmd=[str(binary_path)], version="1.0.0")
+    return LspBinaryInfo(
+        cmd=[str(binary_path)], version="1.0.0", transport=LspTransport.STDIO
+    )
 
 
 @pytest.fixture
@@ -97,6 +99,30 @@ class TestLocalLSPConnectionProvider:
             assert connection1 is connection2
             assert connection2 is connection3
             assert connection1 is mock_connection
+
+    @pytest.mark.asyncio
+    async def test_get_connection_uses_socket_for_legacy_binary(
+        self, project_dir: str, tmp_path
+    ) -> None:
+        """Legacy standalone binaries retain the socket transport."""
+        binary_info = LspBinaryInfo(cmd=[str(tmp_path / "dbt-lsp")], version="1.0.0")
+        provider = LocalLSPConnectionProvider(binary_info, project_dir)
+        mock_connection = MagicMock(spec=SocketLSPConnection)
+        mock_connection.start = AsyncMock()
+        mock_connection.initialize = AsyncMock()
+
+        with patch(
+            "dbt_mcp.lsp.providers.local_lsp_connection_provider.SocketLSPConnection",
+            return_value=mock_connection,
+        ) as mock_conn_class:
+            connection = await provider.get_connection()
+
+        mock_conn_class.assert_called_once_with(
+            cmd=binary_info.cmd,
+            args=[],
+            cwd=project_dir,
+        )
+        assert connection is mock_connection
 
     @pytest.mark.asyncio
     async def test_get_connection_handles_start_failure(

@@ -187,9 +187,20 @@ class LSPClient(LSPClientProtocol):
     def _path(self, path: str) -> Path:
         """Resolve an agent-supplied path against the dbt project."""
         candidate = Path(path)
-        if not candidate.is_absolute() and self.project_dir is not None:
+        if self.project_dir is None:
+            raise InvalidParameterError(
+                "A project directory is required for path-based LSP operations"
+            )
+        if not candidate.is_absolute():
             candidate = self.project_dir / candidate
-        return candidate.resolve()
+        candidate = candidate.resolve()
+        try:
+            candidate.relative_to(self.project_dir)
+        except ValueError as exc:
+            raise InvalidParameterError(
+                f"path must resolve inside the dbt project directory: {path!r}"
+            ) from exc
+        return candidate
 
     def _uri(self, path: str) -> str:
         return self._path(path).as_uri()
@@ -197,11 +208,10 @@ class LSPClient(LSPClientProtocol):
     def _relative_path(self, path: str) -> str:
         candidate = self._path(path)
         if self.project_dir is None:
-            return candidate.as_posix()
-        try:
-            return candidate.relative_to(self.project_dir).as_posix()
-        except ValueError:
-            return candidate.as_posix()
+            raise InvalidParameterError(
+                "A project directory is required for path-based LSP operations"
+            )
+        return candidate.relative_to(self.project_dir).as_posix()
 
     @staticmethod
     def _as_dict_result(result: Any) -> dict[str, Any]:

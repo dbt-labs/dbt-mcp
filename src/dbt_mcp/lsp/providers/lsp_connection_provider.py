@@ -1,7 +1,7 @@
 """LSP Connection Provider Protocols for dbt Fusion LSP.
 
 This module defines the protocols for managing LSP server connections using
-the Language Server Protocol (LSP) over sockets.
+the Language Server Protocol (LSP).
 
 The provider pattern enables:
 1. Lazy connection initialization (only connect when needed)
@@ -38,13 +38,13 @@ class LSPConnectionProviderProtocol(Protocol):
     """Protocol defining the interface for LSP connection objects.
 
     This protocol represents a low-level connection to an LSP server process,
-    handling socket communication, process lifecycle, and JSON-RPC messaging.
+    handling transport communication, process lifecycle, and JSON-RPC messaging.
 
-    Implementations typically wrap subprocess management and async socket I/O.
+    Implementations typically wrap subprocess management and async transport I/O.
     """
 
     async def start(self) -> None:
-        """Start the LSP server process and establish socket connection."""
+        """Start the LSP server process and establish communication."""
         ...
 
     async def stop(self) -> None:
@@ -114,7 +114,7 @@ class LSPConnectionProvider(Protocol):
         MCP server is already listening for connections.
 
         Returns:
-            An object implementing LSPConnectionProviderProtocol (typically SocketLSPConnection)
+            An object implementing LSPConnectionProviderProtocol.
         """
         ...
 

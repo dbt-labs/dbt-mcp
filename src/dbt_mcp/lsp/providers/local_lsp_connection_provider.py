@@ -1,14 +1,14 @@
 """Local LSP Connection Provider Implementation.
 
 This module provides the concrete implementation of LSPConnectionProvider for
-managing stdio connections to a local LSP server process.
+managing connections to a local LSP server process.
 """
 
 import asyncio
 import logging
 
-from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo
-from dbt_mcp.lsp.lsp_connection import StdioLSPConnection
+from dbt_mcp.lsp.lsp_binary_manager import LspBinaryInfo, LspTransport
+from dbt_mcp.lsp.lsp_connection import SocketLSPConnection, StdioLSPConnection
 from dbt_mcp.lsp.providers.lsp_connection_provider import (
     LSPConnectionProvider,
     LSPConnectionProviderProtocol,
@@ -54,8 +54,8 @@ class LocalLSPConnectionProvider(LSPConnectionProvider):
 
         This is an internal method that handles the actual connection creation
         and initialization sequence:
-        1. Create StdioLSPConnection with binary info
-        2. Start the LSP server process and establish stdio communication
+        1. Create the transport selected during binary detection
+        2. Start the LSP server process and establish communication
         3. Send LSP initialize request and wait for server capabilities
 
         Returns:
@@ -70,14 +70,20 @@ class LocalLSPConnectionProvider(LSPConnectionProvider):
                 f"Using LSP command '{' '.join(self.lsp_binary_info.cmd)}' with version {self.lsp_binary_info.version}"
             )
 
-            # Create the connection wrapper (doesn't start the process yet)
-            lsp_connection = StdioLSPConnection(
+            # Fusion's `dbt lsp` speaks stdio. Legacy/editor-installed
+            # `dbt-lsp` binaries retain the socket transport they used before.
+            connection_class = (
+                StdioLSPConnection
+                if self.lsp_binary_info.transport == LspTransport.STDIO
+                else SocketLSPConnection
+            )
+            lsp_connection = connection_class(
                 cmd=self.lsp_binary_info.cmd,
                 args=[],
                 cwd=self.project_dir,
             )
 
-            # Start the LSP server process and establish stdio communication
+            # Start the LSP server process and establish communication
             # This is when the actual subprocess is spawned
             await lsp_connection.start()
             logger.info("LSP connection started successfully")
@@ -143,7 +149,7 @@ class LocalLSPConnectionProvider(LSPConnectionProvider):
         if self.lsp_connection:
             try:
                 logger.info("Cleaning up LSP connection")
-                # Stop the LSP server process and close stdio resources
+                # Stop the LSP server process and close transport resources
                 await self.lsp_connection.stop()
             except Exception as e:
                 # Log but don't re-raise - we want shutdown to continue

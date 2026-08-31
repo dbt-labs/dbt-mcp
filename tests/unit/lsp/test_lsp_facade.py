@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.lsp.lsp_client import LSPClient
 from dbt_mcp.lsp.lsp_connection import (
     JsonRpcMessage,
@@ -40,6 +41,20 @@ async def test_client_resolves_definition_from_project_relative_path(tmp_path) -
             "position": {"line": 2, "character": 4},
         },
     )
+
+
+@pytest.mark.asyncio
+async def test_client_rejects_paths_outside_project(tmp_path) -> None:
+    connection = make_connection()
+    client = LSPClient(connection, project_dir=str(tmp_path))
+
+    with pytest.raises(InvalidParameterError, match="inside the dbt project directory"):
+        await client.get_definition("../outside.sql", 0, 0)
+
+    with pytest.raises(InvalidParameterError, match="inside the dbt project directory"):
+        await client.get_diagnostics(str(tmp_path.parent / "outside.sql"))
+
+    connection.send_request.assert_not_awaited()
 
 
 @pytest.mark.asyncio

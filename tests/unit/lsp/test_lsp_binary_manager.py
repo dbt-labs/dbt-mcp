@@ -8,6 +8,7 @@ import pytest
 from dbt_mcp.lsp.lsp_binary_manager import (
     CodeEditor,
     LspBinaryInfo,
+    LspTransport,
     dbt_lsp_binary_info,
     detect_fusion_lsp,
     detect_lsp_binary,
@@ -387,6 +388,7 @@ class TestDetectFusionLsp:
         assert result is not None
         assert result.cmd == ["dbt", "lsp"]
         assert result.version == ""
+        assert result.transport == LspTransport.STDIO
 
 
 class TestDbtLspBinaryInfo:
@@ -493,13 +495,17 @@ class TestLspBinaryInfo:
 
         assert info.cmd == ["/path/to/lsp"]
         assert info.version == "1.2.3"
+        assert info.transport == LspTransport.SOCKET
 
     def test_create_fusion_lsp_binary_info(self):
         """Test creating LspBinaryInfo for Fusion (multi-element cmd)."""
-        info = LspBinaryInfo(cmd=["dbt", "lsp"], version="1.5.0")
+        info = LspBinaryInfo(
+            cmd=["dbt", "lsp"], version="1.5.0", transport=LspTransport.STDIO
+        )
 
         assert info.cmd == ["dbt", "lsp"]
         assert info.version == "1.5.0"
+        assert info.transport == LspTransport.STDIO
 
     def test_lsp_binary_info_equality(self):
         """Test LspBinaryInfo equality comparison."""
