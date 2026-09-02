@@ -77,6 +77,7 @@ class TestUsageTracker:
                     start_time_ms=0,
                     end_time_ms=1,
                     error_message=None,
+                    result="metric list result",
                 ),
             )
 
@@ -89,6 +90,15 @@ class TestUsageTracker:
         assert tool_called.dbt_cloud_user_id == "3"
         assert tool_called.local_user_id == "local-user"
         assert tool_called.ctx.dbt_cloud_account_identifier == "ab123"
+        # Token/char estimates: arguments serialized as sorted JSON, response
+        # from the raw result string. Tokens use the ~4-chars-per-token heuristic.
+        assert tool_called.token_estimation_method == "char_div_4"
+        assert tool_called.request_char_count == len('{"foo": "bar"}')
+        assert tool_called.request_token_estimate == len('{"foo": "bar"}') // 4
+        assert tool_called.response_char_count == len("metric list result")
+        assert tool_called.response_token_estimate == len("metric list result") // 4
+        # Local MCP does not know the client's model.
+        assert tool_called.llm_model == ""
 
     @pytest.mark.asyncio
     async def test_emit_tool_called_event_account_identifier_none(self):

@@ -20,10 +20,14 @@ from dbt_mcp.config.dbt_yaml import try_read_yaml
 from dbt_mcp.config.credentials import CredentialsProvider, get_dbt_profiles_path
 from dbt_mcp.config.settings import DbtMcpSettings
 from dbt_mcp.tools.toolsets import Toolset, proxied_tools
+from dbt_mcp.tracking.token_estimation import (
+    TOKEN_ESTIMATION_METHOD,
+    measure_payload,
+)
 
 logger = logging.getLogger(__name__)
 
-_REDACT_ARGS: frozenset[str] = frozenset({"sql_query", "vars"})
+REDACT_ARGS: frozenset[str] = frozenset({"sql_query", "vars"})
 
 
 @dataclass
@@ -35,6 +39,9 @@ class ToolCalledEvent:
     end_time_ms: int
     mcp_client_name: str = ""
     mcp_client_version: str = ""
+    # The tool result, used only to estimate the response token/char size.
+    # None when the call errored before returning.
+    result: Any = None
 
 
 class UsageTracker(Protocol):
@@ -104,7 +111,7 @@ class DefaultUsageTracker:
             return
         try:
             arguments_mapping: Mapping[str, str] = {
-                k: (json.dumps("***") if k in _REDACT_ARGS else json.dumps(v))
+                k: (json.dumps("***") if k in REDACT_ARGS else json.dumps(v))
                 for k, v in tool_called_event.arguments.items()
             }
             event_id = str(uuid.uuid4())
@@ -127,6 +134,11 @@ class DefaultUsageTracker:
                 if self.credentials_provider.authentication_method
                 else ""
             )
+            # Estimate token/char size of the (unredacted) arguments and the
+            # response. Counts don't leak content, so we measure the raw
+            # arguments even for tools whose values are redacted above.
+            request_measurement = measure_payload(tool_called_event.arguments)
+            response_measurement = measure_payload(tool_called_event.result)
             log_proto(
                 ToolCalled(
                     event_id=event_id,
@@ -175,6 +187,13 @@ class DefaultUsageTracker:
                         and tool_called_event.mcp_client_version
                         else tool_called_event.mcp_client_name
                     ),
+                    request_token_estimate=request_measurement.token_estimate,
+                    response_token_estimate=response_measurement.token_estimate,
+                    request_char_count=request_measurement.char_count,
+                    response_char_count=response_measurement.char_count,
+                    token_estimation_method=TOKEN_ESTIMATION_METHOD,
+                    # llm_model is left blank: local MCP does not know the
+                    # client's model.
                 )
             )
         except Exception as e:

@@ -7,7 +7,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
+exclude-newer = "2026-08-10T13:33:32.337435Z"
 exclude-newer-span = "P7D"
 
 [options.exclude-newer-package]
@@ -339,14 +339,14 @@ dev = [
 
 [[package]]
 name = "dbt-protos"
-version = "1.0.431"
+version = "1.0.565"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "protobuf" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/29/67/777aa1c4af897773adb944c2db8d5c2073dd3ae114fa233b5559e900a550/dbt_protos-1.0.431.tar.gz", hash = "sha256:8fd3f52f2cb5532874eab93470fec3d9ace74e1ee342eaaf13b24867c042d0ce", size = 123577, upload-time = "2026-02-06T21:54:29.81Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fe/b9/b09b002cedb6817ea9d503a0c2adc7645b1b0749c174e2edd36cedeacb6b/dbt_protos-1.0.565.tar.gz", hash = "sha256:fabee73a6f98a7eb7e52ab34571ef24d82cce760829e268c7263a5805f3937cf", size = 188207, upload-time = "2026-08-14T12:37:15.762Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ac/56/8db9a3330af4462860fd5e38e8c1759ef9f1701f0c2111c9694c5c2e544c/dbt_protos-1.0.431-py3-none-any.whl", hash = "sha256:5ee60f11f2cae5faaf0e5f8420f7872ab48ae978ccd74fdba60d0f3ab8fd1d26", size = 178455, upload-time = "2026-02-06T21:54:28.189Z" },
+    { url = "https://files.pythonhosted.org/packages/76/68/a2a702510b5ae16f52a7b2f459e2e205cef6e79cf508e2611091a616245c/dbt_protos-1.0.565-py3-none-any.whl", hash = "sha256:130a8333fcd644ba1f00c8377e8f8013b28cca696a6af56037feb55a011f964c", size = 260078, upload-time = "2026-08-14T12:37:14.477Z" },
 ]
 
 [[package]]

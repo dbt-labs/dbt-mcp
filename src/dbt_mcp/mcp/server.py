@@ -28,15 +28,18 @@ from dbt_mcp.proxy.tools import ProxiedToolsManager, register_proxied_tools
 from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
 from dbt_mcp.semantic_layer.tools import register_sl_tools
 from dbt_mcp.semantic_layer.tools_multiproject import register_multiproject_sl_tools
-from dbt_mcp.tracking.tracking import DefaultUsageTracker, ToolCalledEvent, UsageTracker
+from dbt_mcp.tracking.tracking import (
+    REDACT_ARGS,
+    DefaultUsageTracker,
+    ToolCalledEvent,
+    UsageTracker,
+)
 
 logger = logging.getLogger(__name__)
 
-_REDACT_ARGS: frozenset[str] = frozenset({"sql_query", "vars"})
-
 
 def _safe_args(arguments: dict[str, Any]) -> dict[str, Any]:
-    return {k: "***" if k in _REDACT_ARGS else v for k, v in arguments.items()}
+    return {k: "***" if k in REDACT_ARGS else v for k, v in arguments.items()}
 
 
 class DbtMCP(FastMCP):
@@ -135,6 +138,7 @@ class DbtMCP(FastMCP):
                     error_message=None,
                     mcp_client_name=mcp_client_name,
                     mcp_client_version=mcp_client_version,
+                    result=result,
                 ),
             )
         except Exception:
