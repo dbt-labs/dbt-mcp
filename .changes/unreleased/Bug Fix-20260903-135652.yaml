@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: offload query_metrics result formatting off the event loop to prevent 25s+ blocks
+time: 2026-09-03T13:56:52.15575+01:00

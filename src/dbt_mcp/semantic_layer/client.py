@@ -622,7 +622,7 @@ class SemanticLayerFetcher:
             if query_error:
                 return self._format_query_failed_error(query_error)
             formatter = result_formatter or DEFAULT_RESULT_FORMATTER
-            json_result = formatter(query_result)
+            json_result = await asyncio.to_thread(formatter, query_result)
             return QueryMetricsSuccess(result=json_result or "")
         except SemanticLayerQueryTimeoutError:
             raise
