@@ -17,11 +17,11 @@ jobs:
       changie-latest: ${{ steps.changie-latest.outputs.output }}
     if: "startsWith(github.event.head_commit.message, 'version:')"
     steps:
-      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout@v7.0.1
       - uses: ./.github/actions/setup-python
       - name: Get the latest version
         id: changie-latest
-        uses: miniscruff/changie-action@6dcc2533cac0495148ed4046c438487e4dceaa23
+        uses: miniscruff/changie-action@3223cb29b92a0972dedc864ace3da01e04780ae4 # miniscruff/changie-action@v3.0.1
         with:
           version: latest
           args: latest
@@ -44,7 +44,7 @@ jobs:
 
     steps:
       - name: checkout code
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout@v7.0.1
         with:
           ref: ${{ needs.create-release-tag.outputs.changie-latest }}
           fetch-tags: true
@@ -53,7 +53,7 @@ jobs:
         uses: ./.github/actions/setup-python
         id: setup-python
 
-      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # pnpm/action-setup@v6.0.10
         with:
           version: 10
 
@@ -79,13 +79,13 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout@v7.0.1
         with:
           fetch-depth: 0 # Fetches all history for changie to work correctly
 
       - name: Get the latest version
         id: changie-latest
-        uses: miniscruff/changie-action@6dcc2533cac0495148ed4046c438487e4dceaa23
+        uses: miniscruff/changie-action@3223cb29b92a0972dedc864ace3da01e04780ae4 # miniscruff/changie-action@v3.0.1
         with:
           version: latest
           args: latest
@@ -112,7 +112,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout@v7.0.1
         with:
           ref: ${{ needs.create-release-tag.outputs.changie-latest }}
           fetch-tags: true
@@ -123,7 +123,7 @@ jobs:
       - name: Setup python
         uses: ./.github/actions/setup-python
 
-      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # pnpm/action-setup@v6.0.10
         with:
           version: 10
 
@@ -140,7 +140,7 @@ jobs:
       #   run: task mcpb:sign-and-verify
 
       - name: Upload mcpb package to release
-        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           tag_name: ${{ needs.create-release-tag.outputs.changie-latest }}
           files: ${{ env.MCPB_PACKAGE_NAME }}
