@@ -1,3 +1,4 @@
+import json
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -8,8 +9,10 @@ from dbt_mcp.dbt_admin.tools import (
     ADMIN_TOOLS,
     AdminToolContext,
     JobRunStatus,
+    INLINE_CONTENT_LIMIT,
     cancel_job_run,
     get_job_details,
+    get_job_run_artifacts,
     get_job_run_details,
     get_job_run_error,
     list_job_run_artifacts,
@@ -22,7 +25,7 @@ from dbt_mcp.dbt_admin.tools import (
 from dbt_mcp.mcp.server import register_multi_project_dbt_mcp
 from tests.mocks.config import mock_config
 
-NUM_ADMIN_TOOLS = 10
+NUM_ADMIN_TOOLS = 11
 
 
 @pytest.fixture
@@ -220,6 +223,218 @@ async def test_list_job_run_artifacts_tool(admin_context):
     )
 
 
+async def test_get_job_run_artifacts_tool_string_output(admin_context):
+    admin_context.admin_client.get_job_run_artifact = AsyncMock(
+        return_value='{"nodes": {}}'
+    )
+    result = await get_job_run_artifacts.fn(
+        admin_context, run_id=100, artifact_path="manifest.json"
+    )
+
+    assert result == '{"nodes": {}}'
+    admin_context.admin_client.get_job_run_artifact.assert_called_once_with(
+        12345, 100, "manifest.json", step=None
+    )
+
+
+async def test_get_job_run_artifacts_tool_with_step(admin_context):
+    admin_context.admin_client.get_job_run_artifact = AsyncMock(
+        return_value="log content"
+    )
+    await get_job_run_artifacts.fn(
+        admin_context, run_id=100, artifact_path="logs/dbt.log", step=2
+    )
+
+    admin_context.admin_client.get_job_run_artifact.assert_called_once_with(
+        12345, 100, "logs/dbt.log", step=2
+    )
+
+
+@pytest.mark.parametrize(
+    "content_size,expect_inline",
+    [
+        (1024, True),  # 1 KB — well below limit
+        (INLINE_CONTENT_LIMIT - 1, True),  # 1 byte below limit — inline
+        (INLINE_CONTENT_LIMIT, False),  # exactly at limit — guidance (>=)
+        (INLINE_CONTENT_LIMIT + 1, False),  # 1 byte over limit — guidance
+        (INLINE_CONTENT_LIMIT * 2, False),  # well over limit
+    ],
+)
+async def test_get_job_run_artifacts_size_routing(
+    admin_context, content_size, expect_inline
+):
+    content = "x" * content_size
+    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
+
+    result = await get_job_run_artifacts.fn(
+        admin_context, run_id=100, artifact_path="manifest.json"
+    )
+
+    if expect_inline:
+        assert result == content
+    else:
+        # Large artifacts return an actionable guidance string — never the raw
+        # content and never a filesystem path.
+        assert result != content
+        assert "too large" in result
+        assert "jq_filter" in result
+        assert "written to" not in result
+
+
+async def test_get_job_run_artifacts_jq_filter_extracts_field(admin_context):
+    content = '{"results": [{"status": "error", "unique_id": "model.proj.a"}, {"status": "success", "unique_id": "model.proj.b"}]}'
+    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
+
+    result = await get_job_run_artifacts.fn(
+        admin_context,
+        run_id=100,
+        artifact_path="run_results.json",
+        jq_filter='.results[] | select(.status == "error") | .unique_id',
+    )
+
+    assert json.loads(result) == ["model.proj.a"]
+
+
+async def test_get_job_run_artifacts_jq_filter_empty_result_returns_json_array(
+    admin_context,
+):
+    content = '{"results": [{"status": "success", "unique_id": "model.proj.a"}]}'
+    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
+
+    result = await get_job_run_artifacts.fn(
+        admin_context,
+        run_id=100,
+        artifact_path="run_results.json",
+        jq_filter='.results[] | select(.status == "error")',
+    )
+
+    assert json.loads(result) == []
+
+
+async def test_get_job_run_artifacts_jq_filter_small_output_from_large_input(
+    admin_context,
+):
+    padding = "x" * (INLINE_CONTENT_LIMIT + 1)
+    content = json.dumps({"padding": padding})
+    assert len(content) > INLINE_CONTENT_LIMIT
+    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
+
+    result = await get_job_run_artifacts.fn(
+        admin_context,
+        run_id=100,
+        artifact_path="manifest.json",
+        jq_filter=".padding | length",
+    )
+
+    assert json.loads(result) == [INLINE_CONTENT_LIMIT + 1]
+
+
+async def test_get_job_run_artifacts_jq_filter_oversized_output_raises(
+    admin_context,
+):
+    # Each node has a long value to push the filtered output past INLINE_CONTENT_LIMIT
+    large_nodes = {f"n{i}": "x" * 100 for i in range(6000)}
+    content = json.dumps({"nodes": large_nodes})
+    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
+
+    with pytest.raises(ValueError, match="Filtered output exceeds"):
+        await get_job_run_artifacts.fn(
+            admin_context,
+            run_id=100,
+            artifact_path="manifest.json",
+            jq_filter=".nodes",
+        )
+
+
+async def test_get_job_run_artifacts_jq_filter_scrubs_env(admin_context, monkeypatch):
+    # A secret in the parent process environment must not leak through jq's
+    # env/$ENV builtins — the spawned worker clears its environment before eval.
+    monkeypatch.setenv("SENTINEL", "leakme")
+    admin_context.admin_client.get_job_run_artifact = AsyncMock(
+        return_value='{"key": "value"}'
+    )
+
+    # `env` returns the whole environment as an object — scrubbed to empty.
+    env_result = await get_job_run_artifacts.fn(
+        admin_context,
+        run_id=100,
+        artifact_path="manifest.json",
+        jq_filter="env",
+    )
+    assert json.loads(env_result) == [{}]
+    assert "leakme" not in env_result
+
+    # $ENV lookups resolve to null, so the `//` fallback wins.
+    secret_result = await get_job_run_artifacts.fn(
+        admin_context,
+        run_id=100,
+        artifact_path="manifest.json",
+        jq_filter='$ENV.SECRET // "gone"',
+    )
+    assert json.loads(secret_result) == ["gone"]
+    assert "leakme" not in secret_result
+
+
+@pytest.mark.parametrize(
+    "jq_filter,expected",
+    [
+        (".env", [{"host": "prod"}]),
+        (".metadata.env", ["production"]),
+        ('.nodes[] | select(.name == "prod_env") | .name', ["prod_env"]),
+    ],
+)
+async def test_get_job_run_artifacts_jq_filter_allows_env_fields(
+    admin_context, jq_filter: str, expected: list
+):
+    # Field access on data named "env" was previously blocked by an over-broad
+    # regex; it is now allowed because only jq's env/$ENV builtins are neutralized.
+    content = json.dumps(
+        {
+            "env": {"host": "prod"},
+            "metadata": {"env": "production"},
+            "nodes": [{"name": "prod_env"}, {"name": "staging"}],
+        }
+    )
+    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
+
+    result = await get_job_run_artifacts.fn(
+        admin_context,
+        run_id=100,
+        artifact_path="manifest.json",
+        jq_filter=jq_filter,
+    )
+
+    assert json.loads(result) == expected
+
+
+async def test_get_job_run_artifacts_jq_filter_invalid_syntax(admin_context):
+    admin_context.admin_client.get_job_run_artifact = AsyncMock(
+        return_value='{"key": "value"}'
+    )
+
+    with pytest.raises(ValueError, match="Invalid jq filter:"):
+        await get_job_run_artifacts.fn(
+            admin_context,
+            run_id=100,
+            artifact_path="run_results.json",
+            jq_filter="not valid jq |||",
+        )
+
+
+async def test_get_job_run_artifacts_jq_filter_non_json_artifact(admin_context):
+    admin_context.admin_client.get_job_run_artifact = AsyncMock(
+        return_value="SELECT * FROM my_table"
+    )
+
+    with pytest.raises(ValueError, match="not valid JSON"):
+        await get_job_run_artifacts.fn(
+            admin_context,
+            run_id=100,
+            artifact_path="compiled/model.sql",
+            jq_filter=".nodes",
+        )
+
+
 async def test_tools_handle_exceptions():
     # Create a context with a failing client
     mock_admin_client = Mock()
@@ -395,6 +610,7 @@ def test_admin_tools_list_contains_all_tools():
         "cancel_job_run",
         "retry_job_run",
         "list_job_run_artifacts",
+        "get_job_run_artifacts",
         "get_job_run_error",
     }
 
