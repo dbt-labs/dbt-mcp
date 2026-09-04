@@ -206,8 +206,8 @@ async def get_job_run_details(
     description=get_prompt("admin_api/cancel_job_run"),
     title="Cancel Job Run",
     read_only_hint=False,
-    destructive_hint=False,
-    idempotent_hint=False,
+    destructive_hint=True,
+    idempotent_hint=True,
 )
 async def cancel_job_run(
     context: AdminToolContext,
