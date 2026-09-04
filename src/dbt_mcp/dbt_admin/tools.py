@@ -51,6 +51,11 @@ INLINE_CONTENT_LIMIT = 500 * 1024  # 500 KB; above this, require a jq_filter
 
 JQ_TIMEOUT_SECONDS = 120
 
+# Caps how many jq subprocesses (each holding a full copy of the artifact)
+# can run at once, to bound memory/CPU under concurrent tool calls.
+_JQ_CONCURRENCY_LIMIT = 4
+_jq_semaphore = asyncio.Semaphore(_JQ_CONCURRENCY_LIMIT)
+
 
 def _jq_eval_worker(jq_filter: str, content: str) -> list[Any]:
     """Run jq in a spawned subprocess; module-level so it's picklable."""
@@ -294,25 +299,26 @@ async def get_job_run_artifacts(
         admin_api_config.account_id, run_id, artifact_path, step=step
     )
     if jq_filter is not None:
-        ctx = multiprocessing.get_context("spawn")
-        with ctx.Pool(processes=1) as pool:
-            future = pool.apply_async(_jq_eval_worker, (jq_filter, content))
-            try:
-                results = await asyncio.to_thread(future.get, JQ_TIMEOUT_SECONDS)
-            except multiprocessing.TimeoutError:
-                pool.terminate()
-                raise ValueError(
-                    f"jq filter timed out after {JQ_TIMEOUT_SECONDS}s. Very large "
-                    "artifacts are slow to traverse — prefer a structural or "
-                    "aggregation filter ('keys', '.metadata', '... | length') over "
-                    "one that enumerates every node, or target a specific step."
-                )
-            except json.JSONDecodeError:
-                raise ValueError(
-                    "jq_filter requires a JSON artifact; this artifact is not valid JSON"
-                )
-            except Exception as e:
-                raise ValueError(f"Invalid jq filter: {e}") from e
+        async with _jq_semaphore:
+            ctx = multiprocessing.get_context("spawn")
+            with ctx.Pool(processes=1) as pool:
+                future = pool.apply_async(_jq_eval_worker, (jq_filter, content))
+                try:
+                    results = await asyncio.to_thread(future.get, JQ_TIMEOUT_SECONDS)
+                except multiprocessing.TimeoutError:
+                    pool.terminate()
+                    raise ValueError(
+                        f"jq filter timed out after {JQ_TIMEOUT_SECONDS}s. Very large "
+                        "artifacts are slow to traverse — prefer a structural or "
+                        "aggregation filter ('keys', '.metadata', '... | length') over "
+                        "one that enumerates every node, or target a specific step."
+                    )
+                except json.JSONDecodeError:
+                    raise ValueError(
+                        "jq_filter requires a JSON artifact; this artifact is not valid JSON"
+                    )
+                except Exception as e:
+                    raise ValueError(f"Invalid jq filter: {e}") from e
         filtered = json.dumps(results, separators=(",", ":"))
         if len(filtered.encode("utf-8")) >= INLINE_CONTENT_LIMIT:
             raise ValueError(
@@ -321,13 +327,9 @@ async def get_job_run_artifacts(
                 "(e.g. use select(), keys, or length instead of enumerating all nodes)"
             )
         return filtered
-    content_len = len(content)
-    if content_len < INLINE_CONTENT_LIMIT:
-        encoded_len = len(content.encode("utf-8"))
-        if encoded_len < INLINE_CONTENT_LIMIT:
-            return content
-    else:
-        encoded_len = content_len
+    encoded_len = len(content.encode("utf-8"))
+    if encoded_len < INLINE_CONTENT_LIMIT:
+        return content
     kb = encoded_len // 1024
     hint = (
         f"Artifact '{artifact_path}' (run {run_id}) is ~{kb} KB — too large to "
