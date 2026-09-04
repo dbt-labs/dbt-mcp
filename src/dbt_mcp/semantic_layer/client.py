@@ -21,6 +21,7 @@ from dbtsl.models.query import QueryStatus
 
 from dbt_mcp.config.config_providers import SemanticLayerConfig
 from dbt_mcp.errors import InvalidParameterError
+from dbt_mcp.errors.hints import classify_warehouse_error, warehouse_error_hint
 from dbt_mcp.errors.semantic_layer import SemanticLayerQueryTimeoutError
 from dbt_mcp.semantic_layer.gql.gql import GRAPHQL_QUERIES
 from dbt_mcp.semantic_layer.gql.gql_request import submit_request
@@ -440,7 +441,21 @@ class SemanticLayerFetcher:
 
     def _format_semantic_layer_error(self, error: Exception) -> str:
         """Format semantic layer errors by cleaning up common error message patterns."""
-        error_str = str(error)
+        # QueryFailedError.__str__ wraps its message in a `message="...", status=...`
+        # artifact of that class's __str__ implementation. Use the clean `.message`
+        # attribute instead, so the cleanup chain below operates on the real
+        # underlying message rather than that wrapper.
+        if isinstance(error, QueryFailedError):
+            error_str = error.message
+        else:
+            error_str = str(error)
+
+        # The semantic layer may prefix a warehouse query failure's message with
+        # a bracketed classification marker. Strip it out before the cosmetic
+        # cleanup below, since that cleanup's `.lstrip("[")` would otherwise
+        # corrupt an unstripped marker.
+        error_str, warehouse_error_category = classify_warehouse_error(error_str)
+
         formatted = (
             error_str.replace("QueryFailedError(", "")
             .rstrip(")")
@@ -456,7 +471,13 @@ class SemanticLayerFetcher:
             .strip()
         )
         if not formatted:
-            return error_str or f"Semantic layer query failed: {type(error).__name__}"
+            formatted = (
+                error_str or f"Semantic layer query failed: {type(error).__name__}"
+            )
+
+        hint = warehouse_error_hint(warehouse_error_category)
+        if hint:
+            formatted = f"{formatted}\n\n{hint}"
         return formatted
 
     def _format_get_metrics_compiled_sql_error(
