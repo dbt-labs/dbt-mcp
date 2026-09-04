@@ -45,6 +45,81 @@ class LSPClientProtocol(Protocol):
         """Get model-level lineage information."""
         ...
 
+    async def get_project_info(self, timeout: float | None = None) -> dict[str, Any]:
+        """Return dbt project metadata."""
+        ...
+
+    async def get_node(self, path: str, timeout: float | None = None) -> dict[str, Any]:
+        """Return the node associated with a project file."""
+        ...
+
+    async def get_diagnostics(
+        self, path: str, timeout: float | None = None
+    ) -> dict[str, Any]:
+        """Return compiler diagnostics for a project file."""
+        ...
+
+    async def get_definition(
+        self, path: str, line: int, character: int, timeout: float | None = None
+    ) -> dict[str, Any]:
+        """Resolve a symbol definition."""
+        ...
+
+    async def get_references(
+        self,
+        path: str,
+        line: int,
+        character: int,
+        include_declaration: bool = True,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        """Find references to a symbol."""
+        ...
+
+    async def get_code_actions(
+        self,
+        path: str,
+        start_line: int,
+        start_character: int,
+        end_line: int,
+        end_character: int,
+        only: list[str] | None = None,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        """Return safe code actions."""
+        ...
+
+    async def get_rename_preview(
+        self,
+        path: str,
+        line: int,
+        character: int,
+        new_name: str,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        """Return a rename workspace edit without applying it."""
+        ...
+
+    async def compile_file(
+        self, path: str, timeout: float | None = None
+    ) -> dict[str, Any]:
+        """Compile one project file."""
+        ...
+
+    async def update_document(
+        self,
+        path: str,
+        text: str,
+        wait_for_compile: bool = True,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        """Update an in-memory project document incrementally."""
+        ...
+
+    async def close_document(self, path: str) -> dict[str, Any]:
+        """Close an in-memory project document."""
+        ...
+
 
 class LSPClientProvider(Protocol):
     """Protocol for objects that provide LSPClient instances.

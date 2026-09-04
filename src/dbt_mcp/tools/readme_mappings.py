@@ -73,6 +73,17 @@ HUMAN_DESCRIPTIONS: dict[ToolName, str] = {
     # Product docs tools
     ToolName.SEARCH_PRODUCT_DOCS: "Searches docs.getdbt.com for pages matching a query; returns titles, URLs, and descriptions ranked by relevance. Use get_product_doc_pages to fetch full content.",
     ToolName.GET_PRODUCT_DOC_PAGES: "Fetches the full Markdown content of one or more docs.getdbt.com pages by path or URL.",
+    ToolName.DBT_LSP_PROJECT_STATUS: "Returns metadata for the project indexed by the persistent dbt LSP.",
+    ToolName.DBT_LSP_DIAGNOSTICS: "Returns compiler-backed diagnostics for a project file.",
+    ToolName.DBT_LSP_NODE: "Resolves the dbt node and column metadata associated with a project file.",
+    ToolName.DBT_LSP_LINEAGE: "Returns compiler-backed model lineage for a dbt selector.",
+    ToolName.DBT_LSP_DEFINITION: "Resolves a dbt symbol definition from a file position.",
+    ToolName.DBT_LSP_REFERENCES: "Finds references to a dbt symbol from a file position.",
+    ToolName.DBT_LSP_COMPILE: "Compiles the project through the persistent local dbt LSP.",
+    ToolName.DBT_LSP_PREVIEW: "Compiles one file and returns generated SQL without changing project files.",
+    ToolName.DBT_LSP_CODE_ACTIONS: "Previews compiler-provided code actions without applying them.",
+    ToolName.DBT_LSP_RENAME_PREVIEW: "Previews a dbt symbol rename as a workspace edit without applying it.",
+    ToolName.DBT_LSP_UPDATE_DOCUMENT: "Updates a document in the LSP workspace and returns incremental compile feedback.",
     ToolName.GET_MCP_SERVER_BRANCH: "Returns the current git branch of the running dbt MCP server.",
 }
 
@@ -83,7 +94,7 @@ TOOLSET_DESCRIPTIONS: dict[Toolset, str] = {
     Toolset.DBT_CLI: "Allowing your client to utilize dbt commands through the MCP tooling could modify your data models, sources, and warehouse objects. Proceed only if you trust the client and understand the potential impact.",
     Toolset.ADMIN_API: "To learn more about the dbt Administrative API, click [here](https://docs.getdbt.com/docs/dbt-cloud-apis/admin-cloud-api).",
     Toolset.DBT_CODEGEN: "These tools help automate boilerplate code generation for dbt project files.",
-    Toolset.DBT_LSP: "A set of tools that leverage the Fusion engine for advanced SQL compilation and column-level lineage analysis.",
+    Toolset.DBT_LSP: "Compiler-backed dbt LSP tools for diagnostics, navigation, lineage, SQL previews, safe refactor previews, and incremental in-memory edits.",
     Toolset.MCP_SERVER_METADATA: "These tools provide information about the MCP server itself.",
     Toolset.PRODUCT_DOCS: "Tools for searching and fetching content from the official dbt documentation at docs.getdbt.com.",
 }
