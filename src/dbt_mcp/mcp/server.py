@@ -1,7 +1,5 @@
 import asyncio
 import logging
-import signal
-import sys
 import time
 import uuid
 from collections.abc import AsyncIterator, Callable, Sequence
@@ -158,15 +156,6 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
     if not isinstance(server, DbtMCP):
         raise TypeError("app_lifespan can only be used with DbtMCP servers")
     logger.info("Starting MCP server")
-    previous_sigterm = None
-    try:
-        previous_sigterm = signal.getsignal(signal.SIGTERM)
-        # Default SIGTERM kills the process without unwinding; convert it to a
-        # SystemExit so the event loop unwinds and this lifespan's finally runs.
-        signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
-    except ValueError:
-        # signal handlers can only be set from the main thread; skip otherwise
-        previous_sigterm = None
     try:
         # register proxied tools inside the app lifespan to ensure the StreamableHTTP client (specific
         # to dbt Platform connection) lives on the same event loop as the running server
@@ -221,8 +210,6 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
             shutdown()
         except Exception:
             logger.exception("Error shutting down MCP server")
-        if previous_sigterm is not None:
-            signal.signal(signal.SIGTERM, previous_sigterm)
 
 
 async def register_multi_project_dbt_mcp(dbt_mcp: FastMCP, config: Config) -> None:
