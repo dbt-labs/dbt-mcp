@@ -298,11 +298,8 @@ async def get_job_run_artifacts(
         with ctx.Pool(processes=1) as pool:
             future = pool.apply_async(_jq_eval_worker, (jq_filter, content))
             try:
-                results = await asyncio.wait_for(
-                    asyncio.to_thread(future.get),
-                    timeout=JQ_TIMEOUT_SECONDS,
-                )
-            except TimeoutError:
+                results = await asyncio.to_thread(future.get, JQ_TIMEOUT_SECONDS)
+            except multiprocessing.TimeoutError:
                 pool.terminate()
                 raise ValueError(
                     f"jq filter timed out after {JQ_TIMEOUT_SECONDS}s. Very large "
@@ -342,7 +339,6 @@ async def get_job_run_artifacts(
     if artifact_path.endswith("run_results.json"):
         hint += " For run failures specifically, use get_job_run_error tool."
     return hint
-    return content
 
 
 @dbt_mcp_tool(
