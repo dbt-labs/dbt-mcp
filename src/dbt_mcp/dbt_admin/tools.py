@@ -324,21 +324,24 @@ async def get_job_run_artifacts(
                 "(e.g. use select(), keys, or length instead of enumerating all nodes)"
             )
         return filtered
-    if (
-        len(content) >= INLINE_CONTENT_LIMIT
-        or len(content.encode("utf-8")) >= INLINE_CONTENT_LIMIT
-    ):
-        kb = len(content.encode("utf-8")) // 1024
-        hint = (
-            f"Artifact '{artifact_path}' (run {run_id}) is ~{kb} KB — too large to "
-            "return inline. Re-call get_job_run_artifacts with a jq_filter to extract "
-            "just what you need. To explore structure first, try jq_filter='keys' or "
-            "'.metadata'; to list nodes use '.nodes | keys'; to find failures use "
-            "'.results[] | select(.status == \"error\")'."
-        )
-        if artifact_path.endswith("run_results.json"):
-            hint += " For run failures specifically, use get_job_run_error tool."
-        return hint
+    content_len = len(content)
+    if content_len < INLINE_CONTENT_LIMIT:
+        encoded_len = len(content.encode("utf-8"))
+        if encoded_len < INLINE_CONTENT_LIMIT:
+            return content
+    else:
+        encoded_len = content_len
+    kb = encoded_len // 1024
+    hint = (
+        f"Artifact '{artifact_path}' (run {run_id}) is ~{kb} KB — too large to "
+        "return inline. Re-call get_job_run_artifacts with a jq_filter to extract "
+        "just what you need. To explore structure first, try jq_filter='keys' or "
+        "'.metadata'; to list nodes use '.nodes | keys'; to find failures use "
+        "'.results[] | select(.status == \"error\")'."
+    )
+    if artifact_path.endswith("run_results.json"):
+        hint += " For run failures specifically, use get_job_run_error tool."
+    return hint
     return content
 
 
