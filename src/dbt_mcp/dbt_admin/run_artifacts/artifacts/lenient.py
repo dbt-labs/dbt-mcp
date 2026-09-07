@@ -59,6 +59,11 @@ class LenientSourceResult(BaseModel):
     unique_id: str | None = None
     max_loaded_at_time_ago_in_s: float | None = None
 
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalize_status(cls, v: Any) -> str | None:
+        return v.lower() if isinstance(v, str) else v
+
 
 class LenientSources(BaseModel):
     model_config = ConfigDict(extra="allow")

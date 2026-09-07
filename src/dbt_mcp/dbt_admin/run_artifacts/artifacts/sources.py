@@ -71,7 +71,7 @@ def to_freshness_error(result: SourceResultEntry) -> OutputResultSchema | None:
         status_val = result.status
         # "fail" is not in the strict sources.json schema, so artifacts with that status reach
         # here via the LenientSources fallback. Keep the check so those cases aren't silently dropped.
-        if (status_val or "").lower() not in [
+        if status_val not in [
             RunResultsStatus.ERROR.value,
             RunResultsStatus.FAIL.value,
         ]:
@@ -85,10 +85,7 @@ def to_freshness_error(result: SourceResultEntry) -> OutputResultSchema | None:
         )
     # Strict models: status is always an enum
     status_val = result.status.value
-    if status_val.lower() not in [
-        RunResultsStatus.ERROR.value,
-        RunResultsStatus.FAIL.value,
-    ]:
+    if status_val not in [RunResultsStatus.ERROR.value, RunResultsStatus.FAIL.value]:
         return None
     unique_id = result.unique_id
     # Only SourceFreshnessOutput (v1/v2) and Results1 (v3) carry timing data
@@ -110,7 +107,7 @@ def to_freshness_warning(result: SourceResultEntry) -> OutputResultSchema | None
     """Map a source freshness result to a warning output, or None if not a warning."""
     if isinstance(result, LenientSourceResult):
         status_val = result.status
-        if (status_val or "").lower() != RunResultsStatus.WARN.value:
+        if status_val != RunResultsStatus.WARN.value:
             return None
         unique_id = result.unique_id
         age = result.max_loaded_at_time_ago_in_s or 0
@@ -122,7 +119,7 @@ def to_freshness_warning(result: SourceResultEntry) -> OutputResultSchema | None
         )
     # Strict models: status is always an enum
     status_val = result.status.value
-    if status_val.lower() != RunResultsStatus.WARN.value:
+    if status_val != RunResultsStatus.WARN.value:
         return None
     unique_id = result.unique_id
     strict_age: float = (
