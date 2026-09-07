@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from functools import cache
 from typing import Any
 
@@ -20,6 +21,11 @@ from dbt_mcp.oauth.dbt_platform import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Only plain relative path characters are allowed: no '%' (blocks percent-encoded
+# segments like '%2e%2e' from reaching the request URL), no '?'/'#' (would be
+# parsed as the start of a query string or fragment), no ':' or leading '/'.
+ARTIFACT_PATH_PATTERN = re.compile(r"[A-Za-z0-9._/-]+")
 
 
 class DbtAdminAPIClient:
@@ -385,14 +391,15 @@ class DbtAdminAPIClient:
         step: int | None = None,
     ) -> Any:
         """Get a specific job run artifact."""
+        segments = artifact_path.split("/")
         if (
-            ".." in artifact_path
+            not ARTIFACT_PATH_PATTERN.fullmatch(artifact_path)
             or artifact_path.startswith("/")
-            or ":" in artifact_path
+            or ".." in segments
         ):
             raise InvalidParameterError(
-                "artifact_path must be a relative path within the run's artifacts "
-                "(no '..', leading '/', or ':')."
+                "artifact_path must be a relative path within the run's artifacts, "
+                "using only letters, numbers, '.', '_', '-', and '/' between segments."
             )
 
         params = {}

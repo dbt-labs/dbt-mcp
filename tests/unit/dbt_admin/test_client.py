@@ -671,6 +671,9 @@ async def test_get_job_run_artifact_server_error_raises_artifact_retrieval(clien
         "../manifest.json",
         "/manifest.json",
         "manifest.json:step2",
+        "manifest.json?limit=1",
+        "manifest.json#section",
+        "%2e%2e/manifest.json",
     ],
 )
 async def test_get_job_run_artifact_rejects_unexpected_path_shapes(
