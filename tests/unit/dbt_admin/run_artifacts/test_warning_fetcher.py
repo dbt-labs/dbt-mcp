@@ -126,6 +126,56 @@ from dbt_mcp.errors import ArtifactRetrievalError
                 "log_warnings": 0,
             },
         ),
+        # Fusion sources.json — capital-case "Warn" status on a successful freshness step
+        (
+            {
+                "id": 600,
+                "status": 10,
+                "is_cancelled": False,
+                "finished_at": "2024-01-01T13:00:00Z",
+                "run_steps": [
+                    {
+                        "index": 1,
+                        "name": "Invoke dbt with `dbt source freshness`",
+                        "status": 10,
+                        "finished_at": "2024-01-01T13:00:00Z",
+                    }
+                ],
+            },
+            [
+                {
+                    "metadata": {
+                        "dbt_schema_version": "https://schemas.getdbt.com/dbt/sources/v2.json"
+                    },
+                    "elapsed_time": 1.0,
+                    "results": [
+                        {
+                            "unique_id": "source.project.raw_data.events",
+                            "status": "Warn",
+                            "max_loaded_at": "2024-01-01T00:00:00Z",
+                            "snapshotted_at": "2024-01-01T13:00:00Z",
+                            "max_loaded_at_time_ago_in_s": 90000.0,
+                            "criteria": {
+                                "warn_after": None,
+                                "error_after": None,
+                                "filter": None,
+                            },
+                            "adapter_response": {},
+                            "timing": [],
+                            "thread_id": "Thread-1",
+                            "execution_time": 1.0,
+                        }
+                    ],
+                }
+            ],
+            True,
+            {
+                "total_warnings": 1,
+                "test_warnings": 0,
+                "freshness_warnings": 1,
+                "log_warnings": 0,
+            },
+        ),
         # Log warnings extracted from step logs
         (
             {

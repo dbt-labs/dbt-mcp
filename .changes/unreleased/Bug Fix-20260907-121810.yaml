@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Fix get_job_run_error not detecting source freshness errors/warnings from Fusion runs; Fusion sources.json uses capital-case status strings ("Error", "Warn") which were silently dropped by case-sensitive comparison in ErrorFetcher and WarningFetcher
+time: 2026-09-07T12:18:10.846725-07:00
