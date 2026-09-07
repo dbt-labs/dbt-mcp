@@ -385,6 +385,16 @@ class DbtAdminAPIClient:
         step: int | None = None,
     ) -> Any:
         """Get a specific job run artifact."""
+        if (
+            ".." in artifact_path
+            or artifact_path.startswith("/")
+            or ":" in artifact_path
+        ):
+            raise InvalidParameterError(
+                "artifact_path must be a relative path within the run's artifacts "
+                "(no '..', leading '/', or ':')."
+            )
+
         params = {}
         if step is not None:
             params["step"] = step

@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Sanitize `artifact_path` in `get_job_run_artifacts` to only accept a relative path within the run's artifacts
+time: 2026-09-07T11:43:16.049293+02:00
