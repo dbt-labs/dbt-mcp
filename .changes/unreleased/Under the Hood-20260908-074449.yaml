@@ -1,3 +1,0 @@
-kind: Under the Hood
-body: Filter dbt docs v2 Parquet artifacts (index/, metadata/) from list_job_run_artifacts and add an early guard in get_job_run_artifact that returns a clear error
-time: 2026-09-08T07:44:49.324423-07:00
