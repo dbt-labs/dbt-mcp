@@ -539,6 +539,10 @@ async def test_list_job_run_artifacts(client):
             "compiled/my_project/models/model.sql",
             "run/my_project/models/model.sql",
             "sources.json",
+            "index/dbt.nodes.parquet",
+            "index/dbt_rt.run_results.parquet",
+            "metadata/run/results/v1_0.parquet",
+            "metadata/parse/nodes/v1_0.parquet",
         ]
     }
     mock_response.raise_for_status.return_value = None
@@ -548,7 +552,7 @@ async def test_list_job_run_artifacts(client):
     with patch("httpx.AsyncClient", return_value=mock_client):
         result = await client.list_job_run_artifacts(12345, 100)
 
-    # Should filter out compiled/ and run/ artifacts
+    # Should filter out compiled/, run/, index/, and metadata/ artifacts
     expected = ["manifest.json", "catalog.json", "sources.json"]
     assert result == expected
 
@@ -575,6 +579,34 @@ async def test_list_job_run_artifacts_null_data(client):
         result = await client.list_job_run_artifacts(12345, 100)
 
     assert result == []
+
+
+async def test_get_job_run_artifact_parquet_backstop_raises_error(client):
+    # PAR1 magic-byte guard catches unexpected binary Parquet outside index/metadata/
+    mock_response = MagicMock()
+    mock_response.content = b"PAR1\x00\x00\x00some binary data"
+    mock_response.raise_for_status.return_value = None
+
+    mock_client = create_mock_httpx_client(mock_response)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        with pytest.raises(ArtifactRetrievalError, match="binary Parquet"):
+            await client.get_job_run_artifact(12345, 100, "some_unknown.parquet")
+
+
+@pytest.mark.parametrize(
+    "artifact_path",
+    [
+        "index/dbt.nodes.parquet",
+        "index/dbt_rt.run_results.parquet",
+        "metadata/run/results/v1_0.parquet",
+        "metadata/parse/nodes/v1_0.parquet",
+    ],
+)
+async def test_get_job_run_artifact_docs_v2_raises_early(client, artifact_path):
+    # Early guard fires before any HTTP request — no mock client needed
+    with pytest.raises(ArtifactRetrievalError, match="dbt docs v2"):
+        await client.get_job_run_artifact(12345, 100, artifact_path)
 
 
 async def test_get_job_run_artifact_json(client):
