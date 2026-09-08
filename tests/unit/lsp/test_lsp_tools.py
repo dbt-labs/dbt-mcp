@@ -6,6 +6,7 @@ from dbt_mcp.lsp.lsp_client import LSPClient
 from dbt_mcp.lsp.providers.lsp_client_provider import LSPClientProvider
 from dbt_mcp.lsp.tools import (
     get_column_lineage,
+    list_lsp_tools,
     register_lsp_tools,
 )
 from dbt_mcp.mcp.server import FastMCP
@@ -62,6 +63,52 @@ async def test_register_lsp_tools_success(
     # Verify correct tools were registered
     tool_names = [tool.name for tool in await test_mcp_server.list_tools()]
     assert ToolName.GET_COLUMN_LINEAGE.value in tool_names
+    expected_tools = {
+        ToolName.DBT_LSP_PROJECT_STATUS.value,
+        ToolName.DBT_LSP_DIAGNOSTICS.value,
+        ToolName.DBT_LSP_NODE.value,
+        ToolName.DBT_LSP_LINEAGE.value,
+        ToolName.DBT_LSP_DEFINITION.value,
+        ToolName.DBT_LSP_REFERENCES.value,
+        ToolName.DBT_LSP_COMPILE.value,
+        ToolName.DBT_LSP_PREVIEW.value,
+        ToolName.DBT_LSP_CODE_ACTIONS.value,
+        ToolName.DBT_LSP_RENAME_PREVIEW.value,
+        ToolName.DBT_LSP_UPDATE_DOCUMENT.value,
+    }
+    assert expected_tools <= set(tool_names)
+
+
+@pytest.mark.asyncio
+async def test_lsp_tool_annotations_reflect_mutation(
+    lsp_client_provider: LSPClientProvider,
+) -> None:
+    definitions = await list_lsp_tools(lsp_client_provider)
+    annotations = {
+        definition.name: definition.annotations for definition in definitions
+    }
+
+    for tool_name in {
+        ToolName.DBT_LSP_PROJECT_STATUS.value,
+        ToolName.DBT_LSP_DIAGNOSTICS.value,
+        ToolName.DBT_LSP_NODE.value,
+        ToolName.DBT_LSP_LINEAGE.value,
+        ToolName.DBT_LSP_DEFINITION.value,
+        ToolName.DBT_LSP_REFERENCES.value,
+        ToolName.DBT_LSP_PREVIEW.value,
+        ToolName.DBT_LSP_CODE_ACTIONS.value,
+        ToolName.DBT_LSP_RENAME_PREVIEW.value,
+    }:
+        annotation = annotations[tool_name]
+        assert annotation is not None
+        assert annotation.readOnlyHint is True
+
+    compile_annotation = annotations[ToolName.DBT_LSP_COMPILE.value]
+    update_annotation = annotations[ToolName.DBT_LSP_UPDATE_DOCUMENT.value]
+    assert compile_annotation is not None
+    assert update_annotation is not None
+    assert compile_annotation.readOnlyHint is False
+    assert update_annotation.readOnlyHint is False
 
 
 @pytest.mark.asyncio
