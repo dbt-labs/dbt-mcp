@@ -41,6 +41,7 @@ from dbt_mcp.tools.deprecation import deprecated_description, deprecation_meta
 from dbt_mcp.tools.fields import (
     DIRECTION_FIELD,
     LINEAGE_DEPTH_FIELD,
+    LINEAGE_LIMIT_FIELD,
     NAME_FIELD,
     TYPES_FIELD,
     UNIQUE_ID_FIELD,
@@ -319,6 +320,7 @@ async def get_lineage(
     types: list[LineageResourceType] | None = TYPES_FIELD,
     depth: int = LINEAGE_DEPTH_FIELD,
     direction: LineageDirection = DIRECTION_FIELD,
+    limit: int = LINEAGE_LIMIT_FIELD,
 ) -> LineageGraph:
     config = await context.config_provider.get_config(project_id=project_id)
     nodes = await context.lineage_fetcher.fetch_lineage(
@@ -326,9 +328,14 @@ async def get_lineage(
         types=types,
         depth=depth,
         direction=direction,
+        limit=limit + 1,
         config=config,
     )
-    return build_lineage_graph(root_id=unique_id, nodes=nodes)
+    return build_lineage_graph(
+        root_id=unique_id,
+        nodes=nodes[:limit],
+        truncated=len(nodes) > limit,
+    )
 
 
 @dbt_mcp_tool(

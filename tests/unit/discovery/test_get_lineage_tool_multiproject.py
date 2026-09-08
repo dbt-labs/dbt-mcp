@@ -35,6 +35,7 @@ async def test_multiproject_get_lineage_builds_graph_from_nodes():
         types=None,
         depth=2,
         direction=LineageDirection.BOTH,
+        limit=100,
     )
 
     assert isinstance(result, LineageGraph)
@@ -50,5 +51,6 @@ async def test_multiproject_get_lineage_builds_graph_from_nodes():
     # parent outside the node set is not emitted as an edge
     assert all(edge.source != "model.p.missing" for edge in result.edges)
     assert len(result.edges) == 2
+    assert result.truncated is False
     # the multiproject tool must forward project_id to the config provider
     context.config_provider.get_config.assert_awaited_once_with(project_id=1)

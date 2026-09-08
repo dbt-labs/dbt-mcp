@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Bound get_lineage results with a configurable node limit and explicit truncation metadata.
+time: 2026-09-08T12:50:22.876957-05:00

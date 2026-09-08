@@ -35,6 +35,7 @@ from dbt_mcp.tools.deprecation import deprecated_description, deprecation_meta
 from dbt_mcp.tools.fields import (
     DIRECTION_FIELD,
     LINEAGE_DEPTH_FIELD,
+    LINEAGE_LIMIT_FIELD,
     NAME_FIELD,
     TYPES_FIELD,
     UNIQUE_ID_FIELD,
@@ -300,9 +301,12 @@ class LineageGraph(BaseModel):
     root_id: str
     nodes: list[LineageNode]
     edges: list[LineageEdge]
+    truncated: bool = False
 
 
-def build_lineage_graph(root_id: str, nodes: list[dict]) -> LineageGraph:
+def build_lineage_graph(
+    root_id: str, nodes: list[dict], *, truncated: bool = False
+) -> LineageGraph:
     """Map the lineage fetcher's list-of-dicts output into a LineageGraph.
 
     Shared by the single- and multi-project get_lineage tools so both emit the
@@ -326,6 +330,7 @@ def build_lineage_graph(root_id: str, nodes: list[dict]) -> LineageGraph:
             for parent_id in n.get("parentIds", [])
             if parent_id in node_ids
         ],
+        truncated=truncated,
     )
 
 
@@ -344,6 +349,7 @@ async def get_lineage(
     types: list[LineageResourceType] | None = TYPES_FIELD,
     depth: int = LINEAGE_DEPTH_FIELD,
     direction: LineageDirection = DIRECTION_FIELD,
+    limit: int = LINEAGE_LIMIT_FIELD,
 ) -> LineageGraph:
     config = await context.config_provider.get_config()
     nodes = await context.lineage_fetcher.fetch_lineage(
@@ -351,9 +357,14 @@ async def get_lineage(
         types=types,
         depth=depth,
         direction=direction,
+        limit=limit + 1,
         config=config,
     )
-    return build_lineage_graph(root_id=unique_id, nodes=nodes)
+    return build_lineage_graph(
+        root_id=unique_id,
+        nodes=nodes[:limit],
+        truncated=len(nodes) > limit,
+    )
 
 
 @dbt_mcp_tool(
