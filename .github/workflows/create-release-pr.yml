@@ -23,13 +23,13 @@ jobs:
   create-release-pr:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout@v7.0.1
 
       - uses: ./.github/actions/setup-python
 
       - name: Compute next dir for bump
         id: changie-next
-        uses: miniscruff/changie-action@6dcc2533cac0495148ed4046c438487e4dceaa23
+        uses: miniscruff/changie-action@3223cb29b92a0972dedc864ace3da01e04780ae4 # miniscruff/changie-action@v3.0.1
         with:
           version: latest
           args: next ${{ inputs.bump }}
@@ -57,20 +57,20 @@ jobs:
           fi
 
       - name: Batch changes
-        uses: miniscruff/changie-action@6dcc2533cac0495148ed4046c438487e4dceaa23
+        uses: miniscruff/changie-action@3223cb29b92a0972dedc864ace3da01e04780ae4 # miniscruff/changie-action@v3.0.1
         with:
           version: latest
           args: ${{ steps.prepare-batch.outputs.args }}
 
       - name: Merge
-        uses: miniscruff/changie-action@6dcc2533cac0495148ed4046c438487e4dceaa23
+        uses: miniscruff/changie-action@3223cb29b92a0972dedc864ace3da01e04780ae4 # miniscruff/changie-action@v3.0.1
         with:
           version: latest
           args: merge
 
       - name: Get the latest version
         id: changie-latest
-        uses: miniscruff/changie-action@6dcc2533cac0495148ed4046c438487e4dceaa23
+        uses: miniscruff/changie-action@3223cb29b92a0972dedc864ace3da01e04780ae4 # miniscruff/changie-action@v3.0.1
         with:
           version: latest
           args: latest
@@ -92,7 +92,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # peter-evans/create-pull-request@v8.1.1
         with:
           sign-commits: true
           title: "version: ${{ steps.package-version.outputs.version }}"
