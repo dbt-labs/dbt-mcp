@@ -10,8 +10,13 @@ List of artifact file paths available for download. Common artifacts include:
 - **catalog.json**: Documentation and column information
 - **run_results.json**: Execution results and timing
 - **sources.json**: Source freshness check results
-- **compiled/**: Compiled SQL files
-- **run/**: SQL statements executed during the run
+
+## Excluded Artifacts
+
+The following artifact prefixes are excluded from results:
+
+- **compiled/**, **run/**: Per-node SQL files — too numerous to be useful and not human/LLM readable in bulk
+- **index/**, **metadata/**: dbt docs v2 / dbt Information Schema Parquet files — binary format, not yet supported
 
 ## Artifact Availability
 
@@ -38,4 +43,4 @@ Artifacts are only available for:
 
 ## Next Steps
 
-Use `get_run_artifact` to download specific artifacts from this list for analysis or integration with other tools.
+Use `get_job_run_artifacts` to download specific artifacts from this list for analysis or integration with other tools.

@@ -12,6 +12,10 @@ This tool retrieves the content of a specific artifact file generated during run
 
 Use `list_job_run_artifacts` first to see which artifacts are available for a run.
 
+## Unsupported Paths
+
+Paths under `index/` and `metadata/` are dbt docs v2 / dbt Information Schema Parquet files. They are binary and cannot be returned as text — calling this tool with those paths will return an error. Support for querying them is not yet available.
+
 ## Output Options
 
 - **Default (no filter)**: Returns content inline for artifacts under 500 KB. Large artifacts (like a full `manifest.json`) are not returned inline — instead you get a short guidance message telling you to re-call with a `jq_filter` to extract just the part you need.
