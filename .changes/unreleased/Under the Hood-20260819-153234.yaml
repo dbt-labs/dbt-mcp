@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: 'Corrected docs/deprecating-tools.md: Claude''s Connectors Directory does not cache a versioned tool contract or require resubmission for tool removals/renames, unlike OpenAI''s ChatGPT app store.'
+time: 2026-08-19T15:32:34.250862+02:00
