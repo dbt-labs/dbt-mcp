@@ -21,8 +21,10 @@ Use `direction` to narrow the response to one side of the graph and reduce paylo
 - `direction="both"` (default): the target node plus both ancestors and descendants
 
 Use `limit` to bound the number of returned nodes (default `100`). When the
-connected graph is larger, the closest nodes are returned first and `truncated`
-is `true` in the response.
+connected graph is larger, the closest nodes are returned first and `truncation`
+reports `omitted_node_count` and `omitted_resource_type_counts`. Increase the
+limit or narrow `direction` or `types` to retrieve the omitted lineage. When no
+nodes are omitted, `truncation` is `null`.
 
 `direction="upstream"`/`"downstream"` are drop-in replacements for `get_model_parents`/`get_model_children`: same node set, target excluded either way.
 

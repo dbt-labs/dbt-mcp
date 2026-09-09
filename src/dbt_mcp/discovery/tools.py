@@ -1,4 +1,5 @@
 import logging
+from collections import Counter
 from dataclasses import dataclass
 from typing import Annotated
 
@@ -296,16 +297,21 @@ class LineageEdge(BaseModel):
     target: str
 
 
+class LineageTruncation(BaseModel):
+    omitted_node_count: int
+    omitted_resource_type_counts: dict[str, int]
+
+
 class LineageGraph(BaseModel):
     type: str = "lineage_graph"
     root_id: str
     nodes: list[LineageNode]
     edges: list[LineageEdge]
-    truncated: bool = False
+    truncation: LineageTruncation | None = None
 
 
 def build_lineage_graph(
-    root_id: str, nodes: list[dict], *, truncated: bool = False
+    root_id: str, nodes: list[dict], *, limit: int | None = None
 ) -> LineageGraph:
     """Map the lineage fetcher's list-of-dicts output into a LineageGraph.
 
@@ -313,7 +319,9 @@ def build_lineage_graph(
     same structured shape. Edges are kept only when both endpoints are present
     in the returned node set.
     """
-    node_ids = {n["uniqueId"] for n in nodes}
+    omitted_nodes = nodes[limit:] if limit is not None else []
+    returned_nodes = nodes[:limit] if limit is not None else nodes
+    node_ids = {n["uniqueId"] for n in returned_nodes}
     return LineageGraph(
         root_id=root_id,
         nodes=[
@@ -322,15 +330,24 @@ def build_lineage_graph(
                 name=n["name"],
                 resource_type=n["resourceType"],
             )
-            for n in nodes
+            for n in returned_nodes
         ],
         edges=[
             LineageEdge(source=parent_id, target=n["uniqueId"])
-            for n in nodes
+            for n in returned_nodes
             for parent_id in n.get("parentIds", [])
             if parent_id in node_ids
         ],
-        truncated=truncated,
+        truncation=(
+            LineageTruncation(
+                omitted_node_count=len(omitted_nodes),
+                omitted_resource_type_counts=dict(
+                    Counter(n["resourceType"] for n in omitted_nodes)
+                ),
+            )
+            if omitted_nodes
+            else None
+        ),
     )
 
 
@@ -357,14 +374,9 @@ async def get_lineage(
         types=types,
         depth=depth,
         direction=direction,
-        limit=limit + 1,
         config=config,
     )
-    return build_lineage_graph(
-        root_id=unique_id,
-        nodes=nodes[:limit],
-        truncated=len(nodes) > limit,
-    )
+    return build_lineage_graph(root_id=unique_id, nodes=nodes, limit=limit)
 
 
 @dbt_mcp_tool(

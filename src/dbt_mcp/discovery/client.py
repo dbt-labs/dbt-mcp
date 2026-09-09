@@ -872,7 +872,6 @@ class LineageFetcher:
         depth: int,
         types: list[LineageResourceType] | None = None,
         direction: LineageDirection = LineageDirection.BOTH,
-        limit: int | None = None,
         *,
         config: DiscoveryConfig,
     ) -> list[dict]:
@@ -883,9 +882,6 @@ class LineageFetcher:
             depth: how many levels to traverse (0 = infinite, 1 = immediate neighbors only, higher = deeper)
             types: List of resource types to include. If None, includes all types.
             direction: Which direction(s) to traverse relative to unique_id.
-            limit: Maximum number of connected nodes to return. The target counts
-                toward the limit for bidirectional results and is excluded from
-                the count for one-directional results.
             config: Discovery API connection and environment.
 
         Returns:
@@ -893,8 +889,6 @@ class LineageFetcher:
         """
         if depth < 0:
             raise ToolCallError("Depth must be greater than or equal to 0")
-        if limit is not None and limit < 1:
-            raise ToolCallError("Limit must be greater than or equal to 1")
         type_filter = [
             t.value for t in (types if types is not None else LineageResourceType)
         ]
@@ -917,9 +911,7 @@ class LineageFetcher:
         )
 
         # Filter to connected nodes only
-        return self._filter_connected_nodes(
-            all_nodes, unique_id, depth, direction, limit=limit
-        )
+        return self._filter_connected_nodes(all_nodes, unique_id, depth, direction)
 
     def _filter_connected_nodes(
         self,
@@ -927,8 +919,6 @@ class LineageFetcher:
         target_id: str,
         depth: int,
         direction: LineageDirection = LineageDirection.BOTH,
-        *,
-        limit: int | None = None,
     ) -> list[dict]:
         """Return only nodes connected to target_id, filtered to `direction`.
         Uses BFS to find all nodes reachable from target in the requested direction(s).
@@ -937,7 +927,6 @@ class LineageFetcher:
             target_id: The unique ID of the target node.
             depth: how many levels to traverse (0 = infinite, 1 = immediate neighbors only, higher = deeper)
             direction: Which direction(s) to traverse relative to target_id.
-            limit: Maximum number of returned nodes.
         """
         node_map = {
             n["uniqueId"]: n
@@ -970,31 +959,19 @@ class LineageFetcher:
                 if parent_id in node_map:
                     children_by_parent[parent_id].append(candidate_id)
 
-        # One-directional results exclude the target, so allow one additional
-        # visited node for the traversal anchor without consuming the limit.
-        max_connected = (
-            None
-            if limit is None
-            else limit + (1 if direction != LineageDirection.BOTH else 0)
-        )
-
-        # BFS keeps the closest nodes when the result is bounded and makes output
-        # ordering deterministic across runs.
+        # BFS orders the closest nodes first and makes output deterministic.
         connected = {target_id}
         connected_order = [target_id]
         queue = deque([(target_id, 0)])
 
-        def enqueue(candidate_id: str, candidate_depth: int) -> bool:
+        def enqueue(candidate_id: str, candidate_depth: int) -> None:
             if candidate_id in connected or candidate_id not in node_map:
-                return True
-            if max_connected is not None and len(connected_order) >= max_connected:
-                return False
+                return
             connected.add(candidate_id)
             connected_order.append(candidate_id)
             queue.append((candidate_id, candidate_depth))
-            return True
 
-        while queue and (max_connected is None or len(connected_order) < max_connected):
+        while queue:
             current_id, current_depth = queue.popleft()
             node = node_map[current_id]
 
@@ -1005,14 +982,12 @@ class LineageFetcher:
             # Traverse upstream (parents)
             if include_upstream:
                 for parent_id in node.get("parentIds", []):
-                    if not enqueue(parent_id, current_depth + 1):
-                        break
+                    enqueue(parent_id, current_depth + 1)
 
             # Traverse downstream (children)
             if include_downstream:
                 for candidate_id in children_by_parent[current_id]:
-                    if not enqueue(candidate_id, current_depth + 1):
-                        break
+                    enqueue(candidate_id, current_depth + 1)
 
         # One-directional queries return only ancestors (upstream) or
         # descendants (downstream), excluding the target node itself — this

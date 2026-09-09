@@ -4,6 +4,7 @@ from dbt_mcp.tools.parameters import LineageDirection
 from dbt_mcp.discovery.tools import (
     LineageEdge,
     LineageGraph,
+    LineageTruncation,
     get_lineage,
 )
 
@@ -53,22 +54,22 @@ async def test_get_lineage_builds_graph_from_nodes():
     # parent outside the node set is not emitted as an edge
     assert all(edge.source != "model.p.missing" for edge in result.edges)
     assert len(result.edges) == 2
-    assert result.truncated is False
+    assert result.truncation is None
 
 
-async def test_get_lineage_limits_nodes_and_reports_truncation():
+async def test_get_lineage_limits_nodes_and_summarizes_omitted_nodes():
     nodes = [
         {
             "uniqueId": f"model.p.{index}",
             "name": str(index),
-            "resourceType": "Model",
+            "resourceType": "Model" if index < 3 else "Test",
             "parentIds": [f"model.p.{index - 1}"] if index else [],
         }
         for index in range(4)
     ]
     context = MagicMock()
     context.config_provider.get_config = AsyncMock(return_value=MagicMock())
-    context.lineage_fetcher.fetch_lineage = AsyncMock(return_value=nodes[:3])
+    context.lineage_fetcher.fetch_lineage = AsyncMock(return_value=nodes)
 
     result = await get_lineage.fn(
         context=context,
@@ -81,12 +82,14 @@ async def test_get_lineage_limits_nodes_and_reports_truncation():
 
     assert [node.unique_id for node in result.nodes] == ["model.p.0", "model.p.1"]
     assert result.edges == [LineageEdge(source="model.p.0", target="model.p.1")]
-    assert result.truncated is True
+    assert result.truncation == LineageTruncation(
+        omitted_node_count=2,
+        omitted_resource_type_counts={"Model": 1, "Test": 1},
+    )
     context.lineage_fetcher.fetch_lineage.assert_awaited_once_with(
         unique_id="model.p.0",
         types=None,
         depth=0,
         direction=LineageDirection.BOTH,
-        limit=3,
         config=context.config_provider.get_config.return_value,
     )

@@ -328,14 +328,9 @@ async def get_lineage(
         types=types,
         depth=depth,
         direction=direction,
-        limit=limit + 1,
         config=config,
     )
-    return build_lineage_graph(
-        root_id=unique_id,
-        nodes=nodes[:limit],
-        truncated=len(nodes) > limit,
-    )
+    return build_lineage_graph(root_id=unique_id, nodes=nodes, limit=limit)
 
 
 @dbt_mcp_tool(
