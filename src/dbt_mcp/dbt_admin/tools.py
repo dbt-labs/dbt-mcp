@@ -23,6 +23,7 @@ from dbt_mcp.dbt_admin.param_descriptions import (
     ARTIFACT_STEP,
     INCLUDE_WARNINGS_WITH_ERRORS,
     JOB_DEFINITION_ID,
+    JOBS_PROJECT_ID_FILTER,
     JOB_RUN_ID,
     JOB_RUNS_JOB_DEFINITION_ID_FILTER,
     JOB_RUNS_ORDER_BY,
@@ -95,17 +96,19 @@ async def list_projects(context: AdminToolContext) -> list[dict[str, Any]]:
 )
 async def list_jobs(
     context: AdminToolContext,
-    # TODO: add support for project_id in the future
-    # project_id: Optional[int] = None,
     limit: Annotated[int | None, Field(description=PAGINATION_LIMIT)] = None,
     offset: Annotated[int | None, Field(description=PAGINATION_OFFSET)] = None,
+    *,
+    project_id: Annotated[
+        int | None, Field(description=JOBS_PROJECT_ID_FILTER, gt=0)
+    ] = None,
 ) -> list[dict[str, Any]]:
-    """List jobs in an account."""
+    """List jobs in an account, optionally across all environments of a project."""
     admin_api_config = await context.admin_api_config_provider.get_config()
     params = {}
-    # if project_id:
-    #     params["project_id"] = project_id
-    if admin_api_config.prod_environment_id:
+    if project_id is not None:
+        params["project_id"] = project_id
+    elif admin_api_config.prod_environment_id:
         params["environment_id"] = admin_api_config.prod_environment_id
     if limit:
         params["limit"] = limit

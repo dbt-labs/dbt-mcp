@@ -1,10 +1,16 @@
 import json
+from dataclasses import replace
+from typing import cast
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from client.session import client_session_context
-from dbt_mcp.dbt_admin.param_descriptions import PAGINATION_LIMIT, PAGINATION_OFFSET
+from dbt_mcp.dbt_admin.param_descriptions import (
+    JOBS_PROJECT_ID_FILTER,
+    PAGINATION_LIMIT,
+    PAGINATION_OFFSET,
+)
 from dbt_mcp.dbt_admin.tools import (
     ADMIN_TOOLS,
     AdminToolContext,
@@ -629,5 +635,34 @@ async def test_admin_tools_list_jobs_params():
         assert list_jobs_tool.inputSchema is not None
         props = list_jobs_tool.inputSchema.get("properties")
         assert props is not None
+        assert props["project_id"]["description"] == JOBS_PROJECT_ID_FILTER
+        assert "project_id" not in list_jobs_tool.inputSchema.get("required", [])
+        assert {"type": "integer", "exclusiveMinimum": 0} in props["project_id"][
+            "anyOf"
+        ]
         assert props["limit"]["description"] == PAGINATION_LIMIT
         assert props["offset"]["description"] == PAGINATION_OFFSET
+
+
+@pytest.mark.parametrize("project_id", [None, 42])
+@pytest.mark.parametrize("prod_environment_id", [None, 100])
+async def test_list_jobs_project_scope_and_pagination(
+    admin_context: AdminToolContext,
+    project_id: int | None,
+    prod_environment_id: int | None,
+) -> None:
+    config = await admin_context.admin_api_config_provider.get_config()
+    config = replace(config, prod_environment_id=prod_environment_id)
+    admin_context.admin_api_config_provider = Mock(
+        get_config=AsyncMock(return_value=config)
+    )
+
+    await list_jobs.fn(admin_context, project_id=project_id, limit=10, offset=20)
+
+    expected = {"limit": 10, "offset": 20}
+    if project_id is not None:
+        expected["project_id"] = project_id
+    elif prod_environment_id is not None:
+        expected["environment_id"] = prod_environment_id
+    list_jobs_mock = cast(AsyncMock, admin_context.admin_client.list_jobs)
+    list_jobs_mock.assert_awaited_once_with(12345, **expected)
