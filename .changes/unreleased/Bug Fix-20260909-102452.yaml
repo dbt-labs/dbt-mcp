@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Infer account prefix from DBT_HOST when the dbt Platform account API returns null subdomain fields, preventing DNS errors on discovery and semantic layer tools for multi-cell accounts
+time: 2026-09-09T10:24:52.477362-07:00

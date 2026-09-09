@@ -149,6 +149,19 @@ async def _fetch_host_prefix_from_platform(
         return None
 
 
+def _infer_prefix_from_host(actual_host: str) -> str | None:
+    """Extract the account prefix from a 4-label dbt.com host.
+
+    Only matches hosts of the form '<prefix>.XX.dbt.com' — the
+    same shape produced when DBT_HOST already embeds the prefix.
+    Returns None for 3-label hosts or non-dbt.com domains.
+    """
+    labels = actual_host.split(".")
+    if len(labels) == 4 and labels[-2] == "dbt" and labels[-1] == "com":
+        return labels[0]
+    return None
+
+
 async def get_dbt_platform_context(
     *,
     dbt_user_dir: Path,
@@ -338,6 +351,24 @@ class CredentialsProvider:
                 self.settings.host_prefix = fetched_prefix
                 self.settings.dbt_host = self.settings.base_host
                 logger.info(f"Fetched prefix {fetched_prefix} from dbt Platform.")
+            else:
+                inferred_prefix = _infer_prefix_from_host(self.settings.actual_host)
+                if inferred_prefix:
+                    logger.warning(
+                        f"Could not determine host prefix from dbt Platform for account "
+                        f"{self.settings.dbt_account_id}. Inferred prefix "
+                        f"'{inferred_prefix}' from DBT_HOST. If this is incorrect, set "
+                        "DBT_HOST_PREFIX explicitly."
+                    )
+                    self.settings.host_prefix = inferred_prefix
+                    self.settings.dbt_host = self.settings.base_host
+                else:
+                    logger.warning(
+                        f"Host prefix auto-fetch returned no result for account "
+                        f"{self.settings.dbt_account_id}. Discovery and Semantic Layer "
+                        "URLs may be incorrect. Set DBT_HOST_PREFIX explicitly if you "
+                        "encounter connection errors."
+                    )
         await asyncio.gather(
             self._resolve_account_identifier(),
             self._resolve_user_id(),
