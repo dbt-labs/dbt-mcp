@@ -153,9 +153,10 @@ async def _fetch_host_prefix_from_platform(
 def _infer_prefix_from_host(actual_host: str) -> str | None:
     """Extract the account prefix from a 4-label dbt.com host.
 
-    Only matches hosts of the form '<prefix>.XX.dbt.com' — the
-    same shape produced when DBT_HOST already embeds the prefix.
-    Returns None for 3-label hosts or non-dbt.com domains.
+    Only matches hosts of the form '<prefix>.<cell>.dbt.com' where <cell>
+    is a valid cell label (letters followed by digits, e.g. 'us1', 'eu1').
+    Returns None for 3-label hosts, non-dbt.com domains, or 4-label hosts
+    whose second label is not a valid cell shape (e.g. 'us.staging.dbt.com').
     """
     labels = actual_host.split(".")
     if (
