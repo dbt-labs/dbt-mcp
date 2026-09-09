@@ -23,9 +23,9 @@ Use `direction` to narrow the response to one side of the graph and reduce paylo
 Use `limit` to bound the number of returned nodes (default `100`). When the
 connected graph is larger, the closest nodes are returned first and `truncation`
 reports `omitted_node_count`, `omitted_resource_type_counts`, and
-`omitted_direction_counts` split into `upstream` and `downstream`. Increase the
-limit or narrow `direction` or `types` to retrieve the omitted lineage. When no
-nodes are omitted, `truncation` is `null`.
+`omitted_immediate_node_counts` split into `parents` and `children` for
+`direction="both"`. Increase the limit or narrow `direction` or `types` to
+retrieve the omitted lineage. When no nodes are omitted, `truncation` is `null`.
 
 `direction="upstream"`/`"downstream"` are drop-in replacements for `get_model_parents`/`get_model_children`: same node set, target excluded either way.
 

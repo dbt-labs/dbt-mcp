@@ -1,3 +1,3 @@
 kind: Bug Fix
-body: Bound get_lineage results with a configurable node limit and omitted-node breakdowns by resource type and direction.
+body: Bound get_lineage results with a configurable node limit and omitted-node breakdowns by resource type and immediate relationship.
 time: 2026-09-08T12:50:22.876957-05:00

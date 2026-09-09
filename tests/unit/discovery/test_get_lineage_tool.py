@@ -2,9 +2,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 from dbt_mcp.tools.parameters import LineageDirection
 from dbt_mcp.discovery.tools import (
-    LineageDirectionCounts,
     LineageEdge,
     LineageGraph,
+    LineageImmediateNodeCounts,
     LineageTruncation,
     get_lineage,
 )
@@ -102,7 +102,7 @@ async def test_get_lineage_limits_nodes_and_summarizes_omitted_nodes():
     assert result.truncation == LineageTruncation(
         omitted_node_count=2,
         omitted_resource_type_counts={"Model": 1, "Test": 1},
-        omitted_direction_counts=LineageDirectionCounts(upstream=0, downstream=2),
+        omitted_immediate_node_counts=LineageImmediateNodeCounts(parents=0, children=2),
     )
     context.lineage_fetcher.fetch_lineage.assert_awaited_once_with(
         unique_id="model.p.root",

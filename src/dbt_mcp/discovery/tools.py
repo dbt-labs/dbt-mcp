@@ -1,5 +1,5 @@
 import logging
-from collections import Counter, deque
+from collections import Counter
 from dataclasses import dataclass
 from typing import Annotated
 
@@ -297,15 +297,15 @@ class LineageEdge(BaseModel):
     target: str
 
 
-class LineageDirectionCounts(BaseModel):
-    upstream: int
-    downstream: int
+class LineageImmediateNodeCounts(BaseModel):
+    parents: int
+    children: int
 
 
 class LineageTruncation(BaseModel):
     omitted_node_count: int
     omitted_resource_type_counts: dict[str, int]
-    omitted_direction_counts: LineageDirectionCounts
+    omitted_immediate_node_counts: LineageImmediateNodeCounts | None = None
 
 
 class LineageGraph(BaseModel):
@@ -334,41 +334,14 @@ def build_lineage_graph(
     node_ids = {n["uniqueId"] for n in returned_nodes}
     omitted_ids = {n["uniqueId"] for n in omitted_nodes}
 
-    if direction == LineageDirection.UPSTREAM:
-        omitted_direction_counts = LineageDirectionCounts(
-            upstream=len(omitted_nodes), downstream=0
-        )
-    elif direction == LineageDirection.DOWNSTREAM:
-        omitted_direction_counts = LineageDirectionCounts(
-            upstream=0, downstream=len(omitted_nodes)
-        )
-    else:
-        nodes_by_id = {n["uniqueId"]: n for n in nodes}
-        upstream_ids: set[str] = set()
-        upstream_queue = deque([root_id])
-        while upstream_queue:
-            current_id = upstream_queue.popleft()
-            for parent_id in nodes_by_id.get(current_id, {}).get("parentIds", []):
-                if parent_id in nodes_by_id and parent_id not in upstream_ids:
-                    upstream_ids.add(parent_id)
-                    upstream_queue.append(parent_id)
-
-        children_by_parent: dict[str, list[str]] = {}
-        for node in nodes:
-            for parent_id in node.get("parentIds", []):
-                children_by_parent.setdefault(parent_id, []).append(node["uniqueId"])
-        downstream_ids: set[str] = set()
-        downstream_queue = deque([root_id])
-        while downstream_queue:
-            current_id = downstream_queue.popleft()
-            for child_id in children_by_parent.get(current_id, []):
-                if child_id not in downstream_ids:
-                    downstream_ids.add(child_id)
-                    downstream_queue.append(child_id)
-
-        omitted_direction_counts = LineageDirectionCounts(
-            upstream=len(omitted_ids & upstream_ids),
-            downstream=len(omitted_ids & downstream_ids),
+    omitted_immediate_node_counts = None
+    if omitted_nodes and direction == LineageDirection.BOTH:
+        root_node = next(n for n in nodes if n["uniqueId"] == root_id)
+        parent_ids = set(root_node.get("parentIds", []))
+        child_ids = {n["uniqueId"] for n in nodes if root_id in n.get("parentIds", [])}
+        omitted_immediate_node_counts = LineageImmediateNodeCounts(
+            parents=len(omitted_ids & parent_ids),
+            children=len(omitted_ids & child_ids),
         )
 
     return LineageGraph(
@@ -393,7 +366,7 @@ def build_lineage_graph(
                 omitted_resource_type_counts=dict(
                     Counter(n["resourceType"] for n in omitted_nodes)
                 ),
-                omitted_direction_counts=omitted_direction_counts,
+                omitted_immediate_node_counts=omitted_immediate_node_counts,
             )
             if omitted_nodes
             else None
