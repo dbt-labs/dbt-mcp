@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 import socket
 import time
 from enum import Enum
@@ -157,7 +158,12 @@ def _infer_prefix_from_host(actual_host: str) -> str | None:
     Returns None for 3-label hosts or non-dbt.com domains.
     """
     labels = actual_host.split(".")
-    if len(labels) == 4 and labels[-2] == "dbt" and labels[-1] == "com":
+    if (
+        len(labels) == 4
+        and labels[-2] == "dbt"
+        and labels[-1] == "com"
+        and re.fullmatch(r"[a-z]+\d+", labels[1])
+    ):
         return labels[0]
     return None
 

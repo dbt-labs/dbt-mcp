@@ -226,7 +226,10 @@ class TestInferPrefixFromHost:
             ("ab123.eu1.dbt.com", "ab123"),
             ("us1.dbt.com", None),  # 3-label — no prefix to infer
             ("cloud.getdbt.com", None),  # non-dbt.com domain
-            ("us.staging.dbt.com", "us"),  # 4-label staging (known false positive)
+            (
+                "us.staging.dbt.com",
+                None,
+            ),  # 4-label but cell label is not a valid cell shape
             ("a.b.c.d.dbt.com", None),  # 5-label — not matched
         ],
         ids=[
