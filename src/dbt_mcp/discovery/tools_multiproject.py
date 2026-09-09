@@ -330,7 +330,12 @@ async def get_lineage(
         direction=direction,
         config=config,
     )
-    return build_lineage_graph(root_id=unique_id, nodes=nodes, limit=limit)
+    return build_lineage_graph(
+        root_id=unique_id,
+        nodes=nodes,
+        direction=direction,
+        limit=limit,
+    )
 
 
 @dbt_mcp_tool(

@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from dbt_mcp.tools.parameters import LineageDirection
 from dbt_mcp.discovery.tools import (
+    LineageDirectionCounts,
     LineageEdge,
     LineageGraph,
     LineageTruncation,
@@ -60,12 +61,25 @@ async def test_get_lineage_builds_graph_from_nodes():
 async def test_get_lineage_limits_nodes_and_summarizes_omitted_nodes():
     nodes = [
         {
-            "uniqueId": f"model.p.{index}",
-            "name": str(index),
-            "resourceType": "Model" if index < 3 else "Test",
-            "parentIds": [f"model.p.{index - 1}"] if index else [],
-        }
-        for index in range(4)
+            "uniqueId": "model.p.root",
+            "name": "root",
+            "resourceType": "Model",
+            "parentIds": ["model.p.parent", "source.p.parent"],
+        },
+        {"uniqueId": "model.p.parent", "name": "parent", "resourceType": "Model"},
+        {"uniqueId": "source.p.parent", "name": "parent", "resourceType": "Source"},
+        {
+            "uniqueId": "model.p.child",
+            "name": "child",
+            "resourceType": "Model",
+            "parentIds": ["model.p.root"],
+        },
+        {
+            "uniqueId": "test.p.child",
+            "name": "child",
+            "resourceType": "Test",
+            "parentIds": ["model.p.root"],
+        },
     ]
     context = MagicMock()
     context.config_provider.get_config = AsyncMock(return_value=MagicMock())
@@ -73,21 +87,25 @@ async def test_get_lineage_limits_nodes_and_summarizes_omitted_nodes():
 
     result = await get_lineage.fn(
         context=context,
-        unique_id="model.p.0",
+        unique_id="model.p.root",
         types=None,
         depth=0,
         direction=LineageDirection.BOTH,
-        limit=2,
+        limit=3,
     )
 
-    assert [node.unique_id for node in result.nodes] == ["model.p.0", "model.p.1"]
-    assert result.edges == [LineageEdge(source="model.p.0", target="model.p.1")]
+    assert [node.unique_id for node in result.nodes] == [
+        "model.p.root",
+        "model.p.parent",
+        "source.p.parent",
+    ]
     assert result.truncation == LineageTruncation(
         omitted_node_count=2,
         omitted_resource_type_counts={"Model": 1, "Test": 1},
+        omitted_direction_counts=LineageDirectionCounts(upstream=0, downstream=2),
     )
     context.lineage_fetcher.fetch_lineage.assert_awaited_once_with(
-        unique_id="model.p.0",
+        unique_id="model.p.root",
         types=None,
         depth=0,
         direction=LineageDirection.BOTH,

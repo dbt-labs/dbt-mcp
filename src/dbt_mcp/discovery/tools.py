@@ -1,5 +1,5 @@
 import logging
-from collections import Counter
+from collections import Counter, deque
 from dataclasses import dataclass
 from typing import Annotated
 
@@ -297,9 +297,15 @@ class LineageEdge(BaseModel):
     target: str
 
 
+class LineageDirectionCounts(BaseModel):
+    upstream: int
+    downstream: int
+
+
 class LineageTruncation(BaseModel):
     omitted_node_count: int
     omitted_resource_type_counts: dict[str, int]
+    omitted_direction_counts: LineageDirectionCounts
 
 
 class LineageGraph(BaseModel):
@@ -311,7 +317,11 @@ class LineageGraph(BaseModel):
 
 
 def build_lineage_graph(
-    root_id: str, nodes: list[dict], *, limit: int | None = None
+    root_id: str,
+    nodes: list[dict],
+    *,
+    direction: LineageDirection,
+    limit: int | None = None,
 ) -> LineageGraph:
     """Map the lineage fetcher's list-of-dicts output into a LineageGraph.
 
@@ -322,6 +332,45 @@ def build_lineage_graph(
     omitted_nodes = nodes[limit:] if limit is not None else []
     returned_nodes = nodes[:limit] if limit is not None else nodes
     node_ids = {n["uniqueId"] for n in returned_nodes}
+    omitted_ids = {n["uniqueId"] for n in omitted_nodes}
+
+    if direction == LineageDirection.UPSTREAM:
+        omitted_direction_counts = LineageDirectionCounts(
+            upstream=len(omitted_nodes), downstream=0
+        )
+    elif direction == LineageDirection.DOWNSTREAM:
+        omitted_direction_counts = LineageDirectionCounts(
+            upstream=0, downstream=len(omitted_nodes)
+        )
+    else:
+        nodes_by_id = {n["uniqueId"]: n for n in nodes}
+        upstream_ids: set[str] = set()
+        upstream_queue = deque([root_id])
+        while upstream_queue:
+            current_id = upstream_queue.popleft()
+            for parent_id in nodes_by_id.get(current_id, {}).get("parentIds", []):
+                if parent_id in nodes_by_id and parent_id not in upstream_ids:
+                    upstream_ids.add(parent_id)
+                    upstream_queue.append(parent_id)
+
+        children_by_parent: dict[str, list[str]] = {}
+        for node in nodes:
+            for parent_id in node.get("parentIds", []):
+                children_by_parent.setdefault(parent_id, []).append(node["uniqueId"])
+        downstream_ids: set[str] = set()
+        downstream_queue = deque([root_id])
+        while downstream_queue:
+            current_id = downstream_queue.popleft()
+            for child_id in children_by_parent.get(current_id, []):
+                if child_id not in downstream_ids:
+                    downstream_ids.add(child_id)
+                    downstream_queue.append(child_id)
+
+        omitted_direction_counts = LineageDirectionCounts(
+            upstream=len(omitted_ids & upstream_ids),
+            downstream=len(omitted_ids & downstream_ids),
+        )
+
     return LineageGraph(
         root_id=root_id,
         nodes=[
@@ -344,6 +393,7 @@ def build_lineage_graph(
                 omitted_resource_type_counts=dict(
                     Counter(n["resourceType"] for n in omitted_nodes)
                 ),
+                omitted_direction_counts=omitted_direction_counts,
             )
             if omitted_nodes
             else None
@@ -376,7 +426,12 @@ async def get_lineage(
         direction=direction,
         config=config,
     )
-    return build_lineage_graph(root_id=unique_id, nodes=nodes, limit=limit)
+    return build_lineage_graph(
+        root_id=unique_id,
+        nodes=nodes,
+        direction=direction,
+        limit=limit,
+    )
 
 
 @dbt_mcp_tool(
