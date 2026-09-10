@@ -1,4 +1,5 @@
 import json
+import multiprocessing
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -22,6 +23,7 @@ from dbt_mcp.dbt_admin.tools import (
     retry_job_run,
     trigger_job_run,
 )
+from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.mcp.server import register_multi_project_dbt_mcp
 from tests.mocks.config import mock_config
 
@@ -337,7 +339,7 @@ async def test_get_job_run_artifacts_jq_filter_oversized_output_raises(
     content = json.dumps({"nodes": large_nodes})
     admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
 
-    with pytest.raises(ValueError, match="Filtered output exceeds"):
+    with pytest.raises(InvalidParameterError, match="Filtered output exceeds"):
         await get_job_run_artifacts.fn(
             admin_context,
             run_id=100,
@@ -412,7 +414,7 @@ async def test_get_job_run_artifacts_jq_filter_invalid_syntax(admin_context):
         return_value='{"key": "value"}'
     )
 
-    with pytest.raises(ValueError, match="Invalid jq filter:"):
+    with pytest.raises(InvalidParameterError, match="Invalid jq filter:"):
         await get_job_run_artifacts.fn(
             admin_context,
             run_id=100,
@@ -426,12 +428,34 @@ async def test_get_job_run_artifacts_jq_filter_non_json_artifact(admin_context):
         return_value="SELECT * FROM my_table"
     )
 
-    with pytest.raises(ValueError, match="not valid JSON"):
+    with pytest.raises(InvalidParameterError, match="not valid JSON"):
         await get_job_run_artifacts.fn(
             admin_context,
             run_id=100,
             artifact_path="compiled/model.sql",
             jq_filter=".nodes",
+        )
+
+
+async def test_get_job_run_artifacts_jq_filter_timeout_raises(
+    admin_context,
+):
+    admin_context.admin_client.get_job_run_artifact = AsyncMock(
+        return_value='{"key": "value"}'
+    )
+
+    with (
+        patch(
+            "dbt_mcp.dbt_admin.tools.asyncio.to_thread",
+            AsyncMock(side_effect=multiprocessing.TimeoutError),
+        ),
+        pytest.raises(InvalidParameterError, match="timed out"),
+    ):
+        await get_job_run_artifacts.fn(
+            admin_context,
+            run_id=100,
+            artifact_path="manifest.json",
+            jq_filter=".key",
         )
 
 
