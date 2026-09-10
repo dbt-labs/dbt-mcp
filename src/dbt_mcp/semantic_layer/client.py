@@ -446,7 +446,7 @@ class SemanticLayerFetcher:
         # attribute instead, so the cleanup chain below operates on the real
         # underlying message rather than that wrapper.
         if isinstance(error, QueryFailedError):
-            error_str = error.message
+            error_str = str(error.message) if error.message is not None else ""
         else:
             error_str = str(error)
 
