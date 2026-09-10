@@ -318,7 +318,7 @@ async def get_job_run_artifacts(
                     raise InvalidParameterError(
                         "jq_filter requires a JSON artifact; this artifact is not valid JSON"
                     )
-                except Exception as e:
+                except ValueError as e:
                     raise InvalidParameterError(f"Invalid jq filter: {e}") from e
         filtered = json.dumps(results, separators=(",", ":"))
         if len(filtered.encode("utf-8")) >= INLINE_CONTENT_LIMIT:
