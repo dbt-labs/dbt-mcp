@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Fix get_job_run_artifacts returning 500 server error instead of 400 client errors when a jq filter fails validation
-time: 2026-09-10T14:07:13.692373-07:00
