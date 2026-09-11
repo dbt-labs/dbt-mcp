@@ -1,6 +1,7 @@
 """dbt MCP Tool - Remote dbt MCP server connection for AWS Bedrock Agent Core."""
 
 import os
+import sys
 from strands import tool
 from dotenv import load_dotenv
 from mcp.client.streamable_http import streamablehttp_client
