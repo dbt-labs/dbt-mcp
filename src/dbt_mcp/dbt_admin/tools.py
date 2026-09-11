@@ -38,6 +38,7 @@ from dbt_mcp.dbt_admin.param_descriptions import (
     WARNINGS_ONLY,
 )
 from dbt_mcp.dbt_admin.run_artifacts.parser import ErrorFetcher, WarningFetcher
+from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
@@ -307,21 +308,21 @@ async def get_job_run_artifacts(
                     results = await asyncio.to_thread(future.get, JQ_TIMEOUT_SECONDS)
                 except multiprocessing.TimeoutError:
                     pool.terminate()
-                    raise ValueError(
+                    raise InvalidParameterError(
                         f"jq filter timed out after {JQ_TIMEOUT_SECONDS}s. Very large "
                         "artifacts are slow to traverse — prefer a structural or "
                         "aggregation filter ('keys', '.metadata', '... | length') over "
                         "one that enumerates every node, or target a specific step."
                     )
                 except json.JSONDecodeError:
-                    raise ValueError(
+                    raise InvalidParameterError(
                         "jq_filter requires a JSON artifact; this artifact is not valid JSON"
                     )
-                except Exception as e:
-                    raise ValueError(f"Invalid jq filter: {e}") from e
+                except ValueError as e:
+                    raise InvalidParameterError(f"Invalid jq filter: {e}") from e
         filtered = json.dumps(results, separators=(",", ":"))
         if len(filtered.encode("utf-8")) >= INLINE_CONTENT_LIMIT:
-            raise ValueError(
+            raise InvalidParameterError(
                 f"Filtered output exceeds {INLINE_CONTENT_LIMIT // 1024} KB; "
                 "narrow the filter to return fewer results "
                 "(e.g. use select(), keys, or length instead of enumerating all nodes)"
