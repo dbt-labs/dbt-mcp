@@ -1,4 +1,5 @@
 import logging
+from collections import Counter
 from dataclasses import dataclass
 from typing import Annotated
 
@@ -35,6 +36,7 @@ from dbt_mcp.tools.deprecation import deprecated_description, deprecation_meta
 from dbt_mcp.tools.fields import (
     DIRECTION_FIELD,
     LINEAGE_DEPTH_FIELD,
+    LINEAGE_LIMIT_FIELD,
     NAME_FIELD,
     TYPES_FIELD,
     UNIQUE_ID_FIELD,
@@ -295,21 +297,53 @@ class LineageEdge(BaseModel):
     target: str
 
 
+class LineageImmediateNodeCounts(BaseModel):
+    parents: int
+    children: int
+
+
+class LineageTruncation(BaseModel):
+    omitted_node_count: int
+    omitted_resource_type_counts: dict[str, int]
+    omitted_immediate_node_counts: LineageImmediateNodeCounts | None = None
+
+
 class LineageGraph(BaseModel):
     type: str = "lineage_graph"
     root_id: str
     nodes: list[LineageNode]
     edges: list[LineageEdge]
+    truncation: LineageTruncation | None = None
 
 
-def build_lineage_graph(root_id: str, nodes: list[dict]) -> LineageGraph:
+def build_lineage_graph(
+    root_id: str,
+    nodes: list[dict],
+    *,
+    direction: LineageDirection,
+    limit: int | None = None,
+) -> LineageGraph:
     """Map the lineage fetcher's list-of-dicts output into a LineageGraph.
 
     Shared by the single- and multi-project get_lineage tools so both emit the
     same structured shape. Edges are kept only when both endpoints are present
     in the returned node set.
     """
-    node_ids = {n["uniqueId"] for n in nodes}
+    omitted_nodes = nodes[limit:] if limit is not None else []
+    returned_nodes = nodes[:limit] if limit is not None else nodes
+    node_ids = {n["uniqueId"] for n in returned_nodes}
+    omitted_ids = {n["uniqueId"] for n in omitted_nodes}
+
+    omitted_immediate_node_counts = None
+    if omitted_nodes and direction == LineageDirection.BOTH:
+        root_node = next(n for n in nodes if n["uniqueId"] == root_id)
+        parent_ids = set(root_node.get("parentIds", []))
+        child_ids = {n["uniqueId"] for n in nodes if root_id in n.get("parentIds", [])}
+        omitted_immediate_node_counts = LineageImmediateNodeCounts(
+            parents=len(omitted_ids & parent_ids),
+            children=len(omitted_ids & child_ids),
+        )
+
     return LineageGraph(
         root_id=root_id,
         nodes=[
@@ -318,14 +352,25 @@ def build_lineage_graph(root_id: str, nodes: list[dict]) -> LineageGraph:
                 name=n["name"],
                 resource_type=n["resourceType"],
             )
-            for n in nodes
+            for n in returned_nodes
         ],
         edges=[
             LineageEdge(source=parent_id, target=n["uniqueId"])
-            for n in nodes
+            for n in returned_nodes
             for parent_id in n.get("parentIds", [])
             if parent_id in node_ids
         ],
+        truncation=(
+            LineageTruncation(
+                omitted_node_count=len(omitted_nodes),
+                omitted_resource_type_counts=dict(
+                    Counter(n["resourceType"] for n in omitted_nodes)
+                ),
+                omitted_immediate_node_counts=omitted_immediate_node_counts,
+            )
+            if omitted_nodes
+            else None
+        ),
     )
 
 
@@ -344,6 +389,7 @@ async def get_lineage(
     types: list[LineageResourceType] | None = TYPES_FIELD,
     depth: int = LINEAGE_DEPTH_FIELD,
     direction: LineageDirection = DIRECTION_FIELD,
+    limit: int = LINEAGE_LIMIT_FIELD,
 ) -> LineageGraph:
     config = await context.config_provider.get_config()
     nodes = await context.lineage_fetcher.fetch_lineage(
@@ -353,7 +399,12 @@ async def get_lineage(
         direction=direction,
         config=config,
     )
-    return build_lineage_graph(root_id=unique_id, nodes=nodes)
+    return build_lineage_graph(
+        root_id=unique_id,
+        nodes=nodes,
+        direction=direction,
+        limit=limit,
+    )
 
 
 @dbt_mcp_tool(
