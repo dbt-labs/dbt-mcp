@@ -25,8 +25,8 @@
   "tools": [
     {
       "annotations": {
-        "destructiveHint": false,
-        "idempotentHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
         "openWorldHint": true,
         "readOnlyHint": false,
         "title": "Cancel Job Run"
