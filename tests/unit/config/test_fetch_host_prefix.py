@@ -8,6 +8,7 @@ import pytest
 from dbt_mcp.config.credentials import (
     CredentialsProvider,
     _fetch_host_prefix_from_platform,
+    _infer_prefix_from_host,
 )
 from dbt_mcp.config.settings import DbtMcpSettings
 
@@ -196,9 +197,11 @@ class TestCredentialsProviderEnvVarPrefixFetch:
         assert returned_settings.base_host == "us1.dbt.com"
 
     @pytest.mark.asyncio
-    async def test_graceful_when_api_returns_none(self):
-        """When the API returns None, settings.host_prefix stays None (no crash)."""
-        settings = self._make_settings(host_prefix=None, account_id=42)
+    async def test_graceful_when_api_returns_none_3label_host(self):
+        """With a 3-label host, API returning None leaves host_prefix unset (no inference applies)."""
+        settings = self._make_settings(
+            host="us1.dbt.com", host_prefix=None, account_id=42
+        )
         provider = CredentialsProvider(settings)
 
         with (
@@ -211,3 +214,131 @@ class TestCredentialsProviderEnvVarPrefixFetch:
             returned_settings, _ = await provider.get_credentials()
 
         assert returned_settings.host_prefix is None
+
+
+class TestInferPrefixFromHost:
+    """Unit tests for the _infer_prefix_from_host helper."""
+
+    @pytest.mark.parametrize(
+        "host, expected",
+        [
+            ("di041.us1.dbt.com", "di041"),
+            ("ab123.eu1.dbt.com", "ab123"),
+            ("us1.dbt.com", None),  # 3-label — no prefix to infer
+            ("cloud.getdbt.com", None),  # non-dbt.com domain
+            (
+                "us.staging.dbt.com",
+                None,
+            ),  # 4-label but cell label is not a valid cell shape
+            ("a.b.c.d.dbt.com", None),  # 5-label — not matched
+        ],
+        ids=[
+            "4label_di041",
+            "4label_ab123",
+            "3label",
+            "getdbt",
+            "staging_4label",
+            "5label",
+        ],
+    )
+    def test_infer_prefix_from_host(self, host: str, expected: str | None):
+        assert _infer_prefix_from_host(host) == expected
+
+
+class TestCredentialsProviderPrefixFallbackInference:
+    """When auto-fetch returns None and DBT_HOST is 4-label, prefix is inferred from the host."""
+
+    def _make_settings(
+        self,
+        *,
+        host: str,
+        account_id: int | None = 42,
+        prod_env_id: int = 123,
+    ) -> DbtMcpSettings:
+        return DbtMcpSettings.model_construct(
+            dbt_host=host,
+            dbt_token="my-token",
+            dbt_account_id=account_id,
+            dbt_prod_env_id=prod_env_id,
+            host_prefix=None,
+            multicell_account_prefix=None,
+            disable_semantic_layer=True,
+            disable_discovery=True,
+            disable_admin_api=True,
+            disable_sql=True,
+            disable_dbt_cli=True,
+        )
+
+    @pytest.mark.asyncio
+    async def test_infers_prefix_from_4label_host_when_fetch_returns_none(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        """When fetch returns None and DBT_HOST is 4-label, prefix is inferred and dbt_host is stripped."""
+        settings = self._make_settings(host="di041.us1.dbt.com")
+        provider = CredentialsProvider(settings)
+
+        with (
+            patch(
+                "dbt_mcp.config.credentials._fetch_host_prefix_from_platform",
+                new=AsyncMock(return_value=None),
+            ),
+            patch("dbt_mcp.config.settings.validate_settings"),
+            caplog.at_level(logging.WARNING, logger="dbt_mcp.config.credentials"),
+        ):
+            returned_settings, _ = await provider.get_credentials()
+
+        assert returned_settings.host_prefix == "di041"
+        assert returned_settings.dbt_host == "us1.dbt.com"
+        assert "Inferred prefix 'di041' from DBT_HOST" in caplog.text
+        assert "DBT_HOST_PREFIX explicitly" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_inferred_prefix_produces_correct_discovery_url(self):
+        """After inference, actual_host_prefix and base_host combine to the right discovery URL."""
+        from dbt_mcp.config.config_providers.discovery import (
+            DefaultDiscoveryConfigProvider,
+        )
+        from dbt_mcp.config.credentials import CredentialsProvider
+
+        settings = self._make_settings(host="di041.us1.dbt.com", prod_env_id=999)
+        provider = CredentialsProvider(settings)
+
+        with (
+            patch(
+                "dbt_mcp.config.credentials._fetch_host_prefix_from_platform",
+                new=AsyncMock(return_value=None),
+            ),
+            patch("dbt_mcp.config.settings.validate_settings"),
+        ):
+            await provider.get_credentials()
+
+        discovery_provider = DefaultDiscoveryConfigProvider(provider)
+
+        with patch(
+            "dbt_mcp.config.credentials.CredentialsProvider.get_credentials",
+            return_value=(provider.settings, provider.token_provider),
+        ):
+            config = await discovery_provider.get_config()
+
+        assert config.url == "https://di041.metadata.us1.dbt.com/graphql"
+
+    @pytest.mark.asyncio
+    async def test_no_inference_for_3label_host_logs_observability_warning(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        """With a 3-label host, no inference happens and the observability warning is logged."""
+        settings = self._make_settings(host="us1.dbt.com")
+        provider = CredentialsProvider(settings)
+
+        with (
+            patch(
+                "dbt_mcp.config.credentials._fetch_host_prefix_from_platform",
+                new=AsyncMock(return_value=None),
+            ),
+            patch("dbt_mcp.config.settings.validate_settings"),
+            caplog.at_level(logging.WARNING, logger="dbt_mcp.config.credentials"),
+        ):
+            returned_settings, _ = await provider.get_credentials()
+
+        assert returned_settings.host_prefix is None
+        assert "Discovery and Semantic Layer URLs may be incorrect" in caplog.text
