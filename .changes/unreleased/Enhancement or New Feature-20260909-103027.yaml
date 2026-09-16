@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Add an optional project_id filter to list_jobs to retrieve jobs across all environments in a project, while preserving the configured environment default when omitted.
+time: 2026-09-09T10:30:27.406448+05:30

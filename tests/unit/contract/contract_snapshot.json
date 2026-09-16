@@ -2250,7 +2250,7 @@
         "readOnlyHint": true,
         "title": "List Jobs"
       },
-      "description": "List all jobs in a dbt platform account with optional filtering.\n\nThis tool retrieves jobs from the dbt Admin API. Jobs are the configuration for scheduled or triggered dbt runs.\n\nWhen a single project is configured, results are automatically scoped to that environment. Otherwise, all jobs in the account are returned \u2014 use `limit` to constrain large result sets.\n\nReturns a list of job objects with details like:\n- Job ID, name, and description\n- Environment ID and project ID the job belongs to\n- Schedule configuration\n- Execute steps (dbt commands)\n- Trigger settings\n\nUse this tool to explore available jobs, understand job configurations, or find specific jobs to trigger.\n",
+      "description": "List all jobs in a dbt platform account with optional filtering.\n\nThis tool retrieves jobs from the dbt Admin API. Jobs are the configuration for scheduled or triggered dbt runs.\n\nPass `project_id` to list jobs across all environments in that project. This overrides the configured production environment filter. When `project_id` is omitted, results remain scoped to the configured production environment, or to the account if no environment is configured. Use `limit` and `offset` to page through large result sets.\n\nReturns a list of job objects with details like:\n- Job ID, name, and description\n- Environment ID and project ID the job belongs to\n- Schedule configuration\n- Execute steps (dbt commands)\n- Trigger settings\n\nUse this tool to explore available jobs, understand job configurations, or find specific jobs to trigger.\n",
       "input_schema": {
         "properties": {
           "limit": {
@@ -2278,6 +2278,20 @@
             "default": null,
             "description": "Number of results to skip for pagination",
             "title": "Offset"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "List jobs across all environments in this project, overriding the configured production environment filter. When omitted, use the configured production environment, or list all account jobs if none is configured",
+            "title": "Project Id"
           }
         },
         "title": "list_jobsArguments",
