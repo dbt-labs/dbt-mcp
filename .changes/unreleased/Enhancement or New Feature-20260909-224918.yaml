@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Add `default_time_dimension` to the `list_metrics` response: the time dimension that `metric_time` resolves to for each metric, with a note when the Semantic Layer API does not return one
+time: 2026-09-09T22:49:19.008695-07:00
