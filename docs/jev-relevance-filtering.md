@@ -87,8 +87,8 @@ sequenceDiagram
     SL-->>M: 425 metrics, descriptions included
     M->>J: score 425 metrics against the question
     J-->>M: ranked - keep top 5 above the floor
-    M->>SL: fetch dimensions for close contenders
-    SL-->>M: dimensions per metric
+    M->>SL: get_dimensions - one call per close contender, in parallel
+    SL-->>M: dimensions for each
     M->>J: score dimensions against the question
     J-->>M: ranked - keep top 12 per metric
     M-->>A: 5 metrics + relevant dimensions,<br/>descriptions intact, scored (~1,000 tokens)
@@ -286,9 +286,16 @@ grep 'jev.rank ' dbt-mcp.log | grep -o 'usd=[0-9.]*' | cut -d= -f2 \
 
 - **Single-project only.** The multi-project `list_metrics` in
   `semantic_layer/tools_multiproject.py` is unchanged.
-- **Dimension blocks are per metric.** The Semantic Layer API *intersects* dimensions
-  across metrics, so one multi-metric call returns almost nothing; each metric is fetched
-  separately and capped.
+- **Not every ranked metric gets a dimension block.** Dimensions are fetched with one
+  `get_dimensions` call per metric, issued in parallel. (They have to be: the Semantic
+  Layer API *intersects* dimensions when given several metrics at once, so a single
+  multi-metric call returns almost nothing — for nine metrics it returned 249
+  characters.) To bound that fan-out, blocks are produced for at most
+  `DBT_MCP_JEV_DIMENSION_METRICS` metrics, and only for those within
+  `DBT_MCP_JEV_DIMENSION_SCORE_RATIO` of the top score. Lower-ranked metrics are still
+  listed and still carry their descriptions, but the agent must call `get_dimensions`
+  itself if it picks one of them. Raise `DBT_MCP_JEV_DIMENSION_METRICS` to cover more
+  of the ranked set, at one extra Semantic Layer call each.
 - **Ranking quality depends on descriptions.** On a catalog whose metrics are
   undocumented, ranking degrades toward name matching. Measured on the near-duplicate
   revenue-churn family above, removing descriptions dropped top-1 accuracy from 5/6
