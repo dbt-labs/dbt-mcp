@@ -302,5 +302,11 @@ grep 'jev.rank ' dbt-mcp.log | grep -o 'usd=[0-9.]*' | cut -d= -f2 \
   to 4/6.
 - **Data leaves the host.** Metric and dimension names, their descriptions, and the end
   user's question are sent to TypeSafe. This is why the feature is opt-in.
+
+  The question is *not* sent anywhere else. It is redacted from dbt's usage telemetry
+  (`REDACT_ARGS` in `tracking/tracking.py`, alongside `sql_query` and `vars`), so the
+  event records that a `question` was passed and how large it was, never its text. The
+  local `jev.rank` log lines record counts and cost only, for the same reason. Both are
+  covered by tests.
 - **Latency is on the critical path**, 1.7–2.6s, dominated by ranking the full metric
   list.

@@ -195,3 +195,35 @@ def test_jev_config_carries_tunables_from_settings():
         0.4,
         1,
     )
+
+
+@pytest.mark.asyncio
+async def test_ranker_never_logs_the_question(caplog):
+    """The question is free-text end-user input and may contain PII, so the
+    cost/latency logging must record counts only - never the text itself."""
+    secret = "how much did Jane Doe from Acme spend"
+    ranker = _ranker_with(_FakeClient(answers={"metrics\x1fm": 0.9}))
+    with caplog.at_level(logging.DEBUG, logger="dbt_mcp.semantic_layer.jev"):
+        await ranker.rank_groups(
+            question=secret,
+            groups={"metrics": [JevCandidate("m", "A metric.")]},
+            kind="metric",
+            top_k=5,
+        )
+    assert "Jane Doe" not in caplog.text
+    assert secret not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_ranker_failure_logging_does_not_echo_the_question(caplog):
+    secret = "how much did Jane Doe from Acme spend"
+    ranker = _ranker_with(_FakeClient(error=RuntimeError("upstream exploded")))
+    with caplog.at_level(logging.DEBUG, logger="dbt_mcp.semantic_layer.jev"):
+        with pytest.raises(JevUnavailableError):
+            await ranker.rank_groups(
+                question=secret,
+                groups={"metrics": [JevCandidate("m")]},
+                kind="metric",
+                top_k=5,
+            )
+    assert "Jane Doe" not in caplog.text
