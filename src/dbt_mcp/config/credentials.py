@@ -72,14 +72,14 @@ def _is_context_complete(dbt_ctx: DbtPlatformContext | None) -> bool:
     """Check if the context has all required fields (regardless of token expiry).
 
     Note: dev_environment is optional since not all projects have a development
-    environment configured. prod_environment is required for semantic layer
-    and other core features.
+    environment configured. prod_environment is required for single-project
+    contexts but not for multi-project contexts (which use selected_project_ids).
     """
     return bool(
         dbt_ctx
         and dbt_ctx.account_id
         and dbt_ctx.host_prefix
-        and dbt_ctx.prod_environment
+        and (dbt_ctx.prod_environment or dbt_ctx.selected_project_ids)
         and dbt_ctx.decoded_access_token
     )
 
