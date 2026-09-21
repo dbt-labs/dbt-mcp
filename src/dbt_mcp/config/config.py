@@ -1,3 +1,4 @@
+import logging
 import os
 import threading
 from collections.abc import Callable
@@ -23,6 +24,7 @@ from dbt_mcp.config.settings import (
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.dbt_cli.binary_type import BinaryType, detect_binary_type, get_dbt_version
 from dbt_mcp.lsp.lsp_binary_manager import dbt_lsp_binary_info
+from dbt_mcp.semantic_layer.jev import JevConfig
 from dbt_mcp.lsp.providers.local_lsp_client_provider import LocalLSPClientProvider
 from dbt_mcp.lsp.providers.local_lsp_connection_provider import (
     LocalLSPConnectionProvider,
@@ -30,6 +32,8 @@ from dbt_mcp.lsp.providers.local_lsp_connection_provider import (
 from dbt_mcp.telemetry.logging import configure_logging
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
+
+logger = logging.getLogger(__name__)
 
 PACKAGE_NAME = "dbt-mcp"
 
@@ -104,6 +108,8 @@ class Config:
     credentials_provider: CredentialsProvider
     lsp_config: LspConfig | None
     apps_config: AppsConfig | None
+    # Off unless a TypeSafe API key is configured.
+    jev_config: JevConfig | None = None
     # Lazy: invoking the provider runs `dbt --version`, which can take several
     # seconds when many adapters are installed. Resolution is deferred until a
     # product_docs tool actually needs the version, then cached for the
@@ -139,6 +145,27 @@ def _make_dbt_version_provider(
             return cache["value"]
 
     return provider
+
+
+def _build_jev_config(settings: DbtMcpSettings) -> JevConfig | None:
+    """Jev filtering requires both the opt-in flag and an API key."""
+    if not settings.enable_jev:
+        return None
+    if not settings.typesafe_api_key:
+        logger.warning(
+            "DBT_MCP_ENABLE_JEV is set but TYPESAFE_API_KEY is missing; "
+            "semantic relevance filtering is disabled."
+        )
+        return None
+    return JevConfig(
+        api_key=settings.typesafe_api_key,
+        top_k_metrics=settings.jev_top_k_metrics,
+        top_k_dimensions=settings.jev_top_k_dimensions,
+        relevance_floor=settings.jev_relevance_floor,
+        dimension_metrics=settings.jev_dimension_metrics,
+        dimension_metric_score_ratio=settings.jev_dimension_metric_score_ratio,
+        timeout=settings.jev_timeout,
+    )
 
 
 def load_config(enable_proxied_tools: bool = True) -> Config:
@@ -271,5 +298,6 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         credentials_provider=credentials_provider,
         lsp_config=lsp_config,
         apps_config=apps_config,
+        jev_config=_build_jev_config(settings),
         dbt_version_provider=dbt_version_provider,
     )

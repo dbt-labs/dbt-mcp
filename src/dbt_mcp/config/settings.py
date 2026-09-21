@@ -124,6 +124,26 @@ class DbtMcpSettings(BaseSettings):
         16000, alias="DBT_MCP_SL_MAX_RESPONSE_CHARS", ge=0
     )
 
+    # Jev (TypeSafe) semantic relevance filtering for list_metrics.
+    # Experimental. Requires BOTH the opt-in flag and an API key: holding a
+    # TypeSafe key for unrelated reasons must not silently change the
+    # list_metrics schema or start sending catalog text off-host. When
+    # disabled, list_metrics has no `question` parameter and behaves as before.
+    # When enabled, metric and dimension names, their descriptions, and the end
+    # user's question are sent to TypeSafe.
+    enable_jev: bool = Field(False, alias="DBT_MCP_ENABLE_JEV")
+    typesafe_api_key: str | None = Field(None, alias="TYPESAFE_API_KEY")
+    jev_top_k_metrics: int = Field(5, alias="DBT_MCP_JEV_TOP_K_METRICS", ge=1)
+    jev_top_k_dimensions: int = Field(12, alias="DBT_MCP_JEV_TOP_K_DIMENSIONS", ge=1)
+    jev_relevance_floor: float = Field(
+        0.15, alias="DBT_MCP_JEV_RELEVANCE_FLOOR", ge=0.0, le=1.0
+    )
+    jev_dimension_metrics: int = Field(2, alias="DBT_MCP_JEV_DIMENSION_METRICS", ge=1)
+    jev_dimension_metric_score_ratio: float = Field(
+        0.8, alias="DBT_MCP_JEV_DIMENSION_SCORE_RATIO", ge=0.0, le=1.0
+    )
+    jev_timeout: float = Field(10.0, alias="DBT_MCP_JEV_TIMEOUT", gt=0)
+
     def __repr__(self):
         """Custom repr to bring most important settings to front. Redact sensitive info."""
         return (
