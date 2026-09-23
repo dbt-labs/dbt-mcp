@@ -10,7 +10,7 @@ A structured `LineageGraph` object:
   - `name`: the resource name
   - `resource_type`: the type of resource (Model, Source, etc.)
 - `edges`: the dependency edges, each with `source` and `target` `unique_id`s, where `source` is an upstream parent of `target` (data flows `source` → `target`).
-- `omitted_node_count`: number of connected nodes excluded by `limit` (`0` means the returned graph is complete).
+- `omitted_node_count`: number of nodes matching the requested filters excluded by `limit` (`0` means none were excluded by the limit).
 
 The target node (`root_id`) is present in `nodes` for `direction="both"` (the default). For `direction="upstream"`/`"downstream"` the target is excluded, so `root_id` may not appear in `nodes`.
 
@@ -27,7 +27,7 @@ limit or narrow `direction` or `types` to retrieve more lineage. The limit
 applies to the returned graph; the Discovery API query still fetches the
 environment's full lineage.
 
-`direction="upstream"`/`"downstream"` are drop-in replacements for `get_model_parents`/`get_model_children`: same node set, target excluded either way.
+Use `depth=1` with `direction="upstream"` or `"downstream"` for direct parents or children. The target is excluded, and `omitted_node_count` shows when the limit excluded any results.
 
 **Example Response:**
 ```json
