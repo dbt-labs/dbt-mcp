@@ -87,9 +87,15 @@ class TestIsContextComplete:
         assert _is_context_complete(ctx) is True
 
     def test_missing_prod_environment_returns_false(self):
-        """Context without prod_environment should return False."""
+        """Context without prod_environment should return False in single-project mode."""
         ctx = _create_mock_context(with_prod_env=False)
         assert _is_context_complete(ctx) is False
+
+    def test_multi_project_context_without_prod_environment_returns_true(self):
+        """Context with selected_project_ids but no prod_environment should return True."""
+        ctx = _create_mock_context(with_prod_env=False)
+        ctx.selected_project_ids = [111, 222, 333]
+        assert _is_context_complete(ctx) is True
 
     def test_missing_token_returns_false(self):
         """Context without decoded_access_token should return False."""
