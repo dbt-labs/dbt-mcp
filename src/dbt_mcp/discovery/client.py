@@ -951,13 +951,14 @@ class LineageFetcher:
         )
 
         children_by_parent: dict[str, list[str]] = defaultdict(list)
-        for node in nodes:
-            candidate_id = node.get("uniqueId")
-            if not isinstance(candidate_id, str) or candidate_id not in node_map:
-                continue
-            for parent_id in node.get("parentIds", []):
-                if parent_id in node_map:
-                    children_by_parent[parent_id].append(candidate_id)
+        if include_downstream:
+            for node in nodes:
+                candidate_id = node.get("uniqueId")
+                if not isinstance(candidate_id, str) or candidate_id not in node_map:
+                    continue
+                for parent_id in node.get("parentIds", []):
+                    if parent_id in node_map:
+                        children_by_parent[parent_id].append(candidate_id)
 
         # BFS orders the closest nodes first and makes output deterministic.
         connected = {target_id}
@@ -986,7 +987,7 @@ class LineageFetcher:
 
             # Traverse downstream (children)
             if include_downstream:
-                for candidate_id in children_by_parent[current_id]:
+                for candidate_id in children_by_parent.get(current_id, ()):
                     enqueue(candidate_id, current_depth + 1)
 
         # One-directional queries return only ancestors (upstream) or
@@ -995,7 +996,7 @@ class LineageFetcher:
         # get_model_children. direction="both" keeps the target as the
         # anchor of the full connected subgraph.
         if direction != LineageDirection.BOTH:
-            connected_order = connected_order[1:]
+            del connected_order[0]
 
         return [node_map[uid] for uid in connected_order]
 

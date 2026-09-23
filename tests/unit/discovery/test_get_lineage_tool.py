@@ -4,8 +4,6 @@ from dbt_mcp.tools.parameters import LineageDirection
 from dbt_mcp.discovery.tools import (
     LineageEdge,
     LineageGraph,
-    LineageImmediateNodeCounts,
-    LineageTruncation,
     get_lineage,
 )
 
@@ -55,10 +53,10 @@ async def test_get_lineage_builds_graph_from_nodes():
     # parent outside the node set is not emitted as an edge
     assert all(edge.source != "model.p.missing" for edge in result.edges)
     assert len(result.edges) == 2
-    assert result.truncation is None
+    assert result.omitted_node_count == 0
 
 
-async def test_get_lineage_limits_nodes_and_summarizes_omitted_nodes():
+async def test_get_lineage_limits_nodes_and_counts_omitted_nodes():
     nodes = [
         {
             "uniqueId": "model.p.root",
@@ -99,11 +97,7 @@ async def test_get_lineage_limits_nodes_and_summarizes_omitted_nodes():
         "model.p.parent",
         "source.p.parent",
     ]
-    assert result.truncation == LineageTruncation(
-        omitted_node_count=2,
-        omitted_resource_type_counts={"Model": 1, "Test": 1},
-        omitted_immediate_node_counts=LineageImmediateNodeCounts(parents=0, children=2),
-    )
+    assert result.omitted_node_count == 2
     context.lineage_fetcher.fetch_lineage.assert_awaited_once_with(
         unique_id="model.p.root",
         types=None,

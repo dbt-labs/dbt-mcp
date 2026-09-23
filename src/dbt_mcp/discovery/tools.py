@@ -1,5 +1,4 @@
 import logging
-from collections import Counter
 from dataclasses import dataclass
 from typing import Annotated
 
@@ -297,31 +296,19 @@ class LineageEdge(BaseModel):
     target: str
 
 
-class LineageImmediateNodeCounts(BaseModel):
-    parents: int
-    children: int
-
-
-class LineageTruncation(BaseModel):
-    omitted_node_count: int
-    omitted_resource_type_counts: dict[str, int]
-    omitted_immediate_node_counts: LineageImmediateNodeCounts | None = None
-
-
 class LineageGraph(BaseModel):
     type: str = "lineage_graph"
     root_id: str
     nodes: list[LineageNode]
     edges: list[LineageEdge]
-    truncation: LineageTruncation | None = None
+    omitted_node_count: int = 0
 
 
 def build_lineage_graph(
     root_id: str,
     nodes: list[dict],
     *,
-    direction: LineageDirection,
-    limit: int | None = None,
+    limit: int,
 ) -> LineageGraph:
     """Map the lineage fetcher's list-of-dicts output into a LineageGraph.
 
@@ -329,23 +316,13 @@ def build_lineage_graph(
     same structured shape. Edges are kept only when both endpoints are present
     in the returned node set.
     """
-    omitted_nodes = nodes[limit:] if limit is not None else []
-    returned_nodes = nodes[:limit] if limit is not None else nodes
+    omitted_node_count = max(0, len(nodes) - limit)
+    returned_nodes = nodes[:limit]
     node_ids = {n["uniqueId"] for n in returned_nodes}
-    omitted_ids = {n["uniqueId"] for n in omitted_nodes}
-
-    omitted_immediate_node_counts = None
-    if omitted_nodes and direction == LineageDirection.BOTH:
-        root_node = next(n for n in nodes if n["uniqueId"] == root_id)
-        parent_ids = set(root_node.get("parentIds", []))
-        child_ids = {n["uniqueId"] for n in nodes if root_id in n.get("parentIds", [])}
-        omitted_immediate_node_counts = LineageImmediateNodeCounts(
-            parents=len(omitted_ids & parent_ids),
-            children=len(omitted_ids & child_ids),
-        )
 
     return LineageGraph(
         root_id=root_id,
+        omitted_node_count=omitted_node_count,
         nodes=[
             LineageNode(
                 unique_id=n["uniqueId"],
@@ -360,17 +337,6 @@ def build_lineage_graph(
             for parent_id in n.get("parentIds", [])
             if parent_id in node_ids
         ],
-        truncation=(
-            LineageTruncation(
-                omitted_node_count=len(omitted_nodes),
-                omitted_resource_type_counts=dict(
-                    Counter(n["resourceType"] for n in omitted_nodes)
-                ),
-                omitted_immediate_node_counts=omitted_immediate_node_counts,
-            )
-            if omitted_nodes
-            else None
-        ),
     )
 
 
@@ -402,7 +368,6 @@ async def get_lineage(
     return build_lineage_graph(
         root_id=unique_id,
         nodes=nodes,
-        direction=direction,
         limit=limit,
     )
 

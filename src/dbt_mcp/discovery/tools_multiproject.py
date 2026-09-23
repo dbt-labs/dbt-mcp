@@ -333,7 +333,6 @@ async def get_lineage(
     return build_lineage_graph(
         root_id=unique_id,
         nodes=nodes,
-        direction=direction,
         limit=limit,
     )
 
