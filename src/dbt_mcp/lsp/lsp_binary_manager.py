@@ -21,6 +21,13 @@ system = platform.system()
 home = Path.home()
 
 
+class LspTransport(StrEnum):
+    """Transport supported by a detected dbt LSP binary."""
+
+    SOCKET = "socket"
+    STDIO = "stdio"
+
+
 @dataclass
 class LspBinaryInfo:
     """Information about a detected dbt LSP binary.
@@ -29,10 +36,13 @@ class LspBinaryInfo:
         cmd: Command to launch the LSP server (e.g. ["dbt", "lsp"] for Fusion
             or ["/path/to/dbt-lsp"] for the legacy standalone binary).
         version: Version string of the LSP binary.
+        transport: Transport used to communicate with the binary. Fusion's
+            ``dbt lsp`` uses stdio; legacy binaries use the socket protocol.
     """
 
     cmd: list[str]
     version: str
+    transport: LspTransport = LspTransport.SOCKET
 
 
 class CodeEditor(StrEnum):
@@ -141,7 +151,9 @@ def detect_fusion_lsp(dbt_path: str) -> LspBinaryInfo | None:
         logger.debug(f"Failed probing {dbt_path} --version: {exc}")
 
     logger.debug(f"Found dbt Fusion LSP via {dbt_path} with version {version}")
-    return LspBinaryInfo(cmd=[dbt_path, "lsp"], version=version)
+    return LspBinaryInfo(
+        cmd=[dbt_path, "lsp"], version=version, transport=LspTransport.STDIO
+    )
 
 
 def dbt_lsp_binary_info(

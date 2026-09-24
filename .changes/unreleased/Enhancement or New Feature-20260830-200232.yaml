@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Expose compiler-backed dbt LSP tools through the local MCP server, including incremental document updates and safe refactor previews.
+time: 2026-08-30T20:02:32.132442933-07:00
