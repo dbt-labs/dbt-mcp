@@ -512,41 +512,46 @@ async def _ranked_csv(
         if item.name in by_name
     ]
 
-    # `get_dimensions` intersects dimensions across metrics, so a multi-metric
-    # call returns near-nothing. Fetch each ranked metric separately instead.
-    # `search` is left None so the question never enters the fetcher's cache key.
-    metric_names = [item.name for item in scored]
-    fetched = await asyncio.gather(
-        *(
-            context.semantic_layer_fetcher.get_dimensions(
-                config=config, metrics=[name], search=None
-            )
-            for name in metric_names
-        )
-    )
-    dimensions_by_metric = dict(zip(metric_names, fetched, strict=True))
-
-    # Metrics ranked together are usually on the same or a related semantic
-    # model and so share most of their dimensions. Rank the union once instead
-    # of once per metric - cuts the Jev bill roughly by the overlap fraction and
-    # avoids near-duplicate blocks in the response.
     dims_by_name: dict[str, DimensionToolResponse] = {}
-    candidates_by_name: dict[str, JevCandidate] = {}
     metrics_by_dimension: dict[str, list[str]] = {}
-    for name in metric_names:
-        for d in dimensions_by_metric[name]:
-            dims_by_name.setdefault(d.name, d)
-            candidates_by_name.setdefault(
-                d.name, JevCandidate(d.name, d.description, d.label)
+    ranked_dimensions: dict[str, list[Any]] = {}
+    metric_names: list[str] = []
+    if jev_config.rank_dimensions:
+        # `get_dimensions` intersects dimensions across metrics, so a
+        # multi-metric call returns near-nothing. Fetch each ranked metric
+        # separately instead. `search` is left None so the question never
+        # enters the fetcher's cache key.
+        metric_names = [item.name for item in scored]
+        fetched = await asyncio.gather(
+            *(
+                context.semantic_layer_fetcher.get_dimensions(
+                    config=config, metrics=[name], search=None
+                )
+                for name in metric_names
             )
-            metrics_by_dimension.setdefault(d.name, []).append(name)
+        )
+        dimensions_by_metric = dict(zip(metric_names, fetched, strict=True))
 
-    ranked_dimensions = await ranker.rank_groups(
-        question=question,
-        groups={"dimensions": list(candidates_by_name.values())},
-        kind="dimension",
-        top_k=jev_config.top_k_dimensions,
-    )
+        # Metrics ranked together are usually on the same or a related
+        # semantic model and so share most of their dimensions. Rank the
+        # union once instead of once per metric - cuts the Jev bill roughly
+        # by the overlap fraction and avoids near-duplicate blocks in the
+        # response.
+        candidates_by_name: dict[str, JevCandidate] = {}
+        for name in metric_names:
+            for d in dimensions_by_metric[name]:
+                dims_by_name.setdefault(d.name, d)
+                candidates_by_name.setdefault(
+                    d.name, JevCandidate(d.name, d.description, d.label)
+                )
+                metrics_by_dimension.setdefault(d.name, []).append(name)
+
+        ranked_dimensions = await ranker.rank_groups(
+            question=question,
+            groups={"dimensions": list(candidates_by_name.values())},
+            kind="dimension",
+            top_k=jev_config.top_k_dimensions,
+        )
 
     sections: list[str] = []
     if widened:
@@ -577,8 +582,13 @@ async def _ranked_csv(
 def build_jev_list_metrics_tool(
     ranker: JevRanker, jev_config: JevConfig
 ) -> GenericToolDefinition[ToolName]:
+    prompt_name = (
+        "semantic_layer/list_metrics_jev"
+        if jev_config.rank_dimensions
+        else "semantic_layer/list_metrics_jev_metrics_only"
+    )
     return dbt_mcp_tool(
-        description=get_prompt("semantic_layer/list_metrics_jev"),
+        description=get_prompt(prompt_name),
         title="List Metrics",
         name="list_metrics",
         read_only_hint=True,

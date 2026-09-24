@@ -192,6 +192,26 @@ def test_jev_config_carries_tunables_from_settings():
     assert (jev.top_k_metrics, jev.relevance_floor) == (3, 0.4)
 
 
+def test_jev_rank_dimensions_defaults_to_true_and_is_configurable():
+    from dbt_mcp.config.config import _build_jev_config
+
+    default = _build_jev_config(
+        _settings(DBT_MCP_ENABLE_JEV=True, TYPESAFE_API_KEY="k")
+    )
+    assert default is not None
+    assert default.rank_dimensions is True
+
+    off = _build_jev_config(
+        _settings(
+            DBT_MCP_ENABLE_JEV=True,
+            TYPESAFE_API_KEY="k",
+            DBT_MCP_JEV_RANK_DIMENSIONS=False,
+        )
+    )
+    assert off is not None
+    assert off.rank_dimensions is False
+
+
 @pytest.mark.asyncio
 async def test_ranker_never_logs_the_question(caplog):
     """The question is free-text end-user input and may contain PII, so the

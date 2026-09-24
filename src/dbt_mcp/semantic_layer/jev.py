@@ -35,6 +35,11 @@ class JevConfig:
     top_k_metrics: int = 5
     top_k_dimensions: int = 12
     relevance_floor: float = 0.15
+    # Off ranks metrics only: no get_dimensions fetch, no dimension Jev call, no
+    # dimensions section in the response. Exists because dimension ranking has
+    # shown mixed benchmark results distinct from metric ranking, so callers
+    # need to be able to isolate the two.
+    rank_dimensions: bool = True
     timeout: float = 10.0
 
 

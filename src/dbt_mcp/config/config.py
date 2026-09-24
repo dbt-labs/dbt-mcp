@@ -162,6 +162,7 @@ def _build_jev_config(settings: DbtMcpSettings) -> JevConfig | None:
         top_k_metrics=settings.jev_top_k_metrics,
         top_k_dimensions=settings.jev_top_k_dimensions,
         relevance_floor=settings.jev_relevance_floor,
+        rank_dimensions=settings.jev_rank_dimensions,
         timeout=settings.jev_timeout,
     )
 

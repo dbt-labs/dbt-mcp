@@ -236,6 +236,22 @@ async def test_dimensions_fetched_for_every_ranked_metric():
     assert context.semantic_layer_fetcher.get_dimensions.await_count == 2
 
 
+@pytest.mark.asyncio
+async def test_rank_dimensions_off_skips_dimension_fetch_and_ranking():
+    """DBT_MCP_JEV_RANK_DIMENSIONS=false isolates metric ranking from dimension
+    ranking, whose benchmark results have been mixed."""
+    ranker = _ranker_picking_churn_self_serve()
+    context = _context(CATALOG)
+    config = JevConfig(api_key="k", top_k_metrics=2, rank_dimensions=False)
+    tool = build_jev_list_metrics(ranker, config)
+    result = await tool(context, question="self-serve churn")
+
+    assert context.semantic_layer_fetcher.get_dimensions.await_count == 0
+    assert not any(call["kind"] == "dimension" for call in ranker.calls)
+    assert "# Dimensions for" not in result
+    assert "revenue_churn_self_serve" in result
+
+
 def _register(jev_config):
     from dbt_mcp.semantic_layer.tools import register_sl_tools
     from tests.conftest import MockFastMCP
@@ -279,6 +295,25 @@ def test_jev_does_not_add_a_new_tool():
     with_jev = {k["name"] for k in _register(JEV_CONFIG).tool_kwargs.values()}
     assert without == with_jev
     assert "list_metrics" in with_jev
+
+
+def _list_metrics_description(fastmcp) -> str:
+    for kwargs in fastmcp.tool_kwargs.values():
+        if kwargs["name"] == "list_metrics":
+            return kwargs["description"]
+    raise AssertionError("list_metrics was not registered")
+
+
+def test_description_tells_the_model_to_call_get_dimensions_when_rank_dimensions_off():
+    config = JevConfig(api_key="k", rank_dimensions=False)
+    description = _list_metrics_description(_register(config))
+    assert "does not include dimensions" in description
+    assert "call `get_dimensions`" in description
+
+
+def test_description_mentions_dimension_block_when_rank_dimensions_on():
+    description = _list_metrics_description(_register(JEV_CONFIG))
+    assert "Dimensions for" in description
 
 
 @pytest.mark.asyncio

@@ -163,7 +163,9 @@ flowchart TD
     RANK --> FLOOR{"anything above<br/>the floor?"}
     FLOOR -->|no| OLD
     FLOOR -->|yes| TOPK["Keep top k, attach scores"]
-    TOPK --> FETCH2["get_dimensions for every<br/>ranked metric, in parallel"]
+    TOPK --> RD{"DBT_MCP_JEV_<br/>RANK_DIMENSIONS?"}
+    RD -->|false| OUT2(["Ranked metrics only,<br/>caller must call get_dimensions"])
+    RD -->|true| FETCH2["get_dimensions for every<br/>ranked metric, in parallel"]
     FETCH2 --> DEDUPE["Dedupe by dimension name<br/>across the ranked metrics"]
     DEDUPE --> RANKD["Rank the deduped union once<br/>keep top k overall"]
     RANKD --> OUT(["Ranked metrics + one shared<br/>dimension table"])
@@ -172,6 +174,7 @@ flowchart TD
     style OLD fill:#dcdcdc,stroke:#666,color:#1a1a1a
     style ERR fill:#ffd6d6,stroke:#c0392b,color:#1a1a1a
     style OUT fill:#c8ebc8,stroke:#2b8a3e,color:#1a1a1a
+    style OUT2 fill:#c8ebc8,stroke:#2b8a3e,color:#1a1a1a
     style S fill:#dde4ff,stroke:#3b5bdb,color:#1a1a1a
 ```
 
@@ -243,10 +246,31 @@ All optional, and none are exposed to the calling model.
 | `DBT_MCP_JEV_TOP_K_METRICS` | `5` | Metrics kept after ranking; also how many metrics' dimensions are fetched |
 | `DBT_MCP_JEV_TOP_K_DIMENSIONS` | `12` | Dimensions kept in the shared table, total (not per metric) |
 | `DBT_MCP_JEV_RELEVANCE_FLOOR` | `0.15` | Minimum score to be returned at all |
+| `DBT_MCP_JEV_RANK_DIMENSIONS` | `true` | Set to `false` to rank metrics only - see below |
 | `DBT_MCP_JEV_TIMEOUT` | `10.0` | Seconds before falling back to the plain listing |
 
 Scores vary by roughly ±0.02 between runs, so top-k with a low floor is used rather than
 an absolute cutoff.
+
+### Ranking metrics without dimensions
+
+Metric ranking and dimension ranking are two independent bets, and they don't always pay
+off together — benchmarking has shown mixed results driven specifically by dimension
+selection, distinct from the metric-ranking result. `DBT_MCP_JEV_RANK_DIMENSIONS=false`
+lets you keep one without the other.
+
+With it set, `list_metrics(question=...)` still ranks and returns metrics with full
+descriptions and `relevance` scores, but:
+
+- No `get_dimensions` call is made, no dimension-ranking Jev call is made, and the
+  response has no dimensions section at all.
+- The tool description changes to tell the model explicitly that dimensions are not
+  included and that it must call `get_dimensions` itself for whatever metric(s) it picks.
+- `DBT_MCP_JEV_TOP_K_DIMENSIONS` has no effect.
+
+This is also strictly cheaper and faster than the default: one Jev call instead of two,
+and no extra Semantic Layer round trips.
+
 ### Observing cost
 
 Jev's spend never appears in the calling agent's token accounting, so it is logged
