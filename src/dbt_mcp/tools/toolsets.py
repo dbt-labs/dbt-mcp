@@ -105,6 +105,9 @@ toolsets = {
         ToolName.LIST_JOB_RUN_ARTIFACTS,
         ToolName.GET_JOB_RUN_ARTIFACTS,
         ToolName.GET_JOB_RUN_ERROR,
+        ToolName.ONBOARDING_GET,
+        ToolName.ONBOARDING_VALIDATE,
+        ToolName.ONBOARDING_APPLY,
     },
     Toolset.DBT_CODEGEN: {
         ToolName.GENERATE_SOURCE,
