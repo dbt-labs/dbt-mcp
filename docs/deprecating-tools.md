@@ -5,17 +5,27 @@ deleted outright. This document explains why and how.
 
 ## Why tools can't just be deleted
 
-The dbt MCP server is a **published app** in the Anthropic and OpenAI app stores.
-When an app is submitted, the host caches the server's tool surface — names, titles,
-descriptions, input/output schemas, annotations, and `_meta` — as a versioned
-contract at submission time. Removing or renaming a tool is a breaking change for
-all installed clients that depend on that tool string.
+The dbt MCP server is a **published app** in both the OpenAI (ChatGPT) app store and
+Claude's Connectors Directory, but the two hosts enforce compatibility differently.
 
-Deploying the server immediately removes a tool from the live server, but the
-published contract (the snapshot submitted to the app store) still lists it. Clients
-using the published version see a mismatch; the tool disappears without warning.
-See `CONTRIBUTING.md` (§ Published-app contract) and
-`src/dbt_mcp/contract/snapshot.py` for technical details.
+OpenAI caches the server's tool surface — names, titles, descriptions, input/output
+schemas, annotations, and `_meta` — as a versioned contract at submission time.
+Removing or renaming a tool is a breaking change for all installed clients still
+pinned to that cached contract: deploying the server immediately removes the tool
+from the live server, but the published contract (the snapshot submitted to the
+ChatGPT app store) still lists it, so clients using the published version see a
+mismatch and the tool disappears without warning. See `CONTRIBUTING.md`
+(§ Published-app contract) and `src/dbt_mcp/contract/snapshot.py` for technical
+details.
+
+Claude's Connectors Directory does not cache a versioned contract — a listing is a
+live pointer to the hosted server, so its tool list syncs automatically and
+Anthropic doesn't gate or require resubmission when a tool is removed or renamed
+(the only listing change that triggers re-review is renaming the directory listing
+itself, not a tool). We still apply the same deprecate-then-remove discipline there
+as a UX courtesy: existing users' saved prompts, automations, and a model's own
+learned habits can still reference an old tool name even without a platform-side
+break.
 
 ## The deprecate-then-remove lifecycle
 
@@ -113,10 +123,12 @@ both the deprecate and the remove phases:
    the step that actually changes the tool surface the published apps talk to.
    A major bump (a removal) requires updating the pinned dbt-mcp version in the
    hosted service, not just a routine dependency refresh.
-4. **Resubmit the app version in each store (OpenAI and Claude), after step 3.**
-   Each store is a separate submission, and each captures the live server's
-   tool list at submission time — submitting before the hosted service runs
-   the new release captures the old surface.
+4. **Resubmit the app version in the OpenAI (ChatGPT) store, after step 3.**
+   OpenAI captures the live server's tool list at submission time, so
+   submitting before the hosted service runs the new release captures the old
+   surface. Claude's Connectors Directory listing needs no resubmission for
+   this — it reflects the live server's tools automatically, with no versioned
+   contract to update.
 
 ## Monitoring usage before removal
 
