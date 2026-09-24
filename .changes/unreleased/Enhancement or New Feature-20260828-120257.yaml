@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Classify warehouse authentication and permission errors from semantic layer query failures, stripping the internal classification marker and appending an actionable hint pointing the caller toward the likely fix
+time: 2026-08-28T12:02:57.19693-07:00
