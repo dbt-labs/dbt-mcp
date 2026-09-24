@@ -117,10 +117,7 @@ def _ranker_picking_churn_self_serve():
                     RankedItem("revenue_churn_enterprise", 0.62),
                 ]
             },
-            "dimension": {
-                "revenue_churn_self_serve": [RankedItem("metric_time", 0.88)],
-                "revenue_churn_enterprise": [RankedItem("metric_time", 0.71)],
-            },
+            "dimension": {"dimensions": [RankedItem("metric_time", 0.88)]},
         }
     )
 
@@ -229,13 +226,14 @@ async def test_dimensions_fetched_per_metric_not_intersected():
 
 
 @pytest.mark.asyncio
-async def test_dimension_fetch_is_capped_by_dimension_metrics_setting():
+async def test_dimensions_fetched_for_every_ranked_metric():
+    """Unlike the old score-ratio gate, no ranked metric is excluded from the
+    dimension fetch - the fan-out is bounded by `top_k_metrics` alone."""
     context = _context(CATALOG)
-    config = JevConfig(api_key="k", top_k_metrics=2, dimension_metrics=1)
-    tool = build_jev_list_metrics(_ranker_picking_churn_self_serve(), config)
+    tool = build_jev_list_metrics(_ranker_picking_churn_self_serve(), JEV_CONFIG)
     await tool(context, question="self-serve churn")
 
-    assert context.semantic_layer_fetcher.get_dimensions.await_count == 1
+    assert context.semantic_layer_fetcher.get_dimensions.await_count == 2
 
 
 def _register(jev_config):
@@ -284,9 +282,9 @@ def test_jev_does_not_add_a_new_tool():
 
 
 @pytest.mark.asyncio
-async def test_runner_up_metric_gets_no_dimension_block_when_score_is_far_behind():
-    """A weak runner-up shares most dimensions with the winner, so its block is
-    near-duplicate filler. Only close contenders earn one."""
+async def test_runner_up_metric_still_gets_dimensions_fetched():
+    """No score-ratio gate anymore: a weak runner-up's dimensions are still
+    fetched and folded into the shared, deduped table."""
     ranker = FakeRanker(
         results={
             "metric": {
@@ -295,44 +293,80 @@ async def test_runner_up_metric_gets_no_dimension_block_when_score_is_far_behind
                     RankedItem("revenue_churn_enterprise", 0.64),
                 ]
             },
-            "dimension": {"new_signups": [RankedItem("metric_time", 0.9)]},
+            "dimension": {"dimensions": [RankedItem("metric_time", 0.9)]},
         }
     )
     context = _context(CATALOG)
-    tool = build_jev_list_metrics(
-        ranker, JevConfig(api_key="k", top_k_metrics=2, dimension_metrics=2)
-    )
+    tool = build_jev_list_metrics(ranker, JevConfig(api_key="k", top_k_metrics=2))
     result = await tool(context, question="how many signups?")
 
-    assert context.semantic_layer_fetcher.get_dimensions.await_count == 1
-    assert "# Dimensions for `new_signups`" in result
-    assert "# Dimensions for `revenue_churn_enterprise`" not in result
-    # The runner-up metric itself is still listed, just without a block.
+    assert context.semantic_layer_fetcher.get_dimensions.await_count == 2
+    assert "# Dimensions for `new_signups`, `revenue_churn_enterprise`" in result
     assert "revenue_churn_enterprise" in result
 
 
 @pytest.mark.asyncio
-async def test_close_contender_still_gets_a_dimension_block():
+async def test_dimensions_deduped_across_ranked_metrics_with_metrics_column():
+    """Metrics ranked together usually share most dimensions, so the union is
+    ranked and rendered once. The `metrics` column marks which ranked metric(s)
+    actually carry each dimension - `all` when shared, a name otherwise."""
+    dims_a = [
+        DimensionToolResponse(
+            name="metric_time",
+            type=DimensionType.TIME,
+            description="Standard time dimension.",
+            granularities=["day"],
+        ),
+        DimensionToolResponse(
+            name="account__subscription_tier",
+            type=DimensionType.CATEGORICAL,
+            description="The product tier the account is on.",
+        ),
+    ]
+    dims_b = dims_a + [
+        DimensionToolResponse(
+            name="account__region",
+            type=DimensionType.CATEGORICAL,
+            description="Sales region.",
+        )
+    ]
     ranker = FakeRanker(
         results={
             "metric": {
                 "metrics": [
-                    RankedItem("revenue_churn_self_serve", 0.94),
-                    RankedItem("revenue_churn_enterprise", 0.92),
+                    RankedItem("revenue_churn_self_serve", 0.9),
+                    RankedItem("revenue_churn_enterprise", 0.85),
                 ]
             },
             "dimension": {
-                "revenue_churn_self_serve": [RankedItem("metric_time", 0.9)],
-                "revenue_churn_enterprise": [RankedItem("metric_time", 0.9)],
+                "dimensions": [
+                    RankedItem("metric_time", 0.9),
+                    RankedItem("account__subscription_tier", 0.8),
+                    RankedItem("account__region", 0.7),
+                ]
             },
         }
     )
     context = _context(CATALOG)
-    tool = build_jev_list_metrics(
-        ranker, JevConfig(api_key="k", top_k_metrics=2, dimension_metrics=2)
+    context.semantic_layer_fetcher.get_dimensions = AsyncMock(
+        side_effect=[dims_a, dims_b]
     )
-    result = await tool(context, question="churn by segment?")
+    tool = build_jev_list_metrics(ranker, JevConfig(api_key="k", top_k_metrics=2))
+    result = await tool(context, question="churn by region?")
 
-    assert context.semantic_layer_fetcher.get_dimensions.await_count == 2
-    assert "# Dimensions for `revenue_churn_self_serve`" in result
-    assert "# Dimensions for `revenue_churn_enterprise`" in result
+    lines = result.splitlines()
+    time_line = next(line for line in lines if line.startswith("metric_time,"))
+    tier_line = next(
+        line for line in lines if line.startswith("account__subscription_tier,")
+    )
+    region_line = next(line for line in lines if line.startswith("account__region,"))
+
+    assert time_line.endswith(",all"), "shared by both ranked metrics"
+    assert tier_line.endswith(",all"), "shared by both ranked metrics"
+    assert region_line.endswith(",revenue_churn_enterprise"), (
+        "only the second metric has this dimension"
+    )
+    assert (
+        "# Dimensions for `revenue_churn_self_serve`, `revenue_churn_enterprise`"
+        in result
+    )

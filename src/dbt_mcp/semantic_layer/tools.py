@@ -3,7 +3,7 @@ import csv
 import io
 import json
 import logging
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable, Coroutine, Mapping
 from dataclasses import dataclass, replace
 from typing import Annotated, Any
 
@@ -366,26 +366,38 @@ def _unranked_csv(response: ListMetricsResponse, config: SemanticLayerConfig) ->
 
 
 def _dimensions_csv(
-    metric_name: str,
-    dimensions: list[DimensionToolResponse],
+    metric_names: list[str],
+    dims_by_name: Mapping[str, DimensionToolResponse],
+    metrics_by_dimension: Mapping[str, list[str]],
     ranked: list[Any],
     total: int,
 ) -> str:
-    """Render the dimensions Jev judged relevant to the question, with descriptions.
+    """Render the union of dimensions Jev judged relevant, deduped across metrics.
 
-    Descriptions are what let the caller tell near-duplicate dimensions apart
-    (the same concept reachable by different join paths), so they are always
-    included here even though the inline `dimensions` column carries names only.
+    Metrics ranked together are usually on the same or a related semantic model
+    and so share most of their dimensions; ranking (and rendering) the union once
+    avoids near-duplicate blocks. The `metrics` column says which of the ranked
+    metrics actually carry each dimension - `all` when every one does, a
+    `/`-joined subset otherwise - so the caller knows which dimensions are safe
+    to group by across a multi-metric query without a second `get_dimensions`
+    round trip. Descriptions are what let the caller tell near-duplicate
+    dimensions apart, so they are always included here even though the inline
+    `dimensions` column on the metrics table carries names only.
     """
-    by_name = {d.name: d for d in dimensions}
     output = io.StringIO()
     writer = csv.writer(output, lineterminator="\n")
-    writer.writerow(["name", "type", "description", "granularities", "relevance"])
+    writer.writerow(
+        ["name", "type", "description", "granularities", "relevance", "metrics"]
+    )
     rows = 0
     for item in ranked:
-        dimension = by_name.get(item.name)
+        dimension = dims_by_name.get(item.name)
         if dimension is None:
             continue
+        holders = metrics_by_dimension.get(item.name, [])
+        metrics_value = (
+            "all" if len(holders) == len(metric_names) else "/".join(holders)
+        )
         writer.writerow(
             [
                 dimension.name,
@@ -393,12 +405,16 @@ def _dimensions_csv(
                 dimension.description or "",
                 ",".join(dimension.granularities or []),
                 f"{item.score:.2f}",
+                metrics_value,
             ]
         )
         rows += 1
+    names = ", ".join(f"`{name}`" for name in metric_names)
     header = (
-        f"# Dimensions for `{metric_name}` - top {rows} of {total} by relevance "
-        f"to the question. Call get_dimensions for the full list.\n"
+        f"# Dimensions for {names} - top {rows} of {total} (deduped across "
+        f"metrics) by relevance to the question. `metrics` says which of these "
+        f"have each dimension (`all` when every one does). Call get_dimensions "
+        f"for the full list.\n"
     )
     return header + output.getvalue().rstrip("\n")
 
@@ -497,30 +513,37 @@ async def _ranked_csv(
     ]
 
     # `get_dimensions` intersects dimensions across metrics, so a multi-metric
-    # call returns near-nothing. Fetch each metric separately instead, and cap
-    # the fan-out. `search` is left None so the question never enters the
-    # fetcher's cache key.
-    top_score = scored[0].score
-    dimension_metrics = [
-        item.name
-        for item in scored[: jev_config.dimension_metrics]
-        if item.score >= top_score * jev_config.dimension_metric_score_ratio
-    ]
+    # call returns near-nothing. Fetch each ranked metric separately instead.
+    # `search` is left None so the question never enters the fetcher's cache key.
+    metric_names = [item.name for item in scored]
     fetched = await asyncio.gather(
         *(
             context.semantic_layer_fetcher.get_dimensions(
                 config=config, metrics=[name], search=None
             )
-            for name in dimension_metrics
+            for name in metric_names
         )
     )
-    dimensions_by_metric = dict(zip(dimension_metrics, fetched, strict=True))
+    dimensions_by_metric = dict(zip(metric_names, fetched, strict=True))
+
+    # Metrics ranked together are usually on the same or a related semantic
+    # model and so share most of their dimensions. Rank the union once instead
+    # of once per metric - cuts the Jev bill roughly by the overlap fraction and
+    # avoids near-duplicate blocks in the response.
+    dims_by_name: dict[str, DimensionToolResponse] = {}
+    candidates_by_name: dict[str, JevCandidate] = {}
+    metrics_by_dimension: dict[str, list[str]] = {}
+    for name in metric_names:
+        for d in dimensions_by_metric[name]:
+            dims_by_name.setdefault(d.name, d)
+            candidates_by_name.setdefault(
+                d.name, JevCandidate(d.name, d.description, d.label)
+            )
+            metrics_by_dimension.setdefault(d.name, []).append(name)
+
     ranked_dimensions = await ranker.rank_groups(
         question=question,
-        groups={
-            name: [JevCandidate(d.name, d.description, d.label) for d in dims]
-            for name, dims in dimensions_by_metric.items()
-        },
+        groups={"dimensions": list(candidates_by_name.values())},
         kind="dimension",
         top_k=jev_config.top_k_dimensions,
     )
@@ -538,10 +561,15 @@ async def _ranked_csv(
         f"board mean no metric matches the question well."
     )
     sections.append(metrics_to_csv(ListMetricsResponse(metrics=ranked_metrics)))
-    for name in dimension_metrics:
-        dims = dimensions_by_metric[name]
+    if dims_by_name:
         sections.append(
-            _dimensions_csv(name, dims, ranked_dimensions.get(name, []), len(dims))
+            _dimensions_csv(
+                metric_names,
+                dims_by_name,
+                metrics_by_dimension,
+                ranked_dimensions.get("dimensions", []),
+                len(dims_by_name),
+            )
         )
     return "\n\n".join(sections)
 

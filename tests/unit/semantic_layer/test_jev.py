@@ -186,15 +186,10 @@ def test_jev_config_carries_tunables_from_settings():
             TYPESAFE_API_KEY="k",
             DBT_MCP_JEV_TOP_K_METRICS=3,
             DBT_MCP_JEV_RELEVANCE_FLOOR=0.4,
-            DBT_MCP_JEV_DIMENSION_METRICS=1,
         )
     )
     assert jev is not None
-    assert (jev.top_k_metrics, jev.relevance_floor, jev.dimension_metrics) == (
-        3,
-        0.4,
-        1,
-    )
+    assert (jev.top_k_metrics, jev.relevance_floor) == (3, 0.4)
 
 
 @pytest.mark.asyncio

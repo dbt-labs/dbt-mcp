@@ -87,11 +87,12 @@ sequenceDiagram
     SL-->>M: 425 metrics, descriptions included
     M->>J: score 425 metrics against the question
     J-->>M: ranked - keep top 5 above the floor
-    M->>SL: get_dimensions - one call per close contender, in parallel
+    M->>SL: get_dimensions - one call per ranked metric, in parallel
     SL-->>M: dimensions for each
-    M->>J: score dimensions against the question
-    J-->>M: ranked - keep top 12 per metric
-    M-->>A: 5 metrics + relevant dimensions,<br/>descriptions intact, scored (~1,000 tokens)
+    Note over M: dedupe by name across the 5 metrics<br/>before ranking
+    M->>J: score the deduped union against the question
+    J-->>M: ranked - keep top 12 overall
+    M-->>A: 5 metrics + one shared dimension table,<br/>descriptions intact, scored (~1,000 tokens)
     Note over A: One tool call, and the<br/>descriptions needed to choose
     A->>M: query_metrics(...)
     M-->>A: rows
@@ -162,11 +163,10 @@ flowchart TD
     RANK --> FLOOR{"anything above<br/>the floor?"}
     FLOOR -->|no| OLD
     FLOOR -->|yes| TOPK["Keep top k, attach scores"]
-    TOPK --> GATE{"runner-up within<br/>80% of top score?"}
-    GATE -->|yes| BOTH["Dimension blocks<br/>for both metrics"]
-    GATE -->|no| ONE["Dimension block<br/>for the winner only"]
-    BOTH --> OUT(["Ranked metrics + dimension blocks"])
-    ONE --> OUT
+    TOPK --> FETCH2["get_dimensions for every<br/>ranked metric, in parallel"]
+    FETCH2 --> DEDUPE["Dedupe by dimension name<br/>across the ranked metrics"]
+    DEDUPE --> RANKD["Rank the deduped union once<br/>keep top k overall"]
+    RANKD --> OUT(["Ranked metrics + one shared<br/>dimension table"])
     ERR["Jev unavailable,<br/>errored, or timed out"] -.-> OLD
 
     style OLD fill:#dcdcdc,stroke:#666,color:#1a1a1a
@@ -186,36 +186,34 @@ Three behaviors worth calling out:
   a TypeSafe outage, a timeout, or nothing clearing the relevance floor returns the
   ordinary listing rather than failing the tool call.
 
-### Why runner-up metrics are gated
+### Why dimensions are deduped instead of gated
 
-Ranking returns up to five metrics, but only the strongest get a dimension block, because
-a block is expensive (12 dimensions with descriptions) and often redundant.
+An earlier version of this feature only fetched dimensions for the one or two
+highest-scoring metrics, on the theory that a weak runner-up mostly repeats the winner's
+dimensions and so its block would be redundant filler. That theory doesn't hold up:
+measured against three related ARR metrics on the same semantic model, their dimension
+sets were 53, 55, and 57 items — about 90% identical, but genuinely different, not
+identical. A hard cutoff at one or two metrics would silently drop dimension context for
+the others; a similarity heuristic (like a score-ratio gate) would either merge things
+that actually differ or keep emitting near-duplicate blocks.
 
-Consider "How many new accounts signed up last month, broken down by country?". The
-ranking is:
+So dimensions are fetched for **every** ranked metric (still bounded by
+`DBT_MCP_JEV_TOP_K_METRICS`, and still one `get_dimensions` call per metric, in parallel,
+because the Semantic Layer API intersects dimensions when given several metrics at once).
+The results are deduped by dimension **name** into one union, and that union is ranked
+against the question **once** — not once per metric — before being rendered as a single
+table capped at `DBT_MCP_JEV_TOP_K_DIMENSIONS` rows total (not per metric). A `metrics`
+column records which of the ranked metrics actually carry each dimension: `all` when
+every one does (the common case, given the overlap above), or a `/`-joined list of the
+specific metric(s) otherwise — for example `net_new_arr/arr_growth` means "not on `arr`".
+That tells the agent directly which dimensions are safe to group by across a multi-metric
+query, without a second `get_dimensions` round trip to find out.
 
-```
-0.95  new_signups             <- what was asked for
-0.64  active_workspace_count  <- a different thing that also counts accounts
-```
-
-Without a gate, both get a dimension block. The second one looks useful in isolation —
-its dimensions score highly (0.94, 0.93, …) — but that is an artifact: both metrics hang
-off the same account model, so they expose nearly the same dimensions, and those
-dimensions are scored against the same question. High scores on a block attached to the
-wrong metric. The result is a response half full of near-duplicate rows that make the
-agent's choice harder, not easier.
-
-Gating on the *metric's* score fixes this, where gating on dimension scores would not.
-A block is emitted only for metrics scoring at least 80% of the top score:
-
-- `0.64 / 0.95 = 0.67` → below the bar, no block. Response drops from 6,028 to 3,349
-  characters, and the remaining block unambiguously belongs to `new_signups`.
-- For "What is our total revenue and how many active customers do we have?", the top two
-  score 0.94 and 0.92 (`0.98` of the top) — genuinely two metrics, both keep their block.
-
-Tune with `DBT_MCP_JEV_DIMENSION_SCORE_RATIO`; set it to `0` to always emit blocks up to
-`DBT_MCP_JEV_DIMENSION_METRICS`.
+Because `DBT_MCP_JEV_TOP_K_DIMENSIONS` is now a flat cap on the *shared* table rather than
+a per-metric cap, a dimension that matters only to the lowest-ranked of five metrics can
+be pushed out of the top 12 by dimensions shared across the other four. In practice this
+is a good trade given the overlap is usually large, but it is a real trade, not a free
+lunch.
 
 ## Enabling it
 
@@ -242,16 +240,13 @@ All optional, and none are exposed to the calling model.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `DBT_MCP_JEV_TOP_K_METRICS` | `5` | Metrics kept after ranking |
-| `DBT_MCP_JEV_TOP_K_DIMENSIONS` | `12` | Dimensions kept per block |
+| `DBT_MCP_JEV_TOP_K_METRICS` | `5` | Metrics kept after ranking; also how many metrics' dimensions are fetched |
+| `DBT_MCP_JEV_TOP_K_DIMENSIONS` | `12` | Dimensions kept in the shared table, total (not per metric) |
 | `DBT_MCP_JEV_RELEVANCE_FLOOR` | `0.15` | Minimum score to be returned at all |
-| `DBT_MCP_JEV_DIMENSION_METRICS` | `2` | Most dimension blocks in one response |
-| `DBT_MCP_JEV_DIMENSION_SCORE_RATIO` | `0.8` | Runner-up's share of the top score needed to earn a block |
 | `DBT_MCP_JEV_TIMEOUT` | `10.0` | Seconds before falling back to the plain listing |
 
 Scores vary by roughly ±0.02 between runs, so top-k with a low floor is used rather than
 an absolute cutoff.
-
 ### Observing cost
 
 Jev's spend never appears in the calling agent's token accounting, so it is logged
@@ -286,16 +281,16 @@ grep 'jev.rank ' dbt-mcp.log | grep -o 'usd=[0-9.]*' | cut -d= -f2 \
 
 - **Single-project only.** The multi-project `list_metrics` in
   `semantic_layer/tools_multiproject.py` is unchanged.
-- **Not every ranked metric gets a dimension block.** Dimensions are fetched with one
-  `get_dimensions` call per metric, issued in parallel. (They have to be: the Semantic
-  Layer API *intersects* dimensions when given several metrics at once, so a single
-  multi-metric call returns almost nothing — for nine metrics it returned 249
-  characters.) To bound that fan-out, blocks are produced for at most
-  `DBT_MCP_JEV_DIMENSION_METRICS` metrics, and only for those within
-  `DBT_MCP_JEV_DIMENSION_SCORE_RATIO` of the top score. Lower-ranked metrics are still
-  listed and still carry their descriptions, but the agent must call `get_dimensions`
-  itself if it picks one of them. Raise `DBT_MCP_JEV_DIMENSION_METRICS` to cover more
-  of the ranked set, at one extra Semantic Layer call each.
+- **The dimension table is a global top-k, not a per-metric one.** Dimensions are
+  fetched with one `get_dimensions` call per ranked metric, issued in parallel. (They
+  have to be: the Semantic Layer API *intersects* dimensions when given several metrics
+  at once, so a single multi-metric call returns almost nothing — for nine metrics it
+  returned 249 characters.) The results are deduped by name across all ranked metrics
+  and ranked once, capped at `DBT_MCP_JEV_TOP_K_DIMENSIONS` rows *total* rather than per
+  metric. A dimension unique to a lower-ranked metric can be pushed out of that cap by
+  dimensions shared across the higher-ranked ones; the agent must call `get_dimensions`
+  itself to see it. Raise `DBT_MCP_JEV_TOP_K_DIMENSIONS` to reduce how often that
+  happens, at the cost of a larger response.
 - **Ranking quality depends on descriptions.** On a catalog whose metrics are
   undocumented, ranking degrades toward name matching. Measured on the near-duplicate
   revenue-churn family above, removing descriptions dropped top-1 accuracy from 5/6

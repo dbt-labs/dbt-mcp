@@ -8,9 +8,9 @@ When `question` is provided, the response contains:
 
 1. A `# Ranked by relevance...` note giving how many metrics were returned out of how many exist.
 2. A CSV of the best-matching metrics with a `relevance` column (0-1) and full `description` values. Read the descriptions — catalogs routinely contain near-duplicate metrics (for example a total, an enterprise-only variant, and a self-serve-only variant) whose names look similar and whose descriptions are the only thing distinguishing them. Pick using the description, not the name.
-3. One `# Dimensions for \`<metric>\`` block per top-ranked metric, listing the most relevant dimensions with their types, descriptions, granularities and relevance scores.
+3. A single `# Dimensions for \`<metric>\`, \`<metric>\`...` block covering all ranked metrics, listing the most relevant dimensions with their types, descriptions, granularities and relevance scores. Ranked metrics usually share most of their dimensions, so this block is deduplicated rather than repeated per metric — a `metrics` column says which of the ranked metrics actually have each dimension (`all` when every one does, otherwise the specific metric name(s)). Check this column before grouping by a dimension across more than one metric.
 
-Because dimensions come back in the same response, you usually do **not** need to call `get_dimensions` afterwards. Call it only when you need a dimension outside the ranked subset, or dimensions for a metric that has no block.
+Because dimensions come back in the same response, you usually do **not** need to call `get_dimensions` afterwards. Call it only when you need a dimension outside the ranked subset.
 
 Relevance scores are a guide, not a decision. If every score is low, no metric matches the question well — say so rather than forcing a choice. If several metrics score closely, they may all be needed, or the question may be ambiguous; ask the user rather than guessing.
 

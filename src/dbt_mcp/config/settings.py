@@ -138,10 +138,6 @@ class DbtMcpSettings(BaseSettings):
     jev_relevance_floor: float = Field(
         0.15, alias="DBT_MCP_JEV_RELEVANCE_FLOOR", ge=0.0, le=1.0
     )
-    jev_dimension_metrics: int = Field(2, alias="DBT_MCP_JEV_DIMENSION_METRICS", ge=1)
-    jev_dimension_metric_score_ratio: float = Field(
-        0.8, alias="DBT_MCP_JEV_DIMENSION_SCORE_RATIO", ge=0.0, le=1.0
-    )
     jev_timeout: float = Field(10.0, alias="DBT_MCP_JEV_TIMEOUT", gt=0)
 
     def __repr__(self):

@@ -35,12 +35,6 @@ class JevConfig:
     top_k_metrics: int = 5
     top_k_dimensions: int = 12
     relevance_floor: float = 0.15
-    dimension_metrics: int = 2
-    # A dimension block is only worth its tokens when the metric is a genuine
-    # contender. Runner-up metrics share most of their dimensions with the
-    # winner, so their block is near-duplicate filler unless they scored close
-    # to the top. Expressed as a fraction of the top metric's score.
-    dimension_metric_score_ratio: float = 0.8
     timeout: float = 10.0
 
 
