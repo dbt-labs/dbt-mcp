@@ -62,11 +62,15 @@ jobs:
           exit 1
 
       - name: Checkout code
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout@v7.0.1
         with:
           # For pull_request_target, explicitly checkout PR head (untrusted code, but gated by label)
           # For pull_request, use default behavior
           ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
+          # v7 blocks fork PR checkout on pull_request_target/workflow_run by default; the
+          # ok-to-test label gate above is our authorization check for that path, and this
+          # input is a no-op for the plain pull_request trigger, so opting in is safe here.
+          allow-unsafe-pr-checkout: true
 
       - name: Setup Python
         uses: ./.github/actions/setup-python
