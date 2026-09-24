@@ -1,0 +1,3 @@
+kind: Security
+body: Upgrade the UI build to Vite 8 and remove vulnerable esbuild from the lockfile.
+time: 2026-09-24T14:37:15.594326-05:00
