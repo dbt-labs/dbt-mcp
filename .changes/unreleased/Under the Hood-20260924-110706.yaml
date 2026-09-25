@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: Jev's dimension ranking now fetches dimensions for every ranked metric (not just the top 1-2) and dedupes them by name into one shared table with a 'metrics' column, instead of gating dimension blocks by a score-ratio heuristic. Removes the now-unused DBT_MCP_JEV_DIMENSION_METRICS and DBT_MCP_JEV_DIMENSION_SCORE_RATIO settings.
+time: 2026-09-24T11:07:06.265505+02:00

@@ -19,6 +19,18 @@ SEMANTIC_SEARCH_SAVED_QUERIES = (
     "Filter saved queries by substring match on name, label, or description"
 )
 
+SEMANTIC_QUESTION = (
+    "The user's data question, in their own words. Pass it through verbatim - "
+    "do not paraphrase, summarize, or translate it into metric or column names. "
+    "When provided, results are ranked by semantic relevance to this question "
+    "and narrowed to the best matches, each with its full description, a "
+    "`relevance` score, and the most relevant dimensions - so a single call "
+    "usually replaces list_metrics + get_dimensions. Prefer this over `search` "
+    "when the question uses business vocabulary that may not appear in metric "
+    "names; the two can be combined, in which case `search` filters first and "
+    "ranking happens within the survivors."
+)
+
 SEMANTIC_METRICS = "Metric names from list_metrics to query or inspect"
 
 SEMANTIC_SEARCH_DIMENSIONS = "Filter dimensions by substring match on name (omit to return all for these metrics)"
