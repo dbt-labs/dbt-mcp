@@ -38,7 +38,7 @@ dependencies = [
   # MCP SDK internals (_tool_manager._tools, mcp.server.fastmcp.utilities.func_metadata).
   # When upgrading, verify those APIs are unchanged and update this pin accordingly.
   "mcp[cli]==1.30.0",
-  "pydantic-settings~=2.10.1",
+  "pydantic-settings~=2.14.1",
   "pyjwt>=2.12,<2.14",
   "pyyaml~=6.0.2",
   "httpx~=0.28.1",
