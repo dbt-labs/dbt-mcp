@@ -32,18 +32,18 @@ dependencies = [
   "dbt-protos~=1.0.431",
   "dbt-sl-sdk[sync]~=0.13.3",
   "dbtlabs-vortex~=0.2.0",
-  "fastapi~=0.128.0",
+  "fastapi~=0.141.0",
   "uvicorn~=0.38.0",
-  # Pinned to a patch range because src/dbt_mcp/proxy/tools.py accesses private
+  # Pinned to an exact version because src/dbt_mcp/proxy/tools.py accesses private
   # MCP SDK internals (_tool_manager._tools, mcp.server.fastmcp.utilities.func_metadata).
   # When upgrading, verify those APIs are unchanged and update this pin accordingly.
-  "mcp[cli]==1.26.0",
-  "pydantic-settings~=2.10.1",
+  "mcp[cli]==1.30.0",
+  "pydantic-settings~=2.14.1",
   "pyjwt>=2.12,<2.14",
   "pyyaml~=6.0.2",
   "httpx~=0.28.1",
   "filelock~=3.20.3",
-  "starlette~=0.50.0",
+  "starlette~=1.6.0",
   "dbt-artifacts-parser>=0.13.2",
   "jq>=1.12.0",
 ]
