@@ -35,6 +35,7 @@ from dbt_mcp.tools.deprecation import deprecated_description, deprecation_meta
 from dbt_mcp.tools.fields import (
     DIRECTION_FIELD,
     LINEAGE_DEPTH_FIELD,
+    LINEAGE_LIMIT_FIELD,
     NAME_FIELD,
     TYPES_FIELD,
     UNIQUE_ID_FIELD,
@@ -300,29 +301,39 @@ class LineageGraph(BaseModel):
     root_id: str
     nodes: list[LineageNode]
     edges: list[LineageEdge]
+    omitted_node_count: int = 0
 
 
-def build_lineage_graph(root_id: str, nodes: list[dict]) -> LineageGraph:
+def build_lineage_graph(
+    root_id: str,
+    nodes: list[dict],
+    *,
+    limit: int,
+) -> LineageGraph:
     """Map the lineage fetcher's list-of-dicts output into a LineageGraph.
 
     Shared by the single- and multi-project get_lineage tools so both emit the
     same structured shape. Edges are kept only when both endpoints are present
     in the returned node set.
     """
-    node_ids = {n["uniqueId"] for n in nodes}
+    omitted_node_count = max(0, len(nodes) - limit)
+    returned_nodes = nodes[:limit]
+    node_ids = {n["uniqueId"] for n in returned_nodes}
+
     return LineageGraph(
         root_id=root_id,
+        omitted_node_count=omitted_node_count,
         nodes=[
             LineageNode(
                 unique_id=n["uniqueId"],
                 name=n["name"],
                 resource_type=n["resourceType"],
             )
-            for n in nodes
+            for n in returned_nodes
         ],
         edges=[
             LineageEdge(source=parent_id, target=n["uniqueId"])
-            for n in nodes
+            for n in returned_nodes
             for parent_id in n.get("parentIds", [])
             if parent_id in node_ids
         ],
@@ -344,6 +355,7 @@ async def get_lineage(
     types: list[LineageResourceType] | None = TYPES_FIELD,
     depth: int = LINEAGE_DEPTH_FIELD,
     direction: LineageDirection = DIRECTION_FIELD,
+    limit: int = LINEAGE_LIMIT_FIELD,
 ) -> LineageGraph:
     config = await context.config_provider.get_config()
     nodes = await context.lineage_fetcher.fetch_lineage(
@@ -353,7 +365,11 @@ async def get_lineage(
         direction=direction,
         config=config,
     )
-    return build_lineage_graph(root_id=unique_id, nodes=nodes)
+    return build_lineage_graph(
+        root_id=unique_id,
+        nodes=nodes,
+        limit=limit,
+    )
 
 
 @dbt_mcp_tool(

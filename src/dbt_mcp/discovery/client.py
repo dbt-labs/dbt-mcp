@@ -1,5 +1,6 @@
 import asyncio
 import textwrap
+from collections import defaultdict, deque
 from enum import StrEnum
 from typing import Any, ClassVar, Literal, TypedDict
 
@@ -949,15 +950,31 @@ class LineageFetcher:
             LineageDirection.BOTH,
         )
 
-        # BFS to find all connected nodes
+        children_by_parent: dict[str, list[str]] = defaultdict(list)
+        if include_downstream:
+            for node in nodes:
+                candidate_id = node.get("uniqueId")
+                if not isinstance(candidate_id, str) or candidate_id not in node_map:
+                    continue
+                for parent_id in node.get("parentIds", []):
+                    if parent_id in node_map:
+                        children_by_parent[parent_id].append(candidate_id)
+
+        # BFS orders the closest nodes first and makes output deterministic.
         connected = {target_id}
-        queue = [(target_id, 0)]
+        connected_order = [target_id]
+        queue = deque([(target_id, 0)])
+
+        def enqueue(candidate_id: str, candidate_depth: int) -> None:
+            if candidate_id in connected or candidate_id not in node_map:
+                return
+            connected.add(candidate_id)
+            connected_order.append(candidate_id)
+            queue.append((candidate_id, candidate_depth))
 
         while queue:
-            current_id, current_depth = queue.pop(0)
-            node = node_map.get(current_id)
-            if not node:
-                continue
+            current_id, current_depth = queue.popleft()
+            node = node_map[current_id]
 
             # Stop traversing beyond the depth limit, depth=0 means infinite
             if depth > 0 and current_depth >= depth:
@@ -966,22 +983,12 @@ class LineageFetcher:
             # Traverse upstream (parents)
             if include_upstream:
                 for parent_id in node.get("parentIds", []):
-                    if parent_id not in connected and parent_id in node_map:
-                        connected.add(parent_id)
-                        queue.append((parent_id, current_depth + 1))
+                    enqueue(parent_id, current_depth + 1)
 
             # Traverse downstream (children)
             if include_downstream:
-                for candidate in nodes:
-                    candidate_id = candidate.get("uniqueId")
-                    if not candidate_id or candidate_id not in node_map:
-                        continue
-                    if (
-                        current_id in candidate.get("parentIds", [])
-                        and candidate_id not in connected
-                    ):
-                        connected.add(candidate_id)
-                        queue.append((candidate_id, current_depth + 1))
+                for candidate_id in children_by_parent.get(current_id, ()):
+                    enqueue(candidate_id, current_depth + 1)
 
         # One-directional queries return only ancestors (upstream) or
         # descendants (downstream), excluding the target node itself — this
@@ -989,10 +996,9 @@ class LineageFetcher:
         # get_model_children. direction="both" keeps the target as the
         # anchor of the full connected subgraph.
         if direction != LineageDirection.BOTH:
-            connected.discard(target_id)
+            del connected_order[0]
 
-        # Return in original order
-        return [node_map[uid] for uid in connected]
+        return [node_map[uid] for uid in connected_order]
 
 
 class ModelPerformanceFetcher:
