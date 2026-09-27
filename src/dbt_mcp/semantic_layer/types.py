@@ -39,6 +39,9 @@ class MetricToolResponse:
     metadata: dict[str, Any] | None = None
     dimensions: list[str] | None = None
     entities: list[str] | None = None
+    # Populated only when results were ranked against a natural-language
+    # question; the CSV column is omitted entirely when every value is None.
+    relevance: float | None = None
 
 
 @dataclass

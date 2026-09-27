@@ -27,7 +27,9 @@ from dbt_mcp.tracking.token_estimation import (
 
 logger = logging.getLogger(__name__)
 
-REDACT_ARGS: frozenset[str] = frozenset({"sql_query", "vars"})
+# Argument values never sent to telemetry. `question` carries the end user's
+# own words verbatim, so it can contain anything they typed, including PII.
+REDACT_ARGS: frozenset[str] = frozenset({"sql_query", "vars", "question"})
 
 
 @dataclass

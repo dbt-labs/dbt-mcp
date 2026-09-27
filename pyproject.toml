@@ -49,7 +49,7 @@ dependencies = [
 ]
 [tool.uv]
 exclude-newer = "7 days"
-exclude-newer-package = { dbt-protos = false, dbt-sl-sdk = false, dbtlabs-vortex = false }
+exclude-newer-package = { dbt-protos = false, dbt-sl-sdk = false, dbtlabs-vortex = false, typesafe-sdk = false }
 
 [dependency-groups]
 dev = [
@@ -60,6 +60,7 @@ dev = [
   "pytest>=8.3.5",
   "openai>=1.71.0",
   "pyarrow-stubs>=19.1",
+  "typesafe-sdk>=0.7.0",
   "types-pyyaml>=6.0.12.20250516",
   "types-authlib>=1.6.4.20250920",
 ]
@@ -69,6 +70,9 @@ Documentation = "https://docs.getdbt.com/docs/dbt-ai/about-mcp"
 Issues = "https://github.com/dbt-labs/dbt-mcp/issues"
 Source = "https://github.com/dbt-labs/dbt-mcp"
 Changelog = "https://github.com/dbt-labs/dbt-mcp/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+jev = ["typesafe-sdk>=0.7.0"]
 
 [project.scripts]
 dbt-mcp = "dbt_mcp.main:main"

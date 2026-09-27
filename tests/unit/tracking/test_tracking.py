@@ -706,8 +706,11 @@ class TestUsageTracker:
         assert tool_called.user_agent == ""
 
     @pytest.mark.asyncio
-    async def test_sql_query_and_vars_redacted_in_telemetry(self):
-        """sql_query and vars values are redacted; keys and other args are kept."""
+    async def test_free_text_and_sql_arguments_redacted_in_telemetry(self):
+        """sql_query, vars and question values are redacted; other args are kept.
+
+        `question` carries the end user's own words, so it may contain PII.
+        """
         mock_settings = DbtMcpSettings.model_construct(
             do_not_track=None,
             send_anonymous_usage_data=None,
@@ -730,6 +733,7 @@ class TestUsageTracker:
                     arguments={
                         "sql_query": "SELECT id FROM my_model",
                         "vars": '{"my_var": "my_value"}',
+                        "question": "how much did Jane Doe spend last month?",
                         "limit": 5,
                     },
                     start_time_ms=0,
@@ -741,4 +745,8 @@ class TestUsageTracker:
         tool_called = mock_log_proto.call_args.args[0]
         assert tool_called.arguments["sql_query"] == '"***"'
         assert tool_called.arguments["vars"] == '"***"'
+        assert tool_called.arguments["question"] == '"***"'
         assert tool_called.arguments["limit"] == "5"
+        # Size measurement still uses the raw values - counts don't leak content.
+        assert tool_called.request_char_count > 0
+        assert "Jane Doe" not in str(tool_called.arguments)

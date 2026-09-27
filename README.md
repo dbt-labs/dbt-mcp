@@ -121,6 +121,27 @@ These tools provide information about the MCP server itself.
 - `get_mcp_server_version`: Returns the current version of the dbt MCP server.
 
 
+## Semantic relevance filtering (experimental)
+
+`list_metrics` can optionally rank the catalog against a natural-language question
+instead of returning every metric name with the descriptions trimmed away. On a
+425-metric project this cut the tokens spent before the first query from ~15,400 to
+~1,000 — about $0.027 per question on Claude Sonnet 5 — and removed the follow-up
+`get_dimensions` call.
+
+Off by default. Both variables are required:
+
+```bash
+DBT_MCP_ENABLE_JEV=true
+TYPESAFE_API_KEY=<your key>
+```
+
+Install the optional extra with `uv sync --extra jev`, or `pip install 'dbt-mcp[jev]'`.
+
+When disabled, `list_metrics` has no `question` parameter in its schema and behaves
+exactly as before. See [docs/jev-relevance-filtering.md](docs/jev-relevance-filtering.md)
+for how it works, what it sends to a third party, and the tuning variables.
+
 ## Examples
 
 Commonly, you will connect the dbt MCP server to an agent product like Claude or Cursor. However, if you are interested in creating your own agent, check out [the examples directory](https://github.com/dbt-labs/dbt-mcp/tree/main/examples) for how to get started.

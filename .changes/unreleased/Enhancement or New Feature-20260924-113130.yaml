@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Add DBT_MCP_JEV_RANK_DIMENSIONS (default true) to let Jev-based list_metrics ranking rank metrics only, skipping the get_dimensions fetch and dimension ranking entirely. Useful when benchmarking shows dimension ranking hurting results independently of metric ranking; when disabled, the tool description tells the model to call get_dimensions itself.
+time: 2026-09-24T11:31:30.20091+02:00

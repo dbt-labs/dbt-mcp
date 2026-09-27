@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: 'Experimental: optional semantic relevance filtering for list_metrics, off by default and enabled with DBT_MCP_ENABLE_JEV plus TYPESAFE_API_KEY (install the ''jev'' extra). When enabled, list_metrics gains a ''question'' parameter that ranks metrics against a natural-language question and returns a short, fully-described slice of the catalog plus the most relevant dimensions, usually replacing a separate get_dimensions call. When disabled, the parameter is absent from the tool schema and list_metrics is unchanged. The multi-project variant is not covered. See docs/jev-relevance-filtering.md.'
+time: 2026-09-21T15:20:16.203315+02:00

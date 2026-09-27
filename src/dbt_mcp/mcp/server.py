@@ -26,6 +26,7 @@ from dbt_mcp.product_docs.tools import register_product_docs_tools
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.proxy.tools import ProxiedToolsManager, register_proxied_tools
 from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
+from dbt_mcp.semantic_layer.jev import TypeSafeJevRanker
 from dbt_mcp.semantic_layer.tools import register_sl_tools
 from dbt_mcp.semantic_layer.tools_multiproject import register_multiproject_sl_tools
 from dbt_mcp.tracking.tracking import (
@@ -311,6 +312,10 @@ async def register_dbt_mcp_tools(dbt_mcp: FastMCP, config: Config) -> None:
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,
         disabled_toolsets=disabled_toolsets,
+        jev_ranker=(
+            TypeSafeJevRanker(config.jev_config) if config.jev_config else None
+        ),
+        jev_config=config.jev_config,
     )
 
     logger.info("Registering discovery tools")

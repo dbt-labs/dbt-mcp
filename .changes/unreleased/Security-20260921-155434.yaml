@@ -1,0 +1,3 @@
+kind: Security
+body: Redact the list_metrics 'question' argument from usage telemetry. The parameter carries the end user's question verbatim, so it can contain PII; only its presence and size are now recorded, not its text.
+time: 2026-09-21T15:54:34.262604+02:00
