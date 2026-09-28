@@ -1,11 +1,56 @@
 """
-Tests for OAuth token models.
+Tests for OAuth token models and verification.
 """
 
+from datetime import datetime, tzinfo
+from typing import Self
+
+import jwt
 import pytest
+from cryptography.hazmat.primitives.asymmetric import rsa
+from jwt import PyJWKClient, api_jwt
+from jwt.algorithms import RSAAlgorithm
 from pydantic import ValidationError
 
-from dbt_mcp.oauth.token import AccessTokenResponse, DecodedAccessToken
+from dbt_mcp.oauth.token import (
+    AccessTokenResponse,
+    DecodedAccessToken,
+    fetch_jwks_and_verify_token,
+)
+
+
+FROZEN_NOW = 1_700_000_000
+DBT_PLATFORM_URL = "https://dbt.example.com"
+KEY_ID = "test-key"
+
+
+class FrozenDateTime(datetime):
+    @classmethod
+    def now(cls, tz: tzinfo | None = None) -> Self:
+        return cls.fromtimestamp(FROZEN_NOW, tz=tz)
+
+
+@pytest.fixture
+def signing_key(monkeypatch: pytest.MonkeyPatch) -> rsa.RSAPrivateKey:
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public_jwk = RSAAlgorithm.to_jwk(private_key.public_key(), as_dict=True)
+    public_jwk.update({"kid": KEY_ID, "use": "sig"})
+    monkeypatch.setattr(
+        PyJWKClient, "fetch_data", lambda _client: {"keys": [public_jwk]}
+    )
+    monkeypatch.setattr(api_jwt, "datetime", FrozenDateTime)
+    return private_key
+
+
+def signed_token(
+    private_key: rsa.RSAPrivateKey, *, issued_at: int, expires_at: int
+) -> str:
+    return jwt.encode(
+        {"sub": "test-user", "iat": issued_at, "exp": expires_at},
+        private_key,
+        algorithm="RS256",
+        headers={"kid": KEY_ID},
+    )
 
 
 class TestAccessTokenResponse:
@@ -221,3 +266,44 @@ class TestDecodedAccessToken:
             decoded_token.decoded_claims["metadata"]["created_at"]
             == "2021-01-01T00:00:00Z"
         )
+
+
+class TestFetchJwksAndVerifyToken:
+    """Test verification against a simulated JWKS and fixed clock."""
+
+    def test_accepts_small_future_iat(self, signing_key: rsa.RSAPrivateKey) -> None:
+        access_token = signed_token(
+            signing_key, issued_at=FROZEN_NOW + 4, expires_at=FROZEN_NOW + 3600
+        )
+
+        claims = fetch_jwks_and_verify_token(access_token, DBT_PLATFORM_URL)
+
+        assert claims["sub"] == "test-user"
+        assert claims["iat"] == FROZEN_NOW + 4
+
+    def test_rejects_iat_beyond_leeway(self, signing_key: rsa.RSAPrivateKey) -> None:
+        access_token = signed_token(
+            signing_key, issued_at=FROZEN_NOW + 11, expires_at=FROZEN_NOW + 3600
+        )
+
+        with pytest.raises(jwt.ImmatureSignatureError):
+            fetch_jwks_and_verify_token(access_token, DBT_PLATFORM_URL)
+
+    def test_rejects_invalid_signature(self, signing_key: rsa.RSAPrivateKey) -> None:
+        other_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        access_token = signed_token(
+            other_key, issued_at=FROZEN_NOW, expires_at=FROZEN_NOW + 3600
+        )
+
+        with pytest.raises(jwt.InvalidSignatureError):
+            fetch_jwks_and_verify_token(access_token, DBT_PLATFORM_URL)
+
+    def test_rejects_expiration_beyond_leeway(
+        self, signing_key: rsa.RSAPrivateKey
+    ) -> None:
+        access_token = signed_token(
+            signing_key, issued_at=FROZEN_NOW - 3600, expires_at=FROZEN_NOW - 11
+        )
+
+        with pytest.raises(jwt.ExpiredSignatureError):
+            fetch_jwks_and_verify_token(access_token, DBT_PLATFORM_URL)

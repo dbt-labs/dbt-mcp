@@ -30,5 +30,6 @@ def fetch_jwks_and_verify_token(
         signing_key.key,
         algorithms=["RS256"],
         options={"verify_aud": False},
+        leeway=10,
     )
     return claims
