@@ -1,3 +1,0 @@
-kind: Security
-body: Upgrade MCP, FastAPI, and Starlette to patched releases.
-time: 2026-09-24T14:32:01.09989-05:00
