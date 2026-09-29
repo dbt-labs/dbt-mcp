@@ -10,17 +10,24 @@ A structured `LineageGraph` object:
   - `name`: the resource name
   - `resource_type`: the type of resource (Model, Source, etc.)
 - `edges`: the dependency edges, each with `source` and `target` `unique_id`s, where `source` is an upstream parent of `target` (data flows `source` → `target`).
+- `omitted_node_count`: number of nodes matching the requested filters excluded by `limit` (`0` means none were excluded by the limit).
 
 The target node (`root_id`) is present in `nodes` for `direction="both"` (the default). For `direction="upstream"`/`"downstream"` the target is excluded, so `root_id` may not appear in `nodes`.
 
-Call `get_lineage(unique_id=...)` to retrieve the target node plus only its immediate parents and children (the default `depth=1`).
+Call `get_lineage(unique_id=...)` to retrieve up to 100 nodes from the target and its immediate parents and children (the default `depth=1`).
 
 Use `direction` to narrow the response to one side of the graph and reduce payload size:
 - `direction="upstream"`: ancestors only — excludes the target node and descendants
 - `direction="downstream"`: descendants only — excludes the target node and ancestors
 - `direction="both"` (default): the target node plus both ancestors and descendants
 
-`direction="upstream"`/`"downstream"` are drop-in replacements for `get_model_parents`/`get_model_children`: same node set, target excluded either way.
+Use `limit` to bound the number of returned nodes (default `100`). The closest
+nodes are returned first. If `omitted_node_count` is positive, increase the
+limit or narrow `direction` or `types` to retrieve more lineage. The limit
+applies to the returned graph; the Discovery API query still fetches the
+environment's full lineage.
+
+Use `depth=1` with `direction="upstream"` or `"downstream"` for direct parents or children. The target is excluded, and `omitted_node_count` shows when the limit excluded any results.
 
 **Example Response:**
 ```json
@@ -28,14 +35,15 @@ Use `direction` to narrow the response to one side of the graph and reduce paylo
   "type": "lineage_graph",
   "root_id": "model.customers",
   "nodes": [
-    {"unique_id": "source.raw.users", "name": "users", "resource_type": "Source"},
+    {"unique_id": "model.customers", "name": "customers", "resource_type": "Model"},
     {"unique_id": "model.stg_customers", "name": "stg_customers", "resource_type": "Model"},
-    {"unique_id": "model.customers", "name": "customers", "resource_type": "Model"}
+    {"unique_id": "source.raw.users", "name": "users", "resource_type": "Source"}
   ],
   "edges": [
     {"source": "source.raw.users", "target": "model.stg_customers"},
     {"source": "model.stg_customers", "target": "model.customers"}
-  ]
+  ],
+  "omitted_node_count": 0
 }
 ```
 
@@ -50,7 +58,7 @@ get_lineage(unique_id="model.analytics.customers", types=["Model", "Source"])
 # Get deeper lineage for comprehensive analysis
 get_lineage(unique_id="model.analytics.customers", depth=10)
 
-# Get the full connected graph (depth=0 traverses without a limit)
+# Traverse all depths (returning up to the node limit)
 get_lineage(unique_id="model.analytics.customers", depth=0)
 
 # Get only upstream dependencies (ancestors), e.g. for dependency tracking
@@ -72,7 +80,7 @@ Relationships are explicit in `edges` (`source` → `target`, parent → child).
 
 - The target node is included only when `direction="both"` (the default); it is excluded for `direction="upstream"`/`"downstream"`
 - All returned nodes are connected to the target (no disconnected nodes)
-- To get full lineage, omit the `types` parameter
+- To include every resource type, omit the `types` parameter
 - To reduce payload size, specify relevant `types`
 
 **Common Use Cases:**
@@ -83,8 +91,8 @@ Relationships are explicit in `edges` (`source` → `target`, parent → child).
 2. **Dependency Tracking**: "What does this model depend on?"
    - Follow `edges` upstream to the target (edges where `target` is the target node)
 
-3. **Data Lineage**: "Show the complete data flow for this entity"
-   - Use `nodes` and `edges` to build the complete graph
+3. **Data Lineage**: "Show the data flow for this entity"
+   - Use `nodes` and `edges` to build the returned graph; increase `limit` if nodes were omitted
 
 4. **Finding Tests**: "What tests exist for this model and its dependencies?"
    - Filter `nodes` where `resource_type == "Test"`

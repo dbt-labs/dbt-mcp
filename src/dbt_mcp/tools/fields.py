@@ -49,6 +49,14 @@ LINEAGE_DEPTH_FIELD = Field(
     "A depth of 0 returns the entire lineage graph.",
 )
 
+LINEAGE_LIMIT_FIELD = Field(
+    default=100,
+    description="Maximum number of nodes to return. "
+    "The closest nodes are returned first in breadth-first order.",
+    ge=1,
+    le=10_000,
+)
+
 TYPES_FIELD = Field(
     default=None,
     description="List of resource types to include in lineage results. "

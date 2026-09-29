@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["mcp>=1.12.1"]
+dependencies = ["mcp>=1.28.1,<2"]
 
 [build-system]
 requires = ["setuptools>=61.0"]

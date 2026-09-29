@@ -33,7 +33,7 @@ HUMAN_DESCRIPTIONS: dict[ToolName, str] = {
     ToolName.GET_MODEL_CHILDREN: "Gets downstream dependents of a model.",
     ToolName.GET_MODEL_HEALTH: "Gets health signals: run status, test results, and upstream source freshness.",
     ToolName.GET_MODEL_PERFORMANCE: "Gets execution history for a model; option to include test results.",
-    ToolName.GET_LINEAGE: "Gets full lineage graph (ancestors and descendants) with type and depth filtering.",
+    ToolName.GET_LINEAGE: "Gets a bounded lineage graph with type, depth, and direction filtering.",
     ToolName.GET_ALL_SOURCES: "Gets all sources with freshness status; option to filter by source name.",
     ToolName.GET_SOURCE_DETAILS: "Gets source details including columns and freshness.",
     ToolName.GET_EXPOSURES: "Gets all exposures (downstream dashboards, apps, or analyses).",

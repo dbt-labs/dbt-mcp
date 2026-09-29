@@ -1,10 +1,17 @@
 import json
+from dataclasses import replace
+from typing import cast
+import multiprocessing
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from client.session import client_session_context
-from dbt_mcp.dbt_admin.param_descriptions import PAGINATION_LIMIT, PAGINATION_OFFSET
+from dbt_mcp.dbt_admin.param_descriptions import (
+    JOBS_PROJECT_ID_FILTER,
+    PAGINATION_LIMIT,
+    PAGINATION_OFFSET,
+)
 from dbt_mcp.dbt_admin.tools import (
     ADMIN_TOOLS,
     AdminToolContext,
@@ -22,6 +29,7 @@ from dbt_mcp.dbt_admin.tools import (
     retry_job_run,
     trigger_job_run,
 )
+from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.mcp.server import register_multi_project_dbt_mcp
 from tests.mocks.config import mock_config
 
@@ -337,7 +345,7 @@ async def test_get_job_run_artifacts_jq_filter_oversized_output_raises(
     content = json.dumps({"nodes": large_nodes})
     admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
 
-    with pytest.raises(ValueError, match="Filtered output exceeds"):
+    with pytest.raises(InvalidParameterError, match="Filtered output exceeds"):
         await get_job_run_artifacts.fn(
             admin_context,
             run_id=100,
@@ -412,7 +420,7 @@ async def test_get_job_run_artifacts_jq_filter_invalid_syntax(admin_context):
         return_value='{"key": "value"}'
     )
 
-    with pytest.raises(ValueError, match="Invalid jq filter:"):
+    with pytest.raises(InvalidParameterError, match="Invalid jq filter:"):
         await get_job_run_artifacts.fn(
             admin_context,
             run_id=100,
@@ -426,12 +434,34 @@ async def test_get_job_run_artifacts_jq_filter_non_json_artifact(admin_context):
         return_value="SELECT * FROM my_table"
     )
 
-    with pytest.raises(ValueError, match="not valid JSON"):
+    with pytest.raises(InvalidParameterError, match="not valid JSON"):
         await get_job_run_artifacts.fn(
             admin_context,
             run_id=100,
             artifact_path="compiled/model.sql",
             jq_filter=".nodes",
+        )
+
+
+async def test_get_job_run_artifacts_jq_filter_timeout_raises(
+    admin_context,
+):
+    admin_context.admin_client.get_job_run_artifact = AsyncMock(
+        return_value='{"key": "value"}'
+    )
+
+    with (
+        patch(
+            "dbt_mcp.dbt_admin.tools.asyncio.to_thread",
+            AsyncMock(side_effect=multiprocessing.TimeoutError),
+        ),
+        pytest.raises(InvalidParameterError, match="timed out"),
+    ):
+        await get_job_run_artifacts.fn(
+            admin_context,
+            run_id=100,
+            artifact_path="manifest.json",
+            jq_filter=".key",
         )
 
 
@@ -629,5 +659,34 @@ async def test_admin_tools_list_jobs_params():
         assert list_jobs_tool.inputSchema is not None
         props = list_jobs_tool.inputSchema.get("properties")
         assert props is not None
+        assert props["project_id"]["description"] == JOBS_PROJECT_ID_FILTER
+        assert "project_id" not in list_jobs_tool.inputSchema.get("required", [])
+        assert {"type": "integer", "exclusiveMinimum": 0} in props["project_id"][
+            "anyOf"
+        ]
         assert props["limit"]["description"] == PAGINATION_LIMIT
         assert props["offset"]["description"] == PAGINATION_OFFSET
+
+
+@pytest.mark.parametrize("project_id", [None, 42])
+@pytest.mark.parametrize("prod_environment_id", [None, 100])
+async def test_list_jobs_project_scope_and_pagination(
+    admin_context: AdminToolContext,
+    project_id: int | None,
+    prod_environment_id: int | None,
+) -> None:
+    config = await admin_context.admin_api_config_provider.get_config()
+    config = replace(config, prod_environment_id=prod_environment_id)
+    admin_context.admin_api_config_provider = Mock(
+        get_config=AsyncMock(return_value=config)
+    )
+
+    await list_jobs.fn(admin_context, project_id=project_id, limit=10, offset=20)
+
+    expected = {"limit": 10, "offset": 20}
+    if project_id is not None:
+        expected["project_id"] = project_id
+    elif prod_environment_id is not None:
+        expected["environment_id"] = prod_environment_id
+    list_jobs_mock = cast(AsyncMock, admin_context.admin_client.list_jobs)
+    list_jobs_mock.assert_awaited_once_with(12345, **expected)
