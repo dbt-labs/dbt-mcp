@@ -1,16 +1,19 @@
 name: Integration tests
 
-# SECURITY: This workflow handles two scenarios:
-# 1. Internal PRs (same repo): Runs automatically via pull_request trigger
-# 2. Fork PRs: Requires 'ok-to-test' label added by maintainer (pull_request_target)
+# SECURITY: Each PR is tested by the trigger that fits where it comes from (the job is skipped
+# for the other trigger):
+# 1. Internal PRs (same repo): pull_request. Uses the workflow file from the PR.
+# 2. Fork PRs: pull_request_target. Uses the workflow file from the base branch and checks out
+#    the PR head commit (untrusted code).
 #
-# Fork PRs via pull_request run but fail early (before checkout) until approved.
-# This makes the check blocking rather than showing as a green skip.
-# Secrets are not exposed to fork PRs until the ok-to-test gate passes.
+# The `integration` environment holds the credentials and requires reviewer approval, so every
+# run (i.e. every pushed commit) waits for a maintainer before any secret is exposed. Review the
+# whole diff before approving, including test files, Taskfile and local actions: they run with
+# the environment's secrets.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths-ignore:
+    paths-ignore: &ignore-paths
       - "*.md"
       - "AGENTS.md"
       - "CLAUDE.md"
@@ -19,7 +22,8 @@ on:
       - ".changes/**"
       - "LICENSE"
   pull_request_target:
-    types: [labeled]
+    types: [opened, synchronize, reopened]
+    paths-ignore: *ignore-paths
 
 permissions:
   contents: read
@@ -27,45 +31,23 @@ permissions:
 
 jobs:
   integration:
-    # Run for:
-    # 1. pull_request_target from fork PRs when the ok-to-test label is applied
-    # 2. pull_request from any PR — fork PRs fail at the auth gate step before checkout
+    # Run pull_request for same-repo PRs and pull_request_target for fork PRs, so that
+    # each PR is only tested once. The job is skipped for the other trigger.
     if: |
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository) ||
       (github.event_name == 'pull_request_target' &&
-       github.event.pull_request.head.repo.full_name != github.repository &&
-       github.event.label.name == 'ok-to-test') ||
-      github.event_name == 'pull_request'
+       github.event.pull_request.head.repo.full_name != github.repository)
     runs-on: ubuntu-24.04
     environment: integration
     permissions:
       contents: read
     steps:
-      # Gate: Block fork PRs that come through pull_request (no secrets, no label check).
-      # Fork PRs intentionally reach this step and fail here until ok-to-test is added.
-      - name: Check fork PR authorization
-        if: |
-          github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name != github.repository
-        run: |
-          echo "::error::Fork PRs require the 'ok-to-test' label to run integration tests."
-          echo "A maintainer must review the code and add the label."
-          echo "This is a security measure to protect repository secrets."
-          exit 1
-
-      # Gate: Only allow pull_request_target when triggered by the ok-to-test label
-      - name: Verify label trigger
-        if: |
-          github.event_name == 'pull_request_target' &&
-          github.event.label.name != 'ok-to-test'
-        run: |
-          echo "::error::This workflow only runs when the 'ok-to-test' label is added."
-          exit 1
-
       - name: Checkout code
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
         with:
-          # For pull_request_target, explicitly checkout PR head (untrusted code, but gated by label)
-          # For pull_request, use default behavior
+          # For pull_request_target, check out the exact commit the run was created for (untrusted
+          # code, approved through the environment). For pull_request, use the default behavior.
           ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
 
       - name: Setup Python
