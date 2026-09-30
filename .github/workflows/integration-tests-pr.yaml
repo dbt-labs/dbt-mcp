@@ -13,7 +13,7 @@ name: Integration tests
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths-ignore:
+    paths-ignore: &ignore-paths
       - "*.md"
       - "AGENTS.md"
       - "CLAUDE.md"
@@ -23,14 +23,7 @@ on:
       - "LICENSE"
   pull_request_target:
     types: [opened, synchronize, reopened]
-    paths-ignore:
-      - "*.md"
-      - "AGENTS.md"
-      - "CLAUDE.md"
-      - ".claude/**"
-      - ".cursor/**"
-      - ".changes/**"
-      - "LICENSE"
+    paths-ignore: *ignore-paths
 
 permissions:
   contents: read
