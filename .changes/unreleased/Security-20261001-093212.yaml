@@ -1,0 +1,3 @@
+kind: Security
+body: Update urllib3 to 2.8.0 to address security advisories.
+time: 2026-10-01T09:32:12.369848-05:00
