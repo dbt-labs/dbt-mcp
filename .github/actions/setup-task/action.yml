@@ -1,0 +1,18 @@
+name: Setup go-task
+description: Install a pinned version of go-task/task
+
+inputs:
+  version:
+    description: "go-task/task release tag to install"
+    required: false
+    default: "v3.53.1"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install go-task
+      shell: bash
+      env:
+        TASK_VERSION: ${{ inputs.version }}
+      run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin "$TASK_VERSION"
+
