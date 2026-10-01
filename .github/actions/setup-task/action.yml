@@ -12,5 +12,7 @@ runs:
   steps:
     - name: Install go-task
       shell: bash
-      run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin ${{ inputs.version }}
+      env:
+        TASK_VERSION: ${{ inputs.version }}
+      run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin "$TASK_VERSION"
 
