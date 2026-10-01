@@ -55,7 +55,7 @@ jobs:
         id: setup-python
 
       - name: Install go-task
-        run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+        uses: ./.github/actions/setup-task
 
       - name: Run integration tests
         env:
