@@ -10,13 +10,15 @@ from pydantic import BaseModel, ConfigDict, Field
 from dbt_mcp.config.config_providers import DiscoveryConfig
 from dbt_mcp.config.settings import PLATFORM_API_TIMEOUT
 from dbt_mcp.discovery.graphql import load_query
-from dbt_mcp.errors import InvalidParameterError, ToolCallError
+from dbt_mcp.errors import DiscoveryToolCallError, InvalidParameterError, ToolCallError
 from dbt_mcp.errors.common import NotFoundError
 from dbt_mcp.gql.errors import raise_gql_error
 from dbt_mcp.tools.parameters import LineageDirection, LineageResourceType
 
-DEFAULT_PAGE_SIZE = 100
-DEFAULT_MAX_NODE_QUERY_LIMIT = 10000
+from dbt_mcp.http import response_limit_hook
+from dbt_mcp.pagination import Pagination, ResultPage, validate_page_size
+
+DEFAULT_PAGE_SIZE = 50
 
 # dbt-labs first-party packages (from dbt-labs/dbt-adapters monorepo)
 # These are the only packages maintained directly by dbt Labs
@@ -47,6 +49,7 @@ class GraphQLQueries:
                 applied {
                     models(filter: $modelsFilter, after: $after, first: $first, sort: $sort) {
                         pageInfo {
+                            hasNextPage
                             endCursor
                         }
                         edges {
@@ -364,7 +367,16 @@ async def execute_query(
     url = config.url
     headers = config.headers_provider.get_headers()
 
-    async with httpx.AsyncClient(timeout=PLATFORM_API_TIMEOUT) as client:
+    async with (
+        config.http_config.admission(),
+        httpx.AsyncClient(
+            headers={"Accept-Encoding": "gzip, deflate"},
+            timeout=PLATFORM_API_TIMEOUT,
+            event_hooks={
+                "response": [response_limit_hook(config.http_config.response_limits)]
+            },
+        ) as client,
+    ):
         response = await client.post(
             url=url,
             json={"query": query, "variables": variables},
@@ -387,13 +399,9 @@ class PaginatedResourceFetcher:
         *,
         edges_path: tuple[str, ...],
         page_info_path: tuple[str, ...],
-        page_size: int = DEFAULT_PAGE_SIZE,
-        max_node_query_limit: int = DEFAULT_MAX_NODE_QUERY_LIMIT,
     ):
         self._edges_path = edges_path
         self._page_info_path = page_info_path
-        self._page_size = page_size
-        self._max_node_query_limit = max_node_query_limit
 
     def _extract_path(self, payload: dict, path: tuple[str, ...]) -> Any:
         current = payload
@@ -416,51 +424,39 @@ class PaginatedResourceFetcher:
             parsed_edges.append(node)
         return parsed_edges
 
-    def _should_continue(
-        self,
-        page_info: PageInfo,
-        previous_cursor: str | None,
-    ) -> bool:
-        next_cursor = page_info.end_cursor
-        has_next = page_info.has_next_page
-        next_cursor_valid = bool(next_cursor) and next_cursor != previous_cursor
-        if isinstance(has_next, bool):
-            return has_next and next_cursor_valid
-        return next_cursor_valid
-
     async def fetch_paginated(
         self,
         query: str,
         variables: dict[str, Any],
         *,
         config: DiscoveryConfig,
-    ) -> list[dict]:
-        environment_id = config.environment_id
-        collected: list[dict] = []
-        current_cursor: str | None = None
-        while True:
-            if len(collected) >= self._max_node_query_limit:
-                break
-            remaining_capacity = self._max_node_query_limit - len(collected)
-            request_variables = variables.copy()
-            request_variables["environmentId"] = environment_id
-            request_variables["first"] = min(self._page_size, remaining_capacity)
-            if current_cursor is not None:
-                request_variables["after"] = current_cursor
-            result = await execute_query(
-                query,
-                request_variables,
-                config=config,
+        limit: int = 50,
+        after: str | None = None,
+    ) -> ResultPage[list[dict]]:
+        validate_page_size(limit)
+        request_variables = variables | {
+            "environmentId": config.environment_id,
+            "first": limit,
+        }
+        if after is not None:
+            request_variables["after"] = after
+        result = await execute_query(query, request_variables, config=config)
+        nodes = self._parse_edges(result)
+        if len(nodes) > limit:
+            raise DiscoveryToolCallError(
+                "Discovery returned more nodes than requested."
             )
-            page_edges = self._parse_edges(result)
-            collected.extend(page_edges)
-            page_info_data = self._extract_path(result, self._page_info_path)
-            page_info = PageInfo(**page_info_data)
-            previous_cursor = current_cursor
-            current_cursor = page_info.end_cursor
-            if not self._should_continue(page_info, previous_cursor):
-                break
-        return collected
+        page_info = PageInfo(**self._extract_path(result, self._page_info_path))
+        has_more = bool(page_info.has_next_page)
+        if has_more and (not page_info.end_cursor or page_info.end_cursor == after):
+            raise DiscoveryToolCallError("Discovery pagination did not advance.")
+        return ResultPage(
+            result=nodes,
+            pagination=Pagination(
+                has_more=has_more,
+                next_cursor=page_info.end_cursor if has_more else None,
+            ),
+        )
 
 
 class ModelFilter(TypedDict, total=False):
@@ -504,7 +500,9 @@ class ModelsFetcher:
         model_filter: ModelFilter | None = None,
         *,
         config: DiscoveryConfig,
-    ) -> list[dict]:
+        limit: int = 50,
+        after: str | None = None,
+    ) -> ResultPage[list[dict]]:
         return await self._paginator.fetch_paginated(
             GraphQLQueries.GET_MODELS,
             variables={
@@ -512,6 +510,8 @@ class ModelsFetcher:
                 "sort": {"field": "queryUsageCount", "direction": "desc"},
             },
             config=config,
+            limit=limit,
+            after=after,
         )
 
     async def resolve_unique_ids_by_name(
@@ -534,12 +534,18 @@ class ModelsFetcher:
             with existing `_get_model_filters` usage in
             fetch_model_health/fetch_model_children/fetch_model_parents.
         """
-        models = await self.fetch_models(
-            model_filter=self._get_model_filters(model_name=name), config=config
+        page = await self.fetch_models(
+            model_filter=self._get_model_filters(model_name=name),
+            config=config,
+            limit=100,
         )
+        if page.pagination.has_more:
+            raise InvalidParameterError(
+                "Name lookup returned an incomplete candidate set; provide unique_id."
+            )
         return [
             model["uniqueId"]
-            for model in models
+            for model in page.result
             if model.get("uniqueId")
             and (model.get("name") or "").lower() == name.lower()
         ]
@@ -620,11 +626,15 @@ class ExposuresFetcher:
     ):
         self._paginator = paginator
 
-    async def fetch_exposures(self, *, config: DiscoveryConfig) -> list[dict]:
+    async def fetch_exposures(
+        self, *, config: DiscoveryConfig, limit: int = 50, after: str | None = None
+    ) -> ResultPage[list[dict]]:
         return await self._paginator.fetch_paginated(
             GraphQLQueries.GET_EXPOSURES,
             variables={},
             config=config,
+            limit=limit,
+            after=after,
         )
 
 
@@ -641,7 +651,9 @@ class SourcesFetcher:
         unique_ids: list[str] | None = None,
         *,
         config: DiscoveryConfig,
-    ) -> list[dict]:
+        limit: int = 50,
+        after: str | None = None,
+    ) -> ResultPage[list[dict]]:
         source_filter: SourceFilter = {}
         if source_names is not None:
             source_filter["sourceNames"] = source_names
@@ -652,6 +664,8 @@ class SourcesFetcher:
             GraphQLQueries.GET_SOURCES,
             variables={"sourcesFilter": source_filter},
             config=config,
+            limit=limit,
+            after=after,
         )
 
 
@@ -669,7 +683,9 @@ class MacrosFetcher:
         include_default_dbt_packages: bool = False,
         *,
         config: DiscoveryConfig,
-    ) -> list[dict] | list[str]:
+        limit: int = 50,
+        after: str | None = None,
+    ) -> ResultPage[list[dict] | list[str]]:
         """Fetch all macros with optional filtering.
 
         Args:
@@ -687,11 +703,15 @@ class MacrosFetcher:
         """
         macro_filter: MacroFilter = {"types": ["Macro"]}
 
-        macros = await self._paginator.fetch_paginated(
+        page = await self._paginator.fetch_paginated(
             GraphQLQueries.GET_MACROS,
             variables={"filter": macro_filter},
             config=config,
+            limit=limit,
+            after=after,
         )
+
+        macros = page.result
 
         # Filter out dbt-labs first-party macros unless include_default_dbt_packages is True
         if not include_default_dbt_packages:
@@ -715,9 +735,9 @@ class MacrosFetcher:
             unique_packages = sorted(
                 {name for m in macros if (name := m.get("packageName"))}
             )
-            return unique_packages
+            return ResultPage(result=unique_packages, pagination=page.pagination)
 
-        return macros
+        return ResultPage(result=macros, pagination=page.pagination)
 
     def _is_dbt_builtin_package(self, package_name: str) -> bool:
         """Check if a package is dbt core or a dbt-labs first-party adapter."""
@@ -844,6 +864,10 @@ class ResourceDetailsFetcher:
                 ]
         else:
             unique_ids = [stripped_unique_id]
+        if len(unique_ids) > 100:
+            raise InvalidParameterError(
+                "Too many packages match this name; provide unique_id."
+            )
         query = self.GQL_QUERIES[resource_type]
         variables = {
             "environmentId": environment_id,

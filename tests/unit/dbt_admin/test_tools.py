@@ -1,22 +1,16 @@
 import json
 from dataclasses import replace
-from typing import cast
-import multiprocessing
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+import httpx
+from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
+from tests.unit.dbt_admin.test_artifact_limits import Chunks
 
-from client.session import client_session_context
-from dbt_mcp.dbt_admin.param_descriptions import (
-    JOBS_PROJECT_ID_FILTER,
-    PAGINATION_LIMIT,
-    PAGINATION_OFFSET,
-)
 from dbt_mcp.dbt_admin.tools import (
     ADMIN_TOOLS,
     AdminToolContext,
     JobRunStatus,
-    INLINE_CONTENT_LIMIT,
     cancel_job_run,
     get_job_details,
     get_job_run_artifacts,
@@ -30,10 +24,27 @@ from dbt_mcp.dbt_admin.tools import (
     trigger_job_run,
 )
 from dbt_mcp.errors import InvalidParameterError
+from dbt_mcp.resource_limits import ArtifactConfig
+from dbt_mcp.config.config_providers import StaticConfigProvider
+from dbt_mcp.pagination import Pagination, ResultPage
 from dbt_mcp.mcp.server import register_multi_project_dbt_mcp
 from tests.mocks.config import mock_config
 
 NUM_ADMIN_TOOLS = 11
+INLINE_CONTENT_LIMIT = ArtifactConfig().inline_bytes
+
+
+def install_artifact_transport(context, content, monkeypatch):
+    client_class = httpx.AsyncClient
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(200, stream=Chunks([content.encode()]))
+    )
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda **kwargs: client_class(transport=transport, **kwargs),
+    )
+    context.admin_client = DbtAdminAPIClient(context.admin_api_config_provider)
 
 
 @pytest.fixture
@@ -106,6 +117,12 @@ def mock_admin_client():
         return_value=["manifest.json", "catalog.json"]
     )
     client.get_job_run_artifact = AsyncMock(return_value={"nodes": {}})
+    client.list_jobs.return_value = ResultPage(
+        result=client.list_jobs.return_value, pagination=Pagination(has_more=False)
+    )
+    client.list_jobs_runs.return_value = ResultPage(
+        result=client.list_jobs_runs.return_value, pagination=Pagination(has_more=False)
+    )
 
     return client
 
@@ -168,7 +185,7 @@ async def test_register_admin_api_tools_with_disabled_tools(
 async def test_list_jobs_tool(admin_context):
     result = await list_jobs.fn(admin_context, limit=10)
 
-    assert isinstance(result, list)
+    assert isinstance(result.result, list)
     admin_context.admin_client.list_jobs.assert_called_once()
 
 
@@ -195,9 +212,9 @@ async def test_list_jobs_runs_tool(admin_context):
         admin_context, job_id=1, status=JobRunStatus.SUCCESS, limit=5
     )
 
-    assert isinstance(result, list)
+    assert isinstance(result.result, list)
     admin_context.admin_client.list_jobs_runs.assert_called_once_with(
-        12345, job_definition_id=1, status=10, limit=5
+        12345, job_definition_id=1, status=10, limit=5, offset=0
     )
 
 
@@ -289,9 +306,11 @@ async def test_get_job_run_artifacts_size_routing(
         assert "written to" not in result
 
 
-async def test_get_job_run_artifacts_jq_filter_extracts_field(admin_context):
+async def test_get_job_run_artifacts_jq_filter_extracts_field(
+    monkeypatch, admin_context
+):
     content = '{"results": [{"status": "error", "unique_id": "model.proj.a"}, {"status": "success", "unique_id": "model.proj.b"}]}'
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
+    install_artifact_transport(admin_context, content, monkeypatch)
 
     result = await get_job_run_artifacts.fn(
         admin_context,
@@ -304,10 +323,11 @@ async def test_get_job_run_artifacts_jq_filter_extracts_field(admin_context):
 
 
 async def test_get_job_run_artifacts_jq_filter_empty_result_returns_json_array(
+    monkeypatch,
     admin_context,
 ):
     content = '{"results": [{"status": "success", "unique_id": "model.proj.a"}]}'
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
+    install_artifact_transport(admin_context, content, monkeypatch)
 
     result = await get_job_run_artifacts.fn(
         admin_context,
@@ -320,12 +340,13 @@ async def test_get_job_run_artifacts_jq_filter_empty_result_returns_json_array(
 
 
 async def test_get_job_run_artifacts_jq_filter_small_output_from_large_input(
+    monkeypatch,
     admin_context,
 ):
     padding = "x" * (INLINE_CONTENT_LIMIT + 1)
     content = json.dumps({"padding": padding})
     assert len(content) > INLINE_CONTENT_LIMIT
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
+    install_artifact_transport(admin_context, content, monkeypatch)
 
     result = await get_job_run_artifacts.fn(
         admin_context,
@@ -338,12 +359,13 @@ async def test_get_job_run_artifacts_jq_filter_small_output_from_large_input(
 
 
 async def test_get_job_run_artifacts_jq_filter_oversized_output_raises(
+    monkeypatch,
     admin_context,
 ):
     # Each node has a long value to push the filtered output past INLINE_CONTENT_LIMIT
     large_nodes = {f"n{i}": "x" * 100 for i in range(6000)}
     content = json.dumps({"nodes": large_nodes})
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
+    install_artifact_transport(admin_context, content, monkeypatch)
 
     with pytest.raises(InvalidParameterError, match="Filtered output exceeds"):
         await get_job_run_artifacts.fn(
@@ -358,9 +380,7 @@ async def test_get_job_run_artifacts_jq_filter_scrubs_env(admin_context, monkeyp
     # A secret in the parent process environment must not leak through jq's
     # env/$ENV builtins — the spawned worker clears its environment before eval.
     monkeypatch.setenv("SENTINEL", "leakme")
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(
-        return_value='{"key": "value"}'
-    )
+    install_artifact_transport(admin_context, '{"key": "value"}', monkeypatch)
 
     # `env` returns the whole environment as an object — scrubbed to empty.
     env_result = await get_job_run_artifacts.fn(
@@ -392,7 +412,7 @@ async def test_get_job_run_artifacts_jq_filter_scrubs_env(admin_context, monkeyp
     ],
 )
 async def test_get_job_run_artifacts_jq_filter_allows_env_fields(
-    admin_context, jq_filter: str, expected: list
+    monkeypatch, admin_context, jq_filter: str, expected: list
 ):
     # Field access on data named "env" was previously blocked by an over-broad
     # regex; it is now allowed because only jq's env/$ENV builtins are neutralized.
@@ -403,7 +423,7 @@ async def test_get_job_run_artifacts_jq_filter_allows_env_fields(
             "nodes": [{"name": "prod_env"}, {"name": "staging"}],
         }
     )
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
+    install_artifact_transport(admin_context, content, monkeypatch)
 
     result = await get_job_run_artifacts.fn(
         admin_context,
@@ -415,10 +435,10 @@ async def test_get_job_run_artifacts_jq_filter_allows_env_fields(
     assert json.loads(result) == expected
 
 
-async def test_get_job_run_artifacts_jq_filter_invalid_syntax(admin_context):
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(
-        return_value='{"key": "value"}'
-    )
+async def test_get_job_run_artifacts_jq_filter_invalid_syntax(
+    monkeypatch, admin_context
+):
+    install_artifact_transport(admin_context, '{"key": "value"}', monkeypatch)
 
     with pytest.raises(InvalidParameterError, match="Invalid jq filter:"):
         await get_job_run_artifacts.fn(
@@ -429,10 +449,10 @@ async def test_get_job_run_artifacts_jq_filter_invalid_syntax(admin_context):
         )
 
 
-async def test_get_job_run_artifacts_jq_filter_non_json_artifact(admin_context):
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(
-        return_value="SELECT * FROM my_table"
-    )
+async def test_get_job_run_artifacts_jq_filter_non_json_artifact(
+    monkeypatch, admin_context
+):
+    install_artifact_transport(admin_context, "SELECT * FROM my_table", monkeypatch)
 
     with pytest.raises(InvalidParameterError, match="not valid JSON"):
         await get_job_run_artifacts.fn(
@@ -444,24 +464,21 @@ async def test_get_job_run_artifacts_jq_filter_non_json_artifact(admin_context):
 
 
 async def test_get_job_run_artifacts_jq_filter_timeout_raises(
-    admin_context,
+    admin_context, monkeypatch
 ):
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(
-        return_value='{"key": "value"}'
+    install_artifact_transport(admin_context, "{}", monkeypatch)
+    config = await admin_context.admin_api_config_provider.get_config()
+    admin_context.admin_client = DbtAdminAPIClient(
+        StaticConfigProvider(
+            replace(config, artifact_config=ArtifactConfig(execution_seconds=0.2))
+        )
     )
-
-    with (
-        patch(
-            "dbt_mcp.dbt_admin.tools.asyncio.to_thread",
-            AsyncMock(side_effect=multiprocessing.TimeoutError),
-        ),
-        pytest.raises(InvalidParameterError, match="timed out"),
-    ):
+    with pytest.raises(InvalidParameterError, match="timed out"):
         await get_job_run_artifacts.fn(
             admin_context,
             run_id=100,
             artifact_path="manifest.json",
-            jq_filter=".key",
+            jq_filter="until(false; .)",
         )
 
 
@@ -481,13 +498,15 @@ async def test_tools_handle_exceptions():
 async def test_tools_with_no_optional_parameters(admin_context):
     # Test list_jobs with no parameters
     result = await list_jobs.fn(admin_context)
-    assert isinstance(result, list)
-    admin_context.admin_client.list_jobs.assert_called_with(12345)
+    assert isinstance(result.result, list)
+    admin_context.admin_client.list_jobs.assert_called_with(12345, limit=50, offset=0)
 
     # Test list_jobs_runs with no parameters
     result = await list_jobs_runs.fn(admin_context)
-    assert isinstance(result, list)
-    admin_context.admin_client.list_jobs_runs.assert_called_with(12345)
+    assert isinstance(result.result, list)
+    admin_context.admin_client.list_jobs_runs.assert_called_with(
+        12345, limit=50, offset=0
+    )
 
     # Test get_job_run_details
     result = await get_job_run_details.fn(admin_context, run_id=100)
@@ -649,44 +668,30 @@ def test_admin_tools_list_contains_all_tools():
     assert len(ADMIN_TOOLS) == NUM_ADMIN_TOOLS
 
 
-async def test_admin_tools_list_jobs_params():
-    """Test that the list_jobs tool has the correct parameters."""
-    async with client_session_context() as client:
-        available_tools = (await client.list_tools()).tools
-        list_jobs_tool = next(
-            tool for tool in available_tools if tool.name == "list_jobs"
-        )
-        assert list_jobs_tool.inputSchema is not None
-        props = list_jobs_tool.inputSchema.get("properties")
-        assert props is not None
-        assert props["project_id"]["description"] == JOBS_PROJECT_ID_FILTER
-        assert "project_id" not in list_jobs_tool.inputSchema.get("required", [])
-        assert {"type": "integer", "exclusiveMinimum": 0} in props["project_id"][
-            "anyOf"
-        ]
-        assert props["limit"]["description"] == PAGINATION_LIMIT
-        assert props["offset"]["description"] == PAGINATION_OFFSET
+async def test_admin_tools_list_jobs_params(admin_context):
+    def bind_context() -> AdminToolContext:
+        return admin_context
+
+    tool = list_jobs.adapt_context(bind_context).to_fastmcp_internal_tool()
+    props = tool.parameters["properties"]
+    assert props["limit"]["default"] == 50
+    assert props["limit"]["minimum"] == 1
+    assert props["limit"]["maximum"] == 100
+    assert props["offset"]["default"] == 0
+    assert props["offset"]["minimum"] == 0
 
 
-@pytest.mark.parametrize("project_id", [None, 42])
-@pytest.mark.parametrize("prod_environment_id", [None, 100])
-async def test_list_jobs_project_scope_and_pagination(
-    admin_context: AdminToolContext,
-    project_id: int | None,
-    prod_environment_id: int | None,
-) -> None:
-    config = await admin_context.admin_api_config_provider.get_config()
-    config = replace(config, prod_environment_id=prod_environment_id)
-    admin_context.admin_api_config_provider = Mock(
-        get_config=AsyncMock(return_value=config)
+async def test_list_jobs_mcp_text_and_structured_output_share_pagination(admin_context):
+    def bind_context() -> AdminToolContext:
+        return admin_context
+
+    admin_context.admin_client.list_jobs.return_value = ResultPage(
+        result=[{"id": 1}],
+        pagination=Pagination(has_more=True, next_offset=1, total_items=2),
     )
-
-    await list_jobs.fn(admin_context, project_id=project_id, limit=10, offset=20)
-
-    expected = {"limit": 10, "offset": 20}
-    if project_id is not None:
-        expected["project_id"] = project_id
-    elif prod_environment_id is not None:
-        expected["environment_id"] = prod_environment_id
-    list_jobs_mock = cast(AsyncMock, admin_context.admin_client.list_jobs)
-    list_jobs_mock.assert_awaited_once_with(12345, **expected)
+    tool = list_jobs.adapt_context(bind_context).to_fastmcp_internal_tool()
+    text, structured = await tool.run({"limit": 1}, convert_result=True)
+    assert structured["result"] == [{"id": 1}]
+    assert structured["pagination"]["has_more"] is True
+    assert structured["pagination"]["next_offset"] == 1
+    assert json.loads(text[0].text) == structured

@@ -28,3 +28,15 @@ class MissingHostError(ConfigurationError):
     """Raised when DBT_HOST is required but not configured."""
 
     pass
+
+
+class UpstreamResponseError(ToolCallError):
+    """An upstream response violates the client/server protocol contract."""
+
+
+class ResponseLimitError(ToolCallError):
+    """An upstream response exceeds the acquisition budget."""
+
+
+class ToolCapacityError(ToolCallError):
+    """Tool execution is temporarily overloaded; callers may retry later."""

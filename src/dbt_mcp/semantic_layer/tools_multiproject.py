@@ -13,6 +13,7 @@ from dbt_mcp.config.config_providers.semantic_layer import (
     MultiProjectSemanticLayerConfigProvider,
 )
 from dbt_mcp.prompts.prompts import get_prompt
+from dbt_mcp.pagination import LIMIT_FIELD, PAGE_NUM_FIELD, Pagination, ResultPage
 from dbt_mcp.semantic_layer.client import (
     SemanticLayerClientProvider,
     SemanticLayerFetcher,
@@ -79,19 +80,19 @@ async def list_metrics(
     meta_filter: Annotated[
         dict[str, Any] | None, Field(description=SEMANTIC_META_FILTER)
     ] = None,
-) -> str:
+    page_num: Annotated[int, PAGE_NUM_FIELD] = 1,
+    page_size: Annotated[int, LIMIT_FIELD] = 50,
+) -> ResultPage[str]:
     config = await context.semantic_layer_config_provider.get_config(project_id)
     response = await SemanticLayerFetcher(
         client_provider=context.client_provider,
-    ).list_metrics(config=config, search=search)
+    ).list_metrics(config=config, search=search, page_num=page_num, page_size=page_size)
     if meta_filter:
         response = filter_metrics_by_meta(response, meta_filter)
-    # See note in single-project list_metrics: only trim broad listings; below
-    # the related-metrics threshold the user is asking about a specific subset
-    # and should get full description/metadata even if verbose.
-    is_broad_listing = len(response.metrics) > config.metrics_related_max
-    max_chars = config.max_response_chars if is_broad_listing else 0
-    return metrics_to_csv(response, max_response_chars=max_chars)
+    return ResultPage(
+        result=metrics_to_csv(response, max_response_chars=config.max_response_chars),
+        pagination=response.pagination or Pagination(has_more=False),
+    )
 
 
 @dbt_mcp_tool(
@@ -107,11 +108,15 @@ async def list_saved_queries(
     search: Annotated[
         str | None, Field(description=SEMANTIC_SEARCH_SAVED_QUERIES)
     ] = None,
-) -> list[SavedQueryToolResponse]:
+    page_num: Annotated[int, PAGE_NUM_FIELD] = 1,
+    page_size: Annotated[int, LIMIT_FIELD] = 50,
+) -> ResultPage[list[SavedQueryToolResponse]]:
     config = await context.semantic_layer_config_provider.get_config(project_id)
     return await SemanticLayerFetcher(
         client_provider=context.client_provider
-    ).list_saved_queries(config=config, search=search)
+    ).list_saved_queries(
+        config=config, search=search, page_num=page_num, page_size=page_size
+    )
 
 
 @dbt_mcp_tool(
@@ -126,11 +131,19 @@ async def get_dimensions(
     project_id: Annotated[int, Field(description=SEMANTIC_LAYER_PROJECT_ID)],
     metrics: Annotated[list[str], Field(description=SEMANTIC_METRICS)],
     search: Annotated[str | None, Field(description=SEMANTIC_SEARCH_DIMENSIONS)] = None,
-) -> list[DimensionToolResponse]:
+    page_num: Annotated[int, PAGE_NUM_FIELD] = 1,
+    page_size: Annotated[int, LIMIT_FIELD] = 50,
+) -> ResultPage[list[DimensionToolResponse]]:
     config = await context.semantic_layer_config_provider.get_config(project_id)
     return await SemanticLayerFetcher(
         client_provider=context.client_provider
-    ).get_dimensions(config=config, metrics=metrics, search=search)
+    ).get_dimensions(
+        config=config,
+        metrics=metrics,
+        search=search,
+        page_num=page_num,
+        page_size=page_size,
+    )
 
 
 @dbt_mcp_tool(
@@ -145,11 +158,19 @@ async def get_entities(
     project_id: Annotated[int, Field(description=SEMANTIC_LAYER_PROJECT_ID)],
     metrics: Annotated[list[str], Field(description=SEMANTIC_METRICS)],
     search: Annotated[str | None, Field(description=SEMANTIC_SEARCH_ENTITIES)] = None,
-) -> list[EntityToolResponse]:
+    page_num: Annotated[int, PAGE_NUM_FIELD] = 1,
+    page_size: Annotated[int, LIMIT_FIELD] = 50,
+) -> ResultPage[list[EntityToolResponse]]:
     config = await context.semantic_layer_config_provider.get_config(project_id)
     return await SemanticLayerFetcher(
         client_provider=context.client_provider
-    ).get_entities(config=config, metrics=metrics, search=search)
+    ).get_entities(
+        config=config,
+        metrics=metrics,
+        search=search,
+        page_num=page_num,
+        page_size=page_size,
+    )
 
 
 @dbt_mcp_tool(

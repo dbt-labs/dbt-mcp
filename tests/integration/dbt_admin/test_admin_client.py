@@ -38,12 +38,14 @@ async def test_list_jobs_with_project_filter(
     admin_client: DbtAdminAPIClient,
 ) -> None:
     account_id = int(os.environ["DBT_ACCOUNT_ID"])
-    jobs = await admin_client.list_jobs(account_id)
+    jobs = (await admin_client.list_jobs(account_id)).result
     assert jobs, "The integration test account must contain at least one job"
 
     project_id = jobs[0]["project_id"]
     assert isinstance(project_id, int)
 
-    project_jobs = await admin_client.list_jobs(account_id, project_id=project_id)
+    project_jobs = (
+        await admin_client.list_jobs(account_id, project_id=project_id)
+    ).result
     assert project_jobs
     assert all(job["project_id"] == project_id for job in project_jobs)

@@ -9,6 +9,9 @@ from dbt_mcp.errors.common import (
     ConfigurationError,
     InvalidParameterError,
     NotFoundError,
+    ResponseLimitError,
+    ToolCapacityError,
+    UpstreamResponseError,
 )
 from dbt_mcp.errors.discovery import DiscoveryToolCallError, GraphQLError
 from dbt_mcp.errors.semantic_layer import (
@@ -35,6 +38,9 @@ ServerToolCallError = (
     | AdminAPIError
     | ArtifactRetrievalError
     | ConfigurationError
+    | ResponseLimitError
+    | ToolCapacityError
+    | UpstreamResponseError
 )
 
 __all__ = [
@@ -55,4 +61,7 @@ __all__ = [
     "SemanticLayerToolCallError",
     "ServerToolCallError",
     "ToolCallError",
+    "ResponseLimitError",
+    "ToolCapacityError",
+    "UpstreamResponseError",
 ]

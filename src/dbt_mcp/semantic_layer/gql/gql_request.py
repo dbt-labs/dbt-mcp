@@ -3,6 +3,7 @@ import httpx
 from dbt_mcp.config.config_providers import SemanticLayerConfig
 from dbt_mcp.config.settings import SEMANTIC_LAYER_GQL_TIMEOUT
 from dbt_mcp.gql.errors import raise_gql_error
+from dbt_mcp.http import response_limit_hook
 
 
 async def submit_request(
@@ -14,7 +15,16 @@ async def submit_request(
         payload["variables"] = {}
     payload["variables"]["environmentId"] = sl_config.prod_environment_id
 
-    async with httpx.AsyncClient(timeout=timeout) as client:
+    async with (
+        sl_config.http_config.admission(),
+        httpx.AsyncClient(
+            headers={"Accept-Encoding": "gzip, deflate"},
+            timeout=timeout,
+            event_hooks={
+                "response": [response_limit_hook(sl_config.http_config.response_limits)]
+            },
+        ) as client,
+    ):
         response = await client.post(
             sl_config.url,
             json=payload,

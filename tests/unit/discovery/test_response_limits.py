@@ -1,0 +1,87 @@
+import gzip
+import json
+import zlib
+from unittest.mock import patch
+
+import httpx
+import pytest
+
+from dbt_mcp.discovery.client import execute_query
+from dbt_mcp.errors import ResponseLimitError, ServerToolCallError, ToolCallError
+from tests.unit.dbt_admin.test_artifact_limits import Chunks
+
+
+@pytest.mark.parametrize("encoding", ["identity", "gzip", "deflate"])
+async def test_metadata_decodes_bounded_responses(unit_discovery_config, encoding):
+    payload = json.dumps({"data": {"description": "café"}}).encode()
+    if encoding == "gzip":
+        payload = gzip.compress(payload)
+    if encoding == "deflate":
+        payload = zlib.compress(payload)
+    stream = Chunks([payload[:5], payload[5:]])
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200, headers={"Content-Encoding": encoding}, stream=stream
+        )
+    )
+    client_class = httpx.AsyncClient
+    with patch(
+        "httpx.AsyncClient",
+        side_effect=lambda **kwargs: client_class(transport=transport, **kwargs),
+    ):
+        result = await execute_query("query", {}, config=unit_discovery_config)
+    assert result == {"data": {"description": "café"}}
+    assert stream.closed
+
+
+@pytest.mark.parametrize(
+    "encoding,payload",
+    [
+        ("br", b"unread"),
+        ("gzip", b"invalid"),
+        ("gzip", gzip.compress(b"{}")[:-2]),
+        ("gzip", gzip.compress(b"{}") + b"trailing"),
+    ],
+)
+async def test_upstream_encoding_fault_is_a_server_error(
+    unit_discovery_config, encoding, payload
+):
+    stream = Chunks([payload])
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200, headers={"Content-Encoding": encoding}, stream=stream
+        )
+    )
+    client_class = httpx.AsyncClient
+    with patch(
+        "httpx.AsyncClient",
+        side_effect=lambda **kwargs: client_class(transport=transport, **kwargs),
+    ):
+        with pytest.raises(ToolCallError) as error:
+            await execute_query("query", {}, config=unit_discovery_config)
+    assert isinstance(error.value, ServerToolCallError)
+    assert stream.closed
+    if encoding == "br":
+        assert stream.read_count == 0
+
+
+async def test_metadata_compression_bomb_stops_before_json_parsing(
+    unit_discovery_config,
+):
+    stream = Chunks([gzip.compress(b"x" * (3 * 1024 * 1024)), b"unused"])
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            headers={"Content-Encoding": "gzip", "Content-Length": "1"},
+            stream=stream,
+        )
+    )
+    client_class = httpx.AsyncClient
+    with patch(
+        "httpx.AsyncClient",
+        side_effect=lambda **kwargs: client_class(transport=transport, **kwargs),
+    ):
+        with pytest.raises(ResponseLimitError, match="decoded size limit"):
+            await execute_query("query", {}, config=unit_discovery_config)
+    assert stream.read_count == 1
+    assert stream.closed

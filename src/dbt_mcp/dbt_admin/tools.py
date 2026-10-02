@@ -1,12 +1,6 @@
-import asyncio
-import json
 import logging
-import multiprocessing
-import os
 from dataclasses import dataclass
 from typing import Annotated, Any
-
-import jq
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
@@ -16,6 +10,7 @@ from dbt_mcp.config.config_providers import (
     ConfigProvider,
 )
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
+from dbt_mcp.dbt_admin.artifacts import InlineArtifactLimitError
 from dbt_mcp.dbt_admin.constants import STATUS_MAP, JobRunStatus
 from dbt_mcp.dbt_admin.param_descriptions import (
     ARTIFACT_JQ_FILTER,
@@ -28,8 +23,6 @@ from dbt_mcp.dbt_admin.param_descriptions import (
     JOB_RUNS_JOB_DEFINITION_ID_FILTER,
     JOB_RUNS_ORDER_BY,
     JOB_RUN_STATUS,
-    PAGINATION_LIMIT,
-    PAGINATION_OFFSET,
     TRIGGER_CAUSE,
     TRIGGER_DBT_VERSION_OVERRIDE,
     TRIGGER_GIT_BRANCH,
@@ -39,30 +32,23 @@ from dbt_mcp.dbt_admin.param_descriptions import (
     WARNINGS_ONLY,
 )
 from dbt_mcp.dbt_admin.run_artifacts.parser import ErrorFetcher, WarningFetcher
-from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.prompts.prompts import get_prompt
+from dbt_mcp.errors import InvalidParameterError
+from dbt_mcp.result_limits import ensure_result_size
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 
+from dbt_mcp.pagination import (
+    LIMIT_FIELD,
+    OFFSET_FIELD,
+    ResultPage,
+    validate_offset,
+    validate_page_size,
+)
+
 logger = logging.getLogger(__name__)
-
-# Limit for returned dbt Artifacts
-INLINE_CONTENT_LIMIT = 500 * 1024  # 500 KB; above this, require a jq_filter
-
-JQ_TIMEOUT_SECONDS = 120
-
-# Caps how many jq subprocesses (each holding a full copy of the artifact)
-# can run at once, to bound memory/CPU under concurrent tool calls.
-_JQ_CONCURRENCY_LIMIT = 4
-_jq_semaphore = asyncio.Semaphore(_JQ_CONCURRENCY_LIMIT)
-
-
-def _jq_eval_worker(jq_filter: str, content: str) -> list[Any]:
-    """Run jq in a spawned subprocess; module-level so it's picklable."""
-    os.environ.clear()  # neutralize jq's env/$ENV in the child; parent unaffected (spawn)
-    return jq.compile(jq_filter).input(json.loads(content)).all()
 
 
 @dataclass
@@ -82,10 +68,18 @@ class AdminToolContext:
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def list_projects(context: AdminToolContext) -> list[dict[str, Any]]:
+async def list_projects(
+    context: AdminToolContext,
+    limit: Annotated[int, LIMIT_FIELD] = 50,
+    offset: Annotated[int, OFFSET_FIELD] = 0,
+) -> ResultPage[list[dict[str, Any]]]:
     """List active projects in the account."""
+    validate_page_size(limit)
+    validate_offset(offset)
     admin_api_config = await context.admin_api_config_provider.get_config()
-    return await context.admin_client.list_projects(admin_api_config.account_id)
+    return await context.admin_client.list_projects(
+        admin_api_config.account_id, limit=limit, offset=offset
+    )
 
 
 @dbt_mcp_tool(
@@ -97,24 +91,24 @@ async def list_projects(context: AdminToolContext) -> list[dict[str, Any]]:
 )
 async def list_jobs(
     context: AdminToolContext,
-    limit: Annotated[int | None, Field(description=PAGINATION_LIMIT)] = None,
-    offset: Annotated[int | None, Field(description=PAGINATION_OFFSET)] = None,
+    limit: Annotated[int, LIMIT_FIELD] = 50,
+    offset: Annotated[int, OFFSET_FIELD] = 0,
     *,
     project_id: Annotated[
         int | None, Field(description=JOBS_PROJECT_ID_FILTER, gt=0)
     ] = None,
-) -> list[dict[str, Any]]:
+) -> ResultPage[list[dict[str, Any]]]:
     """List jobs in an account, optionally across all environments of a project."""
+    validate_page_size(limit)
+    validate_offset(offset)
     admin_api_config = await context.admin_api_config_provider.get_config()
     params = {}
     if project_id is not None:
         params["project_id"] = project_id
     elif admin_api_config.prod_environment_id:
         params["environment_id"] = admin_api_config.prod_environment_id
-    if limit:
-        params["limit"] = limit
-    if offset:
-        params["offset"] = offset
+    params["limit"] = limit
+    params["offset"] = offset
     return await context.admin_client.list_jobs(admin_api_config.account_id, **params)
 
 
@@ -190,11 +184,13 @@ async def list_jobs_runs(
         int | None, Field(description=JOB_RUNS_JOB_DEFINITION_ID_FILTER)
     ] = None,
     status: Annotated[JobRunStatus | None, Field(description=JOB_RUN_STATUS)] = None,
-    limit: Annotated[int | None, Field(description=PAGINATION_LIMIT)] = None,
-    offset: Annotated[int | None, Field(description=PAGINATION_OFFSET)] = None,
+    limit: Annotated[int, LIMIT_FIELD] = 50,
+    offset: Annotated[int, OFFSET_FIELD] = 0,
     order_by: Annotated[str | None, Field(description=JOB_RUNS_ORDER_BY)] = None,
-) -> list[dict[str, Any]]:
+) -> ResultPage[list[dict[str, Any]]]:
     """List runs in an account."""
+    validate_page_size(limit)
+    validate_offset(offset)
     admin_api_config = await context.admin_api_config_provider.get_config()
     params: dict[str, Any] = {}
     if job_id:
@@ -202,10 +198,8 @@ async def list_jobs_runs(
     if status:
         status_id = STATUS_MAP[status]
         params["status"] = status_id
-    if limit:
-        params["limit"] = limit
-    if offset:
-        params["offset"] = offset
+    params["limit"] = limit
+    params["offset"] = offset
     if order_by:
         params["order_by"] = order_by
     return await context.admin_client.list_jobs_runs(
@@ -299,44 +293,27 @@ async def get_job_run_artifacts(
 ) -> str:
     """Get a specific artifact from a job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
-    content = await context.admin_client.get_job_run_artifact(
-        admin_api_config.account_id, run_id, artifact_path, step=step
-    )
     if jq_filter is not None:
-        async with _jq_semaphore:
-            ctx = multiprocessing.get_context("spawn")
-            with ctx.Pool(processes=1) as pool:
-                future = pool.apply_async(_jq_eval_worker, (jq_filter, content))
-                try:
-                    results = await asyncio.to_thread(future.get, JQ_TIMEOUT_SECONDS)
-                except multiprocessing.TimeoutError:
-                    pool.terminate()
-                    raise InvalidParameterError(
-                        f"jq filter timed out after {JQ_TIMEOUT_SECONDS}s. Very large "
-                        "artifacts are slow to traverse — prefer a structural or "
-                        "aggregation filter ('keys', '.metadata', '... | length') over "
-                        "one that enumerates every node, or target a specific step."
-                    )
-                except json.JSONDecodeError:
-                    raise InvalidParameterError(
-                        "jq_filter requires a JSON artifact; this artifact is not valid JSON"
-                    )
-                except ValueError as e:
-                    raise InvalidParameterError(f"Invalid jq filter: {e}") from e
-        filtered = json.dumps(results, separators=(",", ":"))
-        if len(filtered.encode("utf-8")) >= INLINE_CONTENT_LIMIT:
-            raise InvalidParameterError(
-                f"Filtered output exceeds {INLINE_CONTENT_LIMIT // 1024} KB; "
-                "narrow the filter to return fewer results "
-                "(e.g. use select(), keys, or length instead of enumerating all nodes)"
-            )
-        return filtered
-    encoded_len = len(content.encode("utf-8"))
-    if encoded_len < INLINE_CONTENT_LIMIT:
+        return await context.admin_client.get_job_run_artifact(
+            admin_api_config.account_id,
+            run_id,
+            artifact_path,
+            step=step,
+            jq_filter=jq_filter,
+        )
+    try:
+        content = await context.admin_client.get_job_run_artifact(
+            admin_api_config.account_id, run_id, artifact_path, step=step
+        )
+    except InlineArtifactLimitError:
+        content = None
+    if (
+        content is not None
+        and len(content.encode("utf-8")) < admin_api_config.artifact_config.inline_bytes
+    ):
         return content
-    kb = encoded_len // 1024
     hint = (
-        f"Artifact '{artifact_path}' (run {run_id}) is ~{kb} KB — too large to "
+        f"Artifact '{artifact_path}' (run {run_id}) is too large to "
         "return inline. Re-call get_job_run_artifacts with a jq_filter to extract "
         "just what you need. To explore structure first, try jq_filter='keys' or "
         "'.metadata'; to list nodes use '.nodes | keys'; to find failures use "
@@ -369,14 +346,24 @@ async def get_job_run_error(
         run_details = await context.admin_client.get_job_run_details(
             admin_api_config.account_id, run_id, include_logs=True
         )
+        if len(run_details.get("run_steps", [])) > 20:
+            raise InvalidParameterError(
+                "Run has more than 20 steps; inspect a specific step with get_job_run_artifacts."
+            )
         warning_fetcher = WarningFetcher(
             run_id, run_details, context.admin_client, admin_api_config
         )
-        return await warning_fetcher.analyze_run_warnings()
+        result = await warning_fetcher.analyze_run_warnings()
+        ensure_result_size(result)
+        return result
 
     run_details = await context.admin_client.get_job_run_details(
         admin_api_config.account_id, run_id, include_logs=True
     )
+    if len(run_details.get("run_steps", [])) > 20:
+        raise InvalidParameterError(
+            "Run has more than 20 steps; inspect a specific step with get_job_run_artifacts."
+        )
     error_fetcher = ErrorFetcher(
         run_id, run_details, context.admin_client, admin_api_config
     )
@@ -388,11 +375,11 @@ async def get_job_run_error(
         )
         warning_result = await warning_fetcher.analyze_run_warnings()
 
-        return {
-            **error_result,
-            "warnings": warning_result,
-        }
+        result = {**error_result, "warnings": warning_result}
+        ensure_result_size(result)
+        return result
 
+    ensure_result_size(error_result)
     return error_result
 
 

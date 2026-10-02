@@ -1,0 +1,3 @@
+kind: Breaking Change
+body: Paginate service-backed list tools by default, expose native continuation metadata, and bound API responses and artifact downloads and filtering.
+time: 2026-10-02T13:22:30.079623-05:00
