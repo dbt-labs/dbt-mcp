@@ -7,6 +7,9 @@ from math import isfinite
 
 from dbt_mcp.errors import ConfigurationError
 
+_KiB = 1024
+_MiB = 1024 * _KiB
+
 Admission = Callable[[], AbstractAsyncContextManager[None]]
 
 
@@ -26,16 +29,16 @@ class ResponseLimits:
 
 @dataclass(frozen=True)
 class HttpConfig:
-    response_limits: ResponseLimits = ResponseLimits(4 * 1024 * 1024, 2 * 1024 * 1024)
+    response_limits: ResponseLimits = ResponseLimits(4 * _MiB, 2 * _MiB)
     admission: Admission = unrestricted_admission
 
 
 @dataclass(frozen=True)
 class ArtifactConfig:
-    response_limits: ResponseLimits = ResponseLimits(16 * 1024 * 1024, 32 * 1024 * 1024)
-    inline_bytes: int = 500 * 1024
-    output_bytes: int = 500 * 1024
-    worker_memory_bytes: int = 256 * 1024 * 1024
+    response_limits: ResponseLimits = ResponseLimits(16 * _MiB, 32 * _MiB)
+    inline_bytes: int = 500 * _KiB
+    output_bytes: int = 500 * _KiB
+    worker_memory_bytes: int = 256 * _MiB
     execution_seconds: float = 120
     filter_chars: int = 8192
     admission: Admission = unrestricted_admission
@@ -59,9 +62,9 @@ class ArtifactConfig:
 
 @dataclass(frozen=True)
 class ProductDocsConfig:
-    cache_bytes: int = 32 * 1024 * 1024
+    cache_bytes: int = 32 * _MiB
     cache_entries: int = 128
-    index_limits: ResponseLimits = ResponseLimits(16 * 1024 * 1024, 16 * 1024 * 1024)
+    index_limits: ResponseLimits = ResponseLimits(16 * _MiB, 16 * _MiB)
 
     def __post_init__(self) -> None:
         if self.cache_bytes < 1 or self.cache_entries < 1:
