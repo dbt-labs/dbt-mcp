@@ -39,6 +39,7 @@ class MetricToolResponse:
     metadata: dict[str, Any] | None = None
     dimensions: list[str] | None = None
     entities: list[str] | None = None
+    default_time_dimension: list[str] | None = None
 
 
 @dataclass

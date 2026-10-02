@@ -93,6 +93,26 @@ def _dedupe_metric_items(items: Any) -> list[Any]:
     return out
 
 
+def _resolve_default_time_dimension(measures: Any) -> list[str]:
+    """Collect the distinct `aggTimeDimension` values across a metric's measures.
+
+    This is what `metric_time` resolves to for the metric: one name for a simple
+    metric, and one per differing input for a metric with several input measures
+    (ratio, derived, conversion), in the order the API returns the measures. An
+    empty list means the API returned no resolvable value (for example, no
+    measures at all).
+    """
+    seen: set[str] = set()
+    out: list[str] = []
+    for measure in measures or []:
+        name = measure.get("aggTimeDimension")
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        out.append(name)
+    return out
+
+
 class SemanticLayerClientProtocol(Protocol):
     def session(self) -> AbstractContextManager[Any]: ...
 
@@ -256,6 +276,9 @@ class SemanticLayerFetcher:
                         metadata=(m.get("config") or {}).get("meta"),
                         dimensions=[d.get("name") for d in (m.get("dimensions") or [])],
                         entities=[e.get("name") for e in (m.get("entities") or [])],
+                        default_time_dimension=_resolve_default_time_dimension(
+                            m.get("measures")
+                        ),
                     )
                     for m in related_items
                 ]

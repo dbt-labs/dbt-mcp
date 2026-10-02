@@ -71,8 +71,9 @@ def _build_csv(metrics: list[MetricToolResponse], columns: list[str]) -> str:
 def metrics_to_csv(response: ListMetricsResponse, max_response_chars: int = 0) -> str:
     """Serialize metrics to CSV, optionally trimming verbose fields.
 
-    When trimming fires, a `# Note:` comment line is prepended to the CSV so
-    the LLM (the primary consumer) sees the explanation up front. Programmatic
+    When trimming fires, or a metric's default time dimension could not be
+    resolved, a `# Note:` comment line is prepended to the CSV so the LLM (the
+    primary consumer) sees the explanation up front. Programmatic
     consumers should strip leading `#`-prefixed lines before parsing — same
     convention as pandas `comment='#'`.
     """
@@ -86,7 +87,14 @@ def metrics_to_csv(response: ListMetricsResponse, max_response_chars: int = 0) -
         return any(getattr(m, field) for m in metrics)
 
     columns: list[str] = ["name", "type"]
-    for col in ("label", "description", "metadata", "dimensions", "entities"):
+    for col in (
+        "label",
+        "description",
+        "metadata",
+        "dimensions",
+        "entities",
+        "default_time_dimension",
+    ):
         if _has_any(col):
             columns.append(col)
 
@@ -115,6 +123,27 @@ def metrics_to_csv(response: ListMetricsResponse, max_response_chars: int = 0) -
                 "these fields for a specific subset of metrics.\n"
             )
             result = notice + result
+
+    # An empty list (as opposed to None) means the related query ran but the
+    # Semantic Layer API returned no aggregation time dimension for the metric's
+    # measures, so say so rather than leave the cell (or the column) silently empty.
+    unresolved = [
+        m.name
+        for m in metrics
+        if m.default_time_dimension is not None and not m.default_time_dimension
+    ]
+    if unresolved:
+        which = (
+            "any of these metrics"
+            if len(unresolved) == len(metrics)
+            else ", ".join(repr(n) for n in unresolved)
+        )
+        result = (
+            f"# Note: default_time_dimension could not be resolved for {which}: "
+            "the Semantic Layer API did not return an aggregation time dimension "
+            "for them. get_metrics_compiled_sql with metric_time in group_by shows "
+            "how metric_time compiles for a metric.\n"
+        ) + result
     return result
 
 
