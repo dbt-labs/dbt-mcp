@@ -3,7 +3,7 @@ from typing import Any
 from pydantic import BaseModel, Field, model_validator
 from dbt_mcp.result_limits import ensure_result_size
 
-from dbt_mcp.errors import InvalidParameterError
+from dbt_mcp.errors import InvalidParameterError, UpstreamResponseError
 
 LIMIT_FIELD = Field(
     default=50,
@@ -62,15 +62,11 @@ def offset_pagination(
     response: dict[str, Any], *, count: int, limit: int, offset: int
 ) -> Pagination:
     if count > limit:
-        raise InvalidParameterError(
-            "API exceeded the requested page size; narrow the request."
-        )
+        raise UpstreamResponseError("API exceeded the requested page size.")
     total = ((response.get("extra") or {}).get("pagination") or {}).get("total_count")
     has_more = offset + count < total if isinstance(total, int) else count == limit
     if has_more and not count:
-        raise InvalidParameterError(
-            "API pagination did not advance; retry the request."
-        )
+        raise UpstreamResponseError("API pagination did not advance.")
     return Pagination(
         has_more=has_more,
         next_offset=offset + count if has_more else None,

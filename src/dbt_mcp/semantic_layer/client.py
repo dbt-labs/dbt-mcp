@@ -20,7 +20,7 @@ from dbtsl.error import QueryFailedError, RetryTimeoutError
 from dbtsl.models.query import QueryStatus
 
 from dbt_mcp.config.config_providers import SemanticLayerConfig
-from dbt_mcp.errors import InvalidParameterError
+from dbt_mcp.errors import InvalidParameterError, UpstreamResponseError
 from dbt_mcp.errors.hints import classify_warehouse_error, warehouse_error_hint
 from dbt_mcp.errors.semantic_layer import SemanticLayerQueryTimeoutError
 from dbt_mcp.semantic_layer.gql.gql import GRAPHQL_QUERIES
@@ -45,7 +45,6 @@ from dbt_mcp.semantic_layer.types import (
 
 from dbt_mcp.result_limits import ensure_result_size
 from dbt_mcp.pagination import (
-    Pagination,
     ResultPage,
     numbered_pagination,
     validate_page_number,
@@ -83,24 +82,7 @@ def DEFAULT_RESULT_FORMATTER(table: pa.Table) -> str:
     return json.dumps(records, indent=2, cls=ExtendedJSONEncoder)
 
 
-# Cap the number of substrings accepted by `list_metrics(search=[...])` so
-# an unbounded LLM-supplied list can't fan out into a burst of parallel
-# GraphQL requests against the Semantic Layer API.
 _MAX_SEARCH_TERMS = 20
-
-
-def _dedupe_metric_items(items: Any) -> list[Any]:
-    """Preserve first-seen order while filtering out duplicate metric names."""
-    seen: set[str] = set()
-    out: list[Any] = []
-    for item in items:
-        name = item.get("name")
-        if name is None or name in seen:
-            continue
-        seen.add(name)
-        out.append(item)
-        ensure_result_size(out)
-    return out
 
 
 class SemanticLayerClientProtocol(Protocol):
@@ -167,65 +149,32 @@ class SemanticLayerFetcher:
     ) -> ListMetricsResponse:
         validate_page_size(page_size)
         validate_page_number(page_num)
-        # `search` may be a single substring or a list of substrings; for a list
-        # we fan out one GraphQL call per substring, then merge & dedupe by name.
-        search_terms: list[str | None]
         if isinstance(search, list):
-            # Strip whitespace, drop empty values, and dedupe identical terms
-            # (preserving first-seen order) so a whitespace-only or duplicated
-            # term can't broaden the fan-out into redundant or no-filter calls.
-            cleaned: list[str] = []
-            seen_terms: set[str] = set()
-            for raw in search:
-                term = raw.strip()
-                if not term or term in seen_terms:
-                    continue
-                seen_terms.add(term)
-                cleaned.append(term)
-            if len(cleaned) > _MAX_SEARCH_TERMS:
-                # Cap the fan-out so a runaway LLM call can't generate an
-                # unbounded burst of parallel GraphQL requests.
+            if len(search) > _MAX_SEARCH_TERMS:
                 raise InvalidParameterError(
-                    f"`search` accepts at most {_MAX_SEARCH_TERMS} terms; "
-                    f"got {len(cleaned)}."
+                    f"`search` accepts at most {_MAX_SEARCH_TERMS} terms; got {len(search)}."
                 )
-            search_terms = list(cleaned) if cleaned else [None]
+            search_variables: dict[str, Any] = {
+                "searchTerms": list(
+                    dict.fromkeys(term.strip() for term in search if term.strip())
+                )
+            }
         else:
-            # Mirror the list-path normalization for parity: a single-string
-            # `search` is stripped, and an empty/whitespace-only string becomes
-            # no filter (search=None).
-            normalized = search.strip() if isinstance(search, str) else search
-            search_terms = [normalized if normalized else None]
-
-        cheap_results = []
-        for search_term in search_terms:
-            cheap_results.append(
-                await submit_request(
-                    config,
-                    {
-                        "query": GRAPHQL_QUERIES["metrics"],
-                        "variables": {
-                            "search": search_term,
-                            "pageNum": page_num,
-                            "pageSize": page_size,
-                        },
-                    },
-                )
+            search_variables = {
+                "search": search.strip() or None if isinstance(search, str) else None
+            }
+        variables = search_variables | {"pageNum": page_num, "pageSize": page_size}
+        cheap_result = await submit_request(
+            config, {"query": GRAPHQL_QUERIES["metrics"], "variables": variables}
+        )
+        cheap_page = cheap_result["data"]["metricsPaginated"]
+        cheap_items = cheap_page["items"]
+        if len(cheap_items) > page_size:
+            raise UpstreamResponseError(
+                "Semantic Layer exceeded the requested metric page size."
             )
-            ensure_result_size(cheap_results)
-        cheap_items = _dedupe_metric_items(
-            item
-            for r in cheap_results
-            for item in r["data"]["metricsPaginated"]["items"]
-        )
-        pages = [
-            numbered_pagination(r["data"]["metricsPaginated"]) for r in cheap_results
-        ]
-        pagination = Pagination(
-            has_more=any(p.has_more for p in pages),
-            next_page=page_num + 1 if any(p.has_more for p in pages) else None,
-            total_items=pages[0].total_items if len(pages) == 1 else None,
-        )
+        ensure_result_size(cheap_items)
+        pagination = numbered_pagination(cheap_page)
         dimensionless_response = ListMetricsResponse(
             pagination=pagination,
             metrics=[
@@ -241,53 +190,36 @@ class SemanticLayerFetcher:
         )
 
         if cheap_items and len(cheap_items) <= config.metrics_related_max:
-            # Re-fetch with per-metric dimensions and entities. Same fan-out:
-            # the nested GQL fields return per-metric data accurately, unlike
-            # dimensionsPaginated with multiple metrics which would intersect.
-            # Fall back to the dimensionless response if the richer query
-            # times out or otherwise fails (one slow term would otherwise
-            # block the whole call via asyncio.gather).
             try:
-                related_results = []
-                for search_term in search_terms:
-                    related_results.append(
-                        await submit_request(
-                            config,
-                            {
-                                "query": GRAPHQL_QUERIES["metrics_with_related"],
-                                "variables": {
-                                    "search": search_term,
-                                    "pageNum": page_num,
-                                    "pageSize": page_size,
-                                },
-                            },
-                            timeout=5.0,
-                        )
+                related_result = await submit_request(
+                    config,
+                    {
+                        "query": GRAPHQL_QUERIES["metrics_with_related"],
+                        "variables": variables,
+                    },
+                    timeout=5.0,
+                )
+                related_items = related_result["data"]["metricsPaginated"]["items"]
+                if len(related_items) > page_size:
+                    raise UpstreamResponseError(
+                        "Semantic Layer exceeded the requested metric page size."
                     )
-                    ensure_result_size(related_results)
-            except Exception as e:
-                logger.warning(f"Error fetching metrics with related: {e}")
-                return dimensionless_response
-            related_items = _dedupe_metric_items(
-                item
-                for r in related_results
-                for item in r["data"]["metricsPaginated"]["items"]
-            )
-            return ListMetricsResponse(
-                pagination=pagination,
-                metrics=[
-                    MetricToolResponse(
-                        name=m.get("name"),
-                        type=m.get("type"),
-                        label=m.get("label"),
-                        description=m.get("description"),
-                        metadata=(m.get("config") or {}).get("meta"),
-                        dimensions=[d.get("name") for d in (m.get("dimensions") or [])],
-                        entities=[e.get("name") for e in (m.get("entities") or [])],
-                    )
-                    for m in related_items
-                ],
-            )
+                ensure_result_size(related_items)
+                related_by_name = {item["name"]: item for item in related_items}
+                # Enrichment must not replace the chosen page if the catalog changes
+                # between requests. Preserve its membership, order and totals.
+                for metric in dimensionless_response.metrics:
+                    related = related_by_name.get(metric.name)
+                    if related is not None:
+                        metric.dimensions = [
+                            dimension["name"]
+                            for dimension in related.get("dimensions") or []
+                        ]
+                        metric.entities = [
+                            entity["name"] for entity in related.get("entities") or []
+                        ]
+            except Exception:
+                logger.warning("Error fetching metrics with related", exc_info=True)
         return dimensionless_response
 
     async def list_saved_queries(

@@ -446,64 +446,35 @@ async def test_list_metrics_at_threshold_returns_full_config(
 
 @pytest.mark.asyncio
 @patch("dbt_mcp.semantic_layer.client.submit_request")
-async def test_list_metrics_search_list_fans_out_and_dedupes(
+async def test_list_metrics_search_list_uses_combined_server_page(
     mock_submit_request, mock_client_provider, mock_config_provider
 ):
-    """A list of search terms triggers one GraphQL call per term, then dedupes."""
-    revenue_item = {
-        "name": "revenue",
-        "type": "simple",
-        "label": "Revenue",
-        "description": None,
-        "config": None,
+    """The server defines page membership and ordering for all search terms."""
+    items = [{"name": name, "type": "simple"} for name in ["cost", "revenue"]]
+    mock_submit_request.return_value = {
+        "data": {"metricsPaginated": page_response({"items": items})}
     }
-    cost_item = {
-        "name": "cost",
-        "type": "simple",
-        "label": "Cost",
-        "description": None,
-        "config": None,
-    }
-
-    def dispatch(_, payload, **kwargs):
-        # Threshold is exceeded so only the cheap query fires; one call per term.
-        search = payload["variables"].get("search")
-        if search == "rev":
-            # Returns revenue plus the duplicate that the other term also matches.
-            return {
-                "data": {
-                    "metricsPaginated": page_response(
-                        {"items": [revenue_item, cost_item]}
-                    )
-                }
-            }
-        if search == "cost":
-            return {"data": {"metricsPaginated": page_response({"items": [cost_item]})}}
-        raise AssertionError(f"Unexpected search term: {search!r}")
-
-    mock_submit_request.side_effect = dispatch
     config = mock_config_provider.get_config.return_value
-    config.metrics_related_max = 1  # force the "cheap only" branch
+    config.metrics_related_max = 1
     fetcher = SemanticLayerFetcher(client_provider=mock_client_provider)
-
     result = await fetcher.list_metrics(config=config, search=["rev", "cost"])
-
-    # One call per search term — fan-out.
-    assert mock_submit_request.call_count == 2
-    # Merged and deduped, order preserved by first-seen.
-    assert [m.name for m in result.metrics] == ["revenue", "cost"]
+    assert mock_submit_request.call_count == 1
+    assert mock_submit_request.call_args.args[1]["variables"]["searchTerms"] == [
+        "rev",
+        "cost",
+    ]
+    assert [m.name for m in result.metrics] == ["cost", "revenue"]
 
 
 @pytest.mark.asyncio
 @patch("dbt_mcp.semantic_layer.client.submit_request")
-async def test_list_metrics_search_list_below_threshold_fans_out_related(
+async def test_list_metrics_search_list_below_threshold_enriches_native_page(
     mock_submit_request, mock_client_provider, mock_config_provider
 ):
-    """When the deduped result is small enough, the with_related query also fans out."""
+    """Small native pages receive one enrichment request."""
 
     def dispatch(_, payload, **kwargs):
         query = payload["query"]
-        # Both the cheap and the with_related queries get one call per term.
         if "dimensions {" in query:
             return MOCK_METRICS_WITH_RELATED_RESPONSE
         if "metricsPaginated" in query:
@@ -516,9 +487,7 @@ async def test_list_metrics_search_list_below_threshold_fans_out_related(
 
     result = await fetcher.list_metrics(config=config, search=["a", "b"])
 
-    # 2 cheap + 2 with_related = 4 calls
-    assert mock_submit_request.call_count == 4
-    # Deduped to a single metric with related fields populated
+    assert mock_submit_request.call_count == 2
     assert len(result.metrics) == 1
     assert result.metrics[0].dimensions == ["order_date"]
     assert result.metrics[0].entities == ["customer"]
@@ -529,7 +498,7 @@ async def test_list_metrics_search_list_below_threshold_fans_out_related(
 async def test_list_metrics_search_list_normalizes_and_dedupes_terms(
     mock_submit_request, fetcher, mock_config_provider
 ):
-    """Whitespace-only terms are dropped; identical terms are deduped before fan-out."""
+    """Whitespace-only and identical terms are normalized before native search."""
     mock_submit_request.side_effect = _make_query_dispatcher()
     config = mock_config_provider.get_config.return_value
 
@@ -543,7 +512,7 @@ async def test_list_metrics_search_list_normalizes_and_dedupes_terms(
     # 1 cheap + 1 with_related = 2 calls total, never broadened to no-filter.
     assert mock_submit_request.call_count == 2
     for call in mock_submit_request.call_args_list:
-        assert call.args[1]["variables"]["search"] == "rev"
+        assert call.args[1]["variables"]["searchTerms"] == ["rev"]
 
 
 @pytest.mark.asyncio
@@ -574,13 +543,10 @@ async def test_list_metrics_search_list_caps_term_count(
     mock_submit_request, fetcher, mock_config_provider
 ):
     """An overly long search list raises rather than firing unbounded parallel calls."""
-    from dbt_mcp.errors import InvalidParameterError
-    from dbt_mcp.semantic_layer.client import _MAX_SEARCH_TERMS
-
     config = mock_config_provider.get_config.return_value
-    too_many = [f"term_{i}" for i in range(_MAX_SEARCH_TERMS + 1)]
+    too_many = [f"term_{i}" for i in range(21)]
 
-    with pytest.raises(InvalidParameterError, match=str(_MAX_SEARCH_TERMS)):
+    with pytest.raises(InvalidParameterError, match="20"):
         await fetcher.list_metrics(config=config, search=too_many)
     # No GraphQL request was issued
     mock_submit_request.assert_not_called()
@@ -597,12 +563,12 @@ async def test_list_metrics_empty_search_list_treated_as_no_filter(
 
     result = await fetcher.list_metrics(config=config, search=[])
 
-    # Single fan-out term (None), so cheap + related = 2 calls
+    # One unfiltered source page, followed by its related metadata.
     assert mock_submit_request.call_count == 2
     assert len(result.metrics) == 1
-    # The single GraphQL call received search=None
+    # Empty searchTerms preserves an unfiltered lookup.
     for call in mock_submit_request.call_args_list:
-        assert call.args[1]["variables"]["search"] is None
+        assert call.args[1]["variables"]["searchTerms"] == []
 
 
 @pytest.mark.parametrize(

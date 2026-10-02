@@ -7,7 +7,7 @@ import httpx
 import pytest
 
 from dbt_mcp.discovery.client import execute_query
-from dbt_mcp.errors import InvalidParameterError
+from dbt_mcp.errors import ResponseLimitError, ServerToolCallError, ToolCallError
 from tests.unit.dbt_admin.test_artifact_limits import Chunks
 
 
@@ -34,6 +34,37 @@ async def test_metadata_decodes_bounded_responses(unit_discovery_config, encodin
     assert stream.closed
 
 
+@pytest.mark.parametrize(
+    "encoding,payload",
+    [
+        ("br", b"unread"),
+        ("gzip", b"invalid"),
+        ("gzip", gzip.compress(b"{}")[:-2]),
+        ("gzip", gzip.compress(b"{}") + b"trailing"),
+    ],
+)
+async def test_upstream_encoding_fault_is_a_server_error(
+    unit_discovery_config, encoding, payload
+):
+    stream = Chunks([payload])
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200, headers={"Content-Encoding": encoding}, stream=stream
+        )
+    )
+    client_class = httpx.AsyncClient
+    with patch(
+        "httpx.AsyncClient",
+        side_effect=lambda **kwargs: client_class(transport=transport, **kwargs),
+    ):
+        with pytest.raises(ToolCallError) as error:
+            await execute_query("query", {}, config=unit_discovery_config)
+    assert isinstance(error.value, ServerToolCallError)
+    assert stream.closed
+    if encoding == "br":
+        assert stream.read_count == 0
+
+
 async def test_metadata_compression_bomb_stops_before_json_parsing(
     unit_discovery_config,
 ):
@@ -50,7 +81,7 @@ async def test_metadata_compression_bomb_stops_before_json_parsing(
         "httpx.AsyncClient",
         side_effect=lambda **kwargs: client_class(transport=transport, **kwargs),
     ):
-        with pytest.raises(InvalidParameterError, match="decoded size limit"):
+        with pytest.raises(ResponseLimitError, match="decoded size limit"):
             await execute_query("query", {}, config=unit_discovery_config)
     assert stream.read_count == 1
     assert stream.closed

@@ -6,13 +6,23 @@ from pathlib import Path
 
 import httpx
 
-from dbt_mcp.errors import ArtifactRetrievalError, InvalidParameterError
+from dbt_mcp.errors import (
+    ArtifactRetrievalError,
+    InvalidParameterError,
+    ResponseLimitError,
+)
 from dbt_mcp.http import AdmissionGate, ResponseLimits, response_limit_hook
 
 INLINE_CONTENT_LIMIT = 500 * 1024
 JQ_TIMEOUT_SECONDS = 120
 ARTIFACT_LIMITS = ResponseLimits(16 * 1024 * 1024, 32 * 1024 * 1024)
-ARTIFACT_GATE = AdmissionGate(active=1, pending=2)
+ARTIFACT_GATE = AdmissionGate(
+    active=1,
+    pending=128,
+    wait_timeout=600,
+    name="artifact",
+    environment_prefix="DBT_MCP_ARTIFACT",
+)
 
 
 class InlineArtifactLimitError(InvalidParameterError):
@@ -34,7 +44,7 @@ async def read_artifact(
         if jq_filter is not None
         else ResponseLimits(ARTIFACT_LIMITS.wire_bytes, INLINE_CONTENT_LIMIT)
     )
-    async with asyncio.timeout(JQ_TIMEOUT_SECONDS), ARTIFACT_GATE.enter():
+    async with ARTIFACT_GATE.enter(), asyncio.timeout(JQ_TIMEOUT_SECONDS):
         with tempfile.TemporaryDirectory(prefix="dbt-mcp-artifact-") as directory:
             path = Path(directory) / "artifact"
             try:
@@ -52,7 +62,7 @@ async def read_artifact(
                         with path.open("wb") as target:
                             async for chunk in response.aiter_bytes():
                                 target.write(chunk)
-            except InvalidParameterError as error:
+            except ResponseLimitError as error:
                 if jq_filter is None and "decoded size limit" in str(error):
                     raise InlineArtifactLimitError(
                         "Artifact exceeds the inline size limit; use jq_filter."

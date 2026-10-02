@@ -1,7 +1,7 @@
 import pytest
 
 from dbt_mcp.discovery.client import PaginatedResourceFetcher
-from dbt_mcp.errors import InvalidParameterError, ToolCallError
+from dbt_mcp.errors import DiscoveryToolCallError, InvalidParameterError
 
 
 def paginator():
@@ -62,9 +62,19 @@ async def test_non_advancing_cursor_is_actionable(
     mock_api_client, unit_discovery_config, cursor
 ):
     mock_api_client.return_value = response([{"id": 1}], has_more=True, cursor=cursor)
-    with pytest.raises(ToolCallError, match="did not advance"):
+    with pytest.raises(DiscoveryToolCallError, match="did not advance"):
         await paginator().fetch_paginated(
             "query", {}, config=unit_discovery_config, after="previous"
+        )
+
+
+async def test_upstream_excess_nodes_is_a_server_error(
+    mock_api_client, unit_discovery_config
+):
+    mock_api_client.return_value = response([{"id": 1}, {"id": 2}])
+    with pytest.raises(DiscoveryToolCallError, match="more nodes than requested"):
+        await paginator().fetch_paginated(
+            "query", {}, config=unit_discovery_config, limit=1
         )
 
 

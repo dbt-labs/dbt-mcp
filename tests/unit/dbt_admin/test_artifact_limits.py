@@ -9,7 +9,8 @@ from dbt_mcp.config.config_providers import AdminApiConfig
 from tests.unit.dbt_admin.test_client import MockHeadersProvider
 
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
-from dbt_mcp.errors import InvalidParameterError
+from dbt_mcp.errors import InvalidParameterError, ResponseLimitError, ToolCapacityError
+from dbt_mcp.http import AdmissionGate
 from tests.unit.dbt_admin.test_client import (
     MockAdminApiConfigProvider,
 )
@@ -60,7 +61,7 @@ async def test_artifact_source_limit_stops_stream_before_eof(
         "httpx.AsyncClient",
         side_effect=lambda **kw: real_client(transport=transport, **kw),
     ):
-        with pytest.raises(InvalidParameterError, match="limit"):
+        with pytest.raises((InvalidParameterError, ResponseLimitError), match="limit"):
             await client.get_job_run_artifact(
                 12345, 100, "manifest.json", jq_filter=jq_filter
             )
@@ -124,9 +125,15 @@ async def test_artifact_admission_is_shared_before_download(admin_config):
     clients = [
         DbtAdminAPIClient(MockAdminApiConfigProvider(admin_config)) for _ in range(4)
     ]
-    with patch(
-        "httpx.AsyncClient",
-        side_effect=lambda **kw: real_client(transport=transport, **kw),
+    with (
+        patch(
+            "httpx.AsyncClient",
+            side_effect=lambda **kw: real_client(transport=transport, **kw),
+        ),
+        patch(
+            "dbt_mcp.dbt_admin.artifacts.ARTIFACT_GATE",
+            AdmissionGate(active=1, pending=2),
+        ),
     ):
         tasks = [
             asyncio.create_task(
@@ -136,7 +143,7 @@ async def test_artifact_admission_is_shared_before_download(admin_config):
         ]
         try:
             await started.wait()
-            with pytest.raises(InvalidParameterError, match="capacity limit"):
+            with pytest.raises(ToolCapacityError, match="temporarily exhausted"):
                 await asyncio.wait_for(
                     clients[3].get_job_run_artifact(12345, 100, "manifest.json"), 0.5
                 )
@@ -149,6 +156,46 @@ async def test_artifact_admission_is_shared_before_download(admin_config):
         assert (
             await clients[3].get_job_run_artifact(12345, 100, "manifest.json") == "{}"
         )
+
+
+async def test_artifact_admission_queues_a_25_call_burst_before_download(admin_config):
+    started = asyncio.Event()
+    release = asyncio.Event()
+    requests = []
+
+    class WaitingStream(Chunks):
+        async def __aiter__(self):
+            started.set()
+            await release.wait()
+            yield b"{}"
+
+    def response(request):
+        requests.append(request)
+        return httpx.Response(200, stream=WaitingStream([]))
+
+    real_client = httpx.AsyncClient
+    client = DbtAdminAPIClient(MockAdminApiConfigProvider(admin_config))
+    with patch(
+        "httpx.AsyncClient",
+        side_effect=lambda **kw: real_client(
+            transport=httpx.MockTransport(response), **kw
+        ),
+    ):
+        tasks = [
+            asyncio.create_task(client.get_job_run_artifact(12345, i, "manifest.json"))
+            for i in range(25)
+        ]
+        try:
+            await asyncio.wait_for(started.wait(), 1)
+            await asyncio.sleep(0.05)
+            assert len(requests) == 1
+            assert all(not task.done() for task in tasks)
+            release.set()
+            assert await asyncio.wait_for(asyncio.gather(*tasks), 3) == ["{}"] * 25
+        finally:
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def test_cancellation_during_worker_launch_reaps_child_and_removes_spool(

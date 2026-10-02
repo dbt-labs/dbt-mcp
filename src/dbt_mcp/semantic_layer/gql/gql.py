@@ -1,8 +1,8 @@
 GRAPHQL_QUERIES = {
     "metrics": """
-query GetMetrics($environmentId: BigInt!, $search: String, $pageNum: Int!, $pageSize: Int!) {
+query GetMetrics($environmentId: BigInt!, $search: String, $searchTerms: [String!], $pageNum: Int!, $pageSize: Int!) {
   metricsPaginated(
-    environmentId: $environmentId, search: $search,
+    environmentId: $environmentId, search: $search, searchTerms: $searchTerms,
     pageNum: $pageNum, pageSize: $pageSize
   ) {
     pageNum
@@ -58,8 +58,8 @@ query GetEntities($environmentId: BigInt!, $metrics: [MetricInput!]!, $search: S
 }
     """,
     "metrics_with_related": """
-query GetMetricsWithRelated($environmentId: BigInt!, $search: String, $pageNum: Int!, $pageSize: Int!) {
-  metricsPaginated(environmentId: $environmentId, search: $search, pageNum: $pageNum, pageSize: $pageSize) {
+query GetMetricsWithRelated($environmentId: BigInt!, $search: String, $searchTerms: [String!], $pageNum: Int!, $pageSize: Int!) {
+  metricsPaginated(environmentId: $environmentId, search: $search, searchTerms: $searchTerms, pageNum: $pageNum, pageSize: $pageSize) {
     pageNum
     pageSize
     totalItems

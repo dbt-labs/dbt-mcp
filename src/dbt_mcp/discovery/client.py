@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from dbt_mcp.config.config_providers import DiscoveryConfig
 from dbt_mcp.config.settings import PLATFORM_API_TIMEOUT
 from dbt_mcp.discovery.graphql import load_query
-from dbt_mcp.errors import InvalidParameterError, ToolCallError
+from dbt_mcp.errors import DiscoveryToolCallError, InvalidParameterError, ToolCallError
 from dbt_mcp.errors.common import NotFoundError
 from dbt_mcp.gql.errors import raise_gql_error
 from dbt_mcp.tools.parameters import LineageDirection, LineageResourceType
@@ -441,15 +441,13 @@ class PaginatedResourceFetcher:
         result = await execute_query(query, request_variables, config=config)
         nodes = self._parse_edges(result)
         if len(nodes) > limit:
-            raise InvalidParameterError(
-                "Discovery returned more nodes than requested; narrow the request."
+            raise DiscoveryToolCallError(
+                "Discovery returned more nodes than requested."
             )
         page_info = PageInfo(**self._extract_path(result, self._page_info_path))
         has_more = bool(page_info.has_next_page)
         if has_more and (not page_info.end_cursor or page_info.end_cursor == after):
-            raise ToolCallError(
-                "Discovery pagination did not advance; retry the request."
-            )
+            raise DiscoveryToolCallError("Discovery pagination did not advance.")
         return ResultPage(
             result=nodes,
             pagination=Pagination(
