@@ -35,14 +35,11 @@ See `CONTRIBUTING.md` (§ Published-app contract) and
 Use the helpers in `src/dbt_mcp/tools/deprecation.py`:
 
 ```python
-from dbt_mcp.tools.access import ToolAccess, ToolPermission, ToolTarget
+from dbt_mcp.tools.access import AccessPolicy
 from dbt_mcp.tools.deprecation import deprecated_description, deprecation_meta
 
 @dbt_mcp_tool(
-    access=ToolAccess(
-        target=ToolTarget.PRODUCTION_ENVIRONMENT,
-        permissions=(ToolPermission.METADATA_READ,),
-    ),
+    access=AccessPolicy.PRODUCTION_METADATA_READ,
     description=deprecated_description(replacement="get_lineage"),
     meta=deprecation_meta(replacement="get_lineage"),
     title="Get Model Parents",
