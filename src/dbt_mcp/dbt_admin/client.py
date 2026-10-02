@@ -8,16 +8,21 @@ import httpx
 
 from dbt_mcp.config.config_providers import AdminApiConfig, ConfigProvider
 from dbt_mcp.config.settings import PLATFORM_API_TIMEOUT
+from dbt_mcp.dbt_admin.artifacts import read_artifact
 from dbt_mcp.errors import (
     AdminAPIError,
     ArtifactRetrievalError,
     InvalidParameterError,
+    UpstreamResponseError,
     NotFoundError,
 )
 from dbt_mcp.oauth.dbt_platform import (
     DbtPlatformEnvironment,
     DbtPlatformEnvironmentResponse,
 )
+from dbt_mcp.http import response_limit_hook
+from dbt_mcp.result_limits import ensure_result_size
+
 
 from dbt_mcp.pagination import (
     ResultPage,
@@ -56,7 +61,18 @@ class DbtAdminAPIClient:
         headers = await self.get_headers()
 
         try:
-            async with httpx.AsyncClient(timeout=PLATFORM_API_TIMEOUT) as client:
+            async with (
+                config.http_config.admission(),
+                httpx.AsyncClient(
+                    headers={"Accept-Encoding": "gzip, deflate"},
+                    timeout=PLATFORM_API_TIMEOUT,
+                    event_hooks={
+                        "response": [
+                            response_limit_hook(config.http_config.response_limits)
+                        ]
+                    },
+                ) as client,
+            ):
                 response = await client.request(
                     method,
                     url,
@@ -155,7 +171,7 @@ class DbtAdminAPIClient:
         *,
         page_size: int = 100,
     ) -> list[DbtPlatformEnvironmentResponse]:
-        """Fetch all environments for a project using offset/limit pagination."""
+        """Resolve environments with bounded offset/limit pagination."""
         offset = 0
         environments: list[DbtPlatformEnvironmentResponse] = []
         config = await self.config_provider.get_config()
@@ -166,12 +182,21 @@ class DbtAdminAPIClient:
                 params={"state": 1, "offset": offset, "limit": page_size},
             )
             page_raw = result.get("data", [])
+            if len(page_raw) > page_size:
+                raise UpstreamResponseError(
+                    "API exceeded the requested environment page size."
+                )
             environments.extend(
                 DbtPlatformEnvironmentResponse(**row) for row in page_raw
             )
+            ensure_result_size(environments)
             if len(page_raw) < page_size:
                 break
             offset += page_size
+            if offset >= 1000:
+                raise InvalidParameterError(
+                    "Environment resolution exceeds 1000 entries; configure the environment directly."
+                )
         return environments
 
     async def get_environments_for_project(
@@ -260,6 +285,7 @@ class DbtAdminAPIClient:
             for job in data
         ]
 
+        ensure_result_size(filtered_data)
         return ResultPage(
             result=filtered_data,
             pagination=offset_pagination(
@@ -318,6 +344,7 @@ class DbtAdminAPIClient:
             for p in data
         ]
 
+        ensure_result_size(filtered_data)
         return ResultPage(
             result=filtered_data,
             pagination=offset_pagination(
@@ -380,6 +407,7 @@ class DbtAdminAPIClient:
             run.pop("deprecation", None)
             run.pop("environment", None)
 
+        ensure_result_size(data)
         return ResultPage(
             result=data,
             pagination=offset_pagination(
@@ -443,6 +471,7 @@ class DbtAdminAPIClient:
                 and not artifact.startswith("metadata/")
             )
         ]
+        ensure_result_size(filtered_data)
         return filtered_data
 
     async def get_job_run_artifact(
@@ -451,6 +480,8 @@ class DbtAdminAPIClient:
         run_id: int,
         artifact_path: str,
         step: int | None = None,
+        *,
+        jq_filter: str | None = None,
     ) -> Any:
         """Get a specific job run artifact."""
         segments = artifact_path.split("/")
@@ -483,19 +514,18 @@ class DbtAdminAPIClient:
         } | config.headers_provider.get_headers()
 
         try:
-            async with httpx.AsyncClient(timeout=PLATFORM_API_TIMEOUT) as client:
-                response = await client.get(
-                    f"{config.url}/api/v2/accounts/{account_id}/runs/{run_id}/artifacts/{artifact_path}",
-                    headers=get_artifact_header,
-                    params=params,
-                )
-                response.raise_for_status()
-                if response.content[:4] == b"PAR1":
-                    raise ArtifactRetrievalError(
-                        f"Artifact '{artifact_path}' is a binary Parquet file and "
-                        "cannot be returned as text."
-                    )
-                return response.text
+            return await read_artifact(
+                f"{config.url}/api/v2/accounts/{account_id}/runs/{run_id}/artifacts/{artifact_path}",
+                headers=get_artifact_header,
+                params=params,
+                timeout=PLATFORM_API_TIMEOUT,
+                jq_filter=jq_filter,
+                config=config.artifact_config,
+            )
+        except TimeoutError as e:
+            raise InvalidParameterError(
+                f"Artifact processing timed out after {config.artifact_config.execution_seconds:g}s; select a smaller artifact or step."
+            ) from e
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 raise NotFoundError(
