@@ -10,7 +10,7 @@ from dbt_mcp.config.config_providers import (
     ConfigProvider,
 )
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
-from dbt_mcp.dbt_admin.artifacts import INLINE_CONTENT_LIMIT, InlineArtifactLimitError
+from dbt_mcp.dbt_admin.artifacts import InlineArtifactLimitError
 from dbt_mcp.dbt_admin.constants import STATUS_MAP, JobRunStatus
 from dbt_mcp.dbt_admin.param_descriptions import (
     ARTIFACT_JQ_FILTER,
@@ -307,7 +307,10 @@ async def get_job_run_artifacts(
         )
     except InlineArtifactLimitError:
         content = None
-    if content is not None and len(content.encode("utf-8")) < INLINE_CONTENT_LIMIT:
+    if (
+        content is not None
+        and len(content.encode("utf-8")) < admin_api_config.artifact_config.inline_bytes
+    ):
         return content
     hint = (
         f"Artifact '{artifact_path}' (run {run_id}) is too large to "

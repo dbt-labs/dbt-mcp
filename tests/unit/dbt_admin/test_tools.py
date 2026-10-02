@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -10,7 +11,6 @@ from dbt_mcp.dbt_admin.tools import (
     ADMIN_TOOLS,
     AdminToolContext,
     JobRunStatus,
-    INLINE_CONTENT_LIMIT,
     cancel_job_run,
     get_job_details,
     get_job_run_artifacts,
@@ -24,11 +24,14 @@ from dbt_mcp.dbt_admin.tools import (
     trigger_job_run,
 )
 from dbt_mcp.errors import InvalidParameterError
+from dbt_mcp.resource_limits import ArtifactConfig
+from dbt_mcp.config.config_providers import StaticConfigProvider
 from dbt_mcp.pagination import Pagination, ResultPage
 from dbt_mcp.mcp.server import register_multi_project_dbt_mcp
 from tests.mocks.config import mock_config
 
 NUM_ADMIN_TOOLS = 11
+INLINE_CONTENT_LIMIT = ArtifactConfig().inline_bytes
 
 
 def install_artifact_transport(context, content, monkeypatch):
@@ -464,7 +467,12 @@ async def test_get_job_run_artifacts_jq_filter_timeout_raises(
     admin_context, monkeypatch
 ):
     install_artifact_transport(admin_context, "{}", monkeypatch)
-    monkeypatch.setattr("dbt_mcp.dbt_admin.artifacts.JQ_TIMEOUT_SECONDS", 0.2)
+    config = await admin_context.admin_api_config_provider.get_config()
+    admin_context.admin_client = DbtAdminAPIClient(
+        StaticConfigProvider(
+            replace(config, artifact_config=ArtifactConfig(execution_seconds=0.2))
+        )
+    )
     with pytest.raises(InvalidParameterError, match="timed out"):
         await get_job_run_artifacts.fn(
             admin_context,

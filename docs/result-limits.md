@@ -35,10 +35,10 @@ Model detail lookup by name fetches at most 100 alias-filtered candidates in one
 request, then checks their names. If more candidates remain, provide `unique_id`
 instead; the tool does not return incomplete name resolution.
 
-Artifact calls acquire process-wide capacity before opening the HTTP response:
-one active call and up to 128 waiting calls, with a 600-second queue deadline.
-Further calls fail before downloading with a retryable capacity error.
-Filtered artifacts allow at most 16 MiB transferred and 32 MiB decoded. The
+Artifact calls enter a supplied admission context before opening the HTTP response.
+The host chooses process-wide capacity and queue policy. By default the library
+does not impose a server queue. Filtered artifacts default to at most 16 MiB
+transferred and 32 MiB decoded. The
 download is spooled to a private temporary file. JSON parsing and jq run in a
 separate worker, with incremental output capped at 500 KiB and a 120-second
 execution deadline that includes downloading and starts after admission. On Linux the worker also has a
@@ -51,14 +51,24 @@ steps sequentially (at most 20 steps). Large diagnostics fail with guidance to
 inspect a specific artifact and step. Cancellation closes the download, reaps
 the worker, removes its temporary file, and releases capacity.
 
-Metadata requests share four active slots and 128 waiting slots per process,
-with a 120-second queue deadline. Process-wide gates use thread-safe standard
-library semaphores and cancel waiting calls without retaining background waiters.
-Operators can override `ACTIVE`, `PENDING`, and `QUEUE_TIMEOUT_SECONDS` using the
-`DBT_MCP_API_` and `DBT_MCP_ARTIFACT_` environment prefixes. `Tool admission`
-logs identify the gate, configured limits, queue/start/finish/rejection events,
-and wait duration. Hosts can observe admission waiting to budget queue time
-separately from execution time.
+Hosts inject immutable budgets and admission factories through configuration:
+
+- `AdminApiConfig.http_config`, `DiscoveryConfig.http_config`, and
+  `SemanticLayerConfig.http_config` accept `HttpConfig`, containing response-byte
+  budgets and an async context-manager factory for admission.
+- `AdminApiConfig.artifact_config` accepts `ArtifactConfig`, containing source,
+  inline/output, worker-memory, filter-length, and execution budgets plus its own
+  admission factory. That context remains held until download, evaluation, child
+  reaping, and temporary-file cleanup finish.
+- `ProductDocsClient` accepts `http_config` and `ProductDocsConfig` for its
+  full-text index and cache budgets.
+
+Reuse host-owned admission factories across client configurations to share
+capacity across requests. The library has no service-specific gate instances,
+environment overrides, shutdown policy, or queue-wait accounting. These hooks
+are configuration dependencies, not published tool arguments; tool schemas and
+pagination remain unchanged. The budgets above are portable per-call defaults,
+which hosts can replace independently of their admission policy.
 
 Invalid arguments and oversized final pages include corrective guidance.
 Response decoding faults, upstream page-contract violations, and acquisition

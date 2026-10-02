@@ -15,7 +15,7 @@ from dbt_mcp.errors.common import NotFoundError
 from dbt_mcp.gql.errors import raise_gql_error
 from dbt_mcp.tools.parameters import LineageDirection, LineageResourceType
 
-from dbt_mcp.http import API_REQUEST_GATE, BOUNDED_RESPONSE_HOOKS
+from dbt_mcp.http import response_limit_hook
 from dbt_mcp.pagination import Pagination, ResultPage, validate_page_size
 
 DEFAULT_PAGE_SIZE = 50
@@ -368,11 +368,13 @@ async def execute_query(
     headers = config.headers_provider.get_headers()
 
     async with (
-        API_REQUEST_GATE.enter(),
+        config.http_config.admission(),
         httpx.AsyncClient(
             headers={"Accept-Encoding": "gzip, deflate"},
             timeout=PLATFORM_API_TIMEOUT,
-            event_hooks=BOUNDED_RESPONSE_HOOKS,
+            event_hooks={
+                "response": [response_limit_hook(config.http_config.response_limits)]
+            },
         ) as client,
     ):
         response = await client.post(

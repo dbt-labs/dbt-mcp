@@ -10,12 +10,8 @@ server to refresh.
 
 import logging
 import re
-from dbt_mcp.http import (
-    API_REQUEST_GATE,
-    BOUNDED_RESPONSE_HOOKS,
-    ResponseLimits,
-    response_limit_hook,
-)
+from dbt_mcp.http import response_limit_hook
+from dbt_mcp.resource_limits import HttpConfig, ProductDocsConfig
 from cachetools import LRUCache
 
 from typing import Any
@@ -485,9 +481,16 @@ class ProductDocsClient:
     (and thus the MCP server process).  Restart the server to refresh.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        http_config: HttpConfig = HttpConfig(),
+        limits: ProductDocsConfig = ProductDocsConfig(),
+    ) -> None:
+        self._http_config = http_config
+        self._limits = limits
         self._cache: LRUCache[str, Any] = LRUCache(
-            maxsize=32 * 1024 * 1024,
+            maxsize=limits.cache_bytes,
             getsizeof=lambda value: len(str(value).encode("utf-8")),
         )
 
@@ -498,12 +501,16 @@ class ProductDocsClient:
         if "index" not in self._cache:
             logger.info("Fetching llms.txt index from %s", LLMS_TXT_URL)
             async with (
-                API_REQUEST_GATE.enter(),
+                self._http_config.admission(),
                 httpx.AsyncClient(
                     headers={"Accept-Encoding": "gzip, deflate"},
                     timeout=30.0,
                     follow_redirects=True,
-                    event_hooks=BOUNDED_RESPONSE_HOOKS,
+                    event_hooks={
+                        "response": [
+                            response_limit_hook(self._http_config.response_limits)
+                        ]
+                    },
                 ) as client,
             ):
                 response = await client.get(LLMS_TXT_URL)
@@ -517,17 +524,13 @@ class ProductDocsClient:
         if "full_text" not in self._cache:
             logger.info("Fetching llms-full.txt from %s", LLMS_FULL_TXT_URL)
             async with (
-                API_REQUEST_GATE.enter(),
+                self._http_config.admission(),
                 httpx.AsyncClient(
                     headers={"Accept-Encoding": "gzip, deflate"},
                     timeout=120.0,
                     follow_redirects=True,
                     event_hooks={
-                        "response": [
-                            response_limit_hook(
-                                ResponseLimits(16 * 1024 * 1024, 16 * 1024 * 1024)
-                            )
-                        ]
+                        "response": [response_limit_hook(self._limits.index_limits)]
                     },
                 ) as client,
             ):
@@ -547,17 +550,21 @@ class ProductDocsClient:
         if url not in self._cache:
             logger.info("Fetching product doc page: %s", url)
             async with (
-                API_REQUEST_GATE.enter(),
+                self._http_config.admission(),
                 httpx.AsyncClient(
                     headers={"Accept-Encoding": "gzip, deflate"},
                     timeout=30.0,
                     follow_redirects=True,
-                    event_hooks=BOUNDED_RESPONSE_HOOKS,
+                    event_hooks={
+                        "response": [
+                            response_limit_hook(self._http_config.response_limits)
+                        ]
+                    },
                 ) as client,
             ):
                 response = await client.get(url)
                 response.raise_for_status()
-            if len(self._cache) >= 128:
+            if len(self._cache) >= self._limits.cache_entries:
                 self._cache.popitem()
             # Include the URL in the value-based cache budget as well as the content.
             self._cache[url] = {"url": url, "content": response.text}

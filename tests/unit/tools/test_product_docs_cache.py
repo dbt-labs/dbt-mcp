@@ -1,9 +1,9 @@
 from unittest.mock import patch
 
 import httpx
-from cachetools import LRUCache
-
 from dbt_mcp.product_docs.tools import ProductDocsToolContext, get_product_doc_pages
+from dbt_mcp.product_docs.client import ProductDocsClient
+from dbt_mcp.resource_limits import ProductDocsConfig
 
 
 async def test_long_document_url_is_fetched_and_cached():
@@ -42,15 +42,13 @@ async def test_document_urls_count_toward_cache_eviction():
     # A small budget exercises the real eviction wiring through the public tool.
     with (
         patch(
-            "dbt_mcp.product_docs.client.LRUCache",
-            side_effect=lambda **kwargs: LRUCache(**(kwargs | {"maxsize": 1024})),
-        ),
-        patch(
             "httpx.AsyncClient",
             side_effect=lambda **kwargs: client_class(transport=transport, **kwargs),
         ),
     ):
-        context = ProductDocsToolContext()
+        context = ProductDocsToolContext(
+            client=ProductDocsClient(limits=ProductDocsConfig(cache_bytes=1024))
+        )
         paths = ["/docs/" + character * 700 for character in ("a", "b")]
         for path in (*paths, paths[0]):
             result = await get_product_doc_pages.fn(context, [path])

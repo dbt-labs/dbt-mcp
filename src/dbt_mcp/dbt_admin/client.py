@@ -19,7 +19,7 @@ from dbt_mcp.oauth.dbt_platform import (
     DbtPlatformEnvironment,
     DbtPlatformEnvironmentResponse,
 )
-from dbt_mcp.http import API_REQUEST_GATE, BOUNDED_RESPONSE_HOOKS
+from dbt_mcp.http import response_limit_hook
 from dbt_mcp.result_limits import ensure_result_size
 
 from dbt_mcp.pagination import (
@@ -60,11 +60,15 @@ class DbtAdminAPIClient:
 
         try:
             async with (
-                API_REQUEST_GATE.enter(),
+                config.http_config.admission(),
                 httpx.AsyncClient(
                     headers={"Accept-Encoding": "gzip, deflate"},
                     timeout=PLATFORM_API_TIMEOUT,
-                    event_hooks=BOUNDED_RESPONSE_HOOKS,
+                    event_hooks={
+                        "response": [
+                            response_limit_hook(config.http_config.response_limits)
+                        ]
+                    },
                 ) as client,
             ):
                 response = await client.request(
@@ -491,10 +495,11 @@ class DbtAdminAPIClient:
                 params=params,
                 timeout=PLATFORM_API_TIMEOUT,
                 jq_filter=jq_filter,
+                config=config.artifact_config,
             )
         except TimeoutError as e:
             raise InvalidParameterError(
-                "Artifact processing timed out after 120s; select a smaller artifact or step."
+                f"Artifact processing timed out after {config.artifact_config.execution_seconds:g}s; select a smaller artifact or step."
             ) from e
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:

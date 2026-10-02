@@ -11,18 +11,8 @@ from dbt_mcp.errors import (
     InvalidParameterError,
     ResponseLimitError,
 )
-from dbt_mcp.http import AdmissionGate, ResponseLimits, response_limit_hook
-
-INLINE_CONTENT_LIMIT = 500 * 1024
-JQ_TIMEOUT_SECONDS = 120
-ARTIFACT_LIMITS = ResponseLimits(16 * 1024 * 1024, 32 * 1024 * 1024)
-ARTIFACT_GATE = AdmissionGate(
-    active=1,
-    pending=128,
-    wait_timeout=600,
-    name="artifact",
-    environment_prefix="DBT_MCP_ARTIFACT",
-)
+from dbt_mcp.http import response_limit_hook
+from dbt_mcp.resource_limits import ArtifactConfig, ResponseLimits
 
 
 class InlineArtifactLimitError(InvalidParameterError):
@@ -36,15 +26,18 @@ async def read_artifact(
     params: dict[str, int],
     timeout: float,
     jq_filter: str | None,
+    config: ArtifactConfig = ArtifactConfig(),
 ) -> str:
-    if jq_filter is not None and len(jq_filter) > 8192:
-        raise InvalidParameterError("jq_filter must contain at most 8192 characters.")
+    if jq_filter is not None and len(jq_filter) > config.filter_chars:
+        raise InvalidParameterError(
+            f"jq_filter must contain at most {config.filter_chars} characters."
+        )
     limits = (
-        ARTIFACT_LIMITS
+        config.response_limits
         if jq_filter is not None
-        else ResponseLimits(ARTIFACT_LIMITS.wire_bytes, INLINE_CONTENT_LIMIT)
+        else ResponseLimits(config.response_limits.wire_bytes, config.inline_bytes)
     )
-    async with ARTIFACT_GATE.enter(), asyncio.timeout(JQ_TIMEOUT_SECONDS):
+    async with config.admission(), asyncio.timeout(config.execution_seconds):
         with tempfile.TemporaryDirectory(prefix="dbt-mcp-artifact-") as directory:
             path = Path(directory) / "artifact"
             try:
@@ -75,16 +68,17 @@ async def read_artifact(
                     )
             if jq_filter is None:
                 return path.read_text(encoding="utf-8", errors="replace")
-            return await _filter_artifact(path, jq_filter)
+            return await _filter_artifact(path, jq_filter, config)
 
 
-async def _filter_artifact(path: Path, jq_filter: str) -> str:
+async def _filter_artifact(path: Path, jq_filter: str, config: ArtifactConfig) -> str:
     launch = asyncio.create_task(
         asyncio.create_subprocess_exec(
             sys.executable,
             str(Path(__file__).with_name("artifact_worker.py")),
             str(path),
             jq_filter,
+            str(config.worker_memory_bytes),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             limit=64 * 1024,
@@ -104,9 +98,9 @@ async def _filter_artifact(path: Path, jq_filter: str) -> str:
     result = bytearray()
     try:
         while chunk := await process.stdout.read(64 * 1024):
-            if len(result) + len(chunk) >= INLINE_CONTENT_LIMIT:
+            if len(result) + len(chunk) >= config.output_bytes:
                 raise InvalidParameterError(
-                    "Filtered output exceeds 500 KB; narrow the filter to return fewer results."
+                    f"Filtered output exceeds {config.output_bytes // 1024} KiB; narrow the filter to return fewer results."
                 )
             result.extend(chunk)
         error = await process.stderr.read(8192)
