@@ -14,6 +14,7 @@ from dbt_mcp.dbt_cli.models.lineage_types import ModelLineage
 from dbt_mcp.dbt_cli.models.manifest import Manifest
 from dbt_mcp.errors.common import InvalidParameterError
 from dbt_mcp.prompts.prompts import get_prompt
+from dbt_mcp.tools.access import ToolAccess, ToolTarget
 from dbt_mcp.tools.annotations import create_tool_annotations
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.fields import (
@@ -430,6 +431,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
     return [
         ToolDefinition(
             fn=build,
+            access=ToolAccess(target=ToolTarget.LOCAL),
             title="dbt build",
             description=get_prompt("dbt_cli/build"),
             annotations=create_tool_annotations(
@@ -441,6 +443,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=compile,
+            access=ToolAccess(target=ToolTarget.LOCAL),
             title="dbt compile",
             description=get_prompt("dbt_cli/compile"),
             annotations=create_tool_annotations(
@@ -452,6 +455,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=docs,
+            access=ToolAccess(target=ToolTarget.LOCAL),
             title="dbt docs",
             description=get_prompt("dbt_cli/docs"),
             annotations=create_tool_annotations(
@@ -463,6 +467,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             name="list",
+            access=ToolAccess(target=ToolTarget.LOCAL),
             fn=ls,
             title="dbt list",
             description=get_prompt("dbt_cli/list"),
@@ -475,6 +480,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=parse,
+            access=ToolAccess(target=ToolTarget.LOCAL),
             title="dbt parse",
             description=get_prompt("dbt_cli/parse"),
             annotations=create_tool_annotations(
@@ -486,6 +492,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=run,
+            access=ToolAccess(target=ToolTarget.LOCAL),
             title="dbt run",
             description=get_prompt("dbt_cli/run"),
             annotations=create_tool_annotations(
@@ -497,6 +504,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=test,
+            access=ToolAccess(target=ToolTarget.LOCAL),
             title="dbt test",
             description=get_prompt("dbt_cli/test"),
             annotations=create_tool_annotations(
@@ -508,6 +516,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=show,
+            access=ToolAccess(target=ToolTarget.LOCAL),
             title="dbt show",
             description=get_prompt("dbt_cli/show"),
             annotations=create_tool_annotations(
@@ -519,6 +528,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=clone,
+            access=ToolAccess(target=ToolTarget.LOCAL),
             title="dbt clone",
             description=get_prompt("dbt_cli/clone"),
             annotations=create_tool_annotations(
@@ -530,6 +540,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             name="get_lineage_dev",
+            access=ToolAccess(target=ToolTarget.LOCAL),
             fn=get_lineage_dev,
             title="Get Model Lineage (Dev)",
             description=get_prompt("dbt_cli/get_lineage_dev"),
@@ -542,6 +553,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             name="get_node_details_dev",
+            access=ToolAccess(target=ToolTarget.LOCAL),
             fn=get_node_details_dev,
             title="Get Node Details (Dev)",
             description=get_prompt("dbt_cli/get_node_details_dev"),

@@ -1,0 +1,3 @@
+kind: Breaking Change
+body: Tool definitions and decorators now require an explicit access declaration. Use local or public targets when cloud resource permissions do not apply.
+time: 2026-10-02T15:56:03.015459-05:00

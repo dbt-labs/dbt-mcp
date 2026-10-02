@@ -9,6 +9,7 @@ from pydantic import Field
 from dbt_mcp.config.config import DbtCodegenConfig
 from dbt_mcp.dbt_cli.binary_type import get_color_disable_flag
 from dbt_mcp.prompts.prompts import get_prompt
+from dbt_mcp.tools.access import ToolAccess, ToolTarget
 from dbt_mcp.tools.annotations import create_tool_annotations
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
@@ -163,6 +164,7 @@ def create_dbt_codegen_tool_definitions(
     return [
         ToolDefinition(
             fn=generate_source,
+            access=ToolAccess(target=ToolTarget.LOCAL),
             title="Generate Source",
             description=get_prompt("dbt_codegen/generate_source"),
             annotations=create_tool_annotations(
@@ -173,6 +175,7 @@ def create_dbt_codegen_tool_definitions(
         ),
         ToolDefinition(
             fn=generate_model_yaml,
+            access=ToolAccess(target=ToolTarget.LOCAL),
             title="Generate Model YAML",
             description=get_prompt("dbt_codegen/generate_model_yaml"),
             annotations=create_tool_annotations(
@@ -183,6 +186,7 @@ def create_dbt_codegen_tool_definitions(
         ),
         ToolDefinition(
             fn=generate_staging_model,
+            access=ToolAccess(target=ToolTarget.LOCAL),
             title="Generate Staging Model",
             description=get_prompt("dbt_codegen/generate_staging_model"),
             annotations=create_tool_annotations(
