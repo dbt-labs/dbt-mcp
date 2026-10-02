@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from functools import partial
 from typing import Any
@@ -21,6 +21,7 @@ class GenericToolDefinition[NameEnum: Enum]:
     annotations: ToolAnnotations | None = None
     structured_output: bool = True
     meta: dict[str, Any] | None = None
+    access: Enum = field(kw_only=True)
 
     def get_name(self) -> NameEnum:
         return self.name_enum((self.name or self.fn.__name__).lower())
@@ -51,6 +52,7 @@ class GenericToolDefinition[NameEnum: Enum]:
             annotations=self.annotations,
             structured_output=self.structured_output,
             meta=self.meta,
+            access=self.access,
         )
 
 
@@ -71,6 +73,7 @@ def generic_dbt_mcp_tool[NameEnum: Enum](
     open_world_hint: bool = True,
     structured_output: bool = True,
     meta: dict[str, Any] | None = None,
+    access: Enum,
 ) -> Callable[[Callable], GenericToolDefinition[NameEnum]]:
     """Decorator to define a tool definition for dbt MCP"""
 
@@ -90,6 +93,7 @@ def generic_dbt_mcp_tool[NameEnum: Enum](
             ),
             structured_output=structured_output,
             meta=meta,
+            access=access,
         )
 
     return decorator

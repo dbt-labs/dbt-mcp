@@ -17,7 +17,7 @@ dbt-mcp is an MCP (Model Context Protocol) server that exposes dbt functionality
 ## Tool Architecture
 
 Tools follow a consistent pattern:
-1. `@dbt_mcp_tool` decorator defines the tool with metadata
+1. `@dbt_mcp_tool` decorator defines the tool with metadata and a required `access=AccessPolicy.…` declaration (also required when constructing a `ToolDefinition` directly). Choose a named cloud policy, `AccessPolicy.LOCAL` for local execution, or `AccessPolicy.PUBLIC` for public tools. Hosts implement policy enforcement and may declare their own policy enums; the shared framework preserves the identifier without interpreting it.
 2. `ToolName` enum in `tools/tool_names.py` — every tool needs an entry
 3. Toolset mapping in `tools/toolsets.py` — maps tools to categories
 4. Context injection via `adapt_context()` — tools receive typed context objects, but MCP only sees user-facing params

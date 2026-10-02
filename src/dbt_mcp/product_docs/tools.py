@@ -38,6 +38,7 @@ from dbt_mcp.product_docs.types import (
     SearchProductDocsResponse,
 )
 from dbt_mcp.prompts.prompts import get_prompt
+from dbt_mcp.tools.access import AccessPolicy
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
@@ -115,6 +116,7 @@ async def _fetch_page(
 
 
 @dbt_mcp_tool(
+    access=AccessPolicy.PUBLIC,
     description=get_prompt("product_docs/search_product_docs"),
     title="Search Product Docs",
     # read_only: the in-memory cache is internal process state,
@@ -177,6 +179,7 @@ async def search_product_docs(
 
 
 @dbt_mcp_tool(
+    access=AccessPolicy.PUBLIC,
     description=get_prompt("product_docs/get_product_doc_pages"),
     title="Get Product Doc Pages",
     read_only_hint=True,

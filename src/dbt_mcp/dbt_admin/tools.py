@@ -41,6 +41,7 @@ from dbt_mcp.dbt_admin.param_descriptions import (
 from dbt_mcp.dbt_admin.run_artifacts.parser import ErrorFetcher, WarningFetcher
 from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.prompts.prompts import get_prompt
+from dbt_mcp.tools.access import AccessPolicy
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
@@ -76,6 +77,7 @@ class AdminToolContext:
 
 
 @dbt_mcp_tool(
+    access=AccessPolicy.ACCOUNT_PROJECTS_READ,
     description=get_prompt("admin_api/list_projects"),
     title="List Projects",
     read_only_hint=True,
@@ -89,6 +91,7 @@ async def list_projects(context: AdminToolContext) -> list[dict[str, Any]]:
 
 
 @dbt_mcp_tool(
+    access=AccessPolicy.JOBS_READ,
     description=get_prompt("admin_api/list_jobs"),
     title="List Jobs",
     read_only_hint=True,
@@ -119,6 +122,7 @@ async def list_jobs(
 
 
 @dbt_mcp_tool(
+    access=AccessPolicy.JOB_READ,
     description=get_prompt("admin_api/get_job_details"),
     title="Get Job Details",
     read_only_hint=True,
@@ -137,6 +141,7 @@ async def get_job_details(
 
 
 @dbt_mcp_tool(
+    access=AccessPolicy.JOB_RUN_WRITE,
     description=get_prompt("admin_api/trigger_job_run"),
     title="Trigger Job Run",
     read_only_hint=False,
@@ -178,6 +183,7 @@ async def trigger_job_run(
 
 
 @dbt_mcp_tool(
+    access=AccessPolicy.RUNS_READ,
     description=get_prompt("admin_api/list_jobs_runs"),
     title="List Jobs Runs",
     read_only_hint=True,
@@ -214,6 +220,7 @@ async def list_jobs_runs(
 
 
 @dbt_mcp_tool(
+    access=AccessPolicy.RUN_READ,
     description=get_prompt("admin_api/get_job_run_details"),
     title="Get Job Run Details",
     read_only_hint=True,
@@ -232,6 +239,7 @@ async def get_job_run_details(
 
 
 @dbt_mcp_tool(
+    access=AccessPolicy.RUN_WRITE,
     description=get_prompt("admin_api/cancel_job_run"),
     title="Cancel Job Run",
     read_only_hint=False,
@@ -250,6 +258,7 @@ async def cancel_job_run(
 
 
 @dbt_mcp_tool(
+    access=AccessPolicy.RUN_WRITE,
     description=get_prompt("admin_api/retry_job_run"),
     title="Retry Job Run",
     read_only_hint=False,
@@ -266,6 +275,7 @@ async def retry_job_run(
 
 
 @dbt_mcp_tool(
+    access=AccessPolicy.RUN_READ,
     description=get_prompt("admin_api/list_job_run_artifacts"),
     title="List Job Run Artifacts",
     read_only_hint=True,
@@ -284,6 +294,7 @@ async def list_job_run_artifacts(
 
 
 @dbt_mcp_tool(
+    access=AccessPolicy.RUN_READ,
     description=get_prompt("admin_api/get_job_run_artifacts"),
     title="Get Job Run Artifacts",
     read_only_hint=True,
@@ -348,6 +359,7 @@ async def get_job_run_artifacts(
 
 
 @dbt_mcp_tool(
+    access=AccessPolicy.RUN_READ,
     description=get_prompt("admin_api/get_job_run_error"),
     title="Get Job Run Error",
     read_only_hint=True,

@@ -3,6 +3,7 @@
 from enum import Enum
 from typing import Any
 
+from dbt_mcp.tools.access import AccessPolicy
 from dbt_mcp.tools.definitions import GenericToolDefinition, generic_dbt_mcp_tool
 from dbt_mcp.tools.register import generic_register_tools
 from dbt_mcp.tools.toolsets import Toolset
@@ -19,6 +20,7 @@ def _make_tool(
 
     @generic_dbt_mcp_tool(
         description="test tool",
+        access=AccessPolicy.PUBLIC,
         name_enum=FakeToolName,
         title="Test Tool",
         read_only_hint=True,

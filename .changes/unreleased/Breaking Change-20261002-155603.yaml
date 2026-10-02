@@ -1,0 +1,3 @@
+kind: Breaking Change
+body: Tool definitions and decorators now require an explicit named access policy. Use local or public policies when cloud resource permissions do not apply; hosts implement policy enforcement and may define their own policy enums.
+time: 2026-10-02T15:56:03.015459-05:00
