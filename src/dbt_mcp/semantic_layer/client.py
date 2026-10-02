@@ -43,6 +43,14 @@ from dbt_mcp.semantic_layer.types import (
     SavedQueryToolResponse,
 )
 
+from dbt_mcp.result_limits import ensure_result_size
+from dbt_mcp.pagination import (
+    Pagination,
+    ResultPage,
+    numbered_pagination,
+    validate_page_size,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -90,6 +98,7 @@ def _dedupe_metric_items(items: Any) -> list[Any]:
             continue
         seen.add(name)
         out.append(item)
+        ensure_result_size(out)
     return out
 
 
@@ -146,17 +155,16 @@ class SemanticLayerFetcher:
         client_provider: SemanticLayerClientProvider,
     ):
         self.client_provider = client_provider
-        # TODO: we shouldn't allow these dicts to grow unbounded?
-        self.entities_cache: dict[tuple[str, str | None], list[EntityToolResponse]] = {}
-        self.dimensions_cache: dict[
-            tuple[str, str | None], list[DimensionToolResponse]
-        ] = {}
 
     async def list_metrics(
         self,
         config: SemanticLayerConfig,
         search: str | list[str] | None = None,
+        *,
+        page_num: int = 1,
+        page_size: int = 50,
     ) -> ListMetricsResponse:
+        validate_page_size(page_size, page_num - 1)
         # `search` may be a single substring or a list of substrings; for a list
         # we fan out one GraphQL call per substring, then merge & dedupe by name.
         search_terms: list[str | None]
@@ -187,24 +195,37 @@ class SemanticLayerFetcher:
             normalized = search.strip() if isinstance(search, str) else search
             search_terms = [normalized if normalized else None]
 
-        cheap_results = await asyncio.gather(
-            *(
-                submit_request(
+        cheap_results = []
+        for search_term in search_terms:
+            cheap_results.append(
+                await submit_request(
                     config,
                     {
                         "query": GRAPHQL_QUERIES["metrics"],
-                        "variables": {"search": term},
+                        "variables": {
+                            "search": search_term,
+                            "pageNum": page_num,
+                            "pageSize": page_size,
+                        },
                     },
                 )
-                for term in search_terms
             )
-        )
+            ensure_result_size(cheap_results)
         cheap_items = _dedupe_metric_items(
             item
             for r in cheap_results
             for item in r["data"]["metricsPaginated"]["items"]
         )
+        pages = [
+            numbered_pagination(r["data"]["metricsPaginated"]) for r in cheap_results
+        ]
+        pagination = Pagination(
+            has_more=any(p.has_more for p in pages),
+            next_page=page_num + 1 if any(p.has_more for p in pages) else None,
+            total_items=pages[0].total_items if len(pages) == 1 else None,
+        )
         dimensionless_response = ListMetricsResponse(
+            pagination=pagination,
             metrics=[
                 MetricToolResponse(
                     name=m.get("name"),
@@ -214,7 +235,7 @@ class SemanticLayerFetcher:
                     metadata=(m.get("config") or {}).get("meta"),
                 )
                 for m in cheap_items
-            ]
+            ],
         )
 
         if cheap_items and len(cheap_items) <= config.metrics_related_max:
@@ -225,19 +246,23 @@ class SemanticLayerFetcher:
             # times out or otherwise fails (one slow term would otherwise
             # block the whole call via asyncio.gather).
             try:
-                related_results = await asyncio.gather(
-                    *(
-                        submit_request(
+                related_results = []
+                for search_term in search_terms:
+                    related_results.append(
+                        await submit_request(
                             config,
                             {
                                 "query": GRAPHQL_QUERIES["metrics_with_related"],
-                                "variables": {"search": term},
+                                "variables": {
+                                    "search": search_term,
+                                    "pageNum": page_num,
+                                    "pageSize": page_size,
+                                },
                             },
                             timeout=5.0,
                         )
-                        for term in search_terms
                     )
-                )
+                    ensure_result_size(related_results)
             except Exception as e:
                 logger.warning(f"Error fetching metrics with related: {e}")
                 return dimensionless_response
@@ -247,6 +272,7 @@ class SemanticLayerFetcher:
                 for item in r["data"]["metricsPaginated"]["items"]
             )
             return ListMetricsResponse(
+                pagination=pagination,
                 metrics=[
                     MetricToolResponse(
                         name=m.get("name"),
@@ -258,7 +284,7 @@ class SemanticLayerFetcher:
                         entities=[e.get("name") for e in (m.get("entities") or [])],
                     )
                     for m in related_items
-                ]
+                ],
             )
         return dimensionless_response
 
@@ -266,13 +292,17 @@ class SemanticLayerFetcher:
         self,
         config: SemanticLayerConfig,
         search: str | None = None,
-    ) -> list[SavedQueryToolResponse]:
+        *,
+        page_num: int = 1,
+        page_size: int = 50,
+    ) -> ResultPage[list[SavedQueryToolResponse]]:
+        validate_page_size(page_size, page_num - 1)
         """Fetch all saved queries from the Semantic Layer API."""
         saved_queries_result = await submit_request(
             config,
             {
                 "query": GRAPHQL_QUERIES["saved_queries"],
-                "variables": {},
+                "variables": {"pageNum": page_num, "pageSize": page_size},
             },
         )
         simple_results = [
@@ -281,14 +311,14 @@ class SemanticLayerFetcher:
                 label=sq.get("label"),
                 description=sq.get("description"),
             )
-            for sq in saved_queries_result["data"]["savedQueries"]
+            for sq in saved_queries_result["data"]["savedQueriesPaginated"]["items"]
         ]
         try:
             full_result = await submit_request(
                 config,
                 {
                     "query": GRAPHQL_QUERIES["saved_queries_with_params"],
-                    "variables": {},
+                    "variables": {"pageNum": page_num, "pageSize": page_size},
                 },
                 timeout=5.0,
             )
@@ -315,7 +345,7 @@ class SemanticLayerFetcher:
                     if (sq.get("queryParams") or {}).get("where")
                     else None,
                 )
-                for sq in full_result["data"]["savedQueries"]
+                for sq in full_result["data"]["savedQueriesPaginated"]["items"]
             ]
         except Exception as e:
             logger.warning(f"Error fetching saved queries with params: {e}")
@@ -331,70 +361,91 @@ class SemanticLayerFetcher:
                 or search_lower in (r.label or "").lower()
                 or search_lower in (r.description or "").lower()
             ]
-        return results
+        return ResultPage(
+            result=results,
+            pagination=numbered_pagination(
+                saved_queries_result["data"]["savedQueriesPaginated"]
+            ),
+        )
 
     async def get_dimensions(
         self,
         config: SemanticLayerConfig,
         metrics: list[str],
         search: str | None = None,
-    ) -> list[DimensionToolResponse]:
-        metrics_key = (",".join(sorted(metrics)), search)
-        if metrics_key not in self.dimensions_cache:
-            dimensions_result = await submit_request(
-                config,
-                {
-                    "query": GRAPHQL_QUERIES["dimensions"],
-                    "variables": {
-                        "metrics": [{"name": m} for m in metrics],
-                        "search": search,
-                    },
+        *,
+        page_num: int = 1,
+        page_size: int = 50,
+    ) -> ResultPage[list[DimensionToolResponse]]:
+        validate_page_size(page_size, page_num - 1)
+        dimensions_result = await submit_request(
+            config,
+            {
+                "query": GRAPHQL_QUERIES["dimensions"],
+                "variables": {
+                    "metrics": [{"name": m} for m in metrics],
+                    "search": search,
+                    "pageNum": page_num,
+                    "pageSize": page_size,
                 },
-            )
-            dimensions = []
-            for d in dimensions_result["data"]["dimensionsPaginated"]["items"]:
-                dimensions.append(
-                    DimensionToolResponse(
-                        name=d.get("name"),
-                        type=d.get("type"),
-                        description=d.get("description"),
-                        label=d.get("label"),
-                        granularities=d.get("queryableGranularities")
-                        + d.get("queryableTimeGranularities"),
-                        metadata=(d.get("config") or {}).get("meta"),
-                    )
+            },
+        )
+        dimensions = []
+        for d in dimensions_result["data"]["dimensionsPaginated"]["items"]:
+            dimensions.append(
+                DimensionToolResponse(
+                    name=d.get("name"),
+                    type=d.get("type"),
+                    description=d.get("description"),
+                    label=d.get("label"),
+                    granularities=d.get("queryableGranularities")
+                    + d.get("queryableTimeGranularities"),
+                    metadata=(d.get("config") or {}).get("meta"),
                 )
-            self.dimensions_cache[metrics_key] = dimensions
-        return self.dimensions_cache[metrics_key]
+            )
+        return ResultPage(
+            result=dimensions,
+            pagination=numbered_pagination(
+                dimensions_result["data"]["dimensionsPaginated"]
+            ),
+        )
 
     async def get_entities(
         self,
         config: SemanticLayerConfig,
         metrics: list[str],
         search: str | None = None,
-    ) -> list[EntityToolResponse]:
-        metrics_key = (",".join(sorted(metrics)), search)
-        if metrics_key not in self.entities_cache:
-            entities_result = await submit_request(
-                config,
-                {
-                    "query": GRAPHQL_QUERIES["entities"],
-                    "variables": {
-                        "metrics": [{"name": m} for m in metrics],
-                        "search": search,
-                    },
+        *,
+        page_num: int = 1,
+        page_size: int = 50,
+    ) -> ResultPage[list[EntityToolResponse]]:
+        validate_page_size(page_size, page_num - 1)
+        entities_result = await submit_request(
+            config,
+            {
+                "query": GRAPHQL_QUERIES["entities"],
+                "variables": {
+                    "metrics": [{"name": m} for m in metrics],
+                    "search": search,
+                    "pageNum": page_num,
+                    "pageSize": page_size,
                 },
+            },
+        )
+        entities = [
+            EntityToolResponse(
+                name=e.get("name"),
+                type=e.get("type"),
+                description=e.get("description"),
             )
-            entities = [
-                EntityToolResponse(
-                    name=e.get("name"),
-                    type=e.get("type"),
-                    description=e.get("description"),
-                )
-                for e in entities_result["data"]["entitiesPaginated"]["items"]
-            ]
-            self.entities_cache[metrics_key] = entities
-        return self.entities_cache[metrics_key]
+            for e in entities_result["data"]["entitiesPaginated"]["items"]
+        ]
+        return ResultPage(
+            result=entities,
+            pagination=numbered_pagination(
+                entities_result["data"]["entitiesPaginated"]
+            ),
+        )
 
     async def get_dimension_values(
         self,

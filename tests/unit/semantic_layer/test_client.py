@@ -1,3 +1,4 @@
+from tests.mocks.pagination import page_response
 import base64
 import datetime as dt
 import json
@@ -305,51 +306,55 @@ def test_default_result_formatter_with_mixed_types() -> None:
 
 MOCK_METRICS_RESPONSE = {
     "data": {
-        "metricsPaginated": {
-            "items": [
-                {
-                    "name": "revenue",
-                    "type": "simple",
-                    "label": "Revenue",
-                    "description": "Total revenue",
-                    "config": None,
-                }
-            ]
-        }
+        "metricsPaginated": page_response(
+            {
+                "items": [
+                    {
+                        "name": "revenue",
+                        "type": "simple",
+                        "label": "Revenue",
+                        "description": "Total revenue",
+                        "config": None,
+                    }
+                ]
+            }
+        )
     }
 }
 
 MOCK_METRICS_WITH_RELATED_RESPONSE = {
     "data": {
-        "metricsPaginated": {
-            "items": [
-                {
-                    "name": "revenue",
-                    "type": "simple",
-                    "label": "Revenue",
-                    "description": "Total revenue",
-                    "config": None,
-                    "dimensions": [
-                        {
-                            "name": "order_date",
-                            "type": "time",
-                            "description": None,
-                            "label": None,
-                            "queryableGranularities": ["day"],
-                            "queryableTimeGranularities": [],
-                            "config": None,
-                        }
-                    ],
-                    "entities": [
-                        {
-                            "name": "customer",
-                            "type": "primary",
-                            "description": None,
-                        }
-                    ],
-                }
-            ]
-        }
+        "metricsPaginated": page_response(
+            {
+                "items": [
+                    {
+                        "name": "revenue",
+                        "type": "simple",
+                        "label": "Revenue",
+                        "description": "Total revenue",
+                        "config": None,
+                        "dimensions": [
+                            {
+                                "name": "order_date",
+                                "type": "time",
+                                "description": None,
+                                "label": None,
+                                "queryableGranularities": ["day"],
+                                "queryableTimeGranularities": [],
+                                "config": None,
+                            }
+                        ],
+                        "entities": [
+                            {
+                                "name": "customer",
+                                "type": "primary",
+                                "description": None,
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
     }
 }
 
@@ -368,9 +373,9 @@ def _make_query_dispatcher():
                 return MOCK_METRICS_WITH_RELATED_RESPONSE
             return MOCK_METRICS_RESPONSE
         if "dimensionsPaginated" in query:
-            return {"data": {"dimensionsPaginated": {"items": []}}}
+            return {"data": {"dimensionsPaginated": page_response({"items": []})}}
         if "entitiesPaginated" in query:
-            return {"data": {"entitiesPaginated": {"items": []}}}
+            return {"data": {"entitiesPaginated": page_response({"items": []})}}
         raise AssertionError(f"Unexpected GraphQL query: {query}")
 
     return dispatch
@@ -410,7 +415,7 @@ async def test_list_metrics_above_threshold_returns_metrics_only(
         for i in range(3)
     ]
     mock_submit_request.return_value = {
-        "data": {"metricsPaginated": {"items": many_metrics}}
+        "data": {"metricsPaginated": page_response({"items": many_metrics})}
     }
     config = mock_config_provider.get_config.return_value
     config.metrics_related_max = 2
@@ -465,9 +470,15 @@ async def test_list_metrics_search_list_fans_out_and_dedupes(
         search = payload["variables"].get("search")
         if search == "rev":
             # Returns revenue plus the duplicate that the other term also matches.
-            return {"data": {"metricsPaginated": {"items": [revenue_item, cost_item]}}}
+            return {
+                "data": {
+                    "metricsPaginated": page_response(
+                        {"items": [revenue_item, cost_item]}
+                    )
+                }
+            }
         if search == "cost":
-            return {"data": {"metricsPaginated": {"items": [cost_item]}}}
+            return {"data": {"metricsPaginated": page_response({"items": [cost_item]})}}
         raise AssertionError(f"Unexpected search term: {search!r}")
 
     mock_submit_request.side_effect = dispatch
@@ -672,42 +683,46 @@ async def test_get_dimensions_includes_metadata(
 ):
     mock_submit_request.return_value = {
         "data": {
-            "dimensionsPaginated": {
-                "items": [
-                    {
-                        "name": "order_date",
-                        "type": "time",
-                        "description": "Order timestamp",
-                        "label": "Order Date",
-                        "queryableGranularities": ["day"],
-                        "queryableTimeGranularities": ["month"],
-                        "config": {"meta": {"display_name": "Order Date"}},
-                    },
-                    {
-                        "name": "customer_type",
-                        "type": "categorical",
-                        "description": "Customer segment",
-                        "label": None,
-                        "queryableGranularities": [],
-                        "queryableTimeGranularities": [],
-                        "config": None,
-                    },
-                    {
-                        "name": "order_status",
-                        "type": "categorical",
-                        "description": "Order status",
-                        "label": "Status",
-                        "queryableGranularities": [],
-                        "queryableTimeGranularities": [],
-                    },
-                ]
-            }
+            "dimensionsPaginated": page_response(
+                {
+                    "items": [
+                        {
+                            "name": "order_date",
+                            "type": "time",
+                            "description": "Order timestamp",
+                            "label": "Order Date",
+                            "queryableGranularities": ["day"],
+                            "queryableTimeGranularities": ["month"],
+                            "config": {"meta": {"display_name": "Order Date"}},
+                        },
+                        {
+                            "name": "customer_type",
+                            "type": "categorical",
+                            "description": "Customer segment",
+                            "label": None,
+                            "queryableGranularities": [],
+                            "queryableTimeGranularities": [],
+                            "config": None,
+                        },
+                        {
+                            "name": "order_status",
+                            "type": "categorical",
+                            "description": "Order status",
+                            "label": "Status",
+                            "queryableGranularities": [],
+                            "queryableTimeGranularities": [],
+                        },
+                    ]
+                }
+            )
         }
     }
 
-    result = await fetcher.get_dimensions(
-        config=mock_config_provider.get_config.return_value, metrics=["revenue"]
-    )
+    result = (
+        await fetcher.get_dimensions(
+            config=mock_config_provider.get_config.return_value, metrics=["revenue"]
+        )
+    ).result
 
     assert len(result) == 3
     assert result[0].metadata == {"display_name": "Order Date"}

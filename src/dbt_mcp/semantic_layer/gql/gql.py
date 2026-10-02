@@ -1,10 +1,15 @@
 GRAPHQL_QUERIES = {
     "metrics": """
-query GetMetrics($environmentId: BigInt!, $search: String) {
+query GetMetrics($environmentId: BigInt!, $search: String, $pageNum: Int!, $pageSize: Int!) {
   metricsPaginated(
-    environmentId: $environmentId, search: $search
-  ){
-    items{
+    environmentId: $environmentId, search: $search,
+    pageNum: $pageNum, pageSize: $pageSize
+  ) {
+    pageNum
+    pageSize
+    totalItems
+    totalPages
+    items {
       name
       label
       description
@@ -17,8 +22,12 @@ query GetMetrics($environmentId: BigInt!, $search: String) {
 }
     """,
     "dimensions": """
-query GetDimensions($environmentId: BigInt!, $metrics: [MetricInput!]!, $search: String) {
-  dimensionsPaginated(environmentId: $environmentId, metrics: $metrics, search: $search) {
+query GetDimensions($environmentId: BigInt!, $metrics: [MetricInput!]!, $search: String, $pageNum: Int!, $pageSize: Int!) {
+  dimensionsPaginated(environmentId: $environmentId, metrics: $metrics, search: $search, pageNum: $pageNum, pageSize: $pageSize) {
+    pageNum
+    pageSize
+    totalItems
+    totalPages
     items {
       description
       name
@@ -34,8 +43,12 @@ query GetDimensions($environmentId: BigInt!, $metrics: [MetricInput!]!, $search:
 }
     """,
     "entities": """
-query GetEntities($environmentId: BigInt!, $metrics: [MetricInput!]!, $search: String) {
-  entitiesPaginated(environmentId: $environmentId, metrics: $metrics, search: $search) {
+query GetEntities($environmentId: BigInt!, $metrics: [MetricInput!]!, $search: String, $pageNum: Int!, $pageSize: Int!) {
+  entitiesPaginated(environmentId: $environmentId, metrics: $metrics, search: $search, pageNum: $pageNum, pageSize: $pageSize) {
+    pageNum
+    pageSize
+    totalItems
+    totalPages
     items {
       description
       name
@@ -45,8 +58,12 @@ query GetEntities($environmentId: BigInt!, $metrics: [MetricInput!]!, $search: S
 }
     """,
     "metrics_with_related": """
-query GetMetricsWithRelated($environmentId: BigInt!, $search: String) {
-  metricsPaginated(environmentId: $environmentId, search: $search) {
+query GetMetricsWithRelated($environmentId: BigInt!, $search: String, $pageNum: Int!, $pageSize: Int!) {
+  metricsPaginated(environmentId: $environmentId, search: $search, pageNum: $pageNum, pageSize: $pageSize) {
+    pageNum
+    pageSize
+    totalItems
+    totalPages
     items {
       name
       label
@@ -66,29 +83,41 @@ query GetMetricsWithRelated($environmentId: BigInt!, $search: String) {
 }
     """,
     "saved_queries": """
-query GetSavedQueries($environmentId: BigInt!) {
-  savedQueries(environmentId: $environmentId) {
-    name
-    description
-    label
+query GetSavedQueries($environmentId: BigInt!, $pageNum: Int!, $pageSize: Int!) {
+  savedQueriesPaginated(environmentId: $environmentId, pageNum: $pageNum, pageSize: $pageSize) {
+    pageNum
+    pageSize
+    totalItems
+    totalPages
+    items {
+      name
+      description
+      label
+    }
   }
 }
     """,
     "saved_queries_with_params": """
-query GetSavedQueriesWithParams($environmentId: BigInt!) {
-  savedQueries(environmentId: $environmentId) {
-    name
-    description
-    label
-    queryParams {
-      metrics {
-        name
-      }
-      groupBy {
-        name
-      }
-      where {
-        whereSqlTemplate
+query GetSavedQueriesWithParams($environmentId: BigInt!, $pageNum: Int!, $pageSize: Int!) {
+  savedQueriesPaginated(environmentId: $environmentId, pageNum: $pageNum, pageSize: $pageSize) {
+    pageNum
+    pageSize
+    totalItems
+    totalPages
+    items {
+      name
+      description
+      label
+      queryParams {
+        metrics {
+          name
+        }
+        groupBy {
+          name
+        }
+        where {
+          whereSqlTemplate
+        }
       }
     }
   }

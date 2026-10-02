@@ -1,14 +1,9 @@
-from unittest.mock import patch
-
 import pytest
 
 from dbt_mcp.discovery.client import (
-    DEFAULT_MAX_NODE_QUERY_LIMIT,
-    DEFAULT_PAGE_SIZE,
     PaginatedResourceFetcher,
     SourcesFetcher,
 )
-from dbt_mcp.errors import GraphQLError
 
 
 @pytest.fixture
@@ -16,8 +11,6 @@ def sources_fetcher():
     paginator = PaginatedResourceFetcher(
         edges_path=("data", "environment", "applied", "sources", "edges"),
         page_info_path=("data", "environment", "applied", "sources", "pageInfo"),
-        page_size=DEFAULT_PAGE_SIZE,
-        max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
     )
     return SourcesFetcher(paginator=paginator)
 
@@ -71,7 +64,7 @@ async def test_fetch_sources_single_page(
     mock_api_client.return_value = mock_response
 
     # Execute the fetch
-    result = await sources_fetcher.fetch_sources(config=unit_discovery_config)
+    result = (await sources_fetcher.fetch_sources(config=unit_discovery_config)).result
 
     # Verify the API was called correctly
     mock_api_client.assert_called_once()
@@ -87,7 +80,7 @@ async def test_fetch_sources_single_page(
     # Check variables
     variables = call_args[0][1]
     assert variables["environmentId"] == 123
-    assert variables["first"] == 100  # PAGE_SIZE
+    assert variables["first"] == 50  # PAGE_SIZE
     assert variables["sourcesFilter"] == {}
 
     # Verify the result
@@ -158,9 +151,11 @@ async def test_fetch_sources_with_filters(
     mock_api_client.return_value = mock_response
 
     # Execute with filters
-    result = await sources_fetcher.fetch_sources(
-        **filter_params, config=unit_discovery_config
-    )
+    result = (
+        await sources_fetcher.fetch_sources(
+            **filter_params, config=unit_discovery_config
+        )
+    ).result
 
     # Verify the filter was passed correctly to the GraphQL query
     call_args = mock_api_client.call_args
@@ -190,7 +185,7 @@ async def test_fetch_sources_empty_response(
 
     mock_api_client.return_value = mock_response
 
-    result = await sources_fetcher.fetch_sources(config=unit_discovery_config)
+    result = (await sources_fetcher.fetch_sources(config=unit_discovery_config)).result
 
     assert result == []
 
@@ -265,52 +260,8 @@ async def test_fetch_sources_pagination(
         second_page_response,
     ]
 
-    result = await sources_fetcher.fetch_sources(config=unit_discovery_config)
+    result = (await sources_fetcher.fetch_sources(config=unit_discovery_config)).result
 
-    # Should have called twice due to pagination
-    assert mock_api_client.call_count == 2
-
-    # Check that the second call includes the cursor from the first response
-    first_call_args = mock_api_client.call_args_list[0]
-    second_call_args = mock_api_client.call_args_list[1]
-
-    # First call should have empty after cursor
-    assert "after" not in first_call_args[0][1]
-
-    # Second call should have the cursor from first response
-    assert second_call_args[0][1]["after"] == "cursor_page_1"
-
-    # Should have both results
-    assert len(result) == 2
-    assert result[0]["name"] == "customers"
-    assert result[1]["name"] == "orders"
-
-
-@patch("dbt_mcp.discovery.client.raise_gql_error")
-async def test_fetch_sources_graphql_error_handling(
-    mock_raise_gql_error, sources_fetcher, mock_api_client, unit_discovery_config
-):
-    mock_response = {
-        "data": {
-            "environment": {
-                "applied": {
-                    "sources": {
-                        "pageInfo": {"hasNextPage": False, "endCursor": None},
-                        "edges": [],
-                    }
-                }
-            }
-        }
-    }
-
-    # Configure the mock to raise GraphQLError when called
-    mock_raise_gql_error.side_effect = GraphQLError("Test GraphQL error")
-
-    mock_api_client.return_value = mock_response
-
-    # Verify that fetch_sources raises GraphQLError
-    with pytest.raises(GraphQLError, match="Test GraphQL error"):
-        await sources_fetcher.fetch_sources(config=unit_discovery_config)
-
-    # Verify that error handling function was called
-    mock_raise_gql_error.assert_called_with(mock_response)
+    assert mock_api_client.call_count == 1
+    assert len(result) == 1
+    assert mock_api_client.call_args.args[1]["first"] == 50

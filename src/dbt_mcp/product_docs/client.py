@@ -10,7 +10,17 @@ server to refresh.
 
 import logging
 import re
+from dbt_mcp.http import (
+    API_REQUEST_GATE,
+    BOUNDED_RESPONSE_HOOKS,
+    ResponseLimits,
+    response_limit_hook,
+)
+from cachetools import LRUCache
+
 from typing import Any
+
+from dbt_mcp.errors import InvalidParameterError
 
 import httpx
 
@@ -473,12 +483,15 @@ def expand_keywords(query: str) -> list[str]:
 class ProductDocsClient:
     """Async client for fetching and searching docs.getdbt.com content.
 
-    Caches are simple dicts that live for the lifetime of the instance
+    Caches have a bounded byte budget and live for the lifetime of the instance
     (and thus the MCP server process).  Restart the server to refresh.
     """
 
     def __init__(self) -> None:
-        self._cache: dict[str, Any] = {}
+        self._cache: LRUCache[str, Any] = LRUCache(
+            maxsize=32 * 1024 * 1024,
+            getsizeof=lambda value: len(str(value).encode("utf-8")),
+        )
 
     # -- fetchers ------------------------------------------------------------
 
@@ -486,7 +499,15 @@ class ProductDocsClient:
         """Return the cached llms.txt index, fetching on first call."""
         if "index" not in self._cache:
             logger.info("Fetching llms.txt index from %s", LLMS_TXT_URL)
-            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            async with (
+                API_REQUEST_GATE.enter(),
+                httpx.AsyncClient(
+                    headers={"Accept-Encoding": "gzip, deflate"},
+                    timeout=30.0,
+                    follow_redirects=True,
+                    event_hooks=BOUNDED_RESPONSE_HOOKS,
+                ) as client,
+            ):
                 response = await client.get(LLMS_TXT_URL)
                 response.raise_for_status()
             self._cache["index"] = parse_llms_txt(response.text)
@@ -497,9 +518,21 @@ class ProductDocsClient:
         """Return the cached llms-full.txt page index, fetching on first call."""
         if "full_text" not in self._cache:
             logger.info("Fetching llms-full.txt from %s", LLMS_FULL_TXT_URL)
-            async with httpx.AsyncClient(
-                timeout=120.0, follow_redirects=True
-            ) as client:
+            async with (
+                API_REQUEST_GATE.enter(),
+                httpx.AsyncClient(
+                    headers={"Accept-Encoding": "gzip, deflate"},
+                    timeout=120.0,
+                    follow_redirects=True,
+                    event_hooks={
+                        "response": [
+                            response_limit_hook(
+                                ResponseLimits(16 * 1024 * 1024, 16 * 1024 * 1024)
+                            )
+                        ]
+                    },
+                ) as client,
+            ):
                 response = await client.get(LLMS_FULL_TXT_URL)
                 response.raise_for_status()
             self._cache["full_text"] = parse_llms_full_txt(response.text)
@@ -513,11 +546,23 @@ class ProductDocsClient:
         Raises httpx.HTTPStatusError on 4xx/5xx responses.
         Raises httpx.RequestError on network/connection failures.
         """
+        if len(url) > 4096:
+            raise InvalidParameterError("Product document URL exceeds 4096 characters.")
         if url not in self._cache:
             logger.info("Fetching product doc page: %s", url)
-            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            async with (
+                API_REQUEST_GATE.enter(),
+                httpx.AsyncClient(
+                    headers={"Accept-Encoding": "gzip, deflate"},
+                    timeout=30.0,
+                    follow_redirects=True,
+                    event_hooks=BOUNDED_RESPONSE_HOOKS,
+                ) as client,
+            ):
                 response = await client.get(url)
                 response.raise_for_status()
+            if len(self._cache) >= 128:
+                self._cache.popitem()
             self._cache[url] = response.text
         return self._cache[url]
 

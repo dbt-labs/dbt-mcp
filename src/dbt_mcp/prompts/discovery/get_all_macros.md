@@ -20,3 +20,5 @@ Note:
 Returns:
 - When return_package_names_only=False (default): List of macros with name, uniqueId, description, packageName
 - When return_package_names_only=True: List of unique package names (strings)
+
+Returns one source page in `result`, with `pagination.has_more` and `pagination.next_cursor`. Pass the next cursor as `after` with the same filters. `limit` defaults to 50 and is capped at 100. Local filtering may leave an empty page with more pages available.

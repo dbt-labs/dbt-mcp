@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import logging
 import re
-from functools import cache
 from typing import Any
 
 import httpx
 
 from dbt_mcp.config.config_providers import AdminApiConfig, ConfigProvider
 from dbt_mcp.config.settings import PLATFORM_API_TIMEOUT
+from dbt_mcp.dbt_admin.artifacts import read_artifact
 from dbt_mcp.errors import (
     AdminAPIError,
     ArtifactRetrievalError,
@@ -19,6 +19,10 @@ from dbt_mcp.oauth.dbt_platform import (
     DbtPlatformEnvironment,
     DbtPlatformEnvironmentResponse,
 )
+from dbt_mcp.http import API_REQUEST_GATE, BOUNDED_RESPONSE_HOOKS
+from dbt_mcp.result_limits import ensure_result_size
+
+from dbt_mcp.pagination import ResultPage, offset_pagination, validate_page_size
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +54,14 @@ class DbtAdminAPIClient:
         headers = await self.get_headers()
 
         try:
-            async with httpx.AsyncClient(timeout=PLATFORM_API_TIMEOUT) as client:
+            async with (
+                API_REQUEST_GATE.enter(),
+                httpx.AsyncClient(
+                    headers={"Accept-Encoding": "gzip, deflate"},
+                    timeout=PLATFORM_API_TIMEOUT,
+                    event_hooks=BOUNDED_RESPONSE_HOOKS,
+                ) as client,
+            ):
                 response = await client.request(
                     method,
                     url,
@@ -129,7 +140,8 @@ class DbtAdminAPIClient:
         *,
         page_size: int = 100,
     ) -> list[DbtPlatformEnvironmentResponse]:
-        """Fetch all environments for a project using offset/limit pagination."""
+        """Resolve environments with bounded offset/limit pagination."""
+        validate_page_size(page_size)
         offset = 0
         environments: list[DbtPlatformEnvironmentResponse] = []
         config = await self.config_provider.get_config()
@@ -140,12 +152,21 @@ class DbtAdminAPIClient:
                 params={"state": 1, "offset": offset, "limit": page_size},
             )
             page_raw = result.get("data", [])
+            if len(page_raw) > page_size:
+                raise InvalidParameterError(
+                    "API exceeded the requested environment page size."
+                )
             environments.extend(
                 DbtPlatformEnvironmentResponse(**row) for row in page_raw
             )
+            ensure_result_size(environments)
             if len(page_raw) < page_size:
                 break
             offset += page_size
+            if offset >= 1000:
+                raise InvalidParameterError(
+                    "Environment resolution exceeds 1000 entries; configure the environment directly."
+                )
         return environments
 
     async def get_environments_for_project(
@@ -161,9 +182,12 @@ class DbtAdminAPIClient:
         )
         return self.resolve_environments(raw)
 
-    @cache
-    async def list_jobs(self, account_id: int, **params: Any) -> list[dict[str, Any]]:
+    async def list_jobs(
+        self, account_id: int, limit: int = 50, offset: int = 0, **params: Any
+    ) -> ResultPage[list[dict[str, Any]]]:
         """List jobs for an account."""
+        validate_page_size(limit, offset)
+        params.update(limit=limit, offset=offset)
         params["include_related"] = "['most_recent_run','most_recent_completed_run']"
         result = await self._make_request(
             "GET",
@@ -230,7 +254,12 @@ class DbtAdminAPIClient:
             for job in data
         ]
 
-        return filtered_data
+        return ResultPage(
+            result=filtered_data,
+            pagination=offset_pagination(
+                result, count=len(data), limit=limit, offset=offset
+            ),
+        )
 
     async def get_job_details(self, account_id: int, job_id: int) -> dict[str, Any]:
         """Get details for a specific job."""
@@ -243,18 +272,23 @@ class DbtAdminAPIClient:
         )
         return result.get("data", {})
 
-    async def list_projects(self, account_id: int) -> list[dict[str, Any]]:
+    async def list_projects(
+        self, account_id: int, limit: int = 50, offset: int = 0
+    ) -> ResultPage[list[dict[str, Any]]]:
         """List active projects for an account."""
+        validate_page_size(limit, offset)
         result = await self._make_request(
             "GET",
             f"/api/v3/accounts/{account_id}/projects/",
             params={
                 "state": 1,
+                "limit": limit,
+                "offset": offset,
                 "include_related": "['environments','repository']",
             },
         )
         data = result.get("data", [])
-        return [
+        filtered_data = [
             {
                 "id": p["id"],
                 "name": p["name"],
@@ -277,6 +311,13 @@ class DbtAdminAPIClient:
             for p in data
         ]
 
+        return ResultPage(
+            result=filtered_data,
+            pagination=offset_pagination(
+                result, count=len(data), limit=limit, offset=offset
+            ),
+        )
+
     async def trigger_job_run(
         self, account_id: int, job_id: int, cause: str, **kwargs: Any
     ) -> dict[str, Any]:
@@ -288,9 +329,11 @@ class DbtAdminAPIClient:
         return result.get("data", {})
 
     async def list_jobs_runs(
-        self, account_id: int, **params: Any
-    ) -> list[dict[str, Any]]:
+        self, account_id: int, limit: int = 50, offset: int = 0, **params: Any
+    ) -> ResultPage[list[dict[str, Any]]]:
         """List runs for an account."""
+        validate_page_size(limit, offset)
+        params.update(limit=limit, offset=offset)
         params["include_related"] = "['job']"
         result = await self._make_request(
             "GET", f"/api/v2/accounts/{account_id}/runs/", params=params
@@ -329,7 +372,12 @@ class DbtAdminAPIClient:
             run.pop("deprecation", None)
             run.pop("environment", None)
 
-        return data
+        return ResultPage(
+            result=data,
+            pagination=offset_pagination(
+                result, count=len(data), limit=limit, offset=offset
+            ),
+        )
 
     async def get_job_run_details(
         self, account_id: int, run_id: int, include_logs: bool = False
@@ -395,6 +443,8 @@ class DbtAdminAPIClient:
         run_id: int,
         artifact_path: str,
         step: int | None = None,
+        *,
+        jq_filter: str | None = None,
     ) -> Any:
         """Get a specific job run artifact."""
         segments = artifact_path.split("/")
@@ -427,19 +477,17 @@ class DbtAdminAPIClient:
         } | config.headers_provider.get_headers()
 
         try:
-            async with httpx.AsyncClient(timeout=PLATFORM_API_TIMEOUT) as client:
-                response = await client.get(
-                    f"{config.url}/api/v2/accounts/{account_id}/runs/{run_id}/artifacts/{artifact_path}",
-                    headers=get_artifact_header,
-                    params=params,
-                )
-                response.raise_for_status()
-                if response.content[:4] == b"PAR1":
-                    raise ArtifactRetrievalError(
-                        f"Artifact '{artifact_path}' is a binary Parquet file and "
-                        "cannot be returned as text."
-                    )
-                return response.text
+            return await read_artifact(
+                f"{config.url}/api/v2/accounts/{account_id}/runs/{run_id}/artifacts/{artifact_path}",
+                headers=get_artifact_header,
+                params=params,
+                timeout=PLATFORM_API_TIMEOUT,
+                jq_filter=jq_filter,
+            )
+        except TimeoutError as e:
+            raise InvalidParameterError(
+                "Artifact processing timed out after 120s; select a smaller artifact or step."
+            ) from e
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 raise NotFoundError(

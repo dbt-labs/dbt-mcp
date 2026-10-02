@@ -32,8 +32,6 @@ def paginated_models_fetcher():
     paginator = PaginatedResourceFetcher(
         edges_path=("data", "environment", "applied", "models", "edges"),
         page_info_path=("data", "environment", "applied", "models", "pageInfo"),
-        page_size=1,
-        max_node_query_limit=10000,
     )
     return ModelsFetcher(paginator=paginator)
 

@@ -1,0 +1,198 @@
+import asyncio
+import gzip
+from pathlib import Path
+from unittest.mock import patch
+
+import httpx
+import pytest
+from dbt_mcp.config.config_providers import AdminApiConfig
+from tests.unit.dbt_admin.test_client import MockHeadersProvider
+
+from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
+from dbt_mcp.errors import InvalidParameterError
+from tests.unit.dbt_admin.test_client import (
+    MockAdminApiConfigProvider,
+)
+
+
+@pytest.fixture
+def admin_config():
+    return AdminApiConfig(
+        account_id=12345,
+        url="https://cloud.getdbt.com",
+        headers_provider=MockHeadersProvider({"Authorization": "Bearer test_token"}),
+    )
+
+
+class Chunks(httpx.AsyncByteStream):
+    def __init__(self, chunks: list[bytes]):
+        self.chunks = chunks
+        self.read_count = 0
+        self.closed = False
+
+    async def __aiter__(self):
+        for chunk in self.chunks:
+            self.read_count += 1
+            yield chunk
+
+    async def aclose(self):
+        self.closed = True
+
+
+@pytest.mark.parametrize("encoding", ["identity", "gzip"])
+@pytest.mark.parametrize("jq_filter", [None, "length"])
+async def test_artifact_source_limit_stops_stream_before_eof(
+    admin_config, encoding, jq_filter
+):
+    payload = b"x" * (1024 * 1024)
+    chunks = [payload] * 40
+    if encoding == "gzip":
+        chunks = [gzip.compress(b"".join(chunks)), b"unused"]
+    stream = Chunks(chunks)
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200, headers={"Content-Encoding": encoding}, stream=stream
+        )
+    )
+    real_client = httpx.AsyncClient
+    client = DbtAdminAPIClient(MockAdminApiConfigProvider(admin_config))
+    with patch(
+        "httpx.AsyncClient",
+        side_effect=lambda **kw: real_client(transport=transport, **kw),
+    ):
+        with pytest.raises(InvalidParameterError, match="limit"):
+            await client.get_job_run_artifact(
+                12345, 100, "manifest.json", jq_filter=jq_filter
+            )
+    assert stream.read_count < len(chunks)
+    assert stream.closed
+
+
+async def test_artifact_cancellation_closes_stream_and_releases_capacity(admin_config):
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    class WaitingStream(Chunks):
+        async def __aiter__(self):
+            started.set()
+            await release.wait()
+            yield b"{}"
+
+    stream = WaitingStream([])
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, stream=stream))
+    real_client = httpx.AsyncClient
+    client = DbtAdminAPIClient(MockAdminApiConfigProvider(admin_config))
+    with patch(
+        "httpx.AsyncClient",
+        side_effect=lambda **kw: real_client(transport=transport, **kw),
+    ):
+        task = asyncio.create_task(
+            client.get_job_run_artifact(12345, 100, "manifest.json")
+        )
+
+        await started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert stream.closed
+        release.set()
+        assert (
+            await asyncio.wait_for(
+                client.get_job_run_artifact(12345, 100, "manifest.json"), 2
+            )
+            == "{}"
+        )
+
+
+async def test_artifact_admission_is_shared_before_download(admin_config):
+    started = asyncio.Event()
+    release = asyncio.Event()
+    requests = []
+
+    class WaitingStream(Chunks):
+        async def __aiter__(self):
+            started.set()
+            await release.wait()
+            yield b"{}"
+
+    def response(request):
+        requests.append(request)
+        return httpx.Response(200, stream=WaitingStream([]))
+
+    transport = httpx.MockTransport(response)
+    real_client = httpx.AsyncClient
+    clients = [
+        DbtAdminAPIClient(MockAdminApiConfigProvider(admin_config)) for _ in range(4)
+    ]
+    with patch(
+        "httpx.AsyncClient",
+        side_effect=lambda **kw: real_client(transport=transport, **kw),
+    ):
+        tasks = [
+            asyncio.create_task(
+                client.get_job_run_artifact(12345, 100, "manifest.json")
+            )
+            for client in clients[:3]
+        ]
+        try:
+            await started.wait()
+            with pytest.raises(InvalidParameterError, match="capacity limit"):
+                await asyncio.wait_for(
+                    clients[3].get_job_run_artifact(12345, 100, "manifest.json"), 0.5
+                )
+            assert len(requests) == 1
+        finally:
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+        release.set()
+        assert (
+            await clients[3].get_job_run_artifact(12345, 100, "manifest.json") == "{}"
+        )
+
+
+async def test_cancellation_during_worker_launch_reaps_child_and_removes_spool(
+    admin_config,
+):
+    started = asyncio.Event()
+    release = asyncio.Event()
+    processes = []
+    paths = []
+    launch = asyncio.create_subprocess_exec
+
+    async def delayed_launch(*args, **kwargs):
+        process = await launch(*args, **kwargs)
+        processes.append(process)
+        paths.append(Path(args[2]))
+        started.set()
+        await release.wait()
+        return process
+
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, content=b"{}"))
+    real_client = httpx.AsyncClient
+    client = DbtAdminAPIClient(MockAdminApiConfigProvider(admin_config))
+    with (
+        patch(
+            "httpx.AsyncClient",
+            side_effect=lambda **kw: real_client(transport=transport, **kw),
+        ),
+        patch("asyncio.create_subprocess_exec", side_effect=delayed_launch),
+    ):
+        task = asyncio.create_task(
+            client.get_job_run_artifact(
+                12345, 100, "manifest.json", jq_filter="until(false; .)"
+            )
+        )
+        await asyncio.wait_for(started.wait(), 2)
+        task.cancel()
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(task, 2)
+        assert processes[0].returncode is not None
+        assert not paths[0].parent.exists()
+        assert (
+            await client.get_job_run_artifact(
+                12345, 100, "manifest.json", jq_filter="length"
+            )
+            == "[0]"
+        )
