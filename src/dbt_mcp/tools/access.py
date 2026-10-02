@@ -14,6 +14,7 @@ class ToolPermission(StrEnum):
 
 class ToolTarget(StrEnum):
     PUBLIC = "public"
+    LOCAL = "local"
     PRODUCTION_ENVIRONMENT = "production_environment"
     DEVELOPMENT_ENVIRONMENT = "development_environment"
     PROJECTS = "projects"
@@ -30,6 +31,8 @@ class ToolAccess:
     Environment targets describe selection preferences. Hosts resolve and
     authorize the actual resources before executing tools; these declarations
     do not grant access or replace authorization by downstream services.
+    Local targets use the host's local configuration and credentials, rather
+    than selecting a cloud resource for authorization.
     """
 
     target: ToolTarget

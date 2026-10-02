@@ -1,14 +1,38 @@
 from enum import Enum
 
+import pytest
+
 from dbt_mcp.discovery.tools import DISCOVERY_TOOLS
 from dbt_mcp.discovery.tools_multiproject import MULTIPROJECT_DISCOVERY_TOOLS
 from dbt_mcp.semantic_layer.tools import SEMANTIC_LAYER_TOOLS
 from dbt_mcp.tools.access import ToolAccess, ToolPermission, ToolTarget
-from dbt_mcp.tools.definitions import generic_dbt_mcp_tool
+from dbt_mcp.tools.definitions import (
+    GenericToolDefinition,
+    ToolDefinition,
+    generic_dbt_mcp_tool,
+)
 
 
 class ExampleName(Enum):
     EXAMPLE = "example"
+
+
+def test_decorator_requires_access() -> None:
+    with pytest.raises(TypeError, match="access"):
+        generic_dbt_mcp_tool(  # type: ignore[call-arg]
+            name_enum=ExampleName, title="Example", description="Example"
+        )
+
+
+@pytest.mark.parametrize("definition_type", [GenericToolDefinition, ToolDefinition])
+def test_direct_definition_requires_access(definition_type: type) -> None:
+    with pytest.raises(TypeError, match="access"):
+        definition_type(
+            fn=lambda: "example",
+            title="Example",
+            description="Example",
+            name_enum=ExampleName,
+        )
 
 
 def test_context_adaptation_preserves_access_and_public_schema() -> None:
