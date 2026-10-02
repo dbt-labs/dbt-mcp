@@ -30,6 +30,7 @@ from dbt_mcp.discovery.param_descriptions import (
     SOURCE_UNIQUE_IDS_FILTER,
 )
 from dbt_mcp.prompts.prompts import get_prompt
+from dbt_mcp.tools.access import ToolAccess, ToolPermission, ToolTarget
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.deprecation import deprecated_description, deprecation_meta
 from dbt_mcp.tools.fields import (
@@ -118,6 +119,10 @@ class DiscoveryToolContext:
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.METADATA_READ,),
+    ),
     description=get_prompt("discovery/get_mart_models"),
     title="Get Mart Models",
     read_only_hint=True,
@@ -142,6 +147,10 @@ async def get_mart_models(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.METADATA_READ,),
+    ),
     description=get_prompt("discovery/get_all_models"),
     title="Get All Models",
     read_only_hint=True,
@@ -160,6 +169,10 @@ async def get_all_models(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.METADATA_READ,),
+    ),
     description=get_prompt("discovery/get_node_details"),
     title="Get Details",
     read_only_hint=True,
@@ -184,6 +197,10 @@ async def get_node_details(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.METADATA_READ,),
+    ),
     description=deprecated_description(replacement="get_node_details"),
     title="Get Model Details",
     read_only_hint=True,
@@ -206,6 +223,10 @@ async def get_model_details(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.METADATA_READ,),
+    ),
     description=deprecated_description(
         replacement="get_lineage", arg_mapping=GET_MODEL_PARENTS_ARG_MAPPING
     ),
@@ -227,6 +248,10 @@ async def get_model_parents(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.METADATA_READ,),
+    ),
     description=deprecated_description(
         replacement="get_lineage", arg_mapping=GET_MODEL_CHILDREN_ARG_MAPPING
     ),
@@ -248,6 +273,10 @@ async def get_model_children(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.METADATA_READ,),
+    ),
     description=get_prompt("discovery/get_model_health"),
     title="Get Model Health",
     read_only_hint=True,
@@ -266,6 +295,10 @@ async def get_model_health(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.METADATA_READ,),
+    ),
     description=get_prompt("discovery/get_model_performance"),
     title="Get Model Performance",
     read_only_hint=True,
@@ -354,6 +387,10 @@ def build_lineage_graph(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.METADATA_READ,),
+    ),
     description=get_prompt("discovery/get_lineage"),
     title="Get Lineage",
     read_only_hint=True,
@@ -386,6 +423,10 @@ async def get_lineage(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.METADATA_READ,),
+    ),
     description=get_prompt("discovery/get_exposures"),
     title="Get Exposures",
     read_only_hint=True,
@@ -404,6 +445,10 @@ async def get_exposures(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.METADATA_READ,),
+    ),
     description=deprecated_description(replacement="get_node_details"),
     title="Get Exposure Details",
     read_only_hint=True,
@@ -426,6 +471,10 @@ async def get_exposure_details(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.METADATA_READ,),
+    ),
     description=get_prompt("discovery/get_all_sources"),
     title="Get All Sources",
     read_only_hint=True,
@@ -450,6 +499,10 @@ async def get_all_sources(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.METADATA_READ,),
+    ),
     description=deprecated_description(replacement="get_node_details"),
     title="Get Source Details",
     read_only_hint=True,
@@ -472,6 +525,10 @@ async def get_source_details(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.METADATA_READ,),
+    ),
     description=get_prompt("discovery/get_all_macros"),
     title="Get All Macros",
     read_only_hint=True,
@@ -504,6 +561,10 @@ async def get_all_macros(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.METADATA_READ,),
+    ),
     description=deprecated_description(replacement="get_node_details"),
     title="Get Macro Details",
     read_only_hint=True,
@@ -526,6 +587,10 @@ async def get_macro_details(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.METADATA_READ,),
+    ),
     description=deprecated_description(replacement="get_node_details"),
     title="Get Seed Details",
     read_only_hint=True,
@@ -548,6 +613,10 @@ async def get_seed_details(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.METADATA_READ,),
+    ),
     description=deprecated_description(replacement="get_node_details"),
     title="Get Semantic Model Details",
     read_only_hint=True,
@@ -570,6 +639,10 @@ async def get_semantic_model_details(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.METADATA_READ,),
+    ),
     description=deprecated_description(replacement="get_node_details"),
     title="Get Snapshot Details",
     read_only_hint=True,
@@ -592,6 +665,10 @@ async def get_snapshot_details(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.METADATA_READ,),
+    ),
     description=deprecated_description(replacement="get_node_details"),
     title="Get Test Details",
     read_only_hint=True,
