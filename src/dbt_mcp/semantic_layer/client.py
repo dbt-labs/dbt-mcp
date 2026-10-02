@@ -48,6 +48,7 @@ from dbt_mcp.pagination import (
     Pagination,
     ResultPage,
     numbered_pagination,
+    validate_page_number,
     validate_page_size,
 )
 
@@ -164,7 +165,8 @@ class SemanticLayerFetcher:
         page_num: int = 1,
         page_size: int = 50,
     ) -> ListMetricsResponse:
-        validate_page_size(page_size, page_num - 1)
+        validate_page_size(page_size)
+        validate_page_number(page_num)
         # `search` may be a single substring or a list of substrings; for a list
         # we fan out one GraphQL call per substring, then merge & dedupe by name.
         search_terms: list[str | None]
@@ -296,7 +298,8 @@ class SemanticLayerFetcher:
         page_num: int = 1,
         page_size: int = 50,
     ) -> ResultPage[list[SavedQueryToolResponse]]:
-        validate_page_size(page_size, page_num - 1)
+        validate_page_size(page_size)
+        validate_page_number(page_num)
         """Fetch all saved queries from the Semantic Layer API."""
         saved_queries_result = await submit_request(
             config,
@@ -377,7 +380,8 @@ class SemanticLayerFetcher:
         page_num: int = 1,
         page_size: int = 50,
     ) -> ResultPage[list[DimensionToolResponse]]:
-        validate_page_size(page_size, page_num - 1)
+        validate_page_size(page_size)
+        validate_page_number(page_num)
         dimensions_result = await submit_request(
             config,
             {
@@ -419,7 +423,8 @@ class SemanticLayerFetcher:
         page_num: int = 1,
         page_size: int = 50,
     ) -> ResultPage[list[EntityToolResponse]]:
-        validate_page_size(page_size, page_num - 1)
+        validate_page_size(page_size)
+        validate_page_number(page_num)
         entities_result = await submit_request(
             config,
             {

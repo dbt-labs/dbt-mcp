@@ -43,11 +43,19 @@ class ResultPage[T](BaseModel):
         return self
 
 
-def validate_page_size(limit: int, offset: int = 0) -> None:
+def validate_page_size(limit: int) -> None:
     if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
         raise InvalidParameterError("limit must be an integer between 1 and 100.")
+
+
+def validate_offset(offset: int) -> None:
     if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
         raise InvalidParameterError("offset must be a non-negative integer.")
+
+
+def validate_page_number(page_num: int) -> None:
+    if not isinstance(page_num, int) or isinstance(page_num, bool) or page_num < 1:
+        raise InvalidParameterError("page_num must be a positive integer.")
 
 
 def offset_pagination(

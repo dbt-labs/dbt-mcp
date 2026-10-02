@@ -40,7 +40,13 @@ from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 
-from dbt_mcp.pagination import LIMIT_FIELD, OFFSET_FIELD, ResultPage, validate_page_size
+from dbt_mcp.pagination import (
+    LIMIT_FIELD,
+    OFFSET_FIELD,
+    ResultPage,
+    validate_offset,
+    validate_page_size,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +74,8 @@ async def list_projects(
     offset: Annotated[int, OFFSET_FIELD] = 0,
 ) -> ResultPage[list[dict[str, Any]]]:
     """List active projects in the account."""
-    validate_page_size(limit, offset)
+    validate_page_size(limit)
+    validate_offset(offset)
     admin_api_config = await context.admin_api_config_provider.get_config()
     return await context.admin_client.list_projects(
         admin_api_config.account_id, limit=limit, offset=offset
@@ -92,7 +99,8 @@ async def list_jobs(
     ] = None,
 ) -> ResultPage[list[dict[str, Any]]]:
     """List jobs in an account, optionally across all environments of a project."""
-    validate_page_size(limit, offset)
+    validate_page_size(limit)
+    validate_offset(offset)
     admin_api_config = await context.admin_api_config_provider.get_config()
     params = {}
     if project_id is not None:
@@ -181,7 +189,8 @@ async def list_jobs_runs(
     order_by: Annotated[str | None, Field(description=JOB_RUNS_ORDER_BY)] = None,
 ) -> ResultPage[list[dict[str, Any]]]:
     """List runs in an account."""
-    validate_page_size(limit, offset)
+    validate_page_size(limit)
+    validate_offset(offset)
     admin_api_config = await context.admin_api_config_provider.get_config()
     params: dict[str, Any] = {}
     if job_id:

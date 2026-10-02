@@ -15,7 +15,6 @@ from dbt_mcp.errors.common import NotFoundError
 from dbt_mcp.gql.errors import raise_gql_error
 from dbt_mcp.tools.parameters import LineageDirection, LineageResourceType
 
-from dbt_mcp.result_limits import ensure_result_size
 from dbt_mcp.http import API_REQUEST_GATE, BOUNDED_RESPONSE_HOOKS
 from dbt_mcp.pagination import Pagination, ResultPage, validate_page_size
 
@@ -535,31 +534,18 @@ class ModelsFetcher:
             with existing `_get_model_filters` usage in
             fetch_model_health/fetch_model_children/fetch_model_parents.
         """
-        models: list[dict] = []
-        after = None
-        for _ in range(10):
-            page = await self.fetch_models(
-                model_filter=self._get_model_filters(model_name=name),
-                config=config,
-                limit=min(50, 100 - len(models)),
-                after=after,
-            )
-            models.extend(page.result)
-            ensure_result_size(models)
-            if not page.pagination.has_more:
-                break
-            if len(models) >= 100:
-                raise InvalidParameterError(
-                    "Too many models match this name; provide unique_id."
-                )
-            after = page.pagination.next_cursor
-        else:
+        page = await self.fetch_models(
+            model_filter=self._get_model_filters(model_name=name),
+            config=config,
+            limit=100,
+        )
+        if page.pagination.has_more:
             raise InvalidParameterError(
-                "Too many pages match this name; provide unique_id."
+                "Name lookup returned an incomplete candidate set; provide unique_id."
             )
         return [
             model["uniqueId"]
-            for model in models
+            for model in page.result
             if model.get("uniqueId")
             and (model.get("name") or "").lower() == name.lower()
         ]

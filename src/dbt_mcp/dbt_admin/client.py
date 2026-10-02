@@ -22,7 +22,12 @@ from dbt_mcp.oauth.dbt_platform import (
 from dbt_mcp.http import API_REQUEST_GATE, BOUNDED_RESPONSE_HOOKS
 from dbt_mcp.result_limits import ensure_result_size
 
-from dbt_mcp.pagination import ResultPage, offset_pagination, validate_page_size
+from dbt_mcp.pagination import (
+    ResultPage,
+    offset_pagination,
+    validate_offset,
+    validate_page_size,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -186,7 +191,8 @@ class DbtAdminAPIClient:
         self, account_id: int, limit: int = 50, offset: int = 0, **params: Any
     ) -> ResultPage[list[dict[str, Any]]]:
         """List jobs for an account."""
-        validate_page_size(limit, offset)
+        validate_page_size(limit)
+        validate_offset(offset)
         params.update(limit=limit, offset=offset)
         params["include_related"] = "['most_recent_run','most_recent_completed_run']"
         result = await self._make_request(
@@ -276,7 +282,8 @@ class DbtAdminAPIClient:
         self, account_id: int, limit: int = 50, offset: int = 0
     ) -> ResultPage[list[dict[str, Any]]]:
         """List active projects for an account."""
-        validate_page_size(limit, offset)
+        validate_page_size(limit)
+        validate_offset(offset)
         result = await self._make_request(
             "GET",
             f"/api/v3/accounts/{account_id}/projects/",
@@ -332,7 +339,8 @@ class DbtAdminAPIClient:
         self, account_id: int, limit: int = 50, offset: int = 0, **params: Any
     ) -> ResultPage[list[dict[str, Any]]]:
         """List runs for an account."""
-        validate_page_size(limit, offset)
+        validate_page_size(limit)
+        validate_offset(offset)
         params.update(limit=limit, offset=offset)
         params["include_related"] = "['job']"
         result = await self._make_request(

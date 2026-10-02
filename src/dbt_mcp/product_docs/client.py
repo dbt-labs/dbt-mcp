@@ -20,8 +20,6 @@ from cachetools import LRUCache
 
 from typing import Any
 
-from dbt_mcp.errors import InvalidParameterError
-
 import httpx
 
 logger = logging.getLogger(__name__)
@@ -546,8 +544,6 @@ class ProductDocsClient:
         Raises httpx.HTTPStatusError on 4xx/5xx responses.
         Raises httpx.RequestError on network/connection failures.
         """
-        if len(url) > 4096:
-            raise InvalidParameterError("Product document URL exceeds 4096 characters.")
         if url not in self._cache:
             logger.info("Fetching product doc page: %s", url)
             async with (
@@ -563,8 +559,9 @@ class ProductDocsClient:
                 response.raise_for_status()
             if len(self._cache) >= 128:
                 self._cache.popitem()
-            self._cache[url] = response.text
-        return self._cache[url]
+            # Include the URL in the value-based cache budget as well as the content.
+            self._cache[url] = {"url": url, "content": response.text}
+        return self._cache[url]["content"]
 
     # -- search --------------------------------------------------------------
 

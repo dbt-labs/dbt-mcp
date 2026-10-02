@@ -30,6 +30,10 @@ enforced while streaming, before JSON parsing. Full lineage and resource details
 have the same acquisition limits, including SQL and column descriptions. Lineage
 retains its existing UI response shape and omitted-node count.
 
+Model detail lookup by name fetches at most 100 alias-filtered candidates in one
+request, then checks their names. If more candidates remain, provide `unique_id`
+instead; the tool does not return incomplete name resolution.
+
 Artifact calls acquire process-wide capacity before opening the HTTP response:
 one active call and two waiting calls. Further calls fail before downloading.
 Filtered artifacts allow at most 16 MiB transferred and 32 MiB decoded. The
@@ -46,6 +50,7 @@ inspect a specific artifact and step. Cancellation closes the download, reaps
 the worker, removes its temporary file, and releases capacity.
 
 Metadata requests share four active slots and eight waiting slots per process.
-Product-document downloads and their cache are bounded independently. Local CLI,
+Product-document downloads and their cache are bounded independently. Cached page
+URLs count toward the cache's byte budget alongside their content. Local CLI,
 codegen, and dev-lineage tools retain their existing behavior. Query execution
 limits are separate from metadata pagination.
