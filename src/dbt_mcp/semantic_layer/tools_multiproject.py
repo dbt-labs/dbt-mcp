@@ -43,6 +43,7 @@ from dbt_mcp.semantic_layer.types import (
     QueryMetricsSuccess,
     SavedQueryToolResponse,
 )
+from dbt_mcp.tools.access import ToolAccess, ToolPermission, ToolTarget
 from dbt_mcp.tools.definitions import GenericToolDefinition, dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
@@ -64,6 +65,10 @@ class MultiProjectSemanticLayerToolContext:
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.SEMANTIC_LAYER_CONFIGURATION_READ,),
+    ),
     description=get_prompt("semantic_layer/list_metrics"),
     title="List Metrics",
     read_only_hint=True,
@@ -95,6 +100,10 @@ async def list_metrics(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.SEMANTIC_LAYER_CONFIGURATION_READ,),
+    ),
     description=get_prompt("semantic_layer/list_saved_queries"),
     title="List Saved Queries",
     read_only_hint=True,
@@ -115,6 +124,10 @@ async def list_saved_queries(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.SEMANTIC_LAYER_CONFIGURATION_READ,),
+    ),
     description=get_prompt("semantic_layer/get_dimensions"),
     title="Get Dimensions",
     read_only_hint=True,
@@ -134,6 +147,10 @@ async def get_dimensions(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.SEMANTIC_LAYER_CONFIGURATION_READ,),
+    ),
     description=get_prompt("semantic_layer/get_entities"),
     title="Get Entities",
     read_only_hint=True,
@@ -153,6 +170,10 @@ async def get_entities(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.SEMANTIC_LAYER_CONFIGURATION_READ,),
+    ),
     description=get_prompt("semantic_layer/query_metrics"),
     title="Query Metrics",
     read_only_hint=True,
@@ -190,6 +211,10 @@ async def query_metrics(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.SEMANTIC_LAYER_CONFIGURATION_READ,),
+    ),
     description=get_prompt("semantic_layer/get_metrics_compiled_sql"),
     title="Compile SQL",
     read_only_hint=True,
@@ -227,6 +252,10 @@ async def get_metrics_compiled_sql(
 
 
 @dbt_mcp_tool(
+    access=ToolAccess(
+        target=ToolTarget.PRODUCTION_ENVIRONMENT,
+        permissions=(ToolPermission.SEMANTIC_LAYER_CONFIGURATION_READ,),
+    ),
     description=get_prompt("semantic_layer/get_dimension_values"),
     title="Get Dimension Values",
     read_only_hint=True,

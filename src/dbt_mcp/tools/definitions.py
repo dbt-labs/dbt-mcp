@@ -7,6 +7,7 @@ from typing import Any
 from mcp.server.fastmcp.tools.base import Tool
 from mcp.types import ToolAnnotations
 
+from dbt_mcp.tools.access import ToolAccess
 from dbt_mcp.tools.injection import adapt_with_mapper
 from dbt_mcp.tools.tool_names import ToolName
 
@@ -21,6 +22,7 @@ class GenericToolDefinition[NameEnum: Enum]:
     annotations: ToolAnnotations | None = None
     structured_output: bool = True
     meta: dict[str, Any] | None = None
+    access: ToolAccess | None = None
 
     def get_name(self) -> NameEnum:
         return self.name_enum((self.name or self.fn.__name__).lower())
@@ -51,6 +53,7 @@ class GenericToolDefinition[NameEnum: Enum]:
             annotations=self.annotations,
             structured_output=self.structured_output,
             meta=self.meta,
+            access=self.access,
         )
 
 
@@ -71,6 +74,7 @@ def generic_dbt_mcp_tool[NameEnum: Enum](
     open_world_hint: bool = True,
     structured_output: bool = True,
     meta: dict[str, Any] | None = None,
+    access: ToolAccess | None = None,
 ) -> Callable[[Callable], GenericToolDefinition[NameEnum]]:
     """Decorator to define a tool definition for dbt MCP"""
 
@@ -90,6 +94,7 @@ def generic_dbt_mcp_tool[NameEnum: Enum](
             ),
             structured_output=structured_output,
             meta=meta,
+            access=access,
         )
 
     return decorator
