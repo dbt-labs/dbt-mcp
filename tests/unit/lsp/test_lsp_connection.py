@@ -586,8 +586,8 @@ class TestMessageHandling:
                 # Verify future was resolved
                 mock_loop.call_soon_threadsafe.assert_called_once()
                 args = mock_loop.call_soon_threadsafe.call_args[0]
-                assert args[0] == future.set_result
-                assert args[1] == {"success": True}
+                assert args[0] == conn._set_future_result
+                assert args[1:] == (future, {"success": True})
 
                 # Verify request was removed from pending
                 assert 42 not in conn.state.pending_requests
@@ -618,7 +618,9 @@ class TestMessageHandling:
                 # Verify future was rejected
                 mock_loop.call_soon_threadsafe.assert_called_once()
                 args = mock_loop.call_soon_threadsafe.call_args[0]
-                assert args[0] == future.set_exception
+                assert args[0] == conn._set_future_exception
+                assert args[1] is future
+                assert isinstance(args[2], RuntimeError)
 
     def test_handle_unknown_response(self, tmp_path):
         """Test handling response for unknown request ID."""
@@ -674,10 +676,10 @@ class TestMessageHandling:
 
                 # Verify futures were resolved
                 mock_loop1.call_soon_threadsafe.assert_called_once_with(
-                    future1.set_result, {"success": True}
+                    conn._set_future_result, future1, {"success": True}
                 )
                 mock_loop2.call_soon_threadsafe.assert_called_once_with(
-                    future2.set_result, {"success": True}
+                    conn._set_future_result, future2, {"success": True}
                 )
 
                 # Verify compile state was set
