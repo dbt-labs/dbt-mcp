@@ -4,7 +4,9 @@ from dbt_mcp.config.headers import (
 )
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.errors import NotFoundError
+from dbt_mcp.errors.warehouse_auth import WarehouseAuthHintProvider
 
+from .admin_api import DefaultAdminApiConfigProvider
 from .base import ConfigProvider, MultiProjectConfigProvider, SemanticLayerConfig
 
 
@@ -19,6 +21,9 @@ class DefaultSemanticLayerConfigProvider(ConfigProvider[SemanticLayerConfig]):
         self.credentials_provider = credentials_provider
         self.metrics_related_max = metrics_related_max
         self.max_response_chars = max_response_chars
+        self.warehouse_auth_hint_provider = WarehouseAuthHintProvider(
+            DbtAdminAPIClient(DefaultAdminApiConfigProvider(credentials_provider))
+        )
 
     async def get_config(self) -> SemanticLayerConfig:
         settings, token_provider = await self.credentials_provider.get_credentials()
@@ -42,6 +47,7 @@ class DefaultSemanticLayerConfigProvider(ConfigProvider[SemanticLayerConfig]):
             ),
             metrics_related_max=self.metrics_related_max,
             max_response_chars=self.max_response_chars,
+            warehouse_auth_hint_provider=self.warehouse_auth_hint_provider,
         )
 
 
@@ -60,6 +66,7 @@ class MultiProjectSemanticLayerConfigProvider(
         self.admin_client = admin_client
         self.metrics_related_max = metrics_related_max
         self.max_response_chars = max_response_chars
+        self.warehouse_auth_hint_provider = WarehouseAuthHintProvider(admin_client)
 
     async def get_config(self, project_id: int) -> SemanticLayerConfig:
         settings, token_provider = await self.credentials_provider.get_credentials()
@@ -92,4 +99,5 @@ class MultiProjectSemanticLayerConfigProvider(
             ),
             metrics_related_max=self.metrics_related_max,
             max_response_chars=self.max_response_chars,
+            warehouse_auth_hint_provider=self.warehouse_auth_hint_provider,
         )

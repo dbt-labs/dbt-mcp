@@ -6,6 +6,7 @@ from dbt_mcp.config.headers import (
     ProxiedToolHeadersProvider,
     TokenProvider,
 )
+from dbt_mcp.errors.warehouse_auth import WarehouseAuthHintProvider
 
 
 class ConfigProvider[ConfigType](ABC):
@@ -48,6 +49,7 @@ class ProxiedToolConfig:
     prod_environment_id: int | None
     url: str
     headers_provider: ProxiedToolHeadersProvider
+    warehouse_auth_hint_provider: WarehouseAuthHintProvider | None = None
 
 
 @dataclass
@@ -59,3 +61,4 @@ class SemanticLayerConfig:
     headers_provider: HeadersProvider
     metrics_related_max: int = 10
     max_response_chars: int = 16000
+    warehouse_auth_hint_provider: WarehouseAuthHintProvider | None = None
