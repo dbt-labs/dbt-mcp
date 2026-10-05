@@ -12,9 +12,11 @@ When `question` is provided, the response contains:
 
 Because dimensions come back in the same response, you usually do **not** need to call `get_dimensions` afterwards. Call it only when you need a dimension outside the ranked subset.
 
-Relevance scores are a guide, not a decision. If every score is low, no metric matches the question well — say so rather than forcing a choice. If several metrics score closely, they may all be needed, or the question may be ambiguous; ask the user rather than guessing.
+Relevance scores are a guide, not an automatic decision. A clear gap between the top score and the rest (for example 0.8 vs 0.4) is a real signal and is usually enough on its own. When the top few scores are close together, or their names look like variants of the same underlying concept, that gap disappears — read the descriptions to tell them apart before picking; a high score does not rule out a near-duplicate sibling sitting right behind it. If every score is low, no metric matches the question well — say so rather than forcing a choice. If several metrics score closely, they may all be needed, or the question may be ambiguous; ask the user rather than guessing.
 
 `search` filters by substring on the metric name and may be combined with `question`, in which case substring filtering happens first and ranking happens within the survivors. If `search` matches nothing and `question` is set, the full catalog is ranked instead and a `# Note:` line says so.
+
+If you want to check for other candidates after an initial `question` call, call `list_metrics` again with `question` **and** `search` together rather than `search` alone. A `search`-only call returns an unranked substring match with no relevance score at all, so it cannot tell you which of several similarly-named metrics is the right one — that judgment only exists in the ranked response you already have.
 
 `meta_filter` accepts a dict of key-value pairs and restricts results to metrics whose `config.meta` contains all specified pairs — for example `{"agent_accessible": true}`.
 
