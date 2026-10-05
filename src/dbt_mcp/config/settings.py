@@ -175,8 +175,14 @@ class DbtMcpSettings(BaseSettings):
             f"dbt_user_id={self.dbt_user_id}, "
             f"dbt_account_id={self.dbt_account_id}, "
             f"dbt_token={'***redacted***' if self.dbt_token else None}, "
+            f"typesafe_api_key={'***redacted***' if self.typesafe_api_key else None}, "
             f"send_anonymous_usage_data={self.send_anonymous_usage_data})"
         )
+
+    # Pydantic's BaseModel.__str__ doesn't delegate to __repr__, so without this
+    # override str(settings)/f"{settings}" would bypass the redaction above and
+    # print every field, including secrets, in cleartext.
+    __str__ = __repr__
 
     @property
     def actual_host(self) -> str | None:

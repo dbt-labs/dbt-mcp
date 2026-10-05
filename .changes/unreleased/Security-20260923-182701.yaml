@@ -1,0 +1,3 @@
+kind: Security
+body: Redact TYPESAFE_API_KEY from the settings log line and from DbtMcpSettings' string representation, so it's no longer written to logs in cleartext.
+time: 2026-09-23T18:27:01.860002+02:00

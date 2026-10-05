@@ -250,6 +250,8 @@ class CredentialsProvider:
         settings = self.settings.model_dump()
         if settings.get("dbt_token") is not None:
             settings["dbt_token"] = "***redacted***"
+        if settings.get("typesafe_api_key") is not None:
+            settings["typesafe_api_key"] = "***redacted***"
         logger.info(f"Settings: {settings}")
 
     async def get_credentials(self) -> tuple[DbtMcpSettings, TokenProvider]:
