@@ -134,7 +134,9 @@ async def test_format_remote_tool_error_appends_hint_on_warehouse_auth_error():
 
     assert message.startswith("Tool execute_sql reported an error: ")
     assert message.endswith("HINT: reconnect")
-    hint_provider.get_hint.assert_awaited_once_with(environment_id=2)
+    hint_provider.get_hint.assert_awaited_once_with(
+        environment_id=2, developer_credentials=True
+    )
 
 
 async def test_format_remote_tool_error_falls_back_to_prod_environment():
@@ -146,7 +148,9 @@ async def test_format_remote_tool_error_falls_back_to_prod_environment():
 
     await format_remote_tool_error("execute_sql", "authentication has expired", config)
 
-    hint_provider.get_hint.assert_awaited_once_with(environment_id=3)
+    hint_provider.get_hint.assert_awaited_once_with(
+        environment_id=3, developer_credentials=True
+    )
 
 
 async def test_format_remote_tool_error_leaves_other_errors_untouched():

@@ -185,3 +185,27 @@ async def test_service_token_without_user_credentials_gets_docs_fallback(
     assert "SSO authentication has expired" in result
     assert "/settings/profile/credentials/" not in result
     assert "setup-sl" in result
+
+
+async def test_execute_sql_with_service_token_does_not_suggest_semantic_layer_setup(
+    credentials_provider,
+):
+    """execute_sql uses the developer's credentials whatever the platform token type."""
+
+    async def rejecting_make_request(
+        self: DbtAdminAPIClient, method: str, endpoint: str, **kwargs: Any
+    ) -> dict[str, Any]:
+        if endpoint.startswith("/api/v3/users/"):
+            raise RuntimeError("403")
+        return PLATFORM_RESPONSES[endpoint]
+
+    config = await DefaultProxiedToolConfigProvider(credentials_provider).get_config()
+
+    with patch.object(DbtAdminAPIClient, "_make_request", rejecting_make_request):
+        message = await format_remote_tool_error(
+            "execute_sql", f"[TextContent(text={EXPIRED_AUTH_MESSAGE!r})]", config
+        )
+
+    assert "SSO authentication has expired" in message
+    assert "setup-sl" not in message
+    assert "Credentials" in message

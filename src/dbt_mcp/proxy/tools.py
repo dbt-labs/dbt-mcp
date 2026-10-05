@@ -109,7 +109,8 @@ async def format_remote_tool_error(
     try:
         # execute_sql runs with the developer's credentials, so prefer the dev environment
         hint = await hint_provider.get_hint(
-            environment_id=config.dev_environment_id or config.prod_environment_id
+            environment_id=config.dev_environment_id or config.prod_environment_id,
+            developer_credentials=True,
         )
     except Exception:
         logger.warning("Could not build the warehouse auth hint", exc_info=True)

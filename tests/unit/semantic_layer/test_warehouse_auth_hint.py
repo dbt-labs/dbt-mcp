@@ -112,3 +112,21 @@ async def test_hint_provider_failure_does_not_mask_original_error():
 
     assert isinstance(result, QueryMetricsError)
     assert "authentication has expired" in result.error
+
+
+async def test_platform_login_failure_is_not_given_warehouse_instructions():
+    """A failed dbt platform token refresh is not fixed by reconnecting the warehouse."""
+    provider = _hint_provider()
+    login_error = RuntimeError(
+        "OAuth access token is expired and inline refresh failed"
+    )
+    fetcher = _fetcher(login_error)
+
+    result = await fetcher.get_metrics_compiled_sql(
+        config=_config(hint_provider=provider), metrics=["revenue"]
+    )
+
+    assert isinstance(result, GetMetricsCompiledSqlError)
+    assert "inline refresh failed" in result.error
+    assert HINT not in result.error
+    provider.get_hint.assert_not_called()

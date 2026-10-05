@@ -41,13 +41,27 @@ class WarehouseAuthHintProvider:
         self._admin_client = admin_client
         self._credentials_url_cache: dict[int, str] = {}
 
-    async def get_hint(self, *, environment_id: int | None) -> str:
+    async def get_hint(
+        self, *, environment_id: int | None, developer_credentials: bool = False
+    ) -> str:
+        """Build the message telling the user how to re-authenticate.
+
+        Set ``developer_credentials`` for tools that run as the configured developer
+        (e.g. execute_sql) rather than with Semantic Layer credentials.
+        """
         credentials_url = await self._get_credentials_url(environment_id)
         if credentials_url:
             return (
                 "The warehouse authentication has expired. Ask the user to "
                 f"re-connect their warehouse account at {credentials_url} "
                 f"(see {SNOWFLAKE_REAUTH_FAQ_URL}), then retry."
+            )
+        if developer_credentials:
+            return (
+                "The warehouse authentication has expired. Re-connect the warehouse "
+                "account of the configured developer from Profile settings > "
+                f"Credentials in dbt platform (see {SNOWFLAKE_REAUTH_FAQ_URL}), "
+                "then retry."
             )
         return (
             "The warehouse authentication has expired. If you authenticate with "

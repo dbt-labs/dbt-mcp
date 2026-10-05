@@ -125,3 +125,23 @@ async def test_hint_without_environment_id_falls_back_to_docs():
 
     client.get_environment.assert_not_called()
     assert SEMANTIC_LAYER_CREDENTIALS_DOCS_URL in hint
+
+
+async def test_developer_credentials_fallback_does_not_mention_semantic_layer():
+    """execute_sql runs as the configured developer, not with Semantic Layer credentials."""
+    hint = await WarehouseAuthHintProvider(_admin_client(user_id=None)).get_hint(
+        environment_id=20, developer_credentials=True
+    )
+
+    assert SEMANTIC_LAYER_CREDENTIALS_DOCS_URL not in hint
+    assert "service token" not in hint
+    assert SNOWFLAKE_REAUTH_FAQ_URL in hint
+    assert "Credentials" in hint
+
+
+async def test_developer_credentials_hint_still_links_to_exact_page():
+    hint = await WarehouseAuthHintProvider(_admin_client()).get_hint(
+        environment_id=20, developer_credentials=True
+    )
+
+    assert f"{PLATFORM_URL}/settings/profile/credentials/10 " in hint

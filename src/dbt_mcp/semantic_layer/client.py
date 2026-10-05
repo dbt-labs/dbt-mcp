@@ -489,7 +489,13 @@ class SemanticLayerFetcher:
         """Format the error and, if the warehouse auth expired, say how to fix it."""
         formatted = self._format_semantic_layer_error(error)
         hint_provider = config.warehouse_auth_hint_provider
-        if hint_provider is None or not is_warehouse_auth_error(formatted):
+        # Only query failures come from the warehouse; other exceptions (e.g. an
+        # expired dbt platform login) are not fixed by reconnecting the warehouse.
+        if (
+            hint_provider is None
+            or not isinstance(error, QueryFailedError)
+            or not is_warehouse_auth_error(formatted)
+        ):
             return formatted
         try:
             hint = await hint_provider.get_hint(
