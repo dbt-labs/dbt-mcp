@@ -1,13 +1,19 @@
 from dbt_mcp.config.headers import ProxiedToolHeadersProvider
 from dbt_mcp.config.credentials import CredentialsProvider
+from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.errors.common import MissingHostError
+from dbt_mcp.errors.warehouse_auth import WarehouseAuthHintProvider
 
+from .admin_api import DefaultAdminApiConfigProvider
 from .base import ConfigProvider, ProxiedToolConfig
 
 
 class DefaultProxiedToolConfigProvider(ConfigProvider[ProxiedToolConfig]):
     def __init__(self, credentials_provider: CredentialsProvider):
         self.credentials_provider = credentials_provider
+        self.warehouse_auth_hint_provider = WarehouseAuthHintProvider(
+            DbtAdminAPIClient(DefaultAdminApiConfigProvider(credentials_provider))
+        )
 
     async def get_config(self) -> ProxiedToolConfig:
         settings, token_provider = await self.credentials_provider.get_credentials()
@@ -27,4 +33,5 @@ class DefaultProxiedToolConfigProvider(ConfigProvider[ProxiedToolConfig]):
             prod_environment_id=settings.actual_prod_environment_id,
             url=url,
             headers_provider=ProxiedToolHeadersProvider(token_provider=token_provider),
+            warehouse_auth_hint_provider=self.warehouse_auth_hint_provider,
         )

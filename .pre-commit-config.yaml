@@ -17,7 +17,7 @@ repos:
       - id: no-commit-to-branch
         args: [--branch, main]
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.3
+    rev: v1.7.12
     hooks:
       - id: actionlint
   - repo: local

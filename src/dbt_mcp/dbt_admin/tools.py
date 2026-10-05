@@ -23,6 +23,7 @@ from dbt_mcp.dbt_admin.param_descriptions import (
     ARTIFACT_STEP,
     INCLUDE_WARNINGS_WITH_ERRORS,
     JOB_DEFINITION_ID,
+    JOBS_PROJECT_ID_FILTER,
     JOB_RUN_ID,
     JOB_RUNS_JOB_DEFINITION_ID_FILTER,
     JOB_RUNS_ORDER_BY,
@@ -38,6 +39,7 @@ from dbt_mcp.dbt_admin.param_descriptions import (
     WARNINGS_ONLY,
 )
 from dbt_mcp.dbt_admin.run_artifacts.parser import ErrorFetcher, WarningFetcher
+from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
@@ -95,17 +97,19 @@ async def list_projects(context: AdminToolContext) -> list[dict[str, Any]]:
 )
 async def list_jobs(
     context: AdminToolContext,
-    # TODO: add support for project_id in the future
-    # project_id: Optional[int] = None,
     limit: Annotated[int | None, Field(description=PAGINATION_LIMIT)] = None,
     offset: Annotated[int | None, Field(description=PAGINATION_OFFSET)] = None,
+    *,
+    project_id: Annotated[
+        int | None, Field(description=JOBS_PROJECT_ID_FILTER, gt=0)
+    ] = None,
 ) -> list[dict[str, Any]]:
-    """List jobs in an account."""
+    """List jobs in an account, optionally across all environments of a project."""
     admin_api_config = await context.admin_api_config_provider.get_config()
     params = {}
-    # if project_id:
-    #     params["project_id"] = project_id
-    if admin_api_config.prod_environment_id:
+    if project_id is not None:
+        params["project_id"] = project_id
+    elif admin_api_config.prod_environment_id:
         params["environment_id"] = admin_api_config.prod_environment_id
     if limit:
         params["limit"] = limit
@@ -307,21 +311,21 @@ async def get_job_run_artifacts(
                     results = await asyncio.to_thread(future.get, JQ_TIMEOUT_SECONDS)
                 except multiprocessing.TimeoutError:
                     pool.terminate()
-                    raise ValueError(
+                    raise InvalidParameterError(
                         f"jq filter timed out after {JQ_TIMEOUT_SECONDS}s. Very large "
                         "artifacts are slow to traverse — prefer a structural or "
                         "aggregation filter ('keys', '.metadata', '... | length') over "
                         "one that enumerates every node, or target a specific step."
                     )
                 except json.JSONDecodeError:
-                    raise ValueError(
+                    raise InvalidParameterError(
                         "jq_filter requires a JSON artifact; this artifact is not valid JSON"
                     )
-                except Exception as e:
-                    raise ValueError(f"Invalid jq filter: {e}") from e
+                except ValueError as e:
+                    raise InvalidParameterError(f"Invalid jq filter: {e}") from e
         filtered = json.dumps(results, separators=(",", ":"))
         if len(filtered.encode("utf-8")) >= INLINE_CONTENT_LIMIT:
-            raise ValueError(
+            raise InvalidParameterError(
                 f"Filtered output exceeds {INLINE_CONTENT_LIMIT // 1024} KB; "
                 "narrow the filter to return fewer results "
                 "(e.g. use select(), keys, or length instead of enumerating all nodes)"

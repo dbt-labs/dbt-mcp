@@ -18,6 +18,10 @@ from dbtsl.api.shared.query_params import (
 
 from dbt_mcp.config.config_providers import SemanticLayerConfig
 from dbt_mcp.errors import InvalidParameterError
+from dbt_mcp.errors.hints import (
+    WAREHOUSE_AUTHENTICATION_HINT,
+    WAREHOUSE_PERMISSION_HINT,
+)
 from dbt_mcp.errors.semantic_layer import SemanticLayerQueryTimeoutError
 from dbt_mcp.semantic_layer.client import DEFAULT_RESULT_FORMATTER, SemanticLayerFetcher
 from dbt_mcp.semantic_layer.types import (
@@ -607,10 +611,16 @@ def test_normalize_where(fetcher, input_where, expected) -> None:
 
 
 def test_format_semantic_layer_error_cleans_query_failed_error(fetcher) -> None:
-    """Normal QueryFailedError messages should be cleaned up."""
-    error = Exception(
-        "QueryFailedError(INVALID_ARGUMENT: [FlightSQL] Failed to prepare statement: "
-        "com.dbt.semanticlayer.exceptions.DataPlatformException: column not found"
+    """A real QueryFailedError's message should be cleaned up.
+
+    QueryFailedError.__str__ wraps the message in a `message=\"...\", status=...`
+    artifact; the formatter must clean the underlying `.message` attribute, not
+    that mangled `__str__` output.
+    """
+    error = QueryFailedError(
+        "INVALID_ARGUMENT: [FlightSQL] Failed to prepare statement: "
+        "com.dbt.semanticlayer.exceptions.DataPlatformException: column not found",
+        "FAILED",
     )
     result = fetcher._format_semantic_layer_error(error)
     assert result == "column not found"
@@ -855,6 +865,60 @@ class TestQueryMetricsErrorPropagation:
 
         with pytest.raises(ConnectionError):
             await fetcher.query_metrics(config=mock_config, metrics=["revenue"])
+
+    async def test_query_failed_error_without_marker_is_unaffected(
+        self, fetcher, mock_sl_client, mock_config
+    ):
+        """A query failure with no warehouse classification marker must be
+        formatted exactly as it was before the marker classifier existed -
+        this is the overwhelmingly common case and must not regress."""
+        mock_sl_client.query.side_effect = QueryFailedError(
+            "Dimension 'foo' not found", "FAILED"
+        )
+
+        result = await fetcher.query_metrics(config=mock_config, metrics=["revenue"])
+
+        assert isinstance(result, QueryMetricsError)
+        assert result.error == "Dimension 'foo' not found"
+
+    async def test_query_failed_error_with_authentication_marker_classified(
+        self, fetcher, mock_sl_client, mock_config
+    ):
+        """A warehouse-classified authentication failure has its marker
+        stripped from the message and an actionable hint appended."""
+        mock_sl_client.query.side_effect = QueryFailedError(
+            "[WAREHOUSE_AUTHENTICATION_FAILED] Incorrect username or password "
+            "was specified.",
+            "FAILED",
+        )
+
+        result = await fetcher.query_metrics(config=mock_config, metrics=["revenue"])
+
+        assert isinstance(result, QueryMetricsError)
+        assert result.error == (
+            "Incorrect username or password was specified.\n\n"
+            f"{WAREHOUSE_AUTHENTICATION_HINT}"
+        )
+
+    async def test_query_failed_error_with_permission_marker_classified(
+        self, fetcher, mock_sl_client, mock_config
+    ):
+        """A warehouse-classified permission failure has its marker stripped
+        from the message and an actionable hint appended that notes the
+        ambiguity between a permissions issue and a missing/misspelled object."""
+        mock_sl_client.query.side_effect = QueryFailedError(
+            "[WAREHOUSE_PERMISSION_DENIED] Object 'MY_TABLE' does not exist "
+            "or not authorized.",
+            "FAILED",
+        )
+
+        result = await fetcher.query_metrics(config=mock_config, metrics=["revenue"])
+
+        assert isinstance(result, QueryMetricsError)
+        assert result.error == (
+            "Object 'MY_TABLE' does not exist or not authorized.\n\n"
+            f"{WAREHOUSE_PERMISSION_HINT}"
+        )
 
 
 @pytest.mark.asyncio

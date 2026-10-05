@@ -14,9 +14,14 @@
     "globals": "^16.5.0",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.57.0",
-    "vite": "^7.3.5"
+    "vite": "^8.3.1"
   },
   "name": "dbt-mcp",
+  "pnpm": {
+    "overrides": {
+      "esbuild": "^0.28.1"
+    }
+  },
   "private": true,
   "scripts": {
     "build": "tsc -b && vite build",

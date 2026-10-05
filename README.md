@@ -47,7 +47,7 @@ To learn more about the dbt Discovery API, click [here](https://docs.getdbt.com/
 - `get_all_sources`: Gets all sources with freshness status; option to filter by source name.
 - `get_exposure_details`: *(deprecated — use `get_node_details` instead)*
 - `get_exposures`: Gets all exposures (downstream dashboards, apps, or analyses).
-- `get_lineage`: Gets full lineage graph (ancestors and descendants) with type and depth filtering.
+- `get_lineage`: Gets a bounded lineage graph with type, depth, and direction filtering.
 - `get_macro_details`: *(deprecated — use `get_node_details` instead)*
 - `get_mart_models`: Retrieves all mart models.
 - `get_model_children`: *(deprecated — use `get_lineage` instead)*

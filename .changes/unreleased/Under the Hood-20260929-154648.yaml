@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: 'Simplify the integration test workflow: fork PRs run on pull_request_target and wait for environment approval on every commit, instead of failing a separate gate and requiring the ok-to-test label'
+time: 2026-09-29T15:46:48.494102+02:00

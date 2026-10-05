@@ -8,6 +8,11 @@ PAGINATION_OFFSET = "Number of results to skip for pagination"
 JOB_DEFINITION_ID = "The dbt job definition ID"
 JOB_RUN_ID = "The dbt job run ID"
 
+JOBS_PROJECT_ID_FILTER = (
+    "List jobs across all environments in this project, overriding the configured "
+    "production environment filter. When omitted, use the configured production "
+    "environment, or list all account jobs if none is configured"
+)
 # --- list_jobs_runs ---
 
 JOB_RUNS_JOB_DEFINITION_ID_FILTER = (
