@@ -21,6 +21,9 @@ Tools follow a consistent pattern:
 2. `ToolName` enum in `tools/tool_names.py` — every tool needs an entry
 3. Toolset mapping in `tools/toolsets.py` — maps tools to categories
 4. Context injection via `adapt_context()` — tools receive typed context objects, but MCP only sees user-facing params
+   - Context mappers may expose target selectors with `Annotated[..., ProjectTarget(...)]` or `EnvironmentTarget(...)`. `JobTarget`/`RunTarget` describe resource IDs whose owning project/environment the host resolves. Hosts implement resolution and authorization; shared annotations contain semantic permissions, not backend authorization constants.
+   - `bind_arguments()` produces an independent definition with supplied parameters hidden and injected. `bind_schema()` projects request-specific MCP schemas; hosts must enforce the same bindings on invocation. Bound values never modify canonical definitions.
+   - Discovery and semantic-layer tools have one canonical implementation and context. Multi-project registration adapts those definitions with project-aware config providers.
 5. `register_tools()` in `tools/register.py` — precedence-based enablement (individual > toolset > default)
 
 ### MCP Apps (tools with interactive UI)

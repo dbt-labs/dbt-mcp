@@ -12,6 +12,7 @@ class AccessPolicy(Enum):
 
     PUBLIC = "public"
     LOCAL = "local"
+    ARGUMENTS = "arguments"
     PRODUCTION_METADATA_READ = "production_metadata_read"
     PRODUCTION_SEMANTIC_LAYER_CONFIGURATION_READ = (
         "production_semantic_layer_configuration_read"

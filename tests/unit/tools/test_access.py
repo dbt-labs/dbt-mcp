@@ -3,7 +3,6 @@ from enum import Enum
 import pytest
 
 from dbt_mcp.discovery.tools import DISCOVERY_TOOLS
-from dbt_mcp.discovery.tools_multiproject import MULTIPROJECT_DISCOVERY_TOOLS
 from dbt_mcp.semantic_layer.tools import SEMANTIC_LAYER_TOOLS
 from dbt_mcp.tools.access import AccessPolicy
 from dbt_mcp.tools.definitions import (
@@ -20,7 +19,6 @@ class ExampleName(Enum):
 def test_shared_tools_declare_named_access_policies() -> None:
     for tool in [
         *DISCOVERY_TOOLS,
-        *MULTIPROJECT_DISCOVERY_TOOLS,
         *SEMANTIC_LAYER_TOOLS,
     ]:
         assert isinstance(tool.access, Enum)
@@ -66,7 +64,7 @@ def test_context_adaptation_preserves_access_and_public_schema() -> None:
 
 
 def test_shared_service_tools_declare_their_access_policy() -> None:
-    for tool in [*DISCOVERY_TOOLS, *MULTIPROJECT_DISCOVERY_TOOLS]:
+    for tool in DISCOVERY_TOOLS:
         assert tool.access == AccessPolicy.PRODUCTION_METADATA_READ
     for tool in SEMANTIC_LAYER_TOOLS:
         assert tool.access == AccessPolicy.PRODUCTION_SEMANTIC_LAYER_CONFIGURATION_READ

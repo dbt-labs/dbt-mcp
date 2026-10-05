@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from functools import partial
 from typing import Any
@@ -8,6 +8,7 @@ from mcp.server.fastmcp.tools.base import Tool
 from mcp.types import ToolAnnotations
 
 from dbt_mcp.tools.injection import adapt_with_mapper
+from dbt_mcp.tools.binding import bind_arguments
 from dbt_mcp.tools.tool_names import ToolName
 
 
@@ -54,6 +55,9 @@ class GenericToolDefinition[NameEnum: Enum]:
             meta=self.meta,
             access=self.access,
         )
+
+    def bind_arguments(self, **arguments: Any) -> "GenericToolDefinition[NameEnum]":
+        return replace(self, fn=bind_arguments(self.fn, arguments))
 
 
 @dataclass

@@ -44,6 +44,9 @@ def adapt_with_mapper[R](
     if not any_replacements:
         return func
 
+    # Mapper defaults can precede required operation inputs. Preserve order within
+    # each group while producing a valid Python signature for schema generation.
+    new_params.sort(key=lambda p: (p.kind, p.default is not inspect._empty))
     new_sig = func_sig.replace(parameters=new_params)
 
     def get_annotations(sig: inspect.Signature) -> dict[str, Any]:

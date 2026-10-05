@@ -1,7 +1,6 @@
-from dataclasses import dataclass
-from typing import Annotated, Any
+from collections.abc import Callable
+from typing import Annotated
 
-from dbtsl.api.shared.query_params import GroupByParam
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
@@ -9,293 +8,38 @@ from dbt_mcp.config.config_providers import (
     MultiProjectConfigProvider,
     SemanticLayerConfig,
 )
-from dbt_mcp.config.config_providers.semantic_layer import (
-    MultiProjectSemanticLayerConfigProvider,
-)
-from dbt_mcp.prompts.prompts import get_prompt
-from dbt_mcp.pagination import LIMIT_FIELD, PAGE_NUM_FIELD, Pagination, ResultPage
-from dbt_mcp.semantic_layer.client import (
-    SemanticLayerClientProvider,
-    SemanticLayerFetcher,
-)
-from dbt_mcp.semantic_layer.param_descriptions import (
-    QUERY_RESULT_LIMIT,
-    SEMANTIC_DIMENSION,
-    SEMANTIC_DIMENSION_VALUES_LIMIT,
-    SEMANTIC_GROUP_BY,
-    SEMANTIC_LAYER_PROJECT_ID,
-    SEMANTIC_META_FILTER,
-    SEMANTIC_METRICS,
-    SEMANTIC_ORDER_BY,
-    SEMANTIC_SEARCH_DIMENSIONS,
-    SEMANTIC_SEARCH_ENTITIES,
-    SEMANTIC_SEARCH_METRICS,
-    SEMANTIC_SEARCH_SAVED_QUERIES,
-    SEMANTIC_WHERE,
-)
-from dbt_mcp.semantic_layer.tools import filter_metrics_by_meta, metrics_to_csv
-from dbt_mcp.semantic_layer.types import (
-    DimensionValuesError,
-    DimensionToolResponse,
-    DimensionValuesResponse,
-    EntityToolResponse,
-    GetMetricsCompiledSqlSuccess,
-    OrderByParam,
-    QueryMetricsSuccess,
-    SavedQueryToolResponse,
-)
-from dbt_mcp.tools.access import AccessPolicy
-from dbt_mcp.tools.definitions import GenericToolDefinition, dbt_mcp_tool
+from dbt_mcp.config.config_providers.base import SelectedProjectConfigProvider
+from dbt_mcp.semantic_layer.client import SemanticLayerClientProvider
+from dbt_mcp.semantic_layer.param_descriptions import SEMANTIC_LAYER_PROJECT_ID
+from dbt_mcp.semantic_layer.tools import SEMANTIC_LAYER_TOOLS, SemanticLayerToolContext
 from dbt_mcp.tools.register import register_tools
+from dbt_mcp.tools.targets import Permission, ProjectTarget
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 
 
-@dataclass
-class MultiProjectSemanticLayerToolContext:
-    semantic_layer_config_provider: MultiProjectConfigProvider[SemanticLayerConfig]
-    client_provider: SemanticLayerClientProvider
+def semantic_layer_context_mapper(
+    config_provider: MultiProjectConfigProvider[SemanticLayerConfig],
+    client_provider: SemanticLayerClientProvider,
+) -> Callable[..., SemanticLayerToolContext]:
+    def bind_context(
+        project_id: Annotated[
+            int,
+            ProjectTarget(requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ),
+            Field(description=SEMANTIC_LAYER_PROJECT_ID),
+        ],
+    ) -> SemanticLayerToolContext:
+        return SemanticLayerToolContext(
+            config_provider=SelectedProjectConfigProvider(config_provider, project_id),
+            client_provider=client_provider,
+        )
 
-    def __init__(
-        self,
-        config_provider: MultiProjectConfigProvider[SemanticLayerConfig],
-        client_provider: SemanticLayerClientProvider,
-    ):
-        self.semantic_layer_config_provider = config_provider
-        self.client_provider = client_provider
-
-
-@dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_SEMANTIC_LAYER_CONFIGURATION_READ,
-    description=get_prompt("semantic_layer/list_metrics"),
-    title="List Metrics",
-    read_only_hint=True,
-    destructive_hint=False,
-    idempotent_hint=True,
-)
-async def list_metrics(
-    context: MultiProjectSemanticLayerToolContext,
-    project_id: Annotated[int, Field(description=SEMANTIC_LAYER_PROJECT_ID)],
-    search: Annotated[
-        str | list[str] | None, Field(description=SEMANTIC_SEARCH_METRICS)
-    ] = None,
-    meta_filter: Annotated[
-        dict[str, Any] | None, Field(description=SEMANTIC_META_FILTER)
-    ] = None,
-    page_num: Annotated[int, PAGE_NUM_FIELD] = 1,
-    page_size: Annotated[int, LIMIT_FIELD] = 50,
-) -> ResultPage[str]:
-    config = await context.semantic_layer_config_provider.get_config(project_id)
-    response = await SemanticLayerFetcher(
-        client_provider=context.client_provider,
-    ).list_metrics(config=config, search=search, page_num=page_num, page_size=page_size)
-    if meta_filter:
-        response = filter_metrics_by_meta(response, meta_filter)
-    return ResultPage(
-        result=metrics_to_csv(response, max_response_chars=config.max_response_chars),
-        pagination=response.pagination or Pagination(has_more=False),
-    )
-
-
-@dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_SEMANTIC_LAYER_CONFIGURATION_READ,
-    description=get_prompt("semantic_layer/list_saved_queries"),
-    title="List Saved Queries",
-    read_only_hint=True,
-    destructive_hint=False,
-    idempotent_hint=True,
-)
-async def list_saved_queries(
-    context: MultiProjectSemanticLayerToolContext,
-    project_id: Annotated[int, Field(description=SEMANTIC_LAYER_PROJECT_ID)],
-    search: Annotated[
-        str | None, Field(description=SEMANTIC_SEARCH_SAVED_QUERIES)
-    ] = None,
-    page_num: Annotated[int, PAGE_NUM_FIELD] = 1,
-    page_size: Annotated[int, LIMIT_FIELD] = 50,
-) -> ResultPage[list[SavedQueryToolResponse]]:
-    config = await context.semantic_layer_config_provider.get_config(project_id)
-    return await SemanticLayerFetcher(
-        client_provider=context.client_provider
-    ).list_saved_queries(
-        config=config, search=search, page_num=page_num, page_size=page_size
-    )
-
-
-@dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_SEMANTIC_LAYER_CONFIGURATION_READ,
-    description=get_prompt("semantic_layer/get_dimensions"),
-    title="Get Dimensions",
-    read_only_hint=True,
-    destructive_hint=False,
-    idempotent_hint=True,
-)
-async def get_dimensions(
-    context: MultiProjectSemanticLayerToolContext,
-    project_id: Annotated[int, Field(description=SEMANTIC_LAYER_PROJECT_ID)],
-    metrics: Annotated[list[str], Field(description=SEMANTIC_METRICS)],
-    search: Annotated[str | None, Field(description=SEMANTIC_SEARCH_DIMENSIONS)] = None,
-    page_num: Annotated[int, PAGE_NUM_FIELD] = 1,
-    page_size: Annotated[int, LIMIT_FIELD] = 50,
-) -> ResultPage[list[DimensionToolResponse]]:
-    config = await context.semantic_layer_config_provider.get_config(project_id)
-    return await SemanticLayerFetcher(
-        client_provider=context.client_provider
-    ).get_dimensions(
-        config=config,
-        metrics=metrics,
-        search=search,
-        page_num=page_num,
-        page_size=page_size,
-    )
-
-
-@dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_SEMANTIC_LAYER_CONFIGURATION_READ,
-    description=get_prompt("semantic_layer/get_entities"),
-    title="Get Entities",
-    read_only_hint=True,
-    destructive_hint=False,
-    idempotent_hint=True,
-)
-async def get_entities(
-    context: MultiProjectSemanticLayerToolContext,
-    project_id: Annotated[int, Field(description=SEMANTIC_LAYER_PROJECT_ID)],
-    metrics: Annotated[list[str], Field(description=SEMANTIC_METRICS)],
-    search: Annotated[str | None, Field(description=SEMANTIC_SEARCH_ENTITIES)] = None,
-    page_num: Annotated[int, PAGE_NUM_FIELD] = 1,
-    page_size: Annotated[int, LIMIT_FIELD] = 50,
-) -> ResultPage[list[EntityToolResponse]]:
-    config = await context.semantic_layer_config_provider.get_config(project_id)
-    return await SemanticLayerFetcher(
-        client_provider=context.client_provider
-    ).get_entities(
-        config=config,
-        metrics=metrics,
-        search=search,
-        page_num=page_num,
-        page_size=page_size,
-    )
-
-
-@dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_SEMANTIC_LAYER_CONFIGURATION_READ,
-    description=get_prompt("semantic_layer/query_metrics"),
-    title="Query Metrics",
-    read_only_hint=True,
-    destructive_hint=False,
-    idempotent_hint=True,
-)
-async def query_metrics(
-    context: MultiProjectSemanticLayerToolContext,
-    project_id: Annotated[int, Field(description=SEMANTIC_LAYER_PROJECT_ID)],
-    metrics: Annotated[list[str], Field(description=SEMANTIC_METRICS)],
-    group_by: Annotated[
-        list[GroupByParam] | None, Field(description=SEMANTIC_GROUP_BY)
-    ] = None,
-    order_by: Annotated[
-        list[OrderByParam] | None, Field(description=SEMANTIC_ORDER_BY)
-    ] = None,
-    where: Annotated[str | None, Field(description=SEMANTIC_WHERE)] = None,
-    limit: Annotated[int | None, Field(description=QUERY_RESULT_LIMIT)] = None,
-) -> str:
-    config = await context.semantic_layer_config_provider.get_config(project_id)
-    result = await SemanticLayerFetcher(
-        client_provider=context.client_provider
-    ).query_metrics(
-        config=config,
-        metrics=metrics,
-        group_by=group_by,
-        order_by=order_by,
-        where=where,
-        limit=limit,
-    )
-    if isinstance(result, QueryMetricsSuccess):
-        return result.result
-    else:
-        return result.error
-
-
-@dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_SEMANTIC_LAYER_CONFIGURATION_READ,
-    description=get_prompt("semantic_layer/get_metrics_compiled_sql"),
-    title="Compile SQL",
-    read_only_hint=True,
-    destructive_hint=False,
-    idempotent_hint=True,
-)
-async def get_metrics_compiled_sql(
-    context: MultiProjectSemanticLayerToolContext,
-    project_id: Annotated[int, Field(description=SEMANTIC_LAYER_PROJECT_ID)],
-    metrics: Annotated[list[str], Field(description=SEMANTIC_METRICS)],
-    group_by: Annotated[
-        list[GroupByParam] | None, Field(description=SEMANTIC_GROUP_BY)
-    ] = None,
-    order_by: Annotated[
-        list[OrderByParam] | None, Field(description=SEMANTIC_ORDER_BY)
-    ] = None,
-    where: Annotated[str | None, Field(description=SEMANTIC_WHERE)] = None,
-    limit: Annotated[int | None, Field(description=QUERY_RESULT_LIMIT)] = None,
-) -> str:
-    config = await context.semantic_layer_config_provider.get_config(project_id)
-    result = await SemanticLayerFetcher(
-        client_provider=context.client_provider
-    ).get_metrics_compiled_sql(
-        config=config,
-        metrics=metrics,
-        group_by=group_by,
-        order_by=order_by,
-        where=where,
-        limit=limit,
-    )
-    if isinstance(result, GetMetricsCompiledSqlSuccess):
-        return result.sql
-    else:
-        return result.error
-
-
-@dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_SEMANTIC_LAYER_CONFIGURATION_READ,
-    description=get_prompt("semantic_layer/get_dimension_values"),
-    title="Get Dimension Values",
-    read_only_hint=True,
-    destructive_hint=False,
-    idempotent_hint=True,
-)
-async def get_dimension_values(
-    context: MultiProjectSemanticLayerToolContext,
-    project_id: Annotated[int, Field(description=SEMANTIC_LAYER_PROJECT_ID)],
-    dimension: Annotated[str, Field(description=SEMANTIC_DIMENSION)],
-    metrics: Annotated[list[str] | None, Field(description=SEMANTIC_METRICS)] = None,
-    limit: Annotated[
-        int, Field(ge=1, description=SEMANTIC_DIMENSION_VALUES_LIMIT)
-    ] = 100,
-) -> DimensionValuesResponse | DimensionValuesError:
-    config = await context.semantic_layer_config_provider.get_config(project_id)
-    return await SemanticLayerFetcher(
-        client_provider=context.client_provider
-    ).get_dimension_values(
-        config=config,
-        dimension=dimension,
-        metrics=metrics,
-        limit=limit,
-    )
-
-
-MULTIPROJECT_SEMANTIC_LAYER_TOOLS: list[GenericToolDefinition[ToolName]] = [
-    list_metrics,
-    list_saved_queries,
-    get_dimensions,
-    get_entities,
-    query_metrics,
-    get_metrics_compiled_sql,
-    get_dimension_values,
-]
+    return bind_context
 
 
 def register_multiproject_sl_tools(
     dbt_mcp: FastMCP,
-    config_provider: MultiProjectSemanticLayerConfigProvider,
+    config_provider: MultiProjectConfigProvider[SemanticLayerConfig],
     client_provider: SemanticLayerClientProvider,
     *,
     disabled_tools: set[ToolName],
@@ -303,18 +47,10 @@ def register_multiproject_sl_tools(
     enabled_toolsets: set[Toolset],
     disabled_toolsets: set[Toolset],
 ) -> None:
-    def bind_context() -> MultiProjectSemanticLayerToolContext:
-        return MultiProjectSemanticLayerToolContext(
-            config_provider=config_provider,
-            client_provider=client_provider,
-        )
-
+    mapper = semantic_layer_context_mapper(config_provider, client_provider)
     register_tools(
         dbt_mcp,
-        [
-            tool.adapt_context(bind_context)
-            for tool in MULTIPROJECT_SEMANTIC_LAYER_TOOLS
-        ],
+        [tool.adapt_context(mapper) for tool in SEMANTIC_LAYER_TOOLS],
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,

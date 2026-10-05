@@ -20,6 +20,15 @@ class MultiProjectConfigProvider[ConfigType](ABC):
     async def get_config(self, project_id: int) -> ConfigType: ...
 
 
+class SelectedProjectConfigProvider[T](ConfigProvider[T]):
+    def __init__(self, provider: MultiProjectConfigProvider[T], project_id: int):
+        self.provider = provider
+        self.project_id = project_id
+
+    async def get_config(self) -> T:
+        return await self.provider.get_config(project_id=self.project_id)
+
+
 class StaticConfigProvider[T](ConfigProvider[T]):
     def __init__(self, config: T):
         self.config = config

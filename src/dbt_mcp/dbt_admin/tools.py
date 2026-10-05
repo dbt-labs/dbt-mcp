@@ -35,6 +35,7 @@ from dbt_mcp.dbt_admin.run_artifacts.parser import ErrorFetcher, WarningFetcher
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.tools.access import AccessPolicy
+from dbt_mcp.tools.targets import JobTarget, Permission, RunTarget
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
@@ -115,7 +116,7 @@ async def list_jobs(
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.JOB_READ,
+    access=AccessPolicy.ARGUMENTS,
     description=get_prompt("admin_api/get_job_details"),
     title="Get Job Details",
     read_only_hint=True,
@@ -124,7 +125,11 @@ async def list_jobs(
 )
 async def get_job_details(
     context: AdminToolContext,
-    job_id: Annotated[int, Field(description=JOB_DEFINITION_ID)],
+    job_id: Annotated[
+        int,
+        JobTarget(requires=Permission.JOBS_READ),
+        Field(description=JOB_DEFINITION_ID),
+    ],
 ) -> dict[str, Any]:
     """Get details for a specific job."""
     admin_api_config = await context.admin_api_config_provider.get_config()
@@ -134,7 +139,7 @@ async def get_job_details(
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.JOB_RUN_WRITE,
+    access=AccessPolicy.ARGUMENTS,
     description=get_prompt("admin_api/trigger_job_run"),
     title="Trigger Job Run",
     read_only_hint=False,
@@ -143,7 +148,11 @@ async def get_job_details(
 )
 async def trigger_job_run(
     context: AdminToolContext,
-    job_id: Annotated[int, Field(description=JOB_DEFINITION_ID)],
+    job_id: Annotated[
+        int,
+        JobTarget(requires=Permission.RUNS_WRITE),
+        Field(description=JOB_DEFINITION_ID),
+    ],
     cause: Annotated[str, Field(description=TRIGGER_CAUSE)] = "Triggered by dbt MCP",
     git_branch: Annotated[str | None, Field(description=TRIGGER_GIT_BRANCH)] = None,
     git_sha: Annotated[str | None, Field(description=TRIGGER_GIT_SHA)] = None,
@@ -213,7 +222,7 @@ async def list_jobs_runs(
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.RUN_READ,
+    access=AccessPolicy.ARGUMENTS,
     description=get_prompt("admin_api/get_job_run_details"),
     title="Get Job Run Details",
     read_only_hint=True,
@@ -222,7 +231,9 @@ async def list_jobs_runs(
 )
 async def get_job_run_details(
     context: AdminToolContext,
-    run_id: Annotated[int, Field(description=JOB_RUN_ID)],
+    run_id: Annotated[
+        int, RunTarget(requires=Permission.RUNS_READ), Field(description=JOB_RUN_ID)
+    ],
 ) -> dict[str, Any]:
     """Get details for a specific job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
@@ -232,7 +243,7 @@ async def get_job_run_details(
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.RUN_WRITE,
+    access=AccessPolicy.ARGUMENTS,
     description=get_prompt("admin_api/cancel_job_run"),
     title="Cancel Job Run",
     read_only_hint=False,
@@ -241,7 +252,9 @@ async def get_job_run_details(
 )
 async def cancel_job_run(
     context: AdminToolContext,
-    run_id: Annotated[int, Field(description=JOB_RUN_ID)],
+    run_id: Annotated[
+        int, RunTarget(requires=Permission.RUNS_WRITE), Field(description=JOB_RUN_ID)
+    ],
 ) -> dict[str, Any]:
     """Cancel a job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
@@ -251,7 +264,7 @@ async def cancel_job_run(
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.RUN_WRITE,
+    access=AccessPolicy.ARGUMENTS,
     description=get_prompt("admin_api/retry_job_run"),
     title="Retry Job Run",
     read_only_hint=False,
@@ -260,7 +273,9 @@ async def cancel_job_run(
 )
 async def retry_job_run(
     context: AdminToolContext,
-    run_id: Annotated[int, Field(description=JOB_RUN_ID)],
+    run_id: Annotated[
+        int, RunTarget(requires=Permission.RUNS_WRITE), Field(description=JOB_RUN_ID)
+    ],
 ) -> dict[str, Any]:
     """Retry a failed job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
@@ -268,7 +283,7 @@ async def retry_job_run(
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.RUN_READ,
+    access=AccessPolicy.ARGUMENTS,
     description=get_prompt("admin_api/list_job_run_artifacts"),
     title="List Job Run Artifacts",
     read_only_hint=True,
@@ -277,7 +292,9 @@ async def retry_job_run(
 )
 async def list_job_run_artifacts(
     context: AdminToolContext,
-    run_id: Annotated[int, Field(description=JOB_RUN_ID)],
+    run_id: Annotated[
+        int, RunTarget(requires=Permission.RUNS_READ), Field(description=JOB_RUN_ID)
+    ],
 ) -> list[str]:
     """List artifacts for a job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
@@ -287,7 +304,7 @@ async def list_job_run_artifacts(
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.RUN_READ,
+    access=AccessPolicy.ARGUMENTS,
     description=get_prompt("admin_api/get_job_run_artifacts"),
     title="Get Job Run Artifacts",
     read_only_hint=True,
@@ -296,7 +313,9 @@ async def list_job_run_artifacts(
 )
 async def get_job_run_artifacts(
     context: AdminToolContext,
-    run_id: Annotated[int, Field(description=JOB_RUN_ID)],
+    run_id: Annotated[
+        int, RunTarget(requires=Permission.RUNS_READ), Field(description=JOB_RUN_ID)
+    ],
     artifact_path: Annotated[str, Field(description=ARTIFACT_PATH)],
     step: Annotated[int | None, Field(ge=1, description=ARTIFACT_STEP)] = None,
     jq_filter: Annotated[str | None, Field(description=ARTIFACT_JQ_FILTER)] = None,
@@ -335,7 +354,7 @@ async def get_job_run_artifacts(
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.RUN_READ,
+    access=AccessPolicy.ARGUMENTS,
     description=get_prompt("admin_api/get_job_run_error"),
     title="Get Job Run Error",
     read_only_hint=True,
@@ -344,7 +363,9 @@ async def get_job_run_artifacts(
 )
 async def get_job_run_error(
     context: AdminToolContext,
-    run_id: Annotated[int, Field(description=JOB_RUN_ID)],
+    run_id: Annotated[
+        int, RunTarget(requires=Permission.RUNS_READ), Field(description=JOB_RUN_ID)
+    ],
     include_warnings: Annotated[
         bool, Field(description=INCLUDE_WARNINGS_WITH_ERRORS)
     ] = False,

@@ -8,8 +8,7 @@ from dbt_mcp.discovery.tools import (
     get_node_details,
 )
 from dbt_mcp.discovery.tools_multiproject import (
-    MULTIPROJECT_DISCOVERY_TOOLS,
-    get_node_details as get_node_details_multiproject,
+    discovery_context_mapper,
 )
 from dbt_mcp.tools.tool_names import ToolName
 
@@ -59,9 +58,11 @@ async def test_get_node_details_multiproject_delegates_to_fetcher(
     context.config_provider.get_config = AsyncMock(return_value=config)
     context.resource_details_fetcher.fetch_details = AsyncMock(return_value=["row"])
 
-    result = await get_node_details_multiproject.fn(
-        context=context,
-        project_id=42,
+    mapper = discovery_context_mapper(context.config_provider)
+    mapped = mapper(project_id=42)
+    mapped.resource_details_fetcher = context.resource_details_fetcher
+    result = await get_node_details.fn(
+        context=mapped,
         resource_type=resource_type,
         name="thing",
         unique_id=None,
@@ -90,7 +91,7 @@ def test_detail_tools_are_deprecated(tool_name: ToolName):
 
 @pytest.mark.parametrize("tool_name", DEPRECATED_DETAIL_TOOLS)
 def test_detail_tools_are_deprecated_multiproject(tool_name: ToolName):
-    tool = next(t for t in MULTIPROJECT_DISCOVERY_TOOLS if t.get_name() == tool_name)
+    tool = next(t for t in DISCOVERY_TOOLS if t.get_name() == tool_name)
     assert tool.meta is not None
     assert tool.meta["deprecated"] is True
     assert tool.meta["replacement"] == "get_node_details"
@@ -100,4 +101,4 @@ def test_detail_tools_are_deprecated_multiproject(tool_name: ToolName):
 
 def test_get_node_details_not_deprecated():
     assert get_node_details.meta is None
-    assert get_node_details_multiproject.meta is None
+    assert get_node_details.meta is None
