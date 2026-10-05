@@ -2,7 +2,7 @@ List all active projects in the dbt Cloud account.
 
 This tool retrieves projects from the dbt Admin API. Projects are the top-level organizational unit in dbt Cloud, each associated with a git repository containing dbt code.
 
-Returns a list of project objects with:
+The `result` field contains a list of project objects with:
 - **id**: The project ID
 - **name**: The project name
 - **description**: The project description (if set)
@@ -13,3 +13,5 @@ Returns a list of project objects with:
 - **repository_full_name**: The repository name in `org/repo` format (if set)
 
 Use this tool to discover available projects in the account, especially when working across multiple projects.
+
+Returns one page in `result`, with `pagination.has_more` and `pagination.next_offset`. Use the next offset with the same filters. `limit` defaults to 50 and is capped at 100.

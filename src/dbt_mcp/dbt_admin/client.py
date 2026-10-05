@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import re
-from functools import cache
 from typing import Any
 
 import httpx
@@ -18,6 +17,13 @@ from dbt_mcp.errors import (
 from dbt_mcp.oauth.dbt_platform import (
     DbtPlatformEnvironment,
     DbtPlatformEnvironmentResponse,
+)
+
+from dbt_mcp.pagination import (
+    ResultPage,
+    offset_pagination,
+    validate_offset,
+    validate_page_size,
 )
 
 logger = logging.getLogger(__name__)
@@ -181,9 +187,13 @@ class DbtAdminAPIClient:
         )
         return self.resolve_environments(raw)
 
-    @cache
-    async def list_jobs(self, account_id: int, **params: Any) -> list[dict[str, Any]]:
+    async def list_jobs(
+        self, account_id: int, limit: int = 50, offset: int = 0, **params: Any
+    ) -> ResultPage[list[dict[str, Any]]]:
         """List jobs for an account."""
+        validate_page_size(limit)
+        validate_offset(offset)
+        params.update(limit=limit, offset=offset)
         params["include_related"] = "['most_recent_run','most_recent_completed_run']"
         result = await self._make_request(
             "GET",
@@ -250,7 +260,12 @@ class DbtAdminAPIClient:
             for job in data
         ]
 
-        return filtered_data
+        return ResultPage(
+            result=filtered_data,
+            pagination=offset_pagination(
+                result, count=len(data), limit=limit, offset=offset
+            ),
+        )
 
     async def get_job_details(self, account_id: int, job_id: int) -> dict[str, Any]:
         """Get details for a specific job."""
@@ -263,18 +278,24 @@ class DbtAdminAPIClient:
         )
         return result.get("data", {})
 
-    async def list_projects(self, account_id: int) -> list[dict[str, Any]]:
+    async def list_projects(
+        self, account_id: int, limit: int = 50, offset: int = 0
+    ) -> ResultPage[list[dict[str, Any]]]:
         """List active projects for an account."""
+        validate_page_size(limit)
+        validate_offset(offset)
         result = await self._make_request(
             "GET",
             f"/api/v3/accounts/{account_id}/projects/",
             params={
                 "state": 1,
+                "limit": limit,
+                "offset": offset,
                 "include_related": "['environments','repository']",
             },
         )
         data = result.get("data", [])
-        return [
+        filtered_data = [
             {
                 "id": p["id"],
                 "name": p["name"],
@@ -297,6 +318,13 @@ class DbtAdminAPIClient:
             for p in data
         ]
 
+        return ResultPage(
+            result=filtered_data,
+            pagination=offset_pagination(
+                result, count=len(data), limit=limit, offset=offset
+            ),
+        )
+
     async def trigger_job_run(
         self, account_id: int, job_id: int, cause: str, **kwargs: Any
     ) -> dict[str, Any]:
@@ -308,9 +336,12 @@ class DbtAdminAPIClient:
         return result.get("data", {})
 
     async def list_jobs_runs(
-        self, account_id: int, **params: Any
-    ) -> list[dict[str, Any]]:
+        self, account_id: int, limit: int = 50, offset: int = 0, **params: Any
+    ) -> ResultPage[list[dict[str, Any]]]:
         """List runs for an account."""
+        validate_page_size(limit)
+        validate_offset(offset)
+        params.update(limit=limit, offset=offset)
         params["include_related"] = "['job']"
         result = await self._make_request(
             "GET", f"/api/v2/accounts/{account_id}/runs/", params=params
@@ -349,7 +380,12 @@ class DbtAdminAPIClient:
             run.pop("deprecation", None)
             run.pop("environment", None)
 
-        return data
+        return ResultPage(
+            result=data,
+            pagination=offset_pagination(
+                result, count=len(data), limit=limit, offset=offset
+            ),
+        )
 
     async def get_job_run_details(
         self, account_id: int, run_id: int, include_logs: bool = False

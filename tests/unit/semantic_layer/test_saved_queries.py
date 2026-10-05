@@ -1,3 +1,4 @@
+from tests.mocks.pagination import page_response
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from dbt_mcp.config.config_providers import SemanticLayerConfig
@@ -41,22 +42,26 @@ class TestSavedQueries:
         """Test listing saved queries without a search filter."""
         mock_submit_request.return_value = {
             "data": {
-                "savedQueries": [
+                "savedQueriesPaginated": page_response(
                     {
-                        "name": "daily_revenue",
-                        "label": "Daily Revenue Report",
-                        "description": "Daily revenue metrics by product",
-                    },
-                    {
-                        "name": "monthly_users",
-                        "label": "Monthly Active Users",
-                        "description": "Monthly active user counts",
-                    },
-                ]
+                        "items": [
+                            {
+                                "name": "daily_revenue",
+                                "label": "Daily Revenue Report",
+                                "description": "Daily revenue metrics by product",
+                            },
+                            {
+                                "name": "monthly_users",
+                                "label": "Monthly Active Users",
+                                "description": "Monthly active user counts",
+                            },
+                        ]
+                    }
+                )
             }
         }
 
-        result = await fetcher.list_saved_queries(config=mock_config)
+        result = (await fetcher.list_saved_queries(config=mock_config)).result
 
         assert len(result) == 2
         assert isinstance(result[0], SavedQueryToolResponse)
@@ -75,22 +80,28 @@ class TestSavedQueries:
         """Test that client-side search filters by name."""
         mock_submit_request.return_value = {
             "data": {
-                "savedQueries": [
+                "savedQueriesPaginated": page_response(
                     {
-                        "name": "daily_revenue",
-                        "label": "Daily Revenue Report",
-                        "description": "Daily revenue metrics",
-                    },
-                    {
-                        "name": "monthly_users",
-                        "label": "Monthly Active Users",
-                        "description": "Monthly active user counts",
-                    },
-                ]
+                        "items": [
+                            {
+                                "name": "daily_revenue",
+                                "label": "Daily Revenue Report",
+                                "description": "Daily revenue metrics",
+                            },
+                            {
+                                "name": "monthly_users",
+                                "label": "Monthly Active Users",
+                                "description": "Monthly active user counts",
+                            },
+                        ]
+                    }
+                )
             }
         }
 
-        result = await fetcher.list_saved_queries(config=mock_config, search="revenue")
+        result = (
+            await fetcher.list_saved_queries(config=mock_config, search="revenue")
+        ).result
 
         assert len(result) == 1
         assert result[0].name == "daily_revenue"
@@ -106,9 +117,11 @@ class TestSavedQueries:
         self, mock_submit_request, fetcher, mock_config
     ):
         """Test listing saved queries when no queries exist."""
-        mock_submit_request.return_value = {"data": {"savedQueries": []}}
+        mock_submit_request.return_value = {
+            "data": {"savedQueriesPaginated": page_response({"items": []})}
+        }
 
-        result = await fetcher.list_saved_queries(config=mock_config)
+        result = (await fetcher.list_saved_queries(config=mock_config)).result
 
         assert result == []
 
@@ -120,16 +133,20 @@ class TestSavedQueries:
         """Test listing saved queries when optional attributes are missing."""
         mock_submit_request.return_value = {
             "data": {
-                "savedQueries": [
+                "savedQueriesPaginated": page_response(
                     {
-                        "name": "test_query",
-                        # Missing label and description
+                        "items": [
+                            {
+                                "name": "test_query",
+                                # Missing label and description
+                            }
+                        ]
                     }
-                ]
+                )
             }
         }
 
-        result = await fetcher.list_saved_queries(config=mock_config)
+        result = (await fetcher.list_saved_queries(config=mock_config)).result
 
         assert len(result) == 1
         assert result[0].name == "test_query"
@@ -147,22 +164,28 @@ class TestSavedQueries:
         """Test that client-side search matches on name substring."""
         mock_submit_request.return_value = {
             "data": {
-                "savedQueries": [
+                "savedQueriesPaginated": page_response(
                     {
-                        "name": "arr_growth",
-                        "label": "ARR Growth",
-                        "description": "Annual recurring revenue growth",
-                    },
-                    {
-                        "name": "churn_rate",
-                        "label": "Churn Rate",
-                        "description": "Customer churn rate",
-                    },
-                ]
+                        "items": [
+                            {
+                                "name": "arr_growth",
+                                "label": "ARR Growth",
+                                "description": "Annual recurring revenue growth",
+                            },
+                            {
+                                "name": "churn_rate",
+                                "label": "Churn Rate",
+                                "description": "Customer churn rate",
+                            },
+                        ]
+                    }
+                )
             }
         }
 
-        result = await fetcher.list_saved_queries(config=mock_config, search="arr")
+        result = (
+            await fetcher.list_saved_queries(config=mock_config, search="arr")
+        ).result
 
         assert len(result) == 1
         assert result[0].name == "arr_growth"
@@ -175,22 +198,28 @@ class TestSavedQueries:
         """Test that client-side search matches on label substring."""
         mock_submit_request.return_value = {
             "data": {
-                "savedQueries": [
+                "savedQueriesPaginated": page_response(
                     {
-                        "name": "q1",
-                        "label": "Weekly Active Users",
-                        "description": "WAU metric",
-                    },
-                    {
-                        "name": "q2",
-                        "label": "Monthly Revenue",
-                        "description": "MRR metric",
-                    },
-                ]
+                        "items": [
+                            {
+                                "name": "q1",
+                                "label": "Weekly Active Users",
+                                "description": "WAU metric",
+                            },
+                            {
+                                "name": "q2",
+                                "label": "Monthly Revenue",
+                                "description": "MRR metric",
+                            },
+                        ]
+                    }
+                )
             }
         }
 
-        result = await fetcher.list_saved_queries(config=mock_config, search="monthly")
+        result = (
+            await fetcher.list_saved_queries(config=mock_config, search="monthly")
+        ).result
 
         assert len(result) == 1
         assert result[0].name == "q2"
@@ -203,22 +232,28 @@ class TestSavedQueries:
         """Test that client-side search matches on description substring."""
         mock_submit_request.return_value = {
             "data": {
-                "savedQueries": [
+                "savedQueriesPaginated": page_response(
                     {
-                        "name": "q1",
-                        "label": "Label A",
-                        "description": "Tracks pipeline conversion",
-                    },
-                    {
-                        "name": "q2",
-                        "label": "Label B",
-                        "description": "Tracks customer retention",
-                    },
-                ]
+                        "items": [
+                            {
+                                "name": "q1",
+                                "label": "Label A",
+                                "description": "Tracks pipeline conversion",
+                            },
+                            {
+                                "name": "q2",
+                                "label": "Label B",
+                                "description": "Tracks customer retention",
+                            },
+                        ]
+                    }
+                )
             }
         }
 
-        result = await fetcher.list_saved_queries(config=mock_config, search="pipeline")
+        result = (
+            await fetcher.list_saved_queries(config=mock_config, search="pipeline")
+        ).result
 
         assert len(result) == 1
         assert result[0].name == "q1"
@@ -231,17 +266,23 @@ class TestSavedQueries:
         """Test that client-side search is case-insensitive."""
         mock_submit_request.return_value = {
             "data": {
-                "savedQueries": [
+                "savedQueriesPaginated": page_response(
                     {
-                        "name": "arr_current",
-                        "label": "ARR Current",
-                        "description": "Current ARR",
-                    },
-                ]
+                        "items": [
+                            {
+                                "name": "arr_current",
+                                "label": "ARR Current",
+                                "description": "Current ARR",
+                            },
+                        ]
+                    }
+                )
             }
         }
 
-        result = await fetcher.list_saved_queries(config=mock_config, search="ARR")
+        result = (
+            await fetcher.list_saved_queries(config=mock_config, search="ARR")
+        ).result
 
         assert len(result) == 1
         assert result[0].name == "arr_current"
@@ -254,15 +295,21 @@ class TestSavedQueries:
         """Test that search=None returns all items unfiltered."""
         mock_submit_request.return_value = {
             "data": {
-                "savedQueries": [
-                    {"name": "q1", "label": None, "description": None},
-                    {"name": "q2", "label": None, "description": None},
-                    {"name": "q3", "label": None, "description": None},
-                ]
+                "savedQueriesPaginated": page_response(
+                    {
+                        "items": [
+                            {"name": "q1", "label": None, "description": None},
+                            {"name": "q2", "label": None, "description": None},
+                            {"name": "q3", "label": None, "description": None},
+                        ]
+                    }
+                )
             }
         }
 
-        result = await fetcher.list_saved_queries(config=mock_config, search=None)
+        result = (
+            await fetcher.list_saved_queries(config=mock_config, search=None)
+        ).result
 
         assert len(result) == 3
 
@@ -274,17 +321,21 @@ class TestSavedQueries:
         """Test that explicit null label and description from the API are handled correctly."""
         mock_submit_request.return_value = {
             "data": {
-                "savedQueries": [
+                "savedQueriesPaginated": page_response(
                     {
-                        "name": "minimal_query",
-                        "label": None,
-                        "description": None,
+                        "items": [
+                            {
+                                "name": "minimal_query",
+                                "label": None,
+                                "description": None,
+                            }
+                        ]
                     }
-                ]
+                )
             }
         }
 
-        result = await fetcher.list_saved_queries(config=mock_config)
+        result = (await fetcher.list_saved_queries(config=mock_config)).result
 
         assert len(result) == 1
         assert result[0].name == "minimal_query"
@@ -302,24 +353,33 @@ class TestSavedQueries:
         """Test that queryParams fields are populated when the with_params query succeeds."""
         full_response = {
             "data": {
-                "savedQueries": [
+                "savedQueriesPaginated": page_response(
                     {
-                        "name": "revenue_query",
-                        "label": "Revenue",
-                        "description": "Revenue metrics",
-                        "queryParams": {
-                            "metrics": [{"name": "revenue"}, {"name": "profit"}],
-                            "groupBy": [{"name": "date"}],
-                            "where": {"whereSqlTemplate": "date >= '2024-01-01'"},
-                        },
+                        "items": [
+                            {
+                                "name": "revenue_query",
+                                "label": "Revenue",
+                                "description": "Revenue metrics",
+                                "queryParams": {
+                                    "metrics": [
+                                        {"name": "revenue"},
+                                        {"name": "profit"},
+                                    ],
+                                    "groupBy": [{"name": "date"}],
+                                    "where": {
+                                        "whereSqlTemplate": "date >= '2024-01-01'"
+                                    },
+                                },
+                            }
+                        ]
                     }
-                ]
+                )
             }
         }
         # First call (simple) and second call (with_params) both return the full response
         mock_submit_request.side_effect = [full_response, full_response]
 
-        result = await fetcher.list_saved_queries(config=mock_config)
+        result = (await fetcher.list_saved_queries(config=mock_config)).result
 
         assert len(result) == 1
         assert result[0].metrics == ["revenue", "profit"]
@@ -334,19 +394,23 @@ class TestSavedQueries:
         """Test that a timeout on the with_params query falls back to simple results."""
         simple_response = {
             "data": {
-                "savedQueries": [
+                "savedQueriesPaginated": page_response(
                     {
-                        "name": "revenue_query",
-                        "label": "Revenue",
-                        "description": "Revenue metrics",
-                    },
-                ]
+                        "items": [
+                            {
+                                "name": "revenue_query",
+                                "label": "Revenue",
+                                "description": "Revenue metrics",
+                            },
+                        ]
+                    }
+                )
             }
         }
         # First call (simple) succeeds; second call (with_params) times out
         mock_submit_request.side_effect = [simple_response, Exception("ReadTimeout")]
 
-        result = await fetcher.list_saved_queries(config=mock_config)
+        result = (await fetcher.list_saved_queries(config=mock_config)).result
 
         assert len(result) == 1
         assert result[0].name == "revenue_query"

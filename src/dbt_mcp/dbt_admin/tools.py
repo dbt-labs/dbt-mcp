@@ -28,8 +28,6 @@ from dbt_mcp.dbt_admin.param_descriptions import (
     JOB_RUNS_JOB_DEFINITION_ID_FILTER,
     JOB_RUNS_ORDER_BY,
     JOB_RUN_STATUS,
-    PAGINATION_LIMIT,
-    PAGINATION_OFFSET,
     TRIGGER_CAUSE,
     TRIGGER_DBT_VERSION_OVERRIDE,
     TRIGGER_GIT_BRANCH,
@@ -45,6 +43,14 @@ from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
+
+from dbt_mcp.pagination import (
+    LIMIT_FIELD,
+    OFFSET_FIELD,
+    ResultPage,
+    validate_offset,
+    validate_page_size,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -82,10 +88,18 @@ class AdminToolContext:
     destructive_hint=False,
     idempotent_hint=True,
 )
-async def list_projects(context: AdminToolContext) -> list[dict[str, Any]]:
+async def list_projects(
+    context: AdminToolContext,
+    limit: Annotated[int, LIMIT_FIELD] = 50,
+    offset: Annotated[int, OFFSET_FIELD] = 0,
+) -> ResultPage[list[dict[str, Any]]]:
     """List active projects in the account."""
+    validate_page_size(limit)
+    validate_offset(offset)
     admin_api_config = await context.admin_api_config_provider.get_config()
-    return await context.admin_client.list_projects(admin_api_config.account_id)
+    return await context.admin_client.list_projects(
+        admin_api_config.account_id, limit=limit, offset=offset
+    )
 
 
 @dbt_mcp_tool(
@@ -97,24 +111,24 @@ async def list_projects(context: AdminToolContext) -> list[dict[str, Any]]:
 )
 async def list_jobs(
     context: AdminToolContext,
-    limit: Annotated[int | None, Field(description=PAGINATION_LIMIT)] = None,
-    offset: Annotated[int | None, Field(description=PAGINATION_OFFSET)] = None,
+    limit: Annotated[int, LIMIT_FIELD] = 50,
+    offset: Annotated[int, OFFSET_FIELD] = 0,
     *,
     project_id: Annotated[
         int | None, Field(description=JOBS_PROJECT_ID_FILTER, gt=0)
     ] = None,
-) -> list[dict[str, Any]]:
+) -> ResultPage[list[dict[str, Any]]]:
     """List jobs in an account, optionally across all environments of a project."""
+    validate_page_size(limit)
+    validate_offset(offset)
     admin_api_config = await context.admin_api_config_provider.get_config()
     params = {}
     if project_id is not None:
         params["project_id"] = project_id
     elif admin_api_config.prod_environment_id:
         params["environment_id"] = admin_api_config.prod_environment_id
-    if limit:
-        params["limit"] = limit
-    if offset:
-        params["offset"] = offset
+    params["limit"] = limit
+    params["offset"] = offset
     return await context.admin_client.list_jobs(admin_api_config.account_id, **params)
 
 
@@ -190,11 +204,13 @@ async def list_jobs_runs(
         int | None, Field(description=JOB_RUNS_JOB_DEFINITION_ID_FILTER)
     ] = None,
     status: Annotated[JobRunStatus | None, Field(description=JOB_RUN_STATUS)] = None,
-    limit: Annotated[int | None, Field(description=PAGINATION_LIMIT)] = None,
-    offset: Annotated[int | None, Field(description=PAGINATION_OFFSET)] = None,
+    limit: Annotated[int, LIMIT_FIELD] = 50,
+    offset: Annotated[int, OFFSET_FIELD] = 0,
     order_by: Annotated[str | None, Field(description=JOB_RUNS_ORDER_BY)] = None,
-) -> list[dict[str, Any]]:
+) -> ResultPage[list[dict[str, Any]]]:
     """List runs in an account."""
+    validate_page_size(limit)
+    validate_offset(offset)
     admin_api_config = await context.admin_api_config_provider.get_config()
     params: dict[str, Any] = {}
     if job_id:
@@ -202,10 +218,8 @@ async def list_jobs_runs(
     if status:
         status_id = STATUS_MAP[status]
         params["status"] = status_id
-    if limit:
-        params["limit"] = limit
-    if offset:
-        params["offset"] = offset
+    params["limit"] = limit
+    params["offset"] = offset
     if order_by:
         params["order_by"] = order_by
     return await context.admin_client.list_jobs_runs(
