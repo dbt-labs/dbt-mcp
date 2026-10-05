@@ -17,11 +17,12 @@ dbt-mcp is an MCP (Model Context Protocol) server that exposes dbt functionality
 ## Tool Architecture
 
 Tools follow a consistent pattern:
-1. `@dbt_mcp_tool` decorator defines the tool with metadata and a required `access=AccessPolicy.…` declaration (also required when constructing a `ToolDefinition` directly). Choose a named cloud policy, `AccessPolicy.LOCAL` for local execution, or `AccessPolicy.PUBLIC` for public tools. Hosts implement policy enforcement and may declare their own policy enums; the shared framework preserves the identifier without interpreting it.
+1. `@dbt_mcp_tool` defines metadata and requires an explicit access declaration: target argument annotations, top-level `requirements=(AccountTarget(requires=…),)` or a host policy enum. Use `requirements=(AccessPolicy.LOCAL,)` for local execution and `requirements=()` for public tools. Hosts implement enforcement; shared declarations contain semantic permissions and preserve host policies without interpreting them.
 2. `ToolName` enum in `tools/tool_names.py` — every tool needs an entry
 3. Toolset mapping in `tools/toolsets.py` — maps tools to categories
 4. Context injection via `adapt_context()` — tools receive typed context objects, but MCP only sees user-facing params
-   - Context mappers may expose target selectors with `Annotated[..., ProjectTarget(...)]` or `EnvironmentTarget(...)`. `JobTarget`/`RunTarget` describe resource IDs whose owning project/environment the host resolves. Hosts implement resolution and authorization; shared annotations contain semantic permissions, not backend authorization constants.
+   - Declare `Annotated[..., ProjectTarget(...)]` and `EnvironmentTarget(...)` on the canonical tool arguments. The mapper receives resolved values, and the tool function receives those same arguments. Adaptation preserves the canonical metadata. `JobTarget`/`RunTarget` describe IDs whose owning project/environment the host resolves.
+   - Local config mappers can return `BoundContext(context, arguments)` and declare `adapt_context(..., bound_arguments=...)`. These arguments are hidden from the caller and injected after the mapper resolves them. The set of returned arguments must match the declared bindings.
    - `bind_arguments()` produces an independent definition with supplied parameters hidden and injected. `bind_schema()` projects request-specific MCP schemas; hosts must enforce the same bindings on invocation. Bound values never modify canonical definitions.
    - Discovery and semantic-layer tools have one canonical implementation and context. Multi-project registration adapts those definitions with project-aware config providers.
 5. `register_tools()` in `tools/register.py` — precedence-based enablement (individual > toolset > default)

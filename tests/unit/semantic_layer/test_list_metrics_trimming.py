@@ -153,7 +153,7 @@ def test_columns_without_data_are_omitted():
 
 
 def _make_context(
-    response: ListMetricsResponse, config: MagicMock
+    response: ListMetricsResponse, config: SemanticLayerConfig
 ) -> SemanticLayerToolContext:
     context = MagicMock(spec=SemanticLayerToolContext)
     context.config_provider = MagicMock()
@@ -168,10 +168,18 @@ async def test_list_metrics_bounds_verbose_small_result_set():
     """A small result set (<= metrics_related_max) is never trimmed, even if verbose."""
     # 2 metrics each with a huge description, well over max_response_chars
     response = _make_response(2, description="X" * 20000)
-    config = MagicMock(metrics_related_max=10, max_response_chars=100)
+    config = SemanticLayerConfig(
+        url="https://example.com",
+        host="example.com",
+        token_provider=MagicMock(),
+        headers_provider=MagicMock(),
+        prod_environment_id=1,
+        metrics_related_max=10,
+        max_response_chars=100,
+    )
     context = _make_context(response, config)
 
-    result_page = await list_metrics.fn(context=context)
+    result_page = await list_metrics.fn(environment_id=1, context=context)
     result = result_page.result
 
     assert result.startswith("# Note:")
@@ -184,10 +192,18 @@ async def test_list_metrics_bounds_verbose_small_result_set():
 async def test_list_metrics_trims_broad_listing():
     """A result set above metrics_related_max is trimmed when it exceeds max_response_chars."""
     response = _make_response(15, description="A " * 500)
-    config = MagicMock(metrics_related_max=10, max_response_chars=200)
+    config = SemanticLayerConfig(
+        url="https://example.com",
+        host="example.com",
+        token_provider=MagicMock(),
+        headers_provider=MagicMock(),
+        prod_environment_id=1,
+        metrics_related_max=10,
+        max_response_chars=200,
+    )
     context = _make_context(response, config)
 
-    result_page = await list_metrics.fn(context=context)
+    result_page = await list_metrics.fn(environment_id=1, context=context)
     result = result_page.result
 
     assert result.startswith("# Note:")
@@ -208,11 +224,19 @@ async def test_meta_filter_returns_only_matching_metrics():
         for i in range(5)
     ]
     response = ListMetricsResponse(metrics=metrics)
-    config = MagicMock(metrics_related_max=10, max_response_chars=16000)
+    config = SemanticLayerConfig(
+        url="https://example.com",
+        host="example.com",
+        token_provider=MagicMock(),
+        headers_provider=MagicMock(),
+        prod_environment_id=1,
+        metrics_related_max=10,
+        max_response_chars=16000,
+    )
     context = _make_context(response, config)
 
     result_page = await list_metrics.fn(
-        context=context, meta_filter={"agent_accessible": True}
+        environment_id=1, context=context, meta_filter={"agent_accessible": True}
     )
     result = result_page.result
 
@@ -224,10 +248,18 @@ async def test_meta_filter_returns_only_matching_metrics():
 async def test_meta_filter_none_returns_all_metrics():
     """meta_filter=None returns all metrics unchanged."""
     response = _make_response(5, description="short")
-    config = MagicMock(metrics_related_max=10, max_response_chars=16000)
+    config = SemanticLayerConfig(
+        url="https://example.com",
+        host="example.com",
+        token_provider=MagicMock(),
+        headers_provider=MagicMock(),
+        prod_environment_id=1,
+        metrics_related_max=10,
+        max_response_chars=16000,
+    )
     context = _make_context(response, config)
 
-    result_page = await list_metrics.fn(context=context, meta_filter=None)
+    result_page = await list_metrics.fn(environment_id=1, context=context, meta_filter=None)
     result = result_page.result
 
     data_lines = [line for line in result.splitlines() if not line.startswith("#")]
@@ -246,10 +278,18 @@ async def test_meta_filter_excludes_metrics_without_metadata():
         ),
     ]
     response = ListMetricsResponse(metrics=metrics)
-    config = MagicMock(metrics_related_max=10, max_response_chars=16000)
+    config = SemanticLayerConfig(
+        url="https://example.com",
+        host="example.com",
+        token_provider=MagicMock(),
+        headers_provider=MagicMock(),
+        prod_environment_id=1,
+        metrics_related_max=10,
+        max_response_chars=16000,
+    )
     context = _make_context(response, config)
 
-    result_page = await list_metrics.fn(context=context, meta_filter={"flag": True})
+    result_page = await list_metrics.fn(environment_id=1, context=context, meta_filter={"flag": True})
     result = result_page.result
 
     assert "metric_with_meta" in result
@@ -269,10 +309,18 @@ async def test_meta_filter_multikey_requires_all_pairs():
         MetricToolResponse(name="b_missing", type=MetricType.SIMPLE, metadata={"a": 1}),
     ]
     response = ListMetricsResponse(metrics=metrics)
-    config = MagicMock(metrics_related_max=10, max_response_chars=16000)
+    config = SemanticLayerConfig(
+        url="https://example.com",
+        host="example.com",
+        token_provider=MagicMock(),
+        headers_provider=MagicMock(),
+        prod_environment_id=1,
+        metrics_related_max=10,
+        max_response_chars=16000,
+    )
     context = _make_context(response, config)
 
-    result_page = await list_metrics.fn(context=context, meta_filter={"a": 1, "b": 2})
+    result_page = await list_metrics.fn(environment_id=1, context=context, meta_filter={"a": 1, "b": 2})
     result = result_page.result
 
     assert "both_match" in result

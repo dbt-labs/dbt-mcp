@@ -428,7 +428,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
     return [
         ToolDefinition(
             fn=build,
-            access=AccessPolicy.LOCAL,
+            requirements=(AccessPolicy.LOCAL,),
             title="dbt build",
             description=get_prompt("dbt_cli/build"),
             annotations=create_tool_annotations(
@@ -440,7 +440,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=compile,
-            access=AccessPolicy.LOCAL,
+            requirements=(AccessPolicy.LOCAL,),
             title="dbt compile",
             description=get_prompt("dbt_cli/compile"),
             annotations=create_tool_annotations(
@@ -452,7 +452,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=docs,
-            access=AccessPolicy.LOCAL,
+            requirements=(AccessPolicy.LOCAL,),
             title="dbt docs",
             description=get_prompt("dbt_cli/docs"),
             annotations=create_tool_annotations(
@@ -464,7 +464,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             name="list",
-            access=AccessPolicy.LOCAL,
+            requirements=(AccessPolicy.LOCAL,),
             fn=ls,
             title="dbt list",
             description=get_prompt("dbt_cli/list"),
@@ -477,7 +477,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=parse,
-            access=AccessPolicy.LOCAL,
+            requirements=(AccessPolicy.LOCAL,),
             title="dbt parse",
             description=get_prompt("dbt_cli/parse"),
             annotations=create_tool_annotations(
@@ -489,7 +489,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=run,
-            access=AccessPolicy.LOCAL,
+            requirements=(AccessPolicy.LOCAL,),
             title="dbt run",
             description=get_prompt("dbt_cli/run"),
             annotations=create_tool_annotations(
@@ -501,7 +501,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=test,
-            access=AccessPolicy.LOCAL,
+            requirements=(AccessPolicy.LOCAL,),
             title="dbt test",
             description=get_prompt("dbt_cli/test"),
             annotations=create_tool_annotations(
@@ -513,7 +513,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=show,
-            access=AccessPolicy.LOCAL,
+            requirements=(AccessPolicy.LOCAL,),
             title="dbt show",
             description=get_prompt("dbt_cli/show"),
             annotations=create_tool_annotations(
@@ -525,7 +525,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             fn=clone,
-            access=AccessPolicy.LOCAL,
+            requirements=(AccessPolicy.LOCAL,),
             title="dbt clone",
             description=get_prompt("dbt_cli/clone"),
             annotations=create_tool_annotations(
@@ -537,7 +537,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             name="get_lineage_dev",
-            access=AccessPolicy.LOCAL,
+            requirements=(AccessPolicy.LOCAL,),
             fn=get_lineage_dev,
             title="Get Model Lineage (Dev)",
             description=get_prompt("dbt_cli/get_lineage_dev"),
@@ -550,7 +550,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ),
         ToolDefinition(
             name="get_node_details_dev",
-            access=AccessPolicy.LOCAL,
+            requirements=(AccessPolicy.LOCAL,),
             fn=get_node_details_dev,
             title="Get Node Details (Dev)",
             description=get_prompt("dbt_cli/get_node_details_dev"),

@@ -1,7 +1,9 @@
 import inspect
 from collections.abc import Callable, Iterable
 from functools import wraps
-from typing import Any, TypeVar, cast
+from dataclasses import dataclass
+from typing import Annotated, Any, TypeVar, cast, get_args, get_origin
+from dbt_mcp.tools.binding import merge_bound_arguments
 
 R = TypeVar("R")
 
@@ -9,8 +11,19 @@ R = TypeVar("R")
 class AdaptError(TypeError): ...
 
 
+@dataclass(frozen=True)
+class BoundContext[T]:
+    """A mapped context and arguments resolved alongside it for the tool call."""
+
+    context: T
+    arguments: dict[str, Any]
+
+
 def adapt_with_mapper[R](
-    func: Callable[..., R], mapper: Callable[..., Any]
+    func: Callable[..., R],
+    mapper: Callable[..., Any],
+    *,
+    bound_arguments: frozenset[str] = frozenset(),
 ) -> Callable[..., R]:
     """
     Transform a function to accept a different input type by using a mapper function.
@@ -23,6 +36,9 @@ def adapt_with_mapper[R](
     mapper_sig = inspect.signature(mapper)
 
     mapper_return_type = mapper_sig.return_annotation
+    returns_bound_context = get_origin(mapper_return_type) is BoundContext
+    if returns_bound_context:
+        mapper_return_type = get_args(mapper_return_type)[0]
 
     if mapper_return_type is inspect._empty:
         raise AdaptError("mapper must have a return type annotation")
@@ -34,11 +50,28 @@ def adapt_with_mapper[R](
     if inspect._empty in mapper_argument_types:
         raise AdaptError("mapper must have type-annotated parameters")
 
-    new_params = list(mapper_sig.parameters.values())
+    new_params = []
+    for name, parameter in mapper_sig.parameters.items():
+        original = func_sig.parameters.get(name)
+        if original is not None and get_origin(original.annotation) is Annotated:
+            # Keep declarations on the canonical argument while allowing a mapper
+            # to make the caller's input more specific (e.g. a required project ID).
+            value_type = (
+                get_args(parameter.annotation)[0]
+                if get_origin(parameter.annotation) is Annotated
+                else parameter.annotation
+            )
+            parameter = parameter.replace(
+                annotation=Annotated[value_type, *get_args(original.annotation)[1:]]
+            )
+        new_params.append(parameter)
     for func_sig_param in func_sig.parameters.values():
         if func_sig_param.annotation == mapper_return_type:
             any_replacements = True
-        elif func_sig_param.annotation not in mapper_argument_types:
+        elif (
+            func_sig_param.name not in mapper_sig.parameters
+            and func_sig_param.name not in bound_arguments
+        ):
             new_params.append(func_sig_param)
 
     if not any_replacements:
@@ -69,12 +102,20 @@ def adapt_with_mapper[R](
         return mapper(**mapper_args)
 
     def invoke_func(bound_args: inspect.BoundArguments, mapped_value: Any) -> Any:
+        values = dict(bound_args.arguments)
+        if returns_bound_context:
+            if set(mapped_value.arguments) != bound_arguments:
+                raise AdaptError(
+                    "Context bindings must match the declared bound arguments"
+                )
+            values = merge_bound_arguments(values, mapped_value.arguments)
+            mapped_value = mapped_value.context
         func_args = {}
         for func_param in func_sig.parameters.values():
             if func_param.annotation == mapper_return_type:
                 func_args[func_param.name] = mapped_value
             else:
-                func_args[func_param.name] = bound_args.arguments[func_param.name]
+                func_args[func_param.name] = values[func_param.name]
         return func(**func_args)
 
     if inspect.iscoroutinefunction(func):

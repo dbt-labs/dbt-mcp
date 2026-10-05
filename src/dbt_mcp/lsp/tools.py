@@ -71,7 +71,7 @@ async def list_lsp_tools(
     return [
         ToolDefinition(
             fn=call_with_lsp_client(get_column_lineage),
-            access=AccessPolicy.LOCAL,
+            requirements=(AccessPolicy.LOCAL,),
             title="Get Column Lineage",
             description=get_prompt("lsp/get_column_lineage"),
             annotations=create_tool_annotations(

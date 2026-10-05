@@ -160,7 +160,7 @@ def create_dbt_codegen_tool_definitions(
     return [
         ToolDefinition(
             fn=generate_source,
-            access=AccessPolicy.LOCAL,
+            requirements=(AccessPolicy.LOCAL,),
             title="Generate Source",
             description=get_prompt("dbt_codegen/generate_source"),
             annotations=create_tool_annotations(
@@ -171,7 +171,7 @@ def create_dbt_codegen_tool_definitions(
         ),
         ToolDefinition(
             fn=generate_model_yaml,
-            access=AccessPolicy.LOCAL,
+            requirements=(AccessPolicy.LOCAL,),
             title="Generate Model YAML",
             description=get_prompt("dbt_codegen/generate_model_yaml"),
             annotations=create_tool_annotations(
@@ -182,7 +182,7 @@ def create_dbt_codegen_tool_definitions(
         ),
         ToolDefinition(
             fn=generate_staging_model,
-            access=AccessPolicy.LOCAL,
+            requirements=(AccessPolicy.LOCAL,),
             title="Generate Staging Model",
             description=get_prompt("dbt_codegen/generate_staging_model"),
             annotations=create_tool_annotations(

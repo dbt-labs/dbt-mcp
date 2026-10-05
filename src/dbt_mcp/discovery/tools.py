@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
@@ -30,7 +30,12 @@ from dbt_mcp.discovery.param_descriptions import (
     SOURCE_UNIQUE_IDS_FILTER,
 )
 from dbt_mcp.prompts.prompts import get_prompt
-from dbt_mcp.tools.access import AccessPolicy
+from dbt_mcp.tools.targets import (
+    EnvironmentRole,
+    EnvironmentTarget,
+    Permission,
+    ProjectTarget,
+)
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.deprecation import deprecated_description, deprecation_meta
 from dbt_mcp.tools.fields import (
@@ -43,6 +48,8 @@ from dbt_mcp.tools.fields import (
     UNIQUE_ID_REQUIRED_FIELD,
 )
 from dbt_mcp.tools.parameters import LineageDirection, LineageResourceType
+from dbt_mcp.tools.injection import BoundContext
+from dbt_mcp.config.config_providers.base import StaticConfigProvider
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
@@ -119,7 +126,6 @@ class DiscoveryToolContext:
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_METADATA_READ,
     description=get_prompt("discovery/get_mart_models"),
     title="Get Mart Models",
     read_only_hint=True,
@@ -130,10 +136,25 @@ async def get_mart_models(
     context: DiscoveryToolContext,
     limit: Annotated[int, LIMIT_FIELD] = 50,
     after: Annotated[str | None, AFTER_FIELD] = None,
+    *,
+    environment_id: Annotated[
+        int,
+        EnvironmentTarget(
+            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
+        ),
+        Field(description="Production environment ID."),
+    ],
+    project_id: Annotated[
+        int | None,
+        ProjectTarget(requires=Permission.METADATA_READ),
+        Field(description="Project ID."),
+    ] = None,
 ) -> ResultPage[list[dict]]:
     mart_models = await context.models_fetcher.fetch_models(
         model_filter={"modelingLayer": "marts"},
-        config=await context.config_provider.get_config(),
+        config=replace(
+            await context.config_provider.get_config(), environment_id=environment_id
+        ),
         limit=limit,
         after=after,
     )
@@ -144,7 +165,6 @@ async def get_mart_models(
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_METADATA_READ,
     description=get_prompt("discovery/get_all_models"),
     title="Get All Models",
     read_only_hint=True,
@@ -155,15 +175,29 @@ async def get_all_models(
     context: DiscoveryToolContext,
     limit: Annotated[int, LIMIT_FIELD] = 50,
     after: Annotated[str | None, AFTER_FIELD] = None,
+    *,
+    environment_id: Annotated[
+        int,
+        EnvironmentTarget(
+            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
+        ),
+        Field(description="Production environment ID."),
+    ],
+    project_id: Annotated[
+        int | None,
+        ProjectTarget(requires=Permission.METADATA_READ),
+        Field(description="Project ID."),
+    ] = None,
 ) -> ResultPage[list[dict]]:
-    config = await context.config_provider.get_config()
+    config = replace(
+        await context.config_provider.get_config(), environment_id=environment_id
+    )
     return await context.models_fetcher.fetch_models(
         config=config, limit=limit, after=after
     )
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_METADATA_READ,
     description=get_prompt("discovery/get_node_details"),
     title="Get Details",
     read_only_hint=True,
@@ -177,8 +211,23 @@ async def get_node_details(
     ],
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    environment_id: Annotated[
+        int,
+        EnvironmentTarget(
+            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
+        ),
+        Field(description="Production environment ID."),
+    ],
+    project_id: Annotated[
+        int | None,
+        ProjectTarget(requires=Permission.METADATA_READ),
+        Field(description="Project ID."),
+    ] = None,
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
+    config = replace(
+        await context.config_provider.get_config(), environment_id=environment_id
+    )
     return await context.resource_details_fetcher.fetch_details(
         resource_type=resource_type,
         unique_id=unique_id,
@@ -188,7 +237,6 @@ async def get_node_details(
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_METADATA_READ,
     description=deprecated_description(replacement="get_node_details"),
     title="Get Model Details",
     read_only_hint=True,
@@ -200,8 +248,23 @@ async def get_model_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    environment_id: Annotated[
+        int,
+        EnvironmentTarget(
+            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
+        ),
+        Field(description="Production environment ID."),
+    ],
+    project_id: Annotated[
+        int | None,
+        ProjectTarget(requires=Permission.METADATA_READ),
+        Field(description="Project ID."),
+    ] = None,
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
+    config = replace(
+        await context.config_provider.get_config(), environment_id=environment_id
+    )
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.MODEL,
         unique_id=unique_id,
@@ -211,7 +274,6 @@ async def get_model_details(
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_METADATA_READ,
     description=deprecated_description(
         replacement="get_lineage", arg_mapping=GET_MODEL_PARENTS_ARG_MAPPING
     ),
@@ -225,15 +287,29 @@ async def get_model_parents(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    environment_id: Annotated[
+        int,
+        EnvironmentTarget(
+            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
+        ),
+        Field(description="Production environment ID."),
+    ],
+    project_id: Annotated[
+        int | None,
+        ProjectTarget(requires=Permission.METADATA_READ),
+        Field(description="Project ID."),
+    ] = None,
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
+    config = replace(
+        await context.config_provider.get_config(), environment_id=environment_id
+    )
     return await context.models_fetcher.fetch_model_parents(
         model_name=name, unique_id=unique_id, config=config
     )
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_METADATA_READ,
     description=deprecated_description(
         replacement="get_lineage", arg_mapping=GET_MODEL_CHILDREN_ARG_MAPPING
     ),
@@ -247,15 +323,29 @@ async def get_model_children(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    environment_id: Annotated[
+        int,
+        EnvironmentTarget(
+            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
+        ),
+        Field(description="Production environment ID."),
+    ],
+    project_id: Annotated[
+        int | None,
+        ProjectTarget(requires=Permission.METADATA_READ),
+        Field(description="Project ID."),
+    ] = None,
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
+    config = replace(
+        await context.config_provider.get_config(), environment_id=environment_id
+    )
     return await context.models_fetcher.fetch_model_children(
         name, unique_id, config=config
     )
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_METADATA_READ,
     description=get_prompt("discovery/get_model_health"),
     title="Get Model Health",
     read_only_hint=True,
@@ -266,15 +356,29 @@ async def get_model_health(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    environment_id: Annotated[
+        int,
+        EnvironmentTarget(
+            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
+        ),
+        Field(description="Production environment ID."),
+    ],
+    project_id: Annotated[
+        int | None,
+        ProjectTarget(requires=Permission.METADATA_READ),
+        Field(description="Project ID."),
+    ] = None,
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
+    config = replace(
+        await context.config_provider.get_config(), environment_id=environment_id
+    )
     return await context.models_fetcher.fetch_model_health(
         name, unique_id, config=config
     )
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_METADATA_READ,
     description=get_prompt("discovery/get_model_performance"),
     title="Get Model Performance",
     read_only_hint=True,
@@ -295,9 +399,24 @@ async def get_model_performance(
         default=False,
         description=MODEL_PERF_INCLUDE_TESTS,
     ),
+    *,
+    environment_id: Annotated[
+        int,
+        EnvironmentTarget(
+            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
+        ),
+        Field(description="Production environment ID."),
+    ],
+    project_id: Annotated[
+        int | None,
+        ProjectTarget(requires=Permission.METADATA_READ),
+        Field(description="Project ID."),
+    ] = None,
 ) -> list[dict]:
     """Get model execution performance metrics from historical runs."""
-    config = await context.config_provider.get_config()
+    config = replace(
+        await context.config_provider.get_config(), environment_id=environment_id
+    )
     return await context.model_performance_fetcher.fetch_performance(
         config=config,
         name=name,
@@ -363,7 +482,6 @@ def build_lineage_graph(
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_METADATA_READ,
     description=get_prompt("discovery/get_lineage"),
     title="Get Lineage",
     read_only_hint=True,
@@ -379,8 +497,23 @@ async def get_lineage(
     depth: int = LINEAGE_DEPTH_FIELD,
     direction: LineageDirection = DIRECTION_FIELD,
     limit: int = LINEAGE_LIMIT_FIELD,
+    *,
+    environment_id: Annotated[
+        int,
+        EnvironmentTarget(
+            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
+        ),
+        Field(description="Production environment ID."),
+    ],
+    project_id: Annotated[
+        int | None,
+        ProjectTarget(requires=Permission.METADATA_READ),
+        Field(description="Project ID."),
+    ] = None,
 ) -> LineageGraph:
-    config = await context.config_provider.get_config()
+    config = replace(
+        await context.config_provider.get_config(), environment_id=environment_id
+    )
     nodes = await context.lineage_fetcher.fetch_lineage(
         unique_id=unique_id,
         types=types,
@@ -396,7 +529,6 @@ async def get_lineage(
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_METADATA_READ,
     description=get_prompt("discovery/get_exposures"),
     title="Get Exposures",
     read_only_hint=True,
@@ -407,15 +539,29 @@ async def get_exposures(
     context: DiscoveryToolContext,
     limit: Annotated[int, LIMIT_FIELD] = 50,
     after: Annotated[str | None, AFTER_FIELD] = None,
+    *,
+    environment_id: Annotated[
+        int,
+        EnvironmentTarget(
+            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
+        ),
+        Field(description="Production environment ID."),
+    ],
+    project_id: Annotated[
+        int | None,
+        ProjectTarget(requires=Permission.METADATA_READ),
+        Field(description="Project ID."),
+    ] = None,
 ) -> ResultPage[list[dict]]:
-    config = await context.config_provider.get_config()
+    config = replace(
+        await context.config_provider.get_config(), environment_id=environment_id
+    )
     return await context.exposures_fetcher.fetch_exposures(
         config=config, limit=limit, after=after
     )
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_METADATA_READ,
     description=deprecated_description(replacement="get_node_details"),
     title="Get Exposure Details",
     read_only_hint=True,
@@ -427,8 +573,23 @@ async def get_exposure_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    environment_id: Annotated[
+        int,
+        EnvironmentTarget(
+            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
+        ),
+        Field(description="Production environment ID."),
+    ],
+    project_id: Annotated[
+        int | None,
+        ProjectTarget(requires=Permission.METADATA_READ),
+        Field(description="Project ID."),
+    ] = None,
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
+    config = replace(
+        await context.config_provider.get_config(), environment_id=environment_id
+    )
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.EXPOSURE,
         unique_id=unique_id,
@@ -438,7 +599,6 @@ async def get_exposure_details(
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_METADATA_READ,
     description=get_prompt("discovery/get_all_sources"),
     title="Get All Sources",
     read_only_hint=True,
@@ -455,15 +615,29 @@ async def get_all_sources(
     ] = None,
     limit: Annotated[int, LIMIT_FIELD] = 50,
     after: Annotated[str | None, AFTER_FIELD] = None,
+    *,
+    environment_id: Annotated[
+        int,
+        EnvironmentTarget(
+            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
+        ),
+        Field(description="Production environment ID."),
+    ],
+    project_id: Annotated[
+        int | None,
+        ProjectTarget(requires=Permission.METADATA_READ),
+        Field(description="Project ID."),
+    ] = None,
 ) -> ResultPage[list[dict]]:
-    config = await context.config_provider.get_config()
+    config = replace(
+        await context.config_provider.get_config(), environment_id=environment_id
+    )
     return await context.sources_fetcher.fetch_sources(
         source_names, unique_ids, config=config, limit=limit, after=after
     )
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_METADATA_READ,
     description=deprecated_description(replacement="get_node_details"),
     title="Get Source Details",
     read_only_hint=True,
@@ -475,8 +649,23 @@ async def get_source_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    environment_id: Annotated[
+        int,
+        EnvironmentTarget(
+            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
+        ),
+        Field(description="Production environment ID."),
+    ],
+    project_id: Annotated[
+        int | None,
+        ProjectTarget(requires=Permission.METADATA_READ),
+        Field(description="Project ID."),
+    ] = None,
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
+    config = replace(
+        await context.config_provider.get_config(), environment_id=environment_id
+    )
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SOURCE,
         unique_id=unique_id,
@@ -486,7 +675,6 @@ async def get_source_details(
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_METADATA_READ,
     description=get_prompt("discovery/get_all_macros"),
     title="Get All Macros",
     read_only_hint=True,
@@ -506,8 +694,23 @@ async def get_all_macros(
     ] = False,
     limit: Annotated[int, LIMIT_FIELD] = 50,
     after: Annotated[str | None, AFTER_FIELD] = None,
+    *,
+    environment_id: Annotated[
+        int,
+        EnvironmentTarget(
+            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
+        ),
+        Field(description="Production environment ID."),
+    ],
+    project_id: Annotated[
+        int | None,
+        ProjectTarget(requires=Permission.METADATA_READ),
+        Field(description="Project ID."),
+    ] = None,
 ) -> ResultPage[list[dict] | list[str]]:
-    config = await context.config_provider.get_config()
+    config = replace(
+        await context.config_provider.get_config(), environment_id=environment_id
+    )
     return await context.macros_fetcher.fetch_macros(
         package_names=package_names,
         return_package_names_only=return_package_names_only,
@@ -519,7 +722,6 @@ async def get_all_macros(
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_METADATA_READ,
     description=deprecated_description(replacement="get_node_details"),
     title="Get Macro Details",
     read_only_hint=True,
@@ -531,8 +733,23 @@ async def get_macro_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    environment_id: Annotated[
+        int,
+        EnvironmentTarget(
+            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
+        ),
+        Field(description="Production environment ID."),
+    ],
+    project_id: Annotated[
+        int | None,
+        ProjectTarget(requires=Permission.METADATA_READ),
+        Field(description="Project ID."),
+    ] = None,
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
+    config = replace(
+        await context.config_provider.get_config(), environment_id=environment_id
+    )
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.MACRO,
         unique_id=unique_id,
@@ -542,7 +759,6 @@ async def get_macro_details(
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_METADATA_READ,
     description=deprecated_description(replacement="get_node_details"),
     title="Get Seed Details",
     read_only_hint=True,
@@ -554,8 +770,23 @@ async def get_seed_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    environment_id: Annotated[
+        int,
+        EnvironmentTarget(
+            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
+        ),
+        Field(description="Production environment ID."),
+    ],
+    project_id: Annotated[
+        int | None,
+        ProjectTarget(requires=Permission.METADATA_READ),
+        Field(description="Project ID."),
+    ] = None,
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
+    config = replace(
+        await context.config_provider.get_config(), environment_id=environment_id
+    )
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SEED,
         unique_id=unique_id,
@@ -565,7 +796,6 @@ async def get_seed_details(
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_METADATA_READ,
     description=deprecated_description(replacement="get_node_details"),
     title="Get Semantic Model Details",
     read_only_hint=True,
@@ -577,8 +807,23 @@ async def get_semantic_model_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    environment_id: Annotated[
+        int,
+        EnvironmentTarget(
+            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
+        ),
+        Field(description="Production environment ID."),
+    ],
+    project_id: Annotated[
+        int | None,
+        ProjectTarget(requires=Permission.METADATA_READ),
+        Field(description="Project ID."),
+    ] = None,
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
+    config = replace(
+        await context.config_provider.get_config(), environment_id=environment_id
+    )
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SEMANTIC_MODEL,
         unique_id=unique_id,
@@ -588,7 +833,6 @@ async def get_semantic_model_details(
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_METADATA_READ,
     description=deprecated_description(replacement="get_node_details"),
     title="Get Snapshot Details",
     read_only_hint=True,
@@ -600,8 +844,23 @@ async def get_snapshot_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    environment_id: Annotated[
+        int,
+        EnvironmentTarget(
+            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
+        ),
+        Field(description="Production environment ID."),
+    ],
+    project_id: Annotated[
+        int | None,
+        ProjectTarget(requires=Permission.METADATA_READ),
+        Field(description="Project ID."),
+    ] = None,
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
+    config = replace(
+        await context.config_provider.get_config(), environment_id=environment_id
+    )
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SNAPSHOT,
         unique_id=unique_id,
@@ -611,7 +870,6 @@ async def get_snapshot_details(
 
 
 @dbt_mcp_tool(
-    access=AccessPolicy.PRODUCTION_METADATA_READ,
     description=deprecated_description(replacement="get_node_details"),
     title="Get Test Details",
     read_only_hint=True,
@@ -623,8 +881,23 @@ async def get_test_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    environment_id: Annotated[
+        int,
+        EnvironmentTarget(
+            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
+        ),
+        Field(description="Production environment ID."),
+    ],
+    project_id: Annotated[
+        int | None,
+        ProjectTarget(requires=Permission.METADATA_READ),
+        Field(description="Project ID."),
+    ] = None,
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
+    config = replace(
+        await context.config_provider.get_config(), environment_id=environment_id
+    )
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.TEST,
         unique_id=unique_id,
@@ -665,12 +938,22 @@ def register_discovery_tools(
     enabled_toolsets: set[Toolset],
     disabled_toolsets: set[Toolset],
 ) -> None:
-    def bind_context() -> DiscoveryToolContext:
-        return DiscoveryToolContext(config_provider=discovery_config_provider)
+    async def bind_context() -> BoundContext[DiscoveryToolContext]:
+        config = await discovery_config_provider.get_config()
+        return BoundContext(
+            context=DiscoveryToolContext(config_provider=StaticConfigProvider(config)),
+            arguments={"environment_id": config.environment_id, "project_id": None},
+        )
 
     register_tools(
         dbt_mcp,
-        tool_definitions=[tool.adapt_context(bind_context) for tool in DISCOVERY_TOOLS],
+        tool_definitions=[
+            tool.adapt_context(
+                bind_context,
+                bound_arguments=frozenset({"environment_id", "project_id"}),
+            )
+            for tool in DISCOVERY_TOOLS
+        ],
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,

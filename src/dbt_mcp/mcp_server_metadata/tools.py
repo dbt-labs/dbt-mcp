@@ -44,7 +44,7 @@ def _get_git_branch() -> str:
 
 @dbt_mcp_tool(
     description="Get the version of the dbt MCP server. Use this to check what version of the dbt MCP server is running.",
-    access=AccessPolicy.PUBLIC,
+    requirements=(),
     title="Get MCP Server Version",
     read_only_hint=True,
     destructive_hint=False,
@@ -58,7 +58,7 @@ def get_mcp_server_version() -> str:
 
 @dbt_mcp_tool(
     description="Get the current git branch of the running dbt MCP server. Useful when running a local development build to identify which branch is active.",
-    access=AccessPolicy.LOCAL,
+    requirements=(AccessPolicy.LOCAL,),
     title="Get MCP Server Branch",
     read_only_hint=True,
     destructive_hint=False,

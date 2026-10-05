@@ -1,6 +1,5 @@
 import pytest
 
-from dbt_mcp.tools.access import AccessPolicy
 from dbt_mcp.tools.definitions import ToolDefinition
 
 
@@ -14,7 +13,7 @@ def definition() -> ToolDefinition:
         name="get_all_models",
         title="Models",
         description="Models",
-        access=AccessPolicy.PUBLIC,
+        requirements=(),
     )
 
 

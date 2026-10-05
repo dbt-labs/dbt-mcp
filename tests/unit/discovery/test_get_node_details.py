@@ -1,3 +1,4 @@
+from dbt_mcp.config.config_providers.base import DiscoveryConfig
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -28,12 +29,15 @@ DEPRECATED_DETAIL_TOOLS = [
 async def test_get_node_details_delegates_to_fetcher(
     resource_type: AppliedResourceType,
 ):
-    config = object()
+    config = DiscoveryConfig(
+        url="https://example.com", headers_provider=Mock(), environment_id=1
+    )
     context = Mock()
     context.config_provider.get_config = AsyncMock(return_value=config)
     context.resource_details_fetcher.fetch_details = AsyncMock(return_value=["row"])
 
     result = await get_node_details.fn(
+        environment_id=1,
         context=context,
         resource_type=resource_type,
         name=None,
@@ -53,15 +57,18 @@ async def test_get_node_details_delegates_to_fetcher(
 async def test_get_node_details_multiproject_delegates_to_fetcher(
     resource_type: AppliedResourceType,
 ):
-    config = object()
+    config = DiscoveryConfig(
+        url="https://example.com", headers_provider=Mock(), environment_id=1
+    )
     context = Mock()
     context.config_provider.get_config = AsyncMock(return_value=config)
     context.resource_details_fetcher.fetch_details = AsyncMock(return_value=["row"])
 
     mapper = discovery_context_mapper(context.config_provider)
-    mapped = mapper(project_id=42)
+    mapped = (await mapper(project_id=42)).context
     mapped.resource_details_fetcher = context.resource_details_fetcher
     result = await get_node_details.fn(
+        environment_id=1,
         context=mapped,
         resource_type=resource_type,
         name="thing",

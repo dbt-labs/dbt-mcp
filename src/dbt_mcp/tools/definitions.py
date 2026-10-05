@@ -1,7 +1,8 @@
 from collections.abc import Callable
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from enum import Enum
 from functools import partial
+from inspect import unwrap
 from typing import Any
 
 from mcp.server.fastmcp.tools.base import Tool
@@ -10,6 +11,7 @@ from mcp.types import ToolAnnotations
 from dbt_mcp.tools.injection import adapt_with_mapper
 from dbt_mcp.tools.binding import bind_arguments
 from dbt_mcp.tools.tool_names import ToolName
+from dbt_mcp.tools.targets import Target, target_parameters
 
 
 @dataclass
@@ -22,7 +24,13 @@ class GenericToolDefinition[NameEnum: Enum]:
     annotations: ToolAnnotations | None = None
     structured_output: bool = True
     meta: dict[str, Any] | None = None
-    access: Enum = field(kw_only=True)
+    requirements: tuple[Target | Enum, ...] | None = None
+
+    def __post_init__(self) -> None:
+        # Adapted/bound signatures may hide every target. The canonical function
+        # must still declare access explicitly before any adaptation takes place.
+        if self.requirements is None and not target_parameters(unwrap(self.fn)):
+            raise ValueError("Tools must declare access requirements")
 
     def get_name(self) -> NameEnum:
         return self.name_enum((self.name or self.fn.__name__).lower())
@@ -39,13 +47,18 @@ class GenericToolDefinition[NameEnum: Enum]:
         )
 
     def adapt_context(
-        self, context_mapper: Callable[..., Any]
+        self,
+        context_mapper: Callable[..., Any],
+        *,
+        bound_arguments: frozenset[str] = frozenset(),
     ) -> "GenericToolDefinition[NameEnum]":
         """
         Adapt the tool definition to accept a different context object.
         """
         return type(self)(
-            fn=adapt_with_mapper(self.fn, context_mapper),
+            fn=adapt_with_mapper(
+                self.fn, context_mapper, bound_arguments=bound_arguments
+            ),
             description=self.description,
             name_enum=self.name_enum,
             name=self.name,
@@ -53,7 +66,7 @@ class GenericToolDefinition[NameEnum: Enum]:
             annotations=self.annotations,
             structured_output=self.structured_output,
             meta=self.meta,
-            access=self.access,
+            requirements=self.requirements,
         )
 
     def bind_arguments(self, **arguments: Any) -> "GenericToolDefinition[NameEnum]":
@@ -77,7 +90,7 @@ def generic_dbt_mcp_tool[NameEnum: Enum](
     open_world_hint: bool = True,
     structured_output: bool = True,
     meta: dict[str, Any] | None = None,
-    access: Enum,
+    requirements: tuple[Target | Enum, ...] | None = None,
 ) -> Callable[[Callable], GenericToolDefinition[NameEnum]]:
     """Decorator to define a tool definition for dbt MCP"""
 
@@ -97,7 +110,7 @@ def generic_dbt_mcp_tool[NameEnum: Enum](
             ),
             structured_output=structured_output,
             meta=meta,
-            access=access,
+            requirements=requirements,
         )
 
     return decorator

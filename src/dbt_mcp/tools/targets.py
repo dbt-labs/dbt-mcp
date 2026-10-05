@@ -32,6 +32,11 @@ class ProjectTarget(Target):
 
 
 @dataclass(frozen=True)
+class AccountTarget(Target):
+    pass
+
+
+@dataclass(frozen=True)
 class EnvironmentTarget(Target):
     role: EnvironmentRole
 

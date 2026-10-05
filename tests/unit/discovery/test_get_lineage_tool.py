@@ -1,3 +1,4 @@
+from dbt_mcp.config.config_providers.base import DiscoveryConfig
 from unittest.mock import AsyncMock, MagicMock
 
 from dbt_mcp.tools.parameters import LineageDirection
@@ -28,10 +29,15 @@ async def test_get_lineage_builds_graph_from_nodes():
         },
     ]
     context = MagicMock()
-    context.config_provider.get_config = AsyncMock(return_value=MagicMock())
+    context.config_provider.get_config = AsyncMock(
+        return_value=DiscoveryConfig(
+            url="https://example.com", headers_provider=MagicMock(), environment_id=1
+        )
+    )
     context.lineage_fetcher.fetch_lineage = AsyncMock(return_value=nodes)
 
     result = await get_lineage.fn(
+        environment_id=1,
         context=context,
         unique_id="model.p.a",
         types=None,
@@ -80,10 +86,15 @@ async def test_get_lineage_limits_nodes_and_counts_omitted_nodes():
         },
     ]
     context = MagicMock()
-    context.config_provider.get_config = AsyncMock(return_value=MagicMock())
+    context.config_provider.get_config = AsyncMock(
+        return_value=DiscoveryConfig(
+            url="https://example.com", headers_provider=MagicMock(), environment_id=1
+        )
+    )
     context.lineage_fetcher.fetch_lineage = AsyncMock(return_value=nodes)
 
     result = await get_lineage.fn(
+        environment_id=1,
         context=context,
         unique_id="model.p.root",
         types=None,

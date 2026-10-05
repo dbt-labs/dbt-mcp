@@ -136,14 +136,16 @@ def _assert_points_to_credentials_page(text: str) -> None:
 
 
 async def test_query_metrics_tool_explains_how_to_reconnect(tool_context):
-    result = await query_metrics.fn(context=tool_context, metrics=["revenue"])
+    result = await query_metrics.fn(
+        environment_id=PROD_ENV_ID, context=tool_context, metrics=["revenue"]
+    )
 
     _assert_points_to_credentials_page(result)
 
 
 async def test_get_metrics_compiled_sql_tool_explains_how_to_reconnect(tool_context):
     result = await get_metrics_compiled_sql.fn(
-        context=tool_context, metrics=["revenue"]
+        environment_id=PROD_ENV_ID, context=tool_context, metrics=["revenue"]
     )
 
     _assert_points_to_credentials_page(result)
@@ -151,7 +153,11 @@ async def test_get_metrics_compiled_sql_tool_explains_how_to_reconnect(tool_cont
 
 async def test_get_dimension_values_tool_explains_how_to_reconnect(tool_context):
     result = await get_dimension_values.fn(
-        context=tool_context, dimension="region", metrics=["revenue"], limit=10
+        environment_id=PROD_ENV_ID,
+        context=tool_context,
+        dimension="region",
+        metrics=["revenue"],
+        limit=10,
     )
 
     assert isinstance(result, DimensionValuesError)
@@ -181,7 +187,9 @@ async def test_service_token_without_user_credentials_gets_docs_fallback(
         return PLATFORM_RESPONSES[endpoint]
 
     with patch.object(DbtAdminAPIClient, "_make_request", rejecting_make_request):
-        result = await query_metrics.fn(context=tool_context, metrics=["revenue"])
+        result = await query_metrics.fn(
+            environment_id=PROD_ENV_ID, context=tool_context, metrics=["revenue"]
+        )
 
     assert "SSO authentication has expired" in result
     assert "/settings/profile/credentials/" not in result
