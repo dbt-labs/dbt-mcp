@@ -89,6 +89,26 @@ class DbtAdminAPIClient:
         result = await self._make_request("GET", "/api/v2/whoami/")
         return result.get("data", {})
 
+    async def get_environment(self, environment_id: int) -> dict[str, Any]:
+        """Get details for an environment, including the project it belongs to."""
+        config = await self.config_provider.get_config()
+        result = await self._make_request(
+            "GET",
+            f"/api/v2/accounts/{config.account_id}/environments/{environment_id}/",
+        )
+        return result.get("data", {})
+
+    async def list_user_credentials(self, user_id: int) -> list[dict[str, Any]]:
+        """List the development credentials of a user.
+
+        Only works with the user's own personal access token or OAuth token;
+        service tokens are rejected by the API.
+        """
+        result = await self._make_request(
+            "GET", f"/api/v3/users/{user_id}/credentials/"
+        )
+        return result.get("data", [])
+
     @staticmethod
     def resolve_environments(
         environments: list[DbtPlatformEnvironmentResponse],

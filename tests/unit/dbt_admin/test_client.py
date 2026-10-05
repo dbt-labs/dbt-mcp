@@ -863,3 +863,26 @@ async def test_list_projects_no_semantic_layer(client):
     assert p["has_semantic_layer"] is False
     assert p["environments"] == []
     assert p["repository_full_name"] is None
+
+
+async def test_get_environment_uses_v2_endpoint(client):
+    client._make_request = AsyncMock(return_value={"data": {"id": 7, "project_id": 3}})
+
+    result = await client.get_environment(7)
+
+    assert result == {"id": 7, "project_id": 3}
+    client._make_request.assert_awaited_once_with(
+        "GET", "/api/v2/accounts/12345/environments/7/"
+    )
+
+
+async def test_list_user_credentials_uses_v3_endpoint(client):
+    rows = [{"project_id": 3, "credentials_id": 672, "state": 1}]
+    client._make_request = AsyncMock(return_value={"data": rows})
+
+    result = await client.list_user_credentials(42)
+
+    assert result == rows
+    client._make_request.assert_awaited_once_with(
+        "GET", "/api/v3/users/42/credentials/"
+    )
