@@ -23,7 +23,7 @@ from dbt_mcp.config.config_providers import SemanticLayerConfig
 from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.errors.hints import classify_warehouse_error, warehouse_error_hint
 from dbt_mcp.errors.semantic_layer import SemanticLayerQueryTimeoutError
-from dbt_mcp.errors.warehouse_auth import is_warehouse_auth_error
+from dbt_mcp.errors.warehouse_auth import append_hint, is_warehouse_auth_error
 from dbt_mcp.semantic_layer.gql.gql import GRAPHQL_QUERIES
 from dbt_mcp.semantic_layer.gql.gql_request import submit_request
 from dbt_mcp.semantic_layer.types import (
@@ -504,7 +504,7 @@ class SemanticLayerFetcher:
         except Exception:
             logger.warning("Could not build the warehouse auth hint", exc_info=True)
             return formatted
-        return f"{formatted}\n\n{hint}"
+        return append_hint(formatted, hint)
 
     async def _format_get_metrics_compiled_sql_error(
         self, compile_error: Exception, config: SemanticLayerConfig

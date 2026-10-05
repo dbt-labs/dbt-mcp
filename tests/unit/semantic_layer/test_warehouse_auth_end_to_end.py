@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from dbtsl.error import QueryFailedError
+from mcp.types import TextContent
 
 from dbt_mcp.config.config_providers.proxied_tool import (
     DefaultProxiedToolConfigProvider,
@@ -161,7 +162,7 @@ async def test_execute_sql_error_explains_how_to_reconnect(credentials_provider)
     config = await DefaultProxiedToolConfigProvider(credentials_provider).get_config()
 
     message = await format_remote_tool_error(
-        "execute_sql", f"[TextContent(text={EXPIRED_AUTH_MESSAGE!r})]", config
+        "execute_sql", [TextContent(type="text", text=EXPIRED_AUTH_MESSAGE)], config
     )
 
     _assert_points_to_credentials_page(message)
@@ -203,7 +204,7 @@ async def test_execute_sql_with_service_token_does_not_suggest_semantic_layer_se
 
     with patch.object(DbtAdminAPIClient, "_make_request", rejecting_make_request):
         message = await format_remote_tool_error(
-            "execute_sql", f"[TextContent(text={EXPIRED_AUTH_MESSAGE!r})]", config
+            "execute_sql", [TextContent(type="text", text=EXPIRED_AUTH_MESSAGE)], config
         )
 
     assert "SSO authentication has expired" in message

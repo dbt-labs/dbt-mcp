@@ -58,7 +58,7 @@ async def test_query_metrics_appends_hint_on_auth_error():
 
     assert isinstance(result, QueryMetricsError)
     assert "authentication has expired" in result.error
-    assert result.error.endswith(HINT)
+    assert result.error.endswith(f"<hint>{HINT}</hint>")
     provider.get_hint.assert_awaited_once_with(environment_id=777)
 
 
@@ -68,7 +68,7 @@ async def test_get_dimension_values_appends_hint_on_auth_error():
     )
 
     assert isinstance(result, DimensionValuesError)
-    assert result.error.endswith(HINT)
+    assert result.error.endswith(f"<hint>{HINT}</hint>")
 
 
 async def test_get_metrics_compiled_sql_appends_hint_on_auth_error():
@@ -77,7 +77,7 @@ async def test_get_metrics_compiled_sql_appends_hint_on_auth_error():
     )
 
     assert isinstance(result, GetMetricsCompiledSqlError)
-    assert result.error.endswith(HINT)
+    assert result.error.endswith(f"<hint>{HINT}</hint>")
 
 
 async def test_non_auth_error_is_left_untouched():
@@ -88,7 +88,7 @@ async def test_non_auth_error_is_left_untouched():
     )
 
     assert isinstance(result, QueryMetricsError)
-    assert HINT not in result.error
+    assert "<hint>" not in result.error
     provider.get_hint.assert_not_called()
 
 
@@ -99,7 +99,7 @@ async def test_auth_error_without_hint_provider_is_left_untouched():
 
     assert isinstance(result, QueryMetricsError)
     assert "authentication has expired" in result.error
-    assert HINT not in result.error
+    assert "<hint>" not in result.error
 
 
 async def test_hint_provider_failure_does_not_mask_original_error():
@@ -128,5 +128,5 @@ async def test_platform_login_failure_is_not_given_warehouse_instructions():
 
     assert isinstance(result, GetMetricsCompiledSqlError)
     assert "inline refresh failed" in result.error
-    assert HINT not in result.error
+    assert "<hint>" not in result.error
     provider.get_hint.assert_not_called()

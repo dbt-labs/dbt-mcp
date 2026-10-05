@@ -21,6 +21,7 @@ from mcp.server.fastmcp.utilities.func_metadata import (
 from mcp.shared.message import SessionMessage
 from mcp.types import (
     ContentBlock,
+    TextContent,
     Tool,
 )
 from pydantic import Field, WithJsonSchema, create_model
@@ -30,7 +31,7 @@ from pydantic_core import PydanticUndefined
 
 from dbt_mcp.config.config_providers import ConfigProvider, ProxiedToolConfig
 from dbt_mcp.errors import RemoteToolError
-from dbt_mcp.errors.warehouse_auth import is_warehouse_auth_error
+from dbt_mcp.errors.warehouse_auth import append_hint, is_warehouse_auth_error
 from dbt_mcp.tools.register import should_register_tool
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import TOOL_TO_TOOLSET, Toolset, proxied_tools
@@ -98,24 +99,33 @@ async def get_proxied_tools(
     return [t for t in tools if t.name.lower() in normalized_configured_proxied_tools]
 
 
+def _content_text(content: Sequence[ContentBlock]) -> str:
+    """Readable text of tool result content, without the Python repr of the blocks."""
+    return "\n".join(
+        block.text if isinstance(block, TextContent) else str(block)
+        for block in content
+    )
+
+
 async def format_remote_tool_error(
-    tool_name: str, content: Any, config: ProxiedToolConfig
+    tool_name: str, content: Sequence[ContentBlock], config: ProxiedToolConfig
 ) -> str:
     """Describe a remote tool failure, adding how to fix expired warehouse auth."""
-    message = f"Tool {tool_name} reported an error: {content}"
+    message = f"Tool {tool_name} reported an error: {_content_text(content)}"
     hint_provider = config.warehouse_auth_hint_provider
     if hint_provider is None or not is_warehouse_auth_error(message):
         return message
     try:
-        # execute_sql runs with the developer's credentials, so prefer the dev environment
+        # execute_sql runs as the configured developer, so prefer the dev environment
         hint = await hint_provider.get_hint(
             environment_id=config.dev_environment_id or config.prod_environment_id,
             developer_credentials=True,
+            user_id=config.user_id,
         )
     except Exception:
         logger.warning("Could not build the warehouse auth hint", exc_info=True)
         return message
-    return f"{message}\n\n{hint}"
+    return append_hint(message, hint)
 
 
 class ProxiedToolsManager:

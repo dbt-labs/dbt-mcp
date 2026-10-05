@@ -145,3 +145,47 @@ async def test_developer_credentials_hint_still_links_to_exact_page():
     )
 
     assert f"{PLATFORM_URL}/settings/profile/credentials/10 " in hint
+
+
+async def test_configured_developer_is_used_instead_of_token_owner():
+    """execute_sql runs as the configured developer, not necessarily the token owner."""
+    client = _admin_client(user_id=5)
+    seen: list[int] = []
+
+    async def list_user_credentials(user_id: int) -> list[dict]:
+        seen.append(user_id)
+        return [{"project_id": 10, "credentials_id": 1, "state": 1}]
+
+    client.list_user_credentials = list_user_credentials
+
+    hint = await WarehouseAuthHintProvider(client).get_hint(
+        environment_id=20, developer_credentials=True, user_id=77
+    )
+
+    assert seen == [77]
+    client.get_current_user.assert_not_called()
+    assert f"{PLATFORM_URL}/settings/profile/credentials/10 " in hint
+
+
+async def test_configured_developer_that_is_not_the_token_owner_gets_fallback():
+    """The API only lists a user's credentials to that user's own token."""
+    client = _admin_client(user_id=5)
+    client.list_user_credentials = AsyncMock(side_effect=RuntimeError("403"))
+
+    hint = await WarehouseAuthHintProvider(client).get_hint(
+        environment_id=20, developer_credentials=True, user_id=77
+    )
+
+    assert "/settings/profile/credentials/" not in hint
+    assert "configured developer" in hint
+
+
+async def test_cached_link_is_not_reused_for_another_user():
+    client = _admin_client()
+    provider = WarehouseAuthHintProvider(client)
+    await provider.get_hint(environment_id=20, user_id=5)
+    client.list_user_credentials = AsyncMock(return_value=[])
+
+    hint = await provider.get_hint(environment_id=20, user_id=77)
+
+    assert "/settings/profile/credentials/" not in hint

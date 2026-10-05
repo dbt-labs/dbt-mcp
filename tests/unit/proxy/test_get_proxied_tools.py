@@ -120,6 +120,10 @@ async def test_register_proxied_tool_is_listed_and_callable(
     session.call_tool.assert_awaited_once_with("execute_sql", {"query": "select 1"})
 
 
+def text_blocks(*texts: str) -> list[TextContent]:
+    return [TextContent(type="text", text=text) for text in texts]
+
+
 async def test_format_remote_tool_error_appends_hint_on_warehouse_auth_error():
     hint_provider = MagicMock()
     hint_provider.get_hint = AsyncMock(return_value="HINT: reconnect")
@@ -128,14 +132,14 @@ async def test_format_remote_tool_error_appends_hint_on_warehouse_auth_error():
 
     message = await format_remote_tool_error(
         "execute_sql",
-        "SSO authentication has expired, please re-connect to Snowflake",
+        text_blocks("SSO authentication has expired, please re-connect to Snowflake"),
         config,
     )
 
-    assert message.startswith("Tool execute_sql reported an error: ")
-    assert message.endswith("HINT: reconnect")
+    assert message.startswith("Tool execute_sql reported an error: SSO authentication")
+    assert message.endswith("<hint>HINT: reconnect</hint>")
     hint_provider.get_hint.assert_awaited_once_with(
-        environment_id=2, developer_credentials=True
+        environment_id=2, developer_credentials=True, user_id=1
     )
 
 
@@ -146,10 +150,12 @@ async def test_format_remote_tool_error_falls_back_to_prod_environment():
     config.dev_environment_id = None
     config.warehouse_auth_hint_provider = hint_provider
 
-    await format_remote_tool_error("execute_sql", "authentication has expired", config)
+    await format_remote_tool_error(
+        "execute_sql", text_blocks("authentication has expired"), config
+    )
 
     hint_provider.get_hint.assert_awaited_once_with(
-        environment_id=3, developer_credentials=True
+        environment_id=3, developer_credentials=True, user_id=1
     )
 
 
@@ -159,7 +165,9 @@ async def test_format_remote_tool_error_leaves_other_errors_untouched():
     config = make_config()
     config.warehouse_auth_hint_provider = hint_provider
 
-    message = await format_remote_tool_error("execute_sql", "syntax error", config)
+    message = await format_remote_tool_error(
+        "execute_sql", text_blocks("syntax error"), config
+    )
 
     assert message == "Tool execute_sql reported an error: syntax error"
     hint_provider.get_hint.assert_not_called()
@@ -172,7 +180,18 @@ async def test_format_remote_tool_error_survives_hint_failure():
     config.warehouse_auth_hint_provider = hint_provider
 
     message = await format_remote_tool_error(
-        "execute_sql", "authentication has expired", config
+        "execute_sql", text_blocks("authentication has expired"), config
     )
 
     assert message == "Tool execute_sql reported an error: authentication has expired"
+
+
+async def test_format_remote_tool_error_uses_the_text_of_content_blocks():
+    """The message must not contain the Python repr of the content blocks."""
+    message = await format_remote_tool_error(
+        "execute_sql", text_blocks("first problem", "second problem"), make_config()
+    )
+
+    assert (
+        message == "Tool execute_sql reported an error: first problem\nsecond problem"
+    )
