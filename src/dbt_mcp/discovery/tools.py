@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Annotated
 
 from mcp.server.fastmcp import FastMCP
@@ -31,8 +31,6 @@ from dbt_mcp.discovery.param_descriptions import (
 )
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.targets import (
-    EnvironmentRole,
-    EnvironmentTarget,
     Permission,
     ProjectTarget,
 )
@@ -137,13 +135,6 @@ async def get_mart_models(
     limit: Annotated[int, LIMIT_FIELD] = 50,
     after: Annotated[str | None, AFTER_FIELD] = None,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
         int | None,
         ProjectTarget(requires=Permission.METADATA_READ),
@@ -152,9 +143,7 @@ async def get_mart_models(
 ) -> ResultPage[list[dict]]:
     mart_models = await context.models_fetcher.fetch_models(
         model_filter={"modelingLayer": "marts"},
-        config=replace(
-            await context.config_provider.get_config(), environment_id=environment_id
-        ),
+        config=await context.config_provider.get_config(),
         limit=limit,
         after=after,
     )
@@ -176,22 +165,13 @@ async def get_all_models(
     limit: Annotated[int, LIMIT_FIELD] = 50,
     after: Annotated[str | None, AFTER_FIELD] = None,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
         int | None,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
     ] = None,
 ) -> ResultPage[list[dict]]:
-    config = replace(
-        await context.config_provider.get_config(), environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.models_fetcher.fetch_models(
         config=config, limit=limit, after=after
     )
@@ -212,22 +192,13 @@ async def get_node_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
         int | None,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
     ] = None,
 ) -> list[dict]:
-    config = replace(
-        await context.config_provider.get_config(), environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=resource_type,
         unique_id=unique_id,
@@ -249,22 +220,13 @@ async def get_model_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
         int | None,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
     ] = None,
 ) -> list[dict]:
-    config = replace(
-        await context.config_provider.get_config(), environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.MODEL,
         unique_id=unique_id,
@@ -288,22 +250,13 @@ async def get_model_parents(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
         int | None,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
     ] = None,
 ) -> list[dict]:
-    config = replace(
-        await context.config_provider.get_config(), environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.models_fetcher.fetch_model_parents(
         model_name=name, unique_id=unique_id, config=config
     )
@@ -324,22 +277,13 @@ async def get_model_children(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
         int | None,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
     ] = None,
 ) -> list[dict]:
-    config = replace(
-        await context.config_provider.get_config(), environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.models_fetcher.fetch_model_children(
         name, unique_id, config=config
     )
@@ -357,22 +301,13 @@ async def get_model_health(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
         int | None,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
     ] = None,
 ) -> list[dict]:
-    config = replace(
-        await context.config_provider.get_config(), environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.models_fetcher.fetch_model_health(
         name, unique_id, config=config
     )
@@ -400,13 +335,6 @@ async def get_model_performance(
         description=MODEL_PERF_INCLUDE_TESTS,
     ),
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
         int | None,
         ProjectTarget(requires=Permission.METADATA_READ),
@@ -414,9 +342,7 @@ async def get_model_performance(
     ] = None,
 ) -> list[dict]:
     """Get model execution performance metrics from historical runs."""
-    config = replace(
-        await context.config_provider.get_config(), environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.model_performance_fetcher.fetch_performance(
         config=config,
         name=name,
@@ -498,22 +424,13 @@ async def get_lineage(
     direction: LineageDirection = DIRECTION_FIELD,
     limit: int = LINEAGE_LIMIT_FIELD,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
         int | None,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
     ] = None,
 ) -> LineageGraph:
-    config = replace(
-        await context.config_provider.get_config(), environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     nodes = await context.lineage_fetcher.fetch_lineage(
         unique_id=unique_id,
         types=types,
@@ -540,22 +457,13 @@ async def get_exposures(
     limit: Annotated[int, LIMIT_FIELD] = 50,
     after: Annotated[str | None, AFTER_FIELD] = None,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
         int | None,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
     ] = None,
 ) -> ResultPage[list[dict]]:
-    config = replace(
-        await context.config_provider.get_config(), environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.exposures_fetcher.fetch_exposures(
         config=config, limit=limit, after=after
     )
@@ -574,22 +482,13 @@ async def get_exposure_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
         int | None,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
     ] = None,
 ) -> list[dict]:
-    config = replace(
-        await context.config_provider.get_config(), environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.EXPOSURE,
         unique_id=unique_id,
@@ -616,22 +515,13 @@ async def get_all_sources(
     limit: Annotated[int, LIMIT_FIELD] = 50,
     after: Annotated[str | None, AFTER_FIELD] = None,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
         int | None,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
     ] = None,
 ) -> ResultPage[list[dict]]:
-    config = replace(
-        await context.config_provider.get_config(), environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.sources_fetcher.fetch_sources(
         source_names, unique_ids, config=config, limit=limit, after=after
     )
@@ -650,22 +540,13 @@ async def get_source_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
         int | None,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
     ] = None,
 ) -> list[dict]:
-    config = replace(
-        await context.config_provider.get_config(), environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SOURCE,
         unique_id=unique_id,
@@ -695,22 +576,13 @@ async def get_all_macros(
     limit: Annotated[int, LIMIT_FIELD] = 50,
     after: Annotated[str | None, AFTER_FIELD] = None,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
         int | None,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
     ] = None,
 ) -> ResultPage[list[dict] | list[str]]:
-    config = replace(
-        await context.config_provider.get_config(), environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.macros_fetcher.fetch_macros(
         package_names=package_names,
         return_package_names_only=return_package_names_only,
@@ -734,22 +606,13 @@ async def get_macro_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
         int | None,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
     ] = None,
 ) -> list[dict]:
-    config = replace(
-        await context.config_provider.get_config(), environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.MACRO,
         unique_id=unique_id,
@@ -771,22 +634,13 @@ async def get_seed_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
         int | None,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
     ] = None,
 ) -> list[dict]:
-    config = replace(
-        await context.config_provider.get_config(), environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SEED,
         unique_id=unique_id,
@@ -808,22 +662,13 @@ async def get_semantic_model_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
         int | None,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
     ] = None,
 ) -> list[dict]:
-    config = replace(
-        await context.config_provider.get_config(), environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SEMANTIC_MODEL,
         unique_id=unique_id,
@@ -845,22 +690,13 @@ async def get_snapshot_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
         int | None,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
     ] = None,
 ) -> list[dict]:
-    config = replace(
-        await context.config_provider.get_config(), environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SNAPSHOT,
         unique_id=unique_id,
@@ -882,22 +718,13 @@ async def get_test_details(
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION, requires=Permission.METADATA_READ
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
         int | None,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
     ] = None,
 ) -> list[dict]:
-    config = replace(
-        await context.config_provider.get_config(), environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.TEST,
         unique_id=unique_id,
@@ -942,7 +769,7 @@ def register_discovery_tools(
         config = await discovery_config_provider.get_config()
         return BoundContext(
             context=DiscoveryToolContext(config_provider=StaticConfigProvider(config)),
-            arguments={"environment_id": config.environment_id, "project_id": None},
+            arguments={"project_id": None},
         )
 
     register_tools(
@@ -950,7 +777,7 @@ def register_discovery_tools(
         tool_definitions=[
             tool.adapt_context(
                 bind_context,
-                bound_arguments=frozenset({"environment_id", "project_id"}),
+                bound_arguments=frozenset({"project_id"}),
             )
             for tool in DISCOVERY_TOOLS
         ],

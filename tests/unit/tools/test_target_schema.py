@@ -14,7 +14,11 @@ from dbt_mcp.tools.targets import EnvironmentTarget, ProjectTarget, target_param
 
 
 def test_canonical_service_schemas_explicitly_declare_target_parameters() -> None:
-    for tool in [*DISCOVERY_TOOLS, *SEMANTIC_LAYER_TOOLS]:
+    for tool in DISCOVERY_TOOLS:
+        declarations = target_parameters(tool.fn)
+        assert set(declarations) == {"project_id"}
+        assert isinstance(declarations["project_id"], ProjectTarget)
+    for tool in SEMANTIC_LAYER_TOOLS:
         declarations = target_parameters(tool.fn)
         assert isinstance(declarations["project_id"], ProjectTarget)
         assert isinstance(declarations["environment_id"], EnvironmentTarget)
@@ -24,7 +28,7 @@ def test_canonical_service_schemas_explicitly_declare_target_parameters() -> Non
         )
 
 
-async def test_discovery_uses_the_resolved_environment_argument(
+async def test_discovery_uses_the_bound_configuration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = DiscoveryConfig(
@@ -33,7 +37,6 @@ async def test_discovery_uses_the_resolved_environment_argument(
     context = DiscoveryToolContext(StaticConfigProvider(config))
     fetch = AsyncMock(return_value=[{"name": "orders"}])
     monkeypatch.setattr(context.models_fetcher, "fetch_models", fetch)
-    result = await get_all_models.fn(context=context, environment_id=22, project_id=20)
+    result = await get_all_models.fn(context=context, project_id=20)
     assert result == [{"name": "orders"}]
-    assert fetch.call_args.kwargs["config"].environment_id == 22
-    assert config.environment_id == 12
+    assert fetch.call_args.kwargs["config"] is config

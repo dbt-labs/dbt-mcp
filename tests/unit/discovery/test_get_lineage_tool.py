@@ -37,7 +37,6 @@ async def test_get_lineage_builds_graph_from_nodes():
     context.lineage_fetcher.fetch_lineage = AsyncMock(return_value=nodes)
 
     result = await get_lineage.fn(
-        environment_id=1,
         context=context,
         unique_id="model.p.a",
         types=None,
@@ -94,7 +93,6 @@ async def test_get_lineage_limits_nodes_and_counts_omitted_nodes():
     context.lineage_fetcher.fetch_lineage = AsyncMock(return_value=nodes)
 
     result = await get_lineage.fn(
-        environment_id=1,
         context=context,
         unique_id="model.p.root",
         types=None,

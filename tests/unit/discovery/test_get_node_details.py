@@ -37,7 +37,6 @@ async def test_get_node_details_delegates_to_fetcher(
     context.resource_details_fetcher.fetch_details = AsyncMock(return_value=["row"])
 
     result = await get_node_details.fn(
-        environment_id=1,
         context=context,
         resource_type=resource_type,
         name=None,
@@ -65,10 +64,9 @@ async def test_get_node_details_multiproject_delegates_to_fetcher(
     context.resource_details_fetcher.fetch_details = AsyncMock(return_value=["row"])
 
     mapper = discovery_context_mapper(context.config_provider)
-    mapped = (await mapper(project_id=42)).context
+    mapped = await mapper(project_id=42)
     mapped.resource_details_fetcher = context.resource_details_fetcher
     result = await get_node_details.fn(
-        environment_id=1,
         context=mapped,
         resource_type=resource_type,
         name="thing",

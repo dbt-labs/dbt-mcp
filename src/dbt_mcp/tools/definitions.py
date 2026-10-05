@@ -11,7 +11,7 @@ from mcp.types import ToolAnnotations
 from dbt_mcp.tools.injection import adapt_with_mapper
 from dbt_mcp.tools.binding import bind_arguments
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.targets import Target, target_parameters
+from dbt_mcp.tools.targets import EnvironmentRole, Target, target_parameters
 
 
 @dataclass
@@ -25,6 +25,8 @@ class GenericToolDefinition[NameEnum: Enum]:
     structured_output: bool = True
     meta: dict[str, Any] | None = None
     requirements: tuple[Target | Enum, ...] | None = None
+    # A host resolves this environment for the context, without exposing an ID argument.
+    context_environment: EnvironmentRole | None = None
 
     def __post_init__(self) -> None:
         # Adapted/bound signatures may hide every target. The canonical function
@@ -51,6 +53,7 @@ class GenericToolDefinition[NameEnum: Enum]:
         context_mapper: Callable[..., Any],
         *,
         bound_arguments: frozenset[str] = frozenset(),
+        context_environment: EnvironmentRole | None = None,
     ) -> "GenericToolDefinition[NameEnum]":
         """
         Adapt the tool definition to accept a different context object.
@@ -67,6 +70,7 @@ class GenericToolDefinition[NameEnum: Enum]:
             structured_output=self.structured_output,
             meta=self.meta,
             requirements=self.requirements,
+            context_environment=context_environment or self.context_environment,
         )
 
     def bind_arguments(self, **arguments: Any) -> "GenericToolDefinition[NameEnum]":

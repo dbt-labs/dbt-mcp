@@ -48,14 +48,19 @@ def test_tool_decorator_requires_an_explicit_permission_declaration() -> None:
 
 
 def test_service_tools_declare_permissions_on_target_arguments() -> None:
-    for tools, permission in (
-        (DISCOVERY_TOOLS, Permission.METADATA_READ),
-        (SEMANTIC_LAYER_TOOLS, Permission.SEMANTIC_LAYER_CONFIGURATION_READ),
+    for tools, parameter, target_type, permission in (
+        (DISCOVERY_TOOLS, "project_id", ProjectTarget, Permission.METADATA_READ),
+        (
+            SEMANTIC_LAYER_TOOLS,
+            "environment_id",
+            EnvironmentTarget,
+            Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
+        ),
     ):
         for tool in tools:
             declarations = target_parameters(tool.fn)
-            assert isinstance(declarations["environment_id"], EnvironmentTarget)
-            assert declarations["environment_id"].requires == permission
+            assert isinstance(declarations[parameter], target_type)
+            assert declarations[parameter].requires == permission
             assert declarations["project_id"].requires == permission
 
 
