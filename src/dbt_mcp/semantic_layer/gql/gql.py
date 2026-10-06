@@ -61,6 +61,9 @@ query GetMetricsWithRelated($environmentId: BigInt!, $search: String) {
       entities {
         name
       }
+      measures {
+        aggTimeDimension
+      }
     }
   }
 }

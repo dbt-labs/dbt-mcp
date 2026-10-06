@@ -42,6 +42,27 @@ async def test_semantic_layer_list_metrics(
     assert len(result.metrics) > 0
 
 
+async def test_semantic_layer_list_metrics_default_time_dimension(
+    semantic_layer_fetcher: SemanticLayerFetcher,
+    semantic_layer_config,
+):
+    """A narrowed listing must fetch default_time_dimension (a list, not None):
+    None here means the related query, which now also selects measures,
+    failed and fell back to the bare listing."""
+    all_metrics = await semantic_layer_fetcher.list_metrics(
+        config=semantic_layer_config,
+    )
+    assert len(all_metrics.metrics) > 0
+    result = await semantic_layer_fetcher.list_metrics(
+        config=semantic_layer_config,
+        search=all_metrics.metrics[0].name,
+    )
+    assert len(result.metrics) > 0
+    if len(result.metrics) <= semantic_layer_config.metrics_related_max:
+        for metric in result.metrics:
+            assert metric.default_time_dimension is not None
+
+
 async def test_semantic_layer_sdk_respects_fetcher_config_environment_id():
     """SDK query must use the fetcher's semantic layer config, not default get_config().
 
