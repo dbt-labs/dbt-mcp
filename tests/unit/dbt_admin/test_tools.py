@@ -538,7 +538,9 @@ async def test_tools_with_no_optional_parameters(admin_context):
     # Test list_jobs with no parameters
     result = await list_jobs.fn(admin_context, project_id=42)
     assert isinstance(result.result, list)
-    admin_context.admin_client.list_jobs.assert_called_with(12345, environment_id=100, limit=50, offset=0)
+    admin_context.admin_client.list_jobs.assert_called_with(
+        12345, environment_id=100, limit=50, offset=0
+    )
 
     # Test list_jobs_runs with no parameters
     result = await list_jobs_runs.fn(admin_context)
@@ -753,7 +755,9 @@ async def test_list_jobs_mcp_text_and_structured_output_share_pagination(admin_c
         pagination=Pagination(has_more=True, next_offset=1, total_items=2),
     )
     tool = list_jobs.adapt_context(bind_context).to_fastmcp_internal_tool()
-    text, structured = await tool.run({"limit": 1}, convert_result=True)
+    text, structured = await tool.run(
+        {"project_id": 42, "limit": 1}, convert_result=True
+    )
     assert structured["result"] == [{"id": 1}]
     assert structured["pagination"]["has_more"] is True
     assert structured["pagination"]["next_offset"] == 1

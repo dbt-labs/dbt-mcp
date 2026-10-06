@@ -259,7 +259,9 @@ async def test_meta_filter_none_returns_all_metrics():
     )
     context = _make_context(response, config)
 
-    result_page = await list_metrics.fn(project_id=42, context=context, meta_filter=None)
+    result_page = await list_metrics.fn(
+        project_id=42, context=context, meta_filter=None
+    )
     result = result_page.result
 
     data_lines = [line for line in result.splitlines() if not line.startswith("#")]
@@ -289,7 +291,9 @@ async def test_meta_filter_excludes_metrics_without_metadata():
     )
     context = _make_context(response, config)
 
-    result_page = await list_metrics.fn(project_id=42, context=context, meta_filter={"flag": True})
+    result_page = await list_metrics.fn(
+        project_id=42, context=context, meta_filter={"flag": True}
+    )
     result = result_page.result
 
     assert "metric_with_meta" in result
@@ -320,7 +324,9 @@ async def test_meta_filter_multikey_requires_all_pairs():
     )
     context = _make_context(response, config)
 
-    result_page = await list_metrics.fn(project_id=42, context=context, meta_filter={"a": 1, "b": 2})
+    result_page = await list_metrics.fn(
+        project_id=42, context=context, meta_filter={"a": 1, "b": 2}
+    )
     result = result_page.result
 
     assert "both_match" in result

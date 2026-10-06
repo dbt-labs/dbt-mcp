@@ -2866,7 +2866,7 @@
         "readOnlyHint": true,
         "title": "List Jobs"
       },
-      "description": "List a page of jobs in a dbt platform account with optional filtering.\n\nThis tool retrieves jobs from the dbt Admin API. Jobs are the configuration for scheduled or triggered dbt runs.\n\nPass `project_id` to list jobs across all environments in that project. This overrides the configured production environment filter. When `project_id` is omitted, results remain scoped to the configured production environment, or to the account if no environment is configured. Use `limit` and `offset` to page through large result sets.\n\nThe `result` field contains a list of job objects with details like:\n- Job ID, name, and description\n- Environment ID and project ID the job belongs to\n- Schedule configuration\n- Execute steps (dbt commands)\n- Trigger settings\n\nUse this tool to explore available jobs, understand job configurations, or find specific jobs to trigger.\n\nReturns one page in `result`, with `pagination.has_more` and `pagination.next_offset`. Use the next offset with the same filters. `limit` defaults to 50 and is capped at 100.\n",
+      "description": "List jobs in the selected project.\n\nJobs configure scheduled or triggered dbt runs. When a project selector is exposed, use `project_id` to select the project; otherwise the current context already selects it. An explicitly selected environment narrows the results to that environment, including staging. Otherwise, jobs from all environments in the project are included. Use `limit` and `offset` to page through large result sets.\n\nThe `result` field contains a list of job objects with details like:\n- Job ID, name, and description\n- Environment ID and project ID the job belongs to\n- Schedule configuration\n- Execute steps (dbt commands)\n- Trigger settings\n\nUse this tool to explore available jobs, understand job configurations, or find specific jobs to trigger.\n\nReturns one page in `result`, with `pagination.has_more` and `pagination.next_offset`. Use the next offset with the same filters. `limit` defaults to 50 and is capped at 100.\n",
       "input_schema": {
         "properties": {
           "limit": {
@@ -2883,20 +2883,6 @@
             "minimum": 0,
             "title": "Offset",
             "type": "integer"
-          },
-          "project_id": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "List jobs across all environments in this project, overriding the configured production environment filter. When omitted, use the configured production environment, or list all account jobs if none is configured",
-            "title": "Project Id"
           }
         },
         "title": "list_jobsArguments",
