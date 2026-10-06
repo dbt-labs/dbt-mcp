@@ -27,6 +27,7 @@ async def read_artifact(
     timeout: float,
     jq_filter: str | None,
     config: ArtifactConfig = ArtifactConfig(),
+    response_type: str = "artifact.other",
 ) -> str:
     if jq_filter is not None and len(jq_filter) > config.filter_chars:
         raise InvalidParameterError(
@@ -43,7 +44,15 @@ async def read_artifact(
             try:
                 async with httpx.AsyncClient(
                     timeout=timeout,
-                    event_hooks={"response": [response_limit_hook(limits)]},
+                    event_hooks={
+                        "response": [
+                            response_limit_hook(
+                                limits,
+                                response_type=response_type,
+                                observer=config.observer,
+                            )
+                        ]
+                    },
                 ) as client:
                     async with client.stream(
                         "GET",
@@ -78,7 +87,9 @@ async def _filter_artifact(path: Path, jq_filter: str, config: ArtifactConfig) -
             str(Path(__file__).with_name("artifact_worker.py")),
             str(path),
             jq_filter,
-            str(config.worker_memory_bytes),
+            str(config.worker_memory_bytes)
+            if config.worker_memory_bytes is not None
+            else "",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             limit=64 * 1024,

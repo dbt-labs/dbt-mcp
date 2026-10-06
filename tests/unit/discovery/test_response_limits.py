@@ -1,6 +1,7 @@
 import gzip
 import json
 import zlib
+from dataclasses import replace
 from unittest.mock import patch
 
 import httpx
@@ -8,6 +9,7 @@ import pytest
 
 from dbt_mcp.discovery.client import execute_query
 from dbt_mcp.errors import ResponseLimitError, ServerToolCallError, ToolCallError
+from dbt_mcp.resource_limits import HttpConfig, ResponseLimits
 from tests.unit.dbt_admin.test_artifact_limits import Chunks
 
 
@@ -68,6 +70,12 @@ async def test_upstream_encoding_fault_is_a_server_error(
 async def test_metadata_compression_bomb_stops_before_json_parsing(
     unit_discovery_config,
 ):
+    unit_discovery_config = replace(
+        unit_discovery_config,
+        http_config=HttpConfig(
+            response_limits=ResponseLimits(4 * 1024 * 1024, 2 * 1024 * 1024)
+        ),
+    )
     stream = Chunks([gzip.compress(b"x" * (3 * 1024 * 1024)), b"unused"])
     transport = httpx.MockTransport(
         lambda request: httpx.Response(
@@ -85,3 +93,22 @@ async def test_metadata_compression_bomb_stops_before_json_parsing(
             await execute_query("query", {}, config=unit_discovery_config)
     assert stream.read_count == 1
     assert stream.closed
+
+
+async def test_default_discovery_config_returns_large_response(unit_discovery_config):
+    description = "x" * (3 * 1024 * 1024)
+    payload = json.dumps({"data": {"description": description}}).encode()
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            headers={"Content-Encoding": "gzip"},
+            stream=Chunks([gzip.compress(payload)]),
+        )
+    )
+    client_class = httpx.AsyncClient
+    with patch(
+        "httpx.AsyncClient",
+        side_effect=lambda **kwargs: client_class(transport=transport, **kwargs),
+    ):
+        result = await execute_query("query", {}, config=unit_discovery_config)
+    assert result == {"data": {"description": description}}

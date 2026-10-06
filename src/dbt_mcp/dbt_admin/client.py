@@ -52,7 +52,7 @@ class DbtAdminAPIClient:
         } | config.headers_provider.get_headers()
 
     async def _make_request(
-        self, method: str, endpoint: str, **kwargs: Any
+        self, method: str, endpoint: str, *, response_type: str = "admin", **kwargs: Any
     ) -> dict[str, Any]:
         """Make a request to the dbt API."""
         config = await self.config_provider.get_config()
@@ -67,7 +67,11 @@ class DbtAdminAPIClient:
                     timeout=PLATFORM_API_TIMEOUT,
                     event_hooks={
                         "response": [
-                            response_limit_hook(config.http_config.response_limits)
+                            response_limit_hook(
+                                config.http_config.response_limits,
+                                response_type=response_type,
+                                observer=config.http_config.observer,
+                            )
                         ]
                     },
                 ) as client,
@@ -413,6 +417,7 @@ class DbtAdminAPIClient:
         result = await self._make_request(
             "GET",
             f"/api/v2/accounts/{account_id}/runs/{run_id}/",
+            response_type="admin.run_details",
             params={"include_related": "['run_steps']"},
         )
         data = result.get("data", {})
@@ -511,6 +516,18 @@ class DbtAdminAPIClient:
                 timeout=PLATFORM_API_TIMEOUT,
                 jq_filter=jq_filter,
                 config=config.artifact_config,
+                response_type="artifact."
+                + (
+                    artifact_path[:-5]
+                    if artifact_path
+                    in {
+                        "manifest.json",
+                        "run_results.json",
+                        "catalog.json",
+                        "sources.json",
+                    }
+                    else "other"
+                ),
             )
         except TimeoutError as e:
             raise InvalidParameterError(

@@ -12,7 +12,7 @@ from tests.unit.dbt_admin.test_client import MockHeadersProvider
 
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.errors import InvalidParameterError, ResponseLimitError
-from dbt_mcp.resource_limits import ArtifactConfig
+from dbt_mcp.resource_limits import ArtifactConfig, ResponseLimits
 from tests.unit.dbt_admin.test_client import (
     MockAdminApiConfigProvider,
 )
@@ -47,6 +47,12 @@ class Chunks(httpx.AsyncByteStream):
 async def test_artifact_source_limit_stops_stream_before_eof(
     admin_config, encoding, jq_filter
 ):
+    admin_config = replace(
+        admin_config,
+        artifact_config=ArtifactConfig(
+            response_limits=ResponseLimits(16 * 1024 * 1024, 32 * 1024 * 1024)
+        ),
+    )
     payload = b"x" * (1024 * 1024)
     chunks = [payload] * 40
     if encoding == "gzip":
@@ -250,3 +256,24 @@ async def test_cancellation_during_worker_launch_reaps_child_and_removes_spool(
             )
             == "[0]"
         )
+
+
+async def test_default_artifact_config_filters_large_manifest(admin_config):
+    payload = b'{"metadata":{"ok":true},"padding":"' + b"x" * (33 * 1024 * 1024) + b'"}'
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            headers={"Content-Encoding": "gzip"},
+            stream=Chunks([gzip.compress(payload)]),
+        )
+    )
+    real_client = httpx.AsyncClient
+    client = DbtAdminAPIClient(MockAdminApiConfigProvider(admin_config))
+    with patch(
+        "httpx.AsyncClient",
+        side_effect=lambda **kw: real_client(transport=transport, **kw),
+    ):
+        result = await client.get_job_run_artifact(
+            12345, 100, "manifest.json", jq_filter=".metadata"
+        )
+    assert result == '[{"ok":true}]'

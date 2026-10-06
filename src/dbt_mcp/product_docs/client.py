@@ -494,6 +494,13 @@ class ProductDocsClient:
             getsizeof=lambda value: len(str(value).encode("utf-8")),
         )
 
+    def _cache_value(self, key: str, value: Any) -> None:
+        try:
+            self._cache[key] = value
+        except ValueError:
+            # A response can exceed the cache budget when acquisition is unlimited.
+            pass
+
     # -- fetchers ------------------------------------------------------------
 
     async def get_index(self) -> list[dict[str, str]]:
@@ -508,15 +515,20 @@ class ProductDocsClient:
                     follow_redirects=True,
                     event_hooks={
                         "response": [
-                            response_limit_hook(self._http_config.response_limits)
+                            response_limit_hook(
+                                self._http_config.response_limits,
+                                response_type="product_docs.index",
+                                observer=self._http_config.observer,
+                            )
                         ]
                     },
                 ) as client,
             ):
                 response = await client.get(LLMS_TXT_URL)
                 response.raise_for_status()
-            self._cache["index"] = parse_llms_txt(response.text)
-            logger.info("Cached llms.txt index: %d pages", len(self._cache["index"]))
+            index = parse_llms_txt(response.text)
+            self._cache_value("index", index)
+            return index
         return self._cache["index"]
 
     async def get_full_text_index(self) -> list[dict[str, str]]:
@@ -530,14 +542,21 @@ class ProductDocsClient:
                     timeout=120.0,
                     follow_redirects=True,
                     event_hooks={
-                        "response": [response_limit_hook(self._limits.index_limits)]
+                        "response": [
+                            response_limit_hook(
+                                self._limits.index_limits,
+                                response_type="product_docs.full_index",
+                                observer=self._http_config.observer,
+                            )
+                        ]
                     },
                 ) as client,
             ):
                 response = await client.get(LLMS_FULL_TXT_URL)
                 response.raise_for_status()
-            self._cache["full_text"] = parse_llms_full_txt(response.text)
-            logger.info("Cached llms-full.txt: %d pages", len(self._cache["full_text"]))
+            index = parse_llms_full_txt(response.text)
+            self._cache_value("full_text", index)
+            return index
         return self._cache["full_text"]
 
     async def get_page(self, url: str) -> str:
@@ -557,7 +576,11 @@ class ProductDocsClient:
                     follow_redirects=True,
                     event_hooks={
                         "response": [
-                            response_limit_hook(self._http_config.response_limits)
+                            response_limit_hook(
+                                self._http_config.response_limits,
+                                response_type="product_docs.page",
+                                observer=self._http_config.observer,
+                            )
                         ]
                     },
                 ) as client,
@@ -567,7 +590,8 @@ class ProductDocsClient:
             if len(self._cache) >= self._limits.cache_entries:
                 self._cache.popitem()
             # Include the URL in the value-based cache budget as well as the content.
-            self._cache[url] = {"url": url, "content": response.text}
+            self._cache_value(url, {"url": url, "content": response.text})
+            return response.text
         return self._cache[url]["content"]
 
     # -- search --------------------------------------------------------------

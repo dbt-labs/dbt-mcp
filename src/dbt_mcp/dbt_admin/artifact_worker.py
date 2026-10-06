@@ -11,7 +11,7 @@ if sys.platform != "win32":
 
 
 def main() -> None:
-    if sys.platform == "linux":
+    if sys.platform == "linux" and sys.argv[3]:
         memory_bytes = int(sys.argv[3])
         resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
     os.environ.clear()

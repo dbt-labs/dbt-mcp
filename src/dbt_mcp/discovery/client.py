@@ -363,6 +363,7 @@ async def execute_query(
     variables: dict,
     *,
     config: DiscoveryConfig,
+    response_type: str = "discovery",
 ) -> dict:
     url = config.url
     headers = config.headers_provider.get_headers()
@@ -373,7 +374,13 @@ async def execute_query(
             headers={"Accept-Encoding": "gzip, deflate"},
             timeout=PLATFORM_API_TIMEOUT,
             event_hooks={
-                "response": [response_limit_hook(config.http_config.response_limits)]
+                "response": [
+                    response_limit_hook(
+                        config.http_config.response_limits,
+                        response_type=response_type,
+                        observer=config.http_config.observer,
+                    )
+                ]
             },
         ) as client,
     ):
@@ -923,7 +930,10 @@ class LineageFetcher:
         }
 
         result = await execute_query(
-            GraphQLQueries.GET_FULL_LINEAGE, variables, config=config
+            GraphQLQueries.GET_FULL_LINEAGE,
+            variables,
+            config=config,
+            response_type="discovery.lineage",
         )
         raise_gql_error(result)
 

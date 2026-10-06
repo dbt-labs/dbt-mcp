@@ -21,7 +21,13 @@ async def submit_request(
             headers={"Accept-Encoding": "gzip, deflate"},
             timeout=timeout,
             event_hooks={
-                "response": [response_limit_hook(sl_config.http_config.response_limits)]
+                "response": [
+                    response_limit_hook(
+                        sl_config.http_config.response_limits,
+                        response_type="semantic_layer",
+                        observer=sl_config.http_config.observer,
+                    )
+                ]
             },
         ) as client,
     ):

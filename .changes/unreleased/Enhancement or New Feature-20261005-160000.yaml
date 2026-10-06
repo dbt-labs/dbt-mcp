@@ -1,3 +1,3 @@
 kind: Enhancement or New Feature
-body: Bound response acquisition and retained documentation state, and offload artifact processing with host-injected resource budgets and admission.
+body: Add optional host-injected response budgets, admission and streaming size observations, bound retained documentation state, and offload artifact processing. Local acquisition and worker memory budgets default to unlimited.
 time: 2026-10-05T16:00:00Z
