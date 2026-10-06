@@ -1,3 +1,0 @@
-kind: Enhancement or New Feature
-body: Resolve relative DBT_PROJECT_DIR, DBT_PROFILES_DIR and DBT_PATH values to absolute paths at startup, so they no longer depend on the directory the server is launched from
-time: 2026-10-06T15:24:20.539694+02:00
