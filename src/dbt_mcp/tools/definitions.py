@@ -1,15 +1,17 @@
 from collections.abc import Callable
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from enum import Enum
 from functools import partial, wraps
 from inspect import Parameter, Signature, isawaitable, signature, unwrap
-from typing import Any
+from typing import Annotated, Any, get_args, get_origin
 
 from mcp.server.fastmcp.tools.base import Tool
 from mcp.types import ToolAnnotations
+from pydantic.fields import FieldInfo
 
 from dbt_mcp.tools.injection import (
     AdaptError,
+    ContextInput,
     _accepts,
     adapt_with_mapper,
     adapt_with_mappers,
@@ -29,9 +31,6 @@ class GenericToolDefinition[NameEnum: Enum]:
     structured_output: bool = True
     meta: dict[str, Any] | None = None
     requirements: tuple[Target | Enum, ...] | None = None
-    # Selectors belong to the model's input contract. Context mappers consume
-    # them; implementations read the resulting context instead of placeholders.
-    inputs: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         # Adapted/bound signatures may hide every target. The canonical function
@@ -42,25 +41,39 @@ class GenericToolDefinition[NameEnum: Enum]:
     @property
     def input_signature(self) -> Signature:
         """Complete unbound model contract, including context-only selectors."""
-        return self._with_inputs(signature(self.fn))
-
-    def _with_inputs(self, original: Signature) -> Signature:
-        parameters = dict(original.parameters)
-        for name, annotation in self.inputs.items():
-            parameters[name] = Parameter(
-                name, Parameter.KEYWORD_ONLY, annotation=annotation
+        parameters = dict(signature(self.fn).parameters)
+        for name, parameter in self._context_inputs.items():
+            parameters[name] = parameter.replace(
+                kind=Parameter.KEYWORD_ONLY, default=Parameter.empty
             )
         ordered = sorted(
             parameters.values(),
             key=lambda p: (p.kind, p.default is not Parameter.empty),
         )
-        return original.replace(parameters=ordered)
+        return signature(self.fn).replace(parameters=ordered)
+
+    @property
+    def _context_inputs(self) -> dict[str, Parameter]:
+        """Schema inputs declared on the canonical function and consumed by context."""
+        return {
+            name: parameter.replace(
+                annotation=Annotated[*get_args(parameter.annotation), parameter.default]
+            )
+            if isinstance(parameter.default, FieldInfo)
+            else parameter
+            for name, parameter in signature(unwrap(self.fn)).parameters.items()
+            if get_origin(parameter.annotation) is Annotated
+            and any(
+                isinstance(item, ContextInput)
+                for item in get_args(parameter.annotation)[1:]
+            )
+        }
 
     @property
     def targets(self) -> dict[str, Target]:
         # Access declarations survive context adaptation even when no selector
         # is exposed by the configured mapper.
-        return target_parameters(self._with_inputs(signature(unwrap(self.fn))))
+        return target_parameters(unwrap(self.fn))
 
     def invocation_function(self) -> Callable[..., Any]:
         """Apply declared input types to selectors consumed by context mappers.
@@ -70,12 +83,13 @@ class GenericToolDefinition[NameEnum: Enum]:
         declaration stays non-nullable and required whenever it is exposed.
         """
         implementation = signature(self.fn)
-        if not self.inputs.keys() & implementation.parameters.keys():
+        declarations = self._context_inputs
+        if not declarations.keys() & implementation.parameters.keys():
             return self.fn
         invocation = implementation.replace(
             parameters=[
-                p.replace(annotation=self.inputs[p.name])
-                if p.name in self.inputs
+                p.replace(annotation=declarations[p.name].annotation)
+                if p.name in declarations
                 else p
                 for p in implementation.parameters.values()
             ]
@@ -102,9 +116,9 @@ class GenericToolDefinition[NameEnum: Enum]:
             structured_output=self.structured_output,
             meta=self.meta,
         )
-        # Context-only inputs have no implementation default. The transport's
-        # omission support must not make them optional in the model contract.
-        for name in self.inputs.keys() & tool.parameters["properties"].keys():
+        # Context input defaults declare schemas, rather than runtime values.
+        # Transport omission support must not make exposed selectors optional.
+        for name in self._context_inputs.keys() & tool.parameters["properties"].keys():
             tool.parameters["properties"][name].pop("default", None)
             tool.parameters.setdefault("required", []).append(name)
         if "required" in tool.parameters:
@@ -133,11 +147,13 @@ class GenericToolDefinition[NameEnum: Enum]:
 
     def _adapted(self, fn: Callable[..., Any]) -> "GenericToolDefinition[NameEnum]":
         exposed = signature(fn)
-        for name, annotation in self.inputs.items():
+        for name, declaration in self._context_inputs.items():
             parameter = exposed.parameters.get(name)
-            if parameter is not None and not _accepts(parameter.annotation, annotation):
+            if parameter is not None and not _accepts(
+                parameter.annotation, declaration.annotation
+            ):
                 raise AdaptError(
-                    f"{name}: context mapper cannot accept declared input {annotation!r}"
+                    f"{name}: context mapper cannot accept declared input {declaration.annotation!r}"
                 )
         return replace(self, fn=fn)
 
@@ -160,7 +176,6 @@ def generic_dbt_mcp_tool[NameEnum: Enum](
     structured_output: bool = True,
     meta: dict[str, Any] | None = None,
     requirements: tuple[Target | Enum, ...] | None = None,
-    inputs: dict[str, Any] | None = None,
 ) -> Callable[[Callable], GenericToolDefinition[NameEnum]]:
     """Decorator to define a tool definition for dbt MCP"""
 
@@ -181,7 +196,6 @@ def generic_dbt_mcp_tool[NameEnum: Enum](
             structured_output=structured_output,
             meta=meta,
             requirements=requirements,
-            inputs=dict(inputs or {}),
         )
 
     return decorator

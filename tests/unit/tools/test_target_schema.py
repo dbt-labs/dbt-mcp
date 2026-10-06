@@ -1,4 +1,5 @@
 from unittest.mock import AsyncMock, MagicMock
+from inspect import signature
 
 import pytest
 
@@ -25,6 +26,7 @@ def test_canonical_service_schemas_explicitly_declare_target_parameters() -> Non
         return MagicMock()
 
     for tool in DISCOVERY_TOOLS + SEMANTIC_LAYER_TOOLS:
+        assert "project_id" in signature(tool.fn).parameters
         declarations = tool.targets
         assert set(declarations) == {"project_id"}
         assert isinstance(declarations["project_id"], ProjectTarget)
@@ -38,6 +40,7 @@ def test_canonical_service_schemas_explicitly_declare_target_parameters() -> Non
         )
         assert "project_id" in schema["required"]
         assert schema["properties"]["project_id"]["type"] == "integer"
+        assert schema["properties"]["project_id"]["description"] == "Project ID."
 
 
 async def test_semantic_layer_uses_the_bound_configuration(
@@ -47,7 +50,7 @@ async def test_semantic_layer_uses_the_bound_configuration(
     context = SemanticLayerToolContext(StaticConfigProvider(config), MagicMock())
     fetch = AsyncMock(return_value=ListMetricsResponse(metrics=[]))
     monkeypatch.setattr(context.semantic_layer_fetcher, "list_metrics", fetch)
-    await list_metrics.fn(context=context)
+    await list_metrics.fn(context=context, project_id=99)
     assert fetch.call_args.kwargs["config"] is config
 
 
@@ -60,6 +63,6 @@ async def test_discovery_uses_the_bound_configuration(
     context = DiscoveryToolContext(StaticConfigProvider(config))
     fetch = AsyncMock(return_value=[{"name": "orders"}])
     monkeypatch.setattr(context.models_fetcher, "fetch_models", fetch)
-    result = await get_all_models.fn(context=context)
+    result = await get_all_models.fn(context=context, project_id=99)
     assert result == [{"name": "orders"}]
     assert fetch.call_args.kwargs["config"] is config

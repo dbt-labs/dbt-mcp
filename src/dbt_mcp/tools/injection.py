@@ -1,12 +1,18 @@
 import inspect
 from collections import OrderedDict
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from functools import wraps
 from types import UnionType
 from typing import Annotated, Any, Union, cast, get_args, get_origin, get_type_hints
 
 
 class AdaptError(TypeError): ...
+
+
+@dataclass(frozen=True)
+class ContextInput:
+    """A schema input consumed by context building, rather than by the body."""
 
 
 def _signature(func: Callable[..., Any]) -> inspect.Signature:
@@ -106,6 +112,19 @@ def _inject_parameters[R](
         return func
 
     original = _signature(func)
+    consumed = {
+        name
+        for name, parameter in original.parameters.items()
+        if get_origin(parameter.annotation) is Annotated
+        and any(
+            isinstance(item, ContextInput)
+            for item in get_args(parameter.annotation)[1:]
+        )
+        and name not in parameter_mappers
+    }
+    for name in consumed:
+        if original.parameters[name].default is inspect.Parameter.empty:
+            raise AdaptError(f"{name}: ContextInput requires a schema default")
     unknown = parameter_mappers.keys() - original.parameters.keys()
     if unknown:
         raise AdaptError(f"Unknown mapper destinations: {', '.join(sorted(unknown))}")
@@ -134,10 +153,15 @@ def _inject_parameters[R](
                     if get_origin(parameter.annotation) is Annotated
                     else parameter.annotation
                 )
+                metadata = [
+                    item
+                    for item in get_args(canonical.annotation)[1:]
+                    if not isinstance(item, ContextInput)
+                ]
                 parameter = parameter.replace(
-                    annotation=Annotated[
-                        value_type, *get_args(canonical.annotation)[1:]
-                    ]
+                    annotation=Annotated[value_type, *metadata]
+                    if metadata
+                    else value_type
                 )
             if name in inputs and inputs[name] != parameter:
                 raise AdaptError(f"Conflicting mapper input declarations for {name}")
@@ -148,7 +172,9 @@ def _inject_parameters[R](
         *(
             parameter
             for name, parameter in original.parameters.items()
-            if name not in parameter_mappers and name not in inputs
+            if name not in parameter_mappers
+            and name not in inputs
+            and name not in consumed
         ),
     ]
     parameters.sort(key=lambda p: (p.kind, p.default is not inspect.Parameter.empty))
@@ -176,7 +202,12 @@ def _inject_parameters[R](
 
     def invoke(values: dict[str, Any]) -> Any:
         bound = inspect.BoundArguments(
-            original, OrderedDict((name, values[name]) for name in original.parameters)
+            original,
+            OrderedDict(
+                (name, values[name])
+                for name in original.parameters
+                if name not in consumed
+            ),
         )
         return func(*bound.args, **bound.kwargs)
 

@@ -6,8 +6,10 @@ from typing import Annotated, Any
 
 import pytest
 from mcp.server.fastmcp.exceptions import ToolError
+from pydantic import Field
 
 from dbt_mcp.tools.targets import Permission, ProjectTarget
+from dbt_mcp.tools.injection import AdaptError, ContextInput
 
 from dbt_mcp.tools.definitions import GenericToolDefinition, generic_dbt_mcp_tool
 from dbt_mcp.tools.register import generic_register_tools
@@ -111,13 +113,14 @@ async def test_explicit_selector_is_consumed_by_context_building():
         description="test",
         title="test",
         name_enum=FakeToolName,
-        inputs={
-            "project_id": Annotated[
-                int, ProjectTarget(requires=Permission.METADATA_READ)
-            ]
-        },
     )
-    async def my_tool(context: str, query: str) -> str:
+    async def my_tool(
+        context: str,
+        query: str,
+        project_id: Annotated[
+            int, ProjectTarget(requires=Permission.METADATA_READ), ContextInput()
+        ] = Field(description="Project ID."),
+    ) -> str:
         return f"{context}:{query}"
 
     def build_context(project_id: int) -> str:
@@ -129,6 +132,21 @@ async def test_explicit_selector_is_consumed_by_context_building():
     assert schema["properties"]["project_id"]["type"] == "integer"
     assert "project_id" in schema["required"]
     assert my_tool.targets["project_id"].requires == Permission.METADATA_READ
+    assert "project_id" in signature(my_tool.fn).parameters
+    assert "project_id" in adapted.input_signature.parameters
+
+    def build_query(term: str) -> str:
+        return term.upper()
+
+    adapted_again = adapted.adapt_with_mappers(query=build_query)
+    assert await adapted_again.fn(project_id=42, term="orders") == "project 42:ORDERS"
+    assert adapted_again.targets == my_tool.targets
+
+    def wrong_context(project_id: str) -> str:
+        return project_id
+
+    with pytest.raises(AdaptError, match="cannot accept declared input"):
+        my_tool.adapt_with_mappers(context=wrong_context)
 
 
 async def test_configured_context_consumes_no_selector_and_injects_no_placeholder():
@@ -136,13 +154,13 @@ async def test_configured_context_consumes_no_selector_and_injects_no_placeholde
         description="test",
         title="test",
         name_enum=FakeToolName,
-        inputs={
-            "project_id": Annotated[
-                int, ProjectTarget(requires=Permission.METADATA_READ)
-            ]
-        },
     )
-    async def my_tool(context: str) -> str:
+    async def my_tool(
+        context: str,
+        project_id: Annotated[
+            int, ProjectTarget(requires=Permission.METADATA_READ), ContextInput()
+        ] = Field(description="Project ID."),
+    ) -> str:
         return context
 
     def build_context() -> str:
@@ -159,13 +177,13 @@ async def test_selector_declaration_stays_required_and_non_nullable():
         description="test",
         title="test",
         name_enum=FakeToolName,
-        inputs={
-            "project_id": Annotated[
-                int, ProjectTarget(requires=Permission.METADATA_READ)
-            ]
-        },
     )
-    async def my_tool(context: str) -> str:
+    async def my_tool(
+        context: str,
+        project_id: Annotated[
+            int, ProjectTarget(requires=Permission.METADATA_READ), ContextInput()
+        ] = Field(description="Project ID."),
+    ) -> str:
         return context
 
     def build_context(project_id: int | None = None) -> str:
