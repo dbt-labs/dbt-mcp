@@ -1,4 +1,4 @@
-"""Bound response bodies before HTTPX decodes or buffers them."""
+"""Bound HTTP response bodies before HTTPX decodes or buffers them."""
 
 import zlib
 from collections.abc import AsyncIterator, Callable

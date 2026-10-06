@@ -20,7 +20,7 @@ from dbt_mcp.oauth.dbt_platform import (
     DbtPlatformEnvironment,
     DbtPlatformEnvironmentResponse,
 )
-from dbt_mcp.http import response_limit_hook
+from dbt_mcp.http_limits import response_limit_hook
 
 
 from dbt_mcp.pagination import (

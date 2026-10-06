@@ -10,7 +10,7 @@ server to refresh.
 
 import logging
 import re
-from dbt_mcp.http import response_limit_hook
+from dbt_mcp.http_limits import response_limit_hook
 from dbt_mcp.resource_limits import HttpConfig, ProductDocsConfig
 from cachetools import LRUCache
 

@@ -13,7 +13,7 @@ from dbt_mcp.discovery.graphql import load_query
 from dbt_mcp.errors import DiscoveryToolCallError, InvalidParameterError, ToolCallError
 from dbt_mcp.errors.common import NotFoundError
 from dbt_mcp.gql.errors import raise_gql_error
-from dbt_mcp.http import response_limit_hook
+from dbt_mcp.http_limits import response_limit_hook
 from dbt_mcp.tools.parameters import LineageDirection, LineageResourceType
 
 from dbt_mcp.pagination import Pagination, ResultPage, validate_page_size
