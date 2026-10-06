@@ -218,7 +218,7 @@ async def test_list_jobs(client):
     mock_client = create_mock_httpx_client(mock_response)
 
     with patch("httpx.AsyncClient", return_value=mock_client):
-        result = await client.list_jobs(12345, project_id=1, limit=10)
+        result = (await client.list_jobs(12345, project_id=1, limit=10)).result
 
     assert len(result) == 1
     assert result[0]["id"] == 1
@@ -237,6 +237,7 @@ async def test_list_jobs(client):
         params={
             "project_id": 1,
             "limit": 10,
+            "offset": 0,
             "include_related": "['most_recent_run','most_recent_completed_run']",
         },
     )
@@ -265,7 +266,7 @@ async def test_list_jobs_with_null_values(client):
     mock_client = create_mock_httpx_client(mock_response)
 
     with patch("httpx.AsyncClient", return_value=mock_client):
-        result = await client.list_jobs(12345)
+        result = (await client.list_jobs(12345)).result
 
     assert len(result) == 1
     assert result[0]["most_recent_run_id"] is None
@@ -364,9 +365,9 @@ async def test_list_jobs_runs(client):
     mock_client = create_mock_httpx_client(mock_response)
 
     with patch("httpx.AsyncClient", return_value=mock_client):
-        result = await client.list_jobs_runs(
-            12345, job_definition_id=1, status="success"
-        )
+        result = (
+            await client.list_jobs_runs(12345, job_definition_id=1, status="success")
+        ).result
 
     assert len(result) == 1
     run = result[0]
@@ -414,6 +415,8 @@ async def test_list_jobs_runs(client):
         params={
             "job_definition_id": 1,
             "status": "success",
+            "limit": 50,
+            "offset": 0,
             "include_related": "['job']",
         },
     )
@@ -443,7 +446,7 @@ async def test_list_jobs_runs_with_null_job(client):
     mock_client = create_mock_httpx_client(mock_response)
 
     with patch("httpx.AsyncClient", return_value=mock_client):
-        result = await client.list_jobs_runs(12345)
+        result = (await client.list_jobs_runs(12345)).result
 
     assert len(result) == 1
     run = result[0]
@@ -761,7 +764,7 @@ async def test_list_projects(client):
     mock_client = create_mock_httpx_client(mock_response)
 
     with patch("httpx.AsyncClient", return_value=mock_client):
-        result = await client.list_projects(12345)
+        result = (await client.list_projects(12345)).result
 
     assert len(result) == 1
     p = result[0]
@@ -787,6 +790,8 @@ async def test_list_projects(client):
         follow_redirects=True,
         params={
             "state": 1,
+            "limit": 50,
+            "offset": 0,
             "include_related": "['environments','repository']",
         },
     )
@@ -857,7 +862,7 @@ async def test_list_projects_no_semantic_layer(client):
     mock_client = create_mock_httpx_client(mock_response)
 
     with patch("httpx.AsyncClient", return_value=mock_client):
-        result = await client.list_projects(12345)
+        result = (await client.list_projects(12345)).result
 
     p = result[0]
     assert p["has_semantic_layer"] is False

@@ -19,7 +19,7 @@ async def test_resource_details_fetcher_accepts_unique_id_for_model(
     resource_details_fetcher: ResourceDetailsFetcher,
     discovery_config: DiscoveryConfig,
 ) -> None:
-    models = await models_fetcher.fetch_models(config=discovery_config)
+    models = (await models_fetcher.fetch_models(config=discovery_config)).result
     assert len(models) > 0
     model = models[0]
     result = await resource_details_fetcher.fetch_details(
@@ -38,7 +38,7 @@ async def test_resource_details_fetcher_accepts_name_for_model(
     resource_details_fetcher: ResourceDetailsFetcher,
     discovery_config: DiscoveryConfig,
 ) -> None:
-    models = await models_fetcher.fetch_models(config=discovery_config)
+    models = (await models_fetcher.fetch_models(config=discovery_config)).result
     assert len(models) > 0
     model = models[0]
     result = await resource_details_fetcher.fetch_details(
@@ -57,7 +57,7 @@ async def test_resource_details_fetcher_accepts_unique_id_for_source(
     resource_details_fetcher: ResourceDetailsFetcher,
     discovery_config: DiscoveryConfig,
 ) -> None:
-    sources = await sources_fetcher.fetch_sources(config=discovery_config)
+    sources = (await sources_fetcher.fetch_sources(config=discovery_config)).result
     assert len(sources) > 0
     source = sources[0]
     unique_id = source["uniqueId"]
@@ -81,7 +81,7 @@ async def test_resource_details_fetcher_accepts_name_for_source(
     resource_details_fetcher: ResourceDetailsFetcher,
     discovery_config: DiscoveryConfig,
 ) -> None:
-    sources = await sources_fetcher.fetch_sources(config=discovery_config)
+    sources = (await sources_fetcher.fetch_sources(config=discovery_config)).result
     assert len(sources) > 0
     source = sources[0]
     name = source["name"]

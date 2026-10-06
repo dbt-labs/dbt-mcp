@@ -4,6 +4,7 @@ from typing import Any
 from dbtsl.models.dimension import DimensionType
 from dbtsl.models.entity import EntityType
 from dbtsl.models.metric import MetricType
+from dbt_mcp.pagination import Pagination
 
 
 @dataclass
@@ -44,6 +45,7 @@ class MetricToolResponse:
 @dataclass
 class ListMetricsResponse:
     metrics: list[MetricToolResponse]
+    pagination: Pagination | None = None
 
 
 @dataclass

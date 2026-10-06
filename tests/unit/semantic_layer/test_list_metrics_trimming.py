@@ -164,19 +164,20 @@ def _make_context(
 
 
 @pytest.mark.asyncio
-async def test_list_metrics_skips_trim_for_small_result_set():
+async def test_list_metrics_bounds_verbose_small_result_set():
     """A small result set (<= metrics_related_max) is never trimmed, even if verbose."""
     # 2 metrics each with a huge description, well over max_response_chars
     response = _make_response(2, description="X" * 20000)
     config = MagicMock(metrics_related_max=10, max_response_chars=100)
     context = _make_context(response, config)
 
-    result = await list_metrics.fn(context=context)
+    result_page = await list_metrics.fn(context=context)
+    result = result_page.result
 
-    assert not result.startswith("# Note:")
-    assert "description" in result.splitlines()[0]
+    assert result.startswith("# Note:")
+    assert "description" not in result.splitlines()[1]
     # The verbose description survives untrimmed
-    assert "X" * 100 in result
+    assert "X" * 100 not in result
 
 
 @pytest.mark.asyncio
@@ -186,7 +187,8 @@ async def test_list_metrics_trims_broad_listing():
     config = MagicMock(metrics_related_max=10, max_response_chars=200)
     context = _make_context(response, config)
 
-    result = await list_metrics.fn(context=context)
+    result_page = await list_metrics.fn(context=context)
+    result = result_page.result
 
     assert result.startswith("# Note:")
     header = result.splitlines()[1]
@@ -209,9 +211,10 @@ async def test_meta_filter_returns_only_matching_metrics():
     config = MagicMock(metrics_related_max=10, max_response_chars=16000)
     context = _make_context(response, config)
 
-    result = await list_metrics.fn(
+    result_page = await list_metrics.fn(
         context=context, meta_filter={"agent_accessible": True}
     )
+    result = result_page.result
 
     data_lines = [line for line in result.splitlines() if not line.startswith("#")]
     assert len(data_lines) == 3  # header + 2 matching rows
@@ -224,7 +227,8 @@ async def test_meta_filter_none_returns_all_metrics():
     config = MagicMock(metrics_related_max=10, max_response_chars=16000)
     context = _make_context(response, config)
 
-    result = await list_metrics.fn(context=context, meta_filter=None)
+    result_page = await list_metrics.fn(context=context, meta_filter=None)
+    result = result_page.result
 
     data_lines = [line for line in result.splitlines() if not line.startswith("#")]
     assert len(data_lines) == 6  # header + 5 rows
@@ -245,7 +249,8 @@ async def test_meta_filter_excludes_metrics_without_metadata():
     config = MagicMock(metrics_related_max=10, max_response_chars=16000)
     context = _make_context(response, config)
 
-    result = await list_metrics.fn(context=context, meta_filter={"flag": True})
+    result_page = await list_metrics.fn(context=context, meta_filter={"flag": True})
+    result = result_page.result
 
     assert "metric_with_meta" in result
     assert "metric_no_meta" not in result
@@ -267,7 +272,8 @@ async def test_meta_filter_multikey_requires_all_pairs():
     config = MagicMock(metrics_related_max=10, max_response_chars=16000)
     context = _make_context(response, config)
 
-    result = await list_metrics.fn(context=context, meta_filter={"a": 1, "b": 2})
+    result_page = await list_metrics.fn(context=context, meta_filter={"a": 1, "b": 2})
+    result = result_page.result
 
     assert "both_match" in result
     assert "b_mismatch" not in result

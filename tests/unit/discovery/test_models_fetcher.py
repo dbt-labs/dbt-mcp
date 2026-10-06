@@ -3,6 +3,7 @@ from unittest.mock import Mock
 import pytest
 
 from dbt_mcp.discovery.client import ModelsFetcher, PaginatedResourceFetcher
+from dbt_mcp.errors import InvalidParameterError
 
 
 @pytest.fixture
@@ -32,8 +33,6 @@ def paginated_models_fetcher():
     paginator = PaginatedResourceFetcher(
         edges_path=("data", "environment", "applied", "models", "edges"),
         page_info_path=("data", "environment", "applied", "models", "pageInfo"),
-        page_size=1,
-        max_node_query_limit=10000,
     )
     return ModelsFetcher(paginator=paginator)
 
@@ -96,6 +95,8 @@ async def test_resolve_unique_ids_by_name_single_match(
     assert result == ["model.jaffle.orders"]
     query, variables = mock_api_client.call_args[0]
     assert variables["modelsFilter"] == {"identifier": "orders"}
+    assert variables["first"] == 100
+    assert mock_api_client.await_count == 1
 
 
 async def test_resolve_unique_ids_by_name_multi_match(
@@ -105,12 +106,10 @@ async def test_resolve_unique_ids_by_name_multi_match(
     real matches (same name) flow through."""
     mock_api_client.side_effect = [
         _models_page(
-            [{"name": "orders", "uniqueId": "model.jaffle.orders"}],
-            has_next=True,
-            end_cursor="cursor-1",
-        ),
-        _models_page(
-            [{"name": "orders", "uniqueId": "model.other_pkg.orders"}],
+            [
+                {"name": "orders", "uniqueId": "model.jaffle.orders"},
+                {"name": "orders", "uniqueId": "model.other_pkg.orders"},
+            ],
             has_next=False,
             end_cursor="cursor-2",
         ),
@@ -121,42 +120,50 @@ async def test_resolve_unique_ids_by_name_multi_match(
     )
 
     assert result == ["model.jaffle.orders", "model.other_pkg.orders"]
-    assert mock_api_client.await_count == 2
+    assert mock_api_client.await_count == 1
 
 
-async def test_resolve_unique_ids_by_name_paginates_across_pages(
-    paginated_models_fetcher, mock_api_client, unit_discovery_config
+@pytest.mark.parametrize("candidate_count", [1, 50])
+async def test_resolve_unique_ids_by_name_requires_id_when_candidates_remain(
+    paginated_models_fetcher, mock_api_client, unit_discovery_config, candidate_count
 ):
-    """Resolution must not silently truncate when the server has more matches
-    than fit in a single page (the bug the DEFAULT_PAGE_SIZE-only helper had)."""
+    """An incomplete candidate set must not be returned as complete resolution."""
     mock_api_client.side_effect = [
         _models_page(
-            [{"name": "orders", "uniqueId": "model.pkg_a.orders"}],
+            [
+                {"name": "orders", "uniqueId": f"model.pkg_{i}.orders"}
+                for i in range(candidate_count)
+            ],
             has_next=True,
             end_cursor="c1",
         ),
-        _models_page(
-            [{"name": "orders", "uniqueId": "model.pkg_b.orders"}],
-            has_next=True,
-            end_cursor="c2",
-        ),
-        _models_page(
-            [{"name": "orders", "uniqueId": "model.pkg_c.orders"}],
-            has_next=False,
-            end_cursor="c3",
-        ),
+        _models_page([], has_next=False, end_cursor=None),
     ]
+
+    with pytest.raises(InvalidParameterError, match="provide unique_id"):
+        await paginated_models_fetcher.resolve_unique_ids_by_name(
+            "orders", config=unit_discovery_config
+        )
+
+    assert mock_api_client.await_count == 1
+
+
+async def test_resolve_unique_ids_by_name_accepts_complete_candidate_limit(
+    paginated_models_fetcher, mock_api_client, unit_discovery_config
+):
+    ids = [f"model.pkg_{i}.orders" for i in range(100)]
+    mock_api_client.return_value = _models_page(
+        [{"name": "orders", "uniqueId": unique_id} for unique_id in ids],
+        has_next=False,
+        end_cursor="last",
+    )
 
     result = await paginated_models_fetcher.resolve_unique_ids_by_name(
         "orders", config=unit_discovery_config
     )
 
-    assert result == [
-        "model.pkg_a.orders",
-        "model.pkg_b.orders",
-        "model.pkg_c.orders",
-    ]
-    assert mock_api_client.await_count == 3
+    assert result == ids
+    assert mock_api_client.await_count == 1
 
 
 async def test_resolve_unique_ids_by_name_empty(

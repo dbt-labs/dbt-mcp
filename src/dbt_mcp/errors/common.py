@@ -28,3 +28,7 @@ class MissingHostError(ConfigurationError):
     """Raised when DBT_HOST is required but not configured."""
 
     pass
+
+
+class UpstreamResponseError(ToolCallError):
+    """An upstream response violates the client/server protocol contract."""

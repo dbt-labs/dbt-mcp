@@ -35,3 +35,5 @@ Parameters:
     search="time"
 </example>
 </examples>
+
+Returns one source page in `result`, with `pagination.has_more` and `pagination.next_page`. Pass the next page as `page_num` with the same filters and `page_size` (default 50, maximum 100). Local filtering may leave an empty page with more pages available. Restart at page 1 if you reduce the page size after a size-limit error.

@@ -1,27 +1,24 @@
-from collections.abc import Iterable
-from typing import Any
-
 import pytest
 
 from dbt_mcp.discovery.client import PaginatedResourceFetcher
+from dbt_mcp.errors import DiscoveryToolCallError, InvalidParameterError
 
 
-def _make_page(
-    nodes: Iterable[dict[str, Any]],
-    *,
-    has_next: bool | None,
-    end_cursor: str | None,
-) -> dict[str, Any]:
+def paginator():
+    return PaginatedResourceFetcher(
+        edges_path=("data", "environment", "applied", "models", "edges"),
+        page_info_path=("data", "environment", "applied", "models", "pageInfo"),
+    )
+
+
+def response(nodes, *, has_more=False, cursor=None):
     return {
         "data": {
             "environment": {
                 "applied": {
                     "models": {
                         "edges": [{"node": node} for node in nodes],
-                        "pageInfo": {
-                            "hasNextPage": has_next,
-                            "endCursor": end_cursor,
-                        },
+                        "pageInfo": {"hasNextPage": has_more, "endCursor": cursor},
                     }
                 }
             }
@@ -29,88 +26,64 @@ def _make_page(
     }
 
 
-def _build_paginator(*, page_size: int, max_limit: int) -> PaginatedResourceFetcher:
-    return PaginatedResourceFetcher(
-        edges_path=("data", "environment", "applied", "models", "edges"),
-        page_info_path=("data", "environment", "applied", "models", "pageInfo"),
-        page_size=page_size,
-        max_node_query_limit=max_limit,
-    )
-
-
-@pytest.mark.asyncio
-async def test_fetch_paginated_stops_at_max_limit(
+async def test_one_page_preserves_native_cursor_and_order(
     mock_api_client, unit_discovery_config
 ):
-    paginator = _build_paginator(page_size=1, max_limit=2)
-
-    mock_api_client.side_effect = [
-        _make_page([{"id": 1}], has_next=True, end_cursor="cursor-1"),
-        _make_page([{"id": 2}], has_next=True, end_cursor="cursor-2"),
-        _make_page([{"id": 3}], has_next=False, end_cursor="cursor-3"),
-    ]
-
-    result = await paginator.fetch_paginated(
-        "GetModels", variables={}, config=unit_discovery_config
+    mock_api_client.return_value = response(
+        [{"id": 2}, {"id": 1}], has_more=True, cursor="next"
+    )
+    page = await paginator().fetch_paginated(
+        "query", {}, config=unit_discovery_config, limit=2, after="previous"
+    )
+    assert page.result == [{"id": 2}, {"id": 1}]
+    assert page.pagination.has_more
+    assert page.pagination.next_cursor == "next"
+    mock_api_client.assert_awaited_once_with(
+        "query",
+        {
+            "environmentId": unit_discovery_config.environment_id,
+            "first": 2,
+            "after": "previous",
+        },
+        config=unit_discovery_config,
     )
 
-    assert [node["id"] for node in result] == [1, 2]
-    assert mock_api_client.await_count == 2
+
+async def test_empty_terminal_page(mock_api_client, unit_discovery_config):
+    mock_api_client.return_value = response([])
+    page = await paginator().fetch_paginated("query", {}, config=unit_discovery_config)
+    assert page.result == []
+    assert not page.pagination.has_more
+    assert page.pagination.next_cursor is None
 
 
-@pytest.mark.asyncio
-async def test_fetch_paginated_stops_when_cursor_repeats(
+@pytest.mark.parametrize("cursor", [None, "previous"])
+async def test_non_advancing_cursor_is_actionable(
+    mock_api_client, unit_discovery_config, cursor
+):
+    mock_api_client.return_value = response([{"id": 1}], has_more=True, cursor=cursor)
+    with pytest.raises(DiscoveryToolCallError, match="did not advance"):
+        await paginator().fetch_paginated(
+            "query", {}, config=unit_discovery_config, after="previous"
+        )
+
+
+async def test_upstream_excess_nodes_is_a_server_error(
     mock_api_client, unit_discovery_config
 ):
-    paginator = _build_paginator(page_size=1, max_limit=5)
-
-    mock_api_client.side_effect = [
-        _make_page([{"id": 1}], has_next=True, end_cursor="cursor-repeat"),
-        _make_page([{"id": 2}], has_next=True, end_cursor="cursor-repeat"),
-        _make_page([{"id": 3}], has_next=True, end_cursor="cursor-final"),
-    ]
-
-    result = await paginator.fetch_paginated(
-        "GetModels", variables={}, config=unit_discovery_config
-    )
-
-    assert [node["id"] for node in result] == [1, 2]
-    assert mock_api_client.await_count == 2
+    mock_api_client.return_value = response([{"id": 1}, {"id": 2}])
+    with pytest.raises(DiscoveryToolCallError, match="more nodes than requested"):
+        await paginator().fetch_paginated(
+            "query", {}, config=unit_discovery_config, limit=1
+        )
 
 
-@pytest.mark.asyncio
-async def test_fetch_paginated_handles_partial_final_page(
-    mock_api_client, unit_discovery_config
+@pytest.mark.parametrize("limit", [0, -1, 101, None])
+async def test_invalid_page_size_does_not_request_data(
+    mock_api_client, unit_discovery_config, limit
 ):
-    paginator = _build_paginator(page_size=2, max_limit=10)
-
-    mock_api_client.side_effect = [
-        _make_page([{"id": 1}, {"id": 2}], has_next=True, end_cursor="cursor-1"),
-        _make_page([{"id": 3}], has_next=False, end_cursor="cursor-2"),
-    ]
-
-    result = await paginator.fetch_paginated(
-        "GetModels", variables={}, config=unit_discovery_config
-    )
-
-    assert [node["id"] for node in result] == [1, 2, 3]
-    assert mock_api_client.await_count == 2
-
-    first_call_variables = mock_api_client.await_args_list[0][0][1]
-    second_call_variables = mock_api_client.await_args_list[1][0][1]
-    assert "after" not in first_call_variables
-    assert second_call_variables["after"] == "cursor-1"
-
-
-@pytest.mark.asyncio
-async def test_fetch_paginated_empty_edges(mock_api_client, unit_discovery_config):
-    paginator = _build_paginator(page_size=5, max_limit=10)
-
-    mock_api_client.return_value = _make_page([], has_next=False, end_cursor=None)
-
-    result = await paginator.fetch_paginated(
-        "GetModels", variables={}, config=unit_discovery_config
-    )
-
-    assert result == []
-    mock_api_client.assert_awaited_once()
+    with pytest.raises(InvalidParameterError, match="limit"):
+        await paginator().fetch_paginated(
+            "query", {}, config=unit_discovery_config, limit=limit
+        )
+    mock_api_client.assert_not_awaited()

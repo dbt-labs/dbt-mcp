@@ -46,6 +46,8 @@ from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 
+from dbt_mcp.pagination import AFTER_FIELD, LIMIT_FIELD, ResultPage
+
 logger = logging.getLogger(__name__)
 
 
@@ -124,12 +126,19 @@ class DiscoveryToolContext:
 )
 async def get_mart_models(
     context: DiscoveryToolContext,
-) -> list[dict]:
+    limit: Annotated[int, LIMIT_FIELD] = 50,
+    after: Annotated[str | None, AFTER_FIELD] = None,
+) -> ResultPage[list[dict]]:
     mart_models = await context.models_fetcher.fetch_models(
         model_filter={"modelingLayer": "marts"},
         config=await context.config_provider.get_config(),
+        limit=limit,
+        after=after,
     )
-    return [m for m in mart_models if m["name"] != "metricflow_time_spine"]
+    return ResultPage(
+        result=[m for m in mart_models.result if m["name"] != "metricflow_time_spine"],
+        pagination=mart_models.pagination,
+    )
 
 
 @dbt_mcp_tool(
@@ -141,9 +150,13 @@ async def get_mart_models(
 )
 async def get_all_models(
     context: DiscoveryToolContext,
-) -> list[dict]:
+    limit: Annotated[int, LIMIT_FIELD] = 50,
+    after: Annotated[str | None, AFTER_FIELD] = None,
+) -> ResultPage[list[dict]]:
     config = await context.config_provider.get_config()
-    return await context.models_fetcher.fetch_models(config=config)
+    return await context.models_fetcher.fetch_models(
+        config=config, limit=limit, after=after
+    )
 
 
 @dbt_mcp_tool(
@@ -381,9 +394,13 @@ async def get_lineage(
 )
 async def get_exposures(
     context: DiscoveryToolContext,
-) -> list[dict]:
+    limit: Annotated[int, LIMIT_FIELD] = 50,
+    after: Annotated[str | None, AFTER_FIELD] = None,
+) -> ResultPage[list[dict]]:
     config = await context.config_provider.get_config()
-    return await context.exposures_fetcher.fetch_exposures(config=config)
+    return await context.exposures_fetcher.fetch_exposures(
+        config=config, limit=limit, after=after
+    )
 
 
 @dbt_mcp_tool(
@@ -423,10 +440,12 @@ async def get_all_sources(
     unique_ids: Annotated[
         list[str] | None, Field(description=SOURCE_UNIQUE_IDS_FILTER)
     ] = None,
-) -> list[dict]:
+    limit: Annotated[int, LIMIT_FIELD] = 50,
+    after: Annotated[str | None, AFTER_FIELD] = None,
+) -> ResultPage[list[dict]]:
     config = await context.config_provider.get_config()
     return await context.sources_fetcher.fetch_sources(
-        source_names, unique_ids, config=config
+        source_names, unique_ids, config=config, limit=limit, after=after
     )
 
 
@@ -470,13 +489,17 @@ async def get_all_macros(
     include_default_dbt_packages: Annotated[
         bool, Field(description=MACRO_INCLUDE_DEFAULT_DBT_PACKAGES)
     ] = False,
-) -> list[dict] | list[str]:
+    limit: Annotated[int, LIMIT_FIELD] = 50,
+    after: Annotated[str | None, AFTER_FIELD] = None,
+) -> ResultPage[list[dict] | list[str]]:
     config = await context.config_provider.get_config()
     return await context.macros_fetcher.fetch_macros(
         package_names=package_names,
         return_package_names_only=return_package_names_only,
         include_default_dbt_packages=include_default_dbt_packages,
         config=config,
+        limit=limit,
+        after=after,
     )
 
 

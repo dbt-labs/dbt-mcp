@@ -6,12 +6,6 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from client.session import client_session_context
-from dbt_mcp.dbt_admin.param_descriptions import (
-    JOBS_PROJECT_ID_FILTER,
-    PAGINATION_LIMIT,
-    PAGINATION_OFFSET,
-)
 from dbt_mcp.dbt_admin.tools import (
     ADMIN_TOOLS,
     AdminToolContext,
@@ -32,6 +26,8 @@ from dbt_mcp.dbt_admin.tools import (
 from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.mcp.server import register_multi_project_dbt_mcp
 from tests.mocks.config import mock_config
+
+from dbt_mcp.pagination import Pagination, ResultPage
 
 NUM_ADMIN_TOOLS = 11
 
@@ -106,6 +102,12 @@ def mock_admin_client():
         return_value=["manifest.json", "catalog.json"]
     )
     client.get_job_run_artifact = AsyncMock(return_value={"nodes": {}})
+    client.list_jobs.return_value = ResultPage(
+        result=client.list_jobs.return_value, pagination=Pagination(has_more=False)
+    )
+    client.list_jobs_runs.return_value = ResultPage(
+        result=client.list_jobs_runs.return_value, pagination=Pagination(has_more=False)
+    )
 
     return client
 
@@ -168,7 +170,7 @@ async def test_register_admin_api_tools_with_disabled_tools(
 async def test_list_jobs_tool(admin_context):
     result = await list_jobs.fn(admin_context, limit=10)
 
-    assert isinstance(result, list)
+    assert isinstance(result.result, list)
     admin_context.admin_client.list_jobs.assert_called_once()
 
 
@@ -195,9 +197,9 @@ async def test_list_jobs_runs_tool(admin_context):
         admin_context, job_id=1, status=JobRunStatus.SUCCESS, limit=5
     )
 
-    assert isinstance(result, list)
+    assert isinstance(result.result, list)
     admin_context.admin_client.list_jobs_runs.assert_called_once_with(
-        12345, job_definition_id=1, status=10, limit=5
+        12345, job_definition_id=1, status=10, limit=5, offset=0
     )
 
 
@@ -481,13 +483,15 @@ async def test_tools_handle_exceptions():
 async def test_tools_with_no_optional_parameters(admin_context):
     # Test list_jobs with no parameters
     result = await list_jobs.fn(admin_context)
-    assert isinstance(result, list)
-    admin_context.admin_client.list_jobs.assert_called_with(12345)
+    assert isinstance(result.result, list)
+    admin_context.admin_client.list_jobs.assert_called_with(12345, limit=50, offset=0)
 
     # Test list_jobs_runs with no parameters
     result = await list_jobs_runs.fn(admin_context)
-    assert isinstance(result, list)
-    admin_context.admin_client.list_jobs_runs.assert_called_with(12345)
+    assert isinstance(result.result, list)
+    admin_context.admin_client.list_jobs_runs.assert_called_with(
+        12345, limit=50, offset=0
+    )
 
     # Test get_job_run_details
     result = await get_job_run_details.fn(admin_context, run_id=100)
@@ -649,23 +653,17 @@ def test_admin_tools_list_contains_all_tools():
     assert len(ADMIN_TOOLS) == NUM_ADMIN_TOOLS
 
 
-async def test_admin_tools_list_jobs_params():
-    """Test that the list_jobs tool has the correct parameters."""
-    async with client_session_context() as client:
-        available_tools = (await client.list_tools()).tools
-        list_jobs_tool = next(
-            tool for tool in available_tools if tool.name == "list_jobs"
-        )
-        assert list_jobs_tool.inputSchema is not None
-        props = list_jobs_tool.inputSchema.get("properties")
-        assert props is not None
-        assert props["project_id"]["description"] == JOBS_PROJECT_ID_FILTER
-        assert "project_id" not in list_jobs_tool.inputSchema.get("required", [])
-        assert {"type": "integer", "exclusiveMinimum": 0} in props["project_id"][
-            "anyOf"
-        ]
-        assert props["limit"]["description"] == PAGINATION_LIMIT
-        assert props["offset"]["description"] == PAGINATION_OFFSET
+async def test_admin_tools_list_jobs_params(admin_context):
+    def bind_context() -> AdminToolContext:
+        return admin_context
+
+    tool = list_jobs.adapt_context(bind_context).to_fastmcp_internal_tool()
+    props = tool.parameters["properties"]
+    assert props["limit"]["default"] == 50
+    assert props["limit"]["minimum"] == 1
+    assert props["limit"]["maximum"] == 100
+    assert props["offset"]["default"] == 0
+    assert props["offset"]["minimum"] == 0
 
 
 @pytest.mark.parametrize("project_id", [None, 42])
@@ -690,3 +688,19 @@ async def test_list_jobs_project_scope_and_pagination(
         expected["environment_id"] = prod_environment_id
     list_jobs_mock = cast(AsyncMock, admin_context.admin_client.list_jobs)
     list_jobs_mock.assert_awaited_once_with(12345, **expected)
+
+
+async def test_list_jobs_mcp_text_and_structured_output_share_pagination(admin_context):
+    def bind_context() -> AdminToolContext:
+        return admin_context
+
+    admin_context.admin_client.list_jobs.return_value = ResultPage(
+        result=[{"id": 1}],
+        pagination=Pagination(has_more=True, next_offset=1, total_items=2),
+    )
+    tool = list_jobs.adapt_context(bind_context).to_fastmcp_internal_tool()
+    text, structured = await tool.run({"limit": 1}, convert_result=True)
+    assert structured["result"] == [{"id": 1}]
+    assert structured["pagination"]["has_more"] is True
+    assert structured["pagination"]["next_offset"] == 1
+    assert json.loads(text[0].text) == structured

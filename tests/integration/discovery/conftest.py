@@ -10,8 +10,6 @@ from dbt_mcp.config.config_providers.discovery import DefaultDiscoveryConfigProv
 from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.config.settings import DbtMcpSettings
 from dbt_mcp.discovery.client import (
-    DEFAULT_MAX_NODE_QUERY_LIMIT,
-    DEFAULT_PAGE_SIZE,
     ExposuresFetcher,
     MacrosFetcher,
     ModelsFetcher,
@@ -57,8 +55,6 @@ def models_fetcher() -> ModelsFetcher:
     paginator = PaginatedResourceFetcher(
         edges_path=("data", "environment", "applied", "models", "edges"),
         page_info_path=("data", "environment", "applied", "models", "pageInfo"),
-        page_size=DEFAULT_PAGE_SIZE,
-        max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
     )
     return ModelsFetcher(paginator=paginator)
 
@@ -74,8 +70,6 @@ def exposures_fetcher() -> ExposuresFetcher:
             "exposures",
             "pageInfo",
         ),
-        page_size=DEFAULT_PAGE_SIZE,
-        max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
     )
     return ExposuresFetcher(paginator=paginator)
 
@@ -85,8 +79,6 @@ def sources_fetcher() -> SourcesFetcher:
     paginator = PaginatedResourceFetcher(
         edges_path=("data", "environment", "applied", "sources", "edges"),
         page_info_path=("data", "environment", "applied", "sources", "pageInfo"),
-        page_size=DEFAULT_PAGE_SIZE,
-        max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
     )
     return SourcesFetcher(paginator=paginator)
 
@@ -96,7 +88,5 @@ def macros_fetcher() -> MacrosFetcher:
     paginator = PaginatedResourceFetcher(
         edges_path=("data", "environment", "applied", "resources", "edges"),
         page_info_path=("data", "environment", "applied", "resources", "pageInfo"),
-        page_size=DEFAULT_PAGE_SIZE,
-        max_node_query_limit=DEFAULT_MAX_NODE_QUERY_LIMIT,
     )
     return MacrosFetcher(paginator=paginator)
