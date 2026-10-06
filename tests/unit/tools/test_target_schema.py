@@ -14,16 +14,20 @@ from dbt_mcp.semantic_layer.tools import (
     list_metrics,
 )
 from dbt_mcp.semantic_layer.types import ListMetricsResponse
-from dbt_mcp.tools.targets import ProjectTarget, target_parameters
+from dbt_mcp.tools.targets import EnvironmentRole, ProjectTarget, target_parameters
 
 
 def test_canonical_service_schemas_explicitly_declare_target_parameters() -> None:
+    def context() -> MagicMock:
+        return MagicMock()
+
     for tool in DISCOVERY_TOOLS + SEMANTIC_LAYER_TOOLS:
         declarations = target_parameters(tool.fn)
         assert set(declarations) == {"project_id"}
         assert isinstance(declarations["project_id"], ProjectTarget)
+        assert declarations["project_id"].environment == EnvironmentRole.PRODUCTION
         schema = (
-            tool.bind_arguments(context=MagicMock())
+            tool.adapt_with_mappers(context=context)
             .to_fastmcp_internal_tool()
             .parameters
         )

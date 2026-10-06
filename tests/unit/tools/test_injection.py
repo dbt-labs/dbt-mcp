@@ -1,5 +1,5 @@
 import inspect
-from typing import get_type_hints
+from typing import Annotated, get_type_hints
 
 import pytest
 
@@ -293,3 +293,54 @@ def test_adapt_with_mapper_provides_type_hints_for_async_functions():
 
     assert hints["ctx"] is Context
     assert hints["return"] is str
+
+
+async def test_named_mappers_inject_same_typed_arguments_from_shared_input():
+    calls = []
+
+    async def target(project_id: int, environment_id: int, *, query: str) -> str:
+        return f"{project_id}:{environment_id}:{query}"
+
+    def project(ctx: Context) -> int:
+        calls.append("project")
+        return ctx.user_id
+
+    async def environment(ctx: Context) -> int:
+        calls.append("environment")
+        return ctx.user_id + 100
+
+    adapted = adapt_with_mappers(target, project_id=project, environment_id=environment)
+    assert list(inspect.signature(adapted).parameters) == ["ctx", "query"]
+    assert await adapted(Context(42), query="orders") == "42:142:orders"
+    assert calls == ["project", "environment"]
+    with pytest.raises(TypeError, match="project_id"):
+        await adapted(Context(42), project_id=99, query="orders")
+
+
+def test_named_mapper_can_transform_a_caller_argument_and_preserve_metadata():
+    def target(project_id: Annotated[int, "target"], query: str) -> str:
+        return f"{project_id}:{query}"
+
+    def project(project_id: int) -> int:
+        return project_id + 1
+
+    adapted = adapt_with_mappers(target, project_id=project)
+    assert (
+        get_type_hints(adapted, include_extras=True)["project_id"]
+        == Annotated[int, "target"]
+    )
+    assert adapted(project_id=41, query="orders") == "42:orders"
+
+
+def test_named_mappers_reject_conflicting_shared_inputs():
+    def target(project_id: int, environment_id: int) -> str:
+        return "example"
+
+    def project(ctx: Context) -> int:
+        return ctx.user_id
+
+    def environment(ctx: Data) -> int:
+        return int(ctx.value)
+
+    with pytest.raises(AdaptError, match="ctx"):
+        adapt_with_mappers(target, project_id=project, environment_id=environment)

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import Enum, StrEnum
 from inspect import signature
 from typing import Annotated, Any, get_args, get_origin
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 
 
 class Permission(Enum):
@@ -28,7 +28,8 @@ class Target:
 
 @dataclass(frozen=True)
 class ProjectTarget(Target):
-    pass
+    # The host resolves this environment alongside the project before invocation.
+    environment: EnvironmentRole | None = None
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,25 @@ class JobTarget(Target):
 @dataclass(frozen=True)
 class RunTarget(Target):
     pass
+
+
+def target_environment_role(targets: Iterable[Target]) -> EnvironmentRole | None:
+    roles = set()
+    for target in targets:
+        role = (
+            target.environment
+            if isinstance(target, ProjectTarget)
+            else target.role
+            if isinstance(target, EnvironmentTarget)
+            else None
+        )
+        if role is not None:
+            if not isinstance(role, EnvironmentRole):
+                raise ValueError(f"Unsupported target environment: {role!r}")
+            roles.add(role)
+    if len(roles) > 1:
+        raise ValueError("Additional environment checks require a custom policy")
+    return next(iter(roles), None)
 
 
 def target_parameters(fn: Callable[..., Any]) -> dict[str, Target]:

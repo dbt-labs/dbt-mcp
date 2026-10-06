@@ -10,7 +10,7 @@ from dbt_mcp.discovery.tools import (
     get_node_details,
 )
 from dbt_mcp.discovery.tools import (
-    discovery_context_mapper,
+    discovery_context_mappers,
 )
 from dbt_mcp.tools.tool_names import ToolName
 
@@ -67,7 +67,7 @@ async def test_get_node_details_multiproject_delegates_to_fetcher(
     context.config_provider.get_config = AsyncMock(return_value=config)
     context.resource_details_fetcher.fetch_details = AsyncMock(return_value=["row"])
 
-    mapper = discovery_context_mapper(context.config_provider)
+    mapper = discovery_context_mappers(context.config_provider)["context"]
     mapped = await mapper(project_id=42)
     mapped.resource_details_fetcher = context.resource_details_fetcher
     result = await get_node_details.fn(

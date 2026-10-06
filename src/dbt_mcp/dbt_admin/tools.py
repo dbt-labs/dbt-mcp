@@ -37,6 +37,7 @@ from dbt_mcp.dbt_admin.run_artifacts.parser import ErrorFetcher, WarningFetcher
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.tools.targets import (
+    EnvironmentRole,
     AccountTarget,
     JobTarget,
     Permission,
@@ -106,7 +107,9 @@ async def list_jobs(
     *,
     project_id: Annotated[
         int,
-        ProjectTarget(requires=Permission.JOBS_READ),
+        ProjectTarget(
+            requires=Permission.JOBS_READ, environment=EnvironmentRole.PRODUCTION
+        ),
         Field(description=JOBS_PROJECT_ID_FILTER, gt=0),
     ],
 ) -> ResultPage[list[dict[str, Any]]]:
@@ -437,7 +440,7 @@ def register_admin_api_tools(
     dbt_mcp: FastMCP,
     admin_config_provider: ConfigProvider[AdminApiConfig],
     *,
-    production_config_provider: ProjectConfigProvider[DiscoveryConfig] | None = None,
+    production_config_provider: ProjectConfigProvider[DiscoveryConfig],
     disabled_tools: set[ToolName],
     enabled_tools: set[ToolName] | None,
     enabled_toolsets: set[Toolset],
@@ -450,24 +453,16 @@ def register_admin_api_tools(
 
     async def build_jobs_context(project_id: int | None = None) -> AdminToolContext:
         config = await admin_config_provider.get_config()
-        if production_config_provider is not None:
-            production = await production_config_provider.get_config(
-                project_id=project_id
-            )
-            config = replace(config, prod_environment_id=production.environment_id)
+        production = await production_config_provider.get_config(project_id=project_id)
+        config = replace(config, prod_environment_id=production.environment_id)
         return AdminToolContext(admin_api_config_provider=StaticConfigProvider(config))
 
     definitions = [
-        tool.adapt_context(build_jobs_context if tool is list_jobs else bind_context)
+        tool.adapt_with_mappers(
+            context=build_jobs_context if tool is list_jobs else bind_context
+        )
         for tool in ADMIN_TOOLS
     ]
-    if production_config_provider is None:
-        definitions = [
-            tool.bind_arguments(project_id=None)
-            if tool.get_name() == ToolName.LIST_JOBS
-            else tool
-            for tool in definitions
-        ]
     register_tools(
         dbt_mcp,
         tool_definitions=definitions,

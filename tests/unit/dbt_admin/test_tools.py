@@ -146,6 +146,7 @@ async def test_register_admin_api_tools_all_tools(mock_register_tools, mock_fast
     register_admin_api_tools(
         fastmcp,
         mock_config.admin_api_config_provider,
+        production_config_provider=mock_config.discovery_config_provider,
         disabled_tools=set(),
         enabled_tools=None,
         enabled_toolsets=set(),
@@ -169,6 +170,7 @@ async def test_register_admin_api_tools_with_disabled_tools(
     register_admin_api_tools(
         fastmcp,
         mock_config.admin_api_config_provider,
+        production_config_provider=mock_config.discovery_config_provider,
         disabled_tools=set(disable_tools),
         enabled_tools=None,
         enabled_toolsets=set(),
