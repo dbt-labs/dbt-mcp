@@ -1,7 +1,13 @@
 """Unit tests for tool definition infrastructure."""
 
 from enum import Enum
-from typing import Any
+from inspect import signature
+from typing import Annotated, Any
+
+import pytest
+from mcp.server.fastmcp.exceptions import ToolError
+
+from dbt_mcp.tools.targets import Permission, ProjectTarget
 
 from dbt_mcp.tools.definitions import GenericToolDefinition, generic_dbt_mcp_tool
 from dbt_mcp.tools.register import generic_register_tools
@@ -98,3 +104,78 @@ class TestMetaPassthrough:
         )
 
         assert mock_mcp.tool_kwargs["my_tool"]["meta"] is None
+
+
+async def test_explicit_selector_is_consumed_by_context_building():
+    @generic_dbt_mcp_tool(
+        description="test",
+        title="test",
+        name_enum=FakeToolName,
+        inputs={
+            "project_id": Annotated[
+                int, ProjectTarget(requires=Permission.METADATA_READ)
+            ]
+        },
+    )
+    async def my_tool(context: str, query: str) -> str:
+        return f"{context}:{query}"
+
+    def build_context(project_id: int) -> str:
+        return f"project {project_id}"
+
+    adapted = my_tool.adapt_with_mappers(context=build_context)
+    assert await adapted.fn(project_id=42, query="orders") == "project 42:orders"
+    schema = adapted.to_fastmcp_internal_tool().parameters
+    assert schema["properties"]["project_id"]["type"] == "integer"
+    assert "project_id" in schema["required"]
+    assert my_tool.targets["project_id"].requires == Permission.METADATA_READ
+
+
+async def test_configured_context_consumes_no_selector_and_injects_no_placeholder():
+    @generic_dbt_mcp_tool(
+        description="test",
+        title="test",
+        name_enum=FakeToolName,
+        inputs={
+            "project_id": Annotated[
+                int, ProjectTarget(requires=Permission.METADATA_READ)
+            ]
+        },
+    )
+    async def my_tool(context: str) -> str:
+        return context
+
+    def build_context() -> str:
+        return "configured environment"
+
+    adapted = my_tool.adapt_with_mappers(context=build_context)
+    assert await adapted.fn() == "configured environment"
+    assert "project_id" not in signature(adapted.fn).parameters
+    assert adapted.targets == my_tool.targets
+
+
+async def test_selector_declaration_stays_required_and_non_nullable():
+    @generic_dbt_mcp_tool(
+        description="test",
+        title="test",
+        name_enum=FakeToolName,
+        inputs={
+            "project_id": Annotated[
+                int, ProjectTarget(requires=Permission.METADATA_READ)
+            ]
+        },
+    )
+    async def my_tool(context: str) -> str:
+        return context
+
+    def build_context(project_id: int | None = None) -> str:
+        return f"project {project_id}" if project_id else "configured environment"
+
+    adapted = my_tool.adapt_with_mappers(context=build_context)
+    internal = adapted.to_fastmcp_internal_tool()
+    assert internal.parameters["properties"]["project_id"]["type"] == "integer"
+    assert "project_id" in internal.parameters["required"]
+    assert await internal.run({"project_id": 42}) == "project 42"
+    with pytest.raises(ToolError, match="project_id"):
+        await internal.run({"project_id": None})
+    assert await adapted.fn() == "configured environment"

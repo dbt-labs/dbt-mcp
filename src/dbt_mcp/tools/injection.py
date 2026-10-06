@@ -2,10 +2,57 @@ import inspect
 from collections import OrderedDict
 from collections.abc import Callable, Iterable
 from functools import wraps
-from typing import Annotated, Any, cast, get_args, get_origin
+from types import UnionType
+from typing import Annotated, Any, Union, cast, get_args, get_origin, get_type_hints
 
 
 class AdaptError(TypeError): ...
+
+
+def _signature(func: Callable[..., Any]) -> inspect.Signature:
+    declaration = inspect.signature(func)
+    hints = get_type_hints(func, include_extras=True)
+    return declaration.replace(
+        parameters=[
+            p.replace(annotation=hints.get(p.name, p.annotation))
+            for p in declaration.parameters.values()
+        ],
+        return_annotation=hints.get("return", declaration.return_annotation),
+    )
+
+
+def _value_type(annotation: Any) -> Any:
+    return (
+        get_args(annotation)[0] if get_origin(annotation) is Annotated else annotation
+    )
+
+
+def _accepts(destination: Any, source: Any) -> bool:
+    """Check the value types used by injection, without interpreting metadata."""
+    destination, source = _value_type(destination), _value_type(source)
+    if destination is Any or source is Any or destination == source:
+        return True
+    if get_origin(source) in (Union, UnionType):
+        return all(_accepts(destination, member) for member in get_args(source))
+    if get_origin(destination) in (Union, UnionType):
+        return any(_accepts(member, source) for member in get_args(destination))
+    destination_origin, source_origin = get_origin(destination), get_origin(source)
+    if destination_origin or source_origin:
+        if destination_origin != source_origin:
+            return False
+        if len(get_args(destination)) != len(get_args(source)):
+            return False
+        return all(
+            _accepts(expected, actual)
+            for expected, actual in zip(
+                get_args(destination), get_args(source), strict=True
+            )
+        )
+    return (
+        isinstance(source, type)
+        and isinstance(destination, type)
+        and issubclass(source, destination)
+    )
 
 
 def adapt_with_mapper[R](
@@ -41,12 +88,12 @@ def _mapper_destinations(
     func: Callable[..., Any], mapper: Callable[..., Any]
 ) -> dict[str, Callable[..., Any]]:
     """Translate a type-based context mapper to named destinations."""
-    return_type = inspect.signature(mapper).return_annotation
+    return_type = _signature(mapper).return_annotation
     if return_type is inspect.Parameter.empty:
         raise AdaptError("mapper must have a return type annotation")
     return {
         name: mapper
-        for name, parameter in inspect.signature(func).parameters.items()
+        for name, parameter in _signature(func).parameters.items()
         if parameter.annotation == return_type
     }
 
@@ -58,7 +105,7 @@ def _inject_parameters[R](
     if not parameter_mappers:
         return func
 
-    original = inspect.signature(func)
+    original = _signature(func)
     unknown = parameter_mappers.keys() - original.parameters.keys()
     if unknown:
         raise AdaptError(f"Unknown mapper destinations: {', '.join(sorted(unknown))}")
@@ -66,9 +113,16 @@ def _inject_parameters[R](
     signatures = {}
     inputs: dict[str, inspect.Parameter] = {}
     for destination, mapper in parameter_mappers.items():
-        signature = inspect.signature(mapper)
+        signature = _signature(mapper)
         if signature.return_annotation is inspect.Parameter.empty:
             raise AdaptError("mapper must have a return type annotation")
+        if not _accepts(
+            original.parameters[destination].annotation, signature.return_annotation
+        ):
+            raise AdaptError(
+                f"{destination}: mapper return type {signature.return_annotation!r} "
+                f"is incompatible with {original.parameters[destination].annotation!r}"
+            )
         signatures[destination] = signature
         for name, parameter in signature.parameters.items():
             if parameter.annotation is inspect.Parameter.empty:

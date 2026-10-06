@@ -344,3 +344,44 @@ def test_named_mappers_reject_conflicting_shared_inputs():
 
     with pytest.raises(AdaptError, match="ctx"):
         adapt_with_mappers(target, project_id=project, environment_id=environment)
+
+
+@pytest.mark.parametrize("return_type", [int | None, str, list[int], "int | None"])
+def test_named_mapper_rejects_incompatible_return_type(return_type):
+    def mapper() -> int:
+        return 42
+
+    mapper.__annotations__["return"] = return_type
+    with pytest.raises(AdaptError, match="user_id.*return type"):
+        adapt_with_mappers(greet_user_id, user_id=mapper)
+
+
+def test_named_mapper_accepts_a_subclass_and_a_narrower_union():
+    def target(value: Context | None) -> int:
+        return value.user_id if value else 0
+
+    class DerivedContext(Context): ...
+
+    def mapper() -> DerivedContext:
+        return DerivedContext(42)
+
+    assert adapt_with_mappers(target, value=mapper)() == 42
+
+
+def test_named_mapper_checks_generic_arguments():
+    def target(values: list[int]) -> int:
+        return sum(values)
+
+    def mapper() -> list[str]:
+        return ["42"]
+
+    with pytest.raises(AdaptError, match="values.*return type"):
+        adapt_with_mappers(target, values=mapper)
+
+
+def test_named_mapper_resolves_forward_annotations():
+    def mapper() -> int:
+        return 42
+
+    mapper.__annotations__["return"] = "int"
+    assert adapt_with_mappers(greet_user_id, user_id=mapper)() == "Hello, user 42!"

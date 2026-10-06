@@ -188,7 +188,7 @@ class DbtMCP(FastMCP):
             if "project_id" in arguments:
                 raise ValueError("project_id is bound by the current context; omit it")
             # Configured-environment providers need no project selector.
-            return arguments | {"project_id": projects[0] if projects else None}
+            return arguments | {"project_id": projects[0]} if projects else arguments
         project_id = arguments.get("project_id")
         if type(project_id) is not int or project_id not in projects:
             raise ValueError(f"project_id must be one of {projects}")

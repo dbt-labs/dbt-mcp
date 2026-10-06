@@ -30,7 +30,6 @@ async def test_get_dimension_values_tool_returns_success_response(tool_context):
     tool_context.semantic_layer_fetcher.get_dimension_values.return_value = response
 
     result = await get_dimension_values.fn(
-        project_id=42,
         context=tool_context,
         dimension="customer__country",
         metrics=["revenue"],
@@ -46,7 +45,6 @@ async def test_get_dimension_values_tool_returns_error_response(tool_context):
     tool_context.semantic_layer_fetcher.get_dimension_values.return_value = response
 
     result = await get_dimension_values.fn(
-        project_id=42,
         context=tool_context,
         dimension="foo",
         metrics=["revenue"],

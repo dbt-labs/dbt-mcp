@@ -179,7 +179,7 @@ async def test_list_metrics_bounds_verbose_small_result_set():
     )
     context = _make_context(response, config)
 
-    result_page = await list_metrics.fn(project_id=42, context=context)
+    result_page = await list_metrics.fn(context=context)
     result = result_page.result
 
     assert result.startswith("# Note:")
@@ -203,7 +203,7 @@ async def test_list_metrics_trims_broad_listing():
     )
     context = _make_context(response, config)
 
-    result_page = await list_metrics.fn(project_id=42, context=context)
+    result_page = await list_metrics.fn(context=context)
     result = result_page.result
 
     assert result.startswith("# Note:")
@@ -236,7 +236,7 @@ async def test_meta_filter_returns_only_matching_metrics():
     context = _make_context(response, config)
 
     result_page = await list_metrics.fn(
-        project_id=42, context=context, meta_filter={"agent_accessible": True}
+        context=context, meta_filter={"agent_accessible": True}
     )
     result = result_page.result
 
@@ -259,9 +259,7 @@ async def test_meta_filter_none_returns_all_metrics():
     )
     context = _make_context(response, config)
 
-    result_page = await list_metrics.fn(
-        project_id=42, context=context, meta_filter=None
-    )
+    result_page = await list_metrics.fn(context=context, meta_filter=None)
     result = result_page.result
 
     data_lines = [line for line in result.splitlines() if not line.startswith("#")]
@@ -291,9 +289,7 @@ async def test_meta_filter_excludes_metrics_without_metadata():
     )
     context = _make_context(response, config)
 
-    result_page = await list_metrics.fn(
-        project_id=42, context=context, meta_filter={"flag": True}
-    )
+    result_page = await list_metrics.fn(context=context, meta_filter={"flag": True})
     result = result_page.result
 
     assert "metric_with_meta" in result
@@ -324,9 +320,7 @@ async def test_meta_filter_multikey_requires_all_pairs():
     )
     context = _make_context(response, config)
 
-    result_page = await list_metrics.fn(
-        project_id=42, context=context, meta_filter={"a": 1, "b": 2}
-    )
+    result_page = await list_metrics.fn(context=context, meta_filter={"a": 1, "b": 2})
     result = result_page.result
 
     assert "both_match" in result

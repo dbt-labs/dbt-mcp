@@ -36,6 +36,7 @@ class AdminApiConfig:
     environment_id: int | None = None
     http_config: HttpConfig = HttpConfig()
     artifact_config: ArtifactConfig = ArtifactConfig()
+    project_id: int | None = None
 
 
 @dataclass

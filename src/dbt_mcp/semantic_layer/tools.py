@@ -178,6 +178,16 @@ class SemanticLayerToolContext:
 
 
 @dbt_mcp_tool(
+    inputs={
+        "project_id": Annotated[
+            int,
+            ProjectTarget(
+                requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
+                environment=EnvironmentRole.PRODUCTION,
+            ),
+            Field(description="Project ID."),
+        ]
+    },
     description=get_prompt("semantic_layer/list_metrics"),
     title="List Metrics",
     read_only_hint=True,
@@ -194,15 +204,6 @@ async def list_metrics(
     ] = None,
     page_num: Annotated[int, PAGE_NUM_FIELD] = 1,
     page_size: Annotated[int, LIMIT_FIELD] = 50,
-    *,
-    project_id: Annotated[
-        int,
-        ProjectTarget(
-            requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
-            environment=EnvironmentRole.PRODUCTION,
-        ),
-        Field(description="Project ID."),
-    ],
 ) -> ResultPage[str]:
     config = await context.config_provider.get_config()
     response = await context.semantic_layer_fetcher.list_metrics(
@@ -217,6 +218,16 @@ async def list_metrics(
 
 
 @dbt_mcp_tool(
+    inputs={
+        "project_id": Annotated[
+            int,
+            ProjectTarget(
+                requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
+                environment=EnvironmentRole.PRODUCTION,
+            ),
+            Field(description="Project ID."),
+        ]
+    },
     description=get_prompt("semantic_layer/list_saved_queries"),
     title="List Saved Queries",
     read_only_hint=True,
@@ -230,15 +241,6 @@ async def list_saved_queries(
     ] = None,
     page_num: Annotated[int, PAGE_NUM_FIELD] = 1,
     page_size: Annotated[int, LIMIT_FIELD] = 50,
-    *,
-    project_id: Annotated[
-        int,
-        ProjectTarget(
-            requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
-            environment=EnvironmentRole.PRODUCTION,
-        ),
-        Field(description="Project ID."),
-    ],
 ) -> ResultPage[list[SavedQueryToolResponse]]:
     config = await context.config_provider.get_config()
     return await context.semantic_layer_fetcher.list_saved_queries(
@@ -247,6 +249,16 @@ async def list_saved_queries(
 
 
 @dbt_mcp_tool(
+    inputs={
+        "project_id": Annotated[
+            int,
+            ProjectTarget(
+                requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
+                environment=EnvironmentRole.PRODUCTION,
+            ),
+            Field(description="Project ID."),
+        ]
+    },
     description=get_prompt("semantic_layer/get_dimensions"),
     title="Get Dimensions",
     read_only_hint=True,
@@ -259,15 +271,6 @@ async def get_dimensions(
     search: Annotated[str | None, Field(description=SEMANTIC_SEARCH_DIMENSIONS)] = None,
     page_num: Annotated[int, PAGE_NUM_FIELD] = 1,
     page_size: Annotated[int, LIMIT_FIELD] = 50,
-    *,
-    project_id: Annotated[
-        int,
-        ProjectTarget(
-            requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
-            environment=EnvironmentRole.PRODUCTION,
-        ),
-        Field(description="Project ID."),
-    ],
 ) -> ResultPage[list[DimensionToolResponse]]:
     config = await context.config_provider.get_config()
     return await context.semantic_layer_fetcher.get_dimensions(
@@ -280,6 +283,16 @@ async def get_dimensions(
 
 
 @dbt_mcp_tool(
+    inputs={
+        "project_id": Annotated[
+            int,
+            ProjectTarget(
+                requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
+                environment=EnvironmentRole.PRODUCTION,
+            ),
+            Field(description="Project ID."),
+        ]
+    },
     description=get_prompt("semantic_layer/get_entities"),
     title="Get Entities",
     read_only_hint=True,
@@ -292,15 +305,6 @@ async def get_entities(
     search: Annotated[str | None, Field(description=SEMANTIC_SEARCH_ENTITIES)] = None,
     page_num: Annotated[int, PAGE_NUM_FIELD] = 1,
     page_size: Annotated[int, LIMIT_FIELD] = 50,
-    *,
-    project_id: Annotated[
-        int,
-        ProjectTarget(
-            requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
-            environment=EnvironmentRole.PRODUCTION,
-        ),
-        Field(description="Project ID."),
-    ],
 ) -> ResultPage[list[EntityToolResponse]]:
     config = await context.config_provider.get_config()
     return await context.semantic_layer_fetcher.get_entities(
@@ -313,6 +317,16 @@ async def get_entities(
 
 
 @dbt_mcp_tool(
+    inputs={
+        "project_id": Annotated[
+            int,
+            ProjectTarget(
+                requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
+                environment=EnvironmentRole.PRODUCTION,
+            ),
+            Field(description="Project ID."),
+        ]
+    },
     description=get_prompt("semantic_layer/get_dimension_values"),
     title="Get Dimension Values",
     read_only_hint=True,
@@ -326,15 +340,6 @@ async def get_dimension_values(
     limit: Annotated[
         int, Field(ge=1, description=SEMANTIC_DIMENSION_VALUES_LIMIT)
     ] = 100,
-    *,
-    project_id: Annotated[
-        int,
-        ProjectTarget(
-            requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
-            environment=EnvironmentRole.PRODUCTION,
-        ),
-        Field(description="Project ID."),
-    ],
 ) -> DimensionValuesResponse | DimensionValuesError:
     config = await context.config_provider.get_config()
     return await context.semantic_layer_fetcher.get_dimension_values(
@@ -346,6 +351,16 @@ async def get_dimension_values(
 
 
 @dbt_mcp_tool(
+    inputs={
+        "project_id": Annotated[
+            int,
+            ProjectTarget(
+                requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
+                environment=EnvironmentRole.PRODUCTION,
+            ),
+            Field(description="Project ID."),
+        ]
+    },
     description=get_prompt("semantic_layer/query_metrics"),
     title="Query Metrics",
     read_only_hint=True,
@@ -363,15 +378,6 @@ async def query_metrics(
     ] = None,
     where: Annotated[str | None, Field(description=SEMANTIC_WHERE)] = None,
     limit: Annotated[int | None, Field(description=QUERY_RESULT_LIMIT)] = None,
-    *,
-    project_id: Annotated[
-        int,
-        ProjectTarget(
-            requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
-            environment=EnvironmentRole.PRODUCTION,
-        ),
-        Field(description="Project ID."),
-    ],
 ) -> str:
     config = await context.config_provider.get_config()
     result = await context.semantic_layer_fetcher.query_metrics(
@@ -389,6 +395,16 @@ async def query_metrics(
 
 
 @dbt_mcp_tool(
+    inputs={
+        "project_id": Annotated[
+            int,
+            ProjectTarget(
+                requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
+                environment=EnvironmentRole.PRODUCTION,
+            ),
+            Field(description="Project ID."),
+        ]
+    },
     description=get_prompt("semantic_layer/get_metrics_compiled_sql"),
     title="Compile SQL",
     read_only_hint=True,
@@ -406,15 +422,6 @@ async def get_metrics_compiled_sql(
     ] = None,
     where: Annotated[str | None, Field(description=SEMANTIC_WHERE)] = None,
     limit: Annotated[int | None, Field(description=QUERY_RESULT_LIMIT)] = None,
-    *,
-    project_id: Annotated[
-        int,
-        ProjectTarget(
-            requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
-            environment=EnvironmentRole.PRODUCTION,
-        ),
-        Field(description="Project ID."),
-    ],
 ) -> str:
     config = await context.config_provider.get_config()
     result = await context.semantic_layer_fetcher.get_metrics_compiled_sql(
@@ -464,10 +471,7 @@ def semantic_layer_context_mappers(
     async def build_configured_context() -> SemanticLayerToolContext:
         return context(await config_provider.get_config())
 
-    def configured_project_id() -> int | None:
-        return None
-
-    return {"context": build_configured_context, "project_id": configured_project_id}
+    return {"context": build_configured_context}
 
 
 def register_sl_tools(

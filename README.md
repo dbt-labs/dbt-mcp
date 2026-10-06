@@ -132,3 +132,5 @@ Dependencies are pinned to specific versions and are not updated automatically. 
 ## Contributing
 
 Read `CONTRIBUTING.md` for instructions on how to get involved!
+
+See [tool inputs and resolved context](docs/tool-inputs.md) for selector declarations and context mapper contracts.

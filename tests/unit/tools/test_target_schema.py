@@ -14,20 +14,25 @@ from dbt_mcp.semantic_layer.tools import (
     list_metrics,
 )
 from dbt_mcp.semantic_layer.types import ListMetricsResponse
-from dbt_mcp.tools.targets import EnvironmentRole, ProjectTarget, target_parameters
+from dbt_mcp.tools.targets import EnvironmentRole, ProjectTarget
 
 
 def test_canonical_service_schemas_explicitly_declare_target_parameters() -> None:
-    def context() -> MagicMock:
+    def context(project_id: int) -> DiscoveryToolContext:
+        return MagicMock()
+
+    def sl_context(project_id: int) -> SemanticLayerToolContext:
         return MagicMock()
 
     for tool in DISCOVERY_TOOLS + SEMANTIC_LAYER_TOOLS:
-        declarations = target_parameters(tool.fn)
+        declarations = tool.targets
         assert set(declarations) == {"project_id"}
         assert isinstance(declarations["project_id"], ProjectTarget)
         assert declarations["project_id"].environment == EnvironmentRole.PRODUCTION
         schema = (
-            tool.adapt_with_mappers(context=context)
+            tool.adapt_with_mappers(
+                context=context if tool in DISCOVERY_TOOLS else sl_context
+            )
             .to_fastmcp_internal_tool()
             .parameters
         )
@@ -42,7 +47,7 @@ async def test_semantic_layer_uses_the_bound_configuration(
     context = SemanticLayerToolContext(StaticConfigProvider(config), MagicMock())
     fetch = AsyncMock(return_value=ListMetricsResponse(metrics=[]))
     monkeypatch.setattr(context.semantic_layer_fetcher, "list_metrics", fetch)
-    await list_metrics.fn(context=context, project_id=20)
+    await list_metrics.fn(context=context)
     assert fetch.call_args.kwargs["config"] is config
 
 
@@ -55,6 +60,6 @@ async def test_discovery_uses_the_bound_configuration(
     context = DiscoveryToolContext(StaticConfigProvider(config))
     fetch = AsyncMock(return_value=[{"name": "orders"}])
     monkeypatch.setattr(context.models_fetcher, "fetch_models", fetch)
-    result = await get_all_models.fn(context=context, project_id=20)
+    result = await get_all_models.fn(context=context)
     assert result == [{"name": "orders"}]
     assert fetch.call_args.kwargs["config"] is config

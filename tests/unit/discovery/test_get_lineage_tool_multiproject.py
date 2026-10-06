@@ -41,7 +41,6 @@ async def test_multiproject_get_lineage_builds_graph_from_nodes():
     )
     mapped.lineage_fetcher = context.lineage_fetcher
     result = await get_lineage.fn(
-        project_id=42,
         context=mapped,
         unique_id="model.p.a",
         types=None,

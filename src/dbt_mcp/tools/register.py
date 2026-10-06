@@ -117,7 +117,7 @@ def generic_register_tools[NameEnum: Enum](
         ):
             continue
         dbt_mcp.add_tool(
-            fn=tool_definition.fn,
+            fn=tool_definition.invocation_function(),
             name=tool_name.value,
             title=tool_definition.title,
             description=tool_definition.description,

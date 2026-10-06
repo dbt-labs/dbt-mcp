@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Annotated, Any
 
 from mcp.server.fastmcp import FastMCP
@@ -8,6 +8,7 @@ from pydantic import Field
 from dbt_mcp.config.config_providers import (
     AdminApiConfig,
     ConfigProvider,
+    StaticConfigProvider,
 )
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.dbt_admin.artifacts import InlineArtifactLimitError
@@ -67,6 +68,21 @@ class AdminToolContext:
         self.admin_client = DbtAdminAPIClient(admin_api_config_provider)
 
 
+class JobsToolContext(AdminToolContext):
+    """A jobs listing has a resolved project or an explicit environment filter."""
+
+    def __init__(self, config: AdminApiConfig):
+        if config.environment_id is not None:
+            self.filters = {"environment_id": config.environment_id}
+        elif config.project_id is not None:
+            self.filters = {"project_id": config.project_id}
+        else:
+            raise InvalidParameterError(
+                "Select a project or environment before listing jobs"
+            )
+        super().__init__(StaticConfigProvider(config))
+
+
 @dbt_mcp_tool(
     requirements=(AccountTarget(requires=Permission.PROJECTS_READ),),
     description=get_prompt("admin_api/list_projects"),
@@ -90,6 +106,13 @@ async def list_projects(
 
 
 @dbt_mcp_tool(
+    inputs={
+        "project_id": Annotated[
+            int,
+            ProjectTarget(requires=Permission.JOBS_READ),
+            Field(description=JOBS_PROJECT_ID_FILTER, gt=0),
+        ]
+    },
     description=get_prompt("admin_api/list_jobs"),
     title="List Jobs",
     read_only_hint=True,
@@ -97,31 +120,15 @@ async def list_projects(
     idempotent_hint=True,
 )
 async def list_jobs(
-    context: AdminToolContext,
+    context: JobsToolContext,
     limit: Annotated[int, LIMIT_FIELD] = 50,
     offset: Annotated[int, OFFSET_FIELD] = 0,
-    *,
-    project_id: Annotated[
-        int,
-        ProjectTarget(requires=Permission.JOBS_READ),
-        Field(description=JOBS_PROJECT_ID_FILTER, gt=0),
-    ],
 ) -> ResultPage[list[dict[str, Any]]]:
     """List project jobs, narrowed to the environment selected in the context."""
     validate_page_size(limit)
     validate_offset(offset)
     admin_api_config = await context.admin_api_config_provider.get_config()
-    params = {}
-    if admin_api_config.environment_id is not None:
-        params["environment_id"] = admin_api_config.environment_id
-    elif project_id is not None:
-        params["project_id"] = project_id
-    else:
-        raise InvalidParameterError(
-            "Select a project or environment before listing jobs"
-        )
-    params["limit"] = limit
-    params["offset"] = offset
+    params = context.filters | {"limit": limit, "offset": offset}
     return await context.admin_client.list_jobs(admin_api_config.account_id, **params)
 
 
@@ -447,14 +454,14 @@ def register_admin_api_tools(
     def bind_context() -> AdminToolContext:
         return AdminToolContext(admin_api_config_provider=admin_config_provider)
 
-    def selected_project_id(project_id: int | None = None) -> int | None:
-        # A configured environment already scopes the call without a project selector.
-        return project_id
+    async def bind_jobs_context(project_id: int | None = None) -> JobsToolContext:
+        config = await admin_config_provider.get_config()
+        if project_id is not None:
+            config = replace(config, project_id=project_id)
+        return JobsToolContext(config)
 
     definitions = [
-        tool.adapt_with_mappers(context=bind_context, project_id=selected_project_id)
-        if tool is list_jobs
-        else tool.adapt_with_mappers(context=bind_context)
+        tool.adapt_context(bind_context).adapt_context(bind_jobs_context)
         for tool in ADMIN_TOOLS
     ]
     register_tools(

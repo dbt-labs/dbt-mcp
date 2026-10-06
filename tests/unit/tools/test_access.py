@@ -57,7 +57,7 @@ def test_service_tools_declare_permissions_on_target_arguments() -> None:
         ),
     ):
         for tool in tools:
-            declarations = target_parameters(tool.fn)
+            declarations = tool.targets
             assert isinstance(declarations[parameter], target_type)
             assert declarations[parameter].requires == permission
             assert declarations["project_id"].requires == permission

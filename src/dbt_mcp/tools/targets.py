@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum, StrEnum
-from inspect import signature
+from inspect import Signature, signature
 from typing import Annotated, Any, get_args, get_origin
 from collections.abc import Callable, Iterable
 
@@ -72,9 +72,10 @@ def target_environment_role(targets: Iterable[Target]) -> EnvironmentRole | None
     return next(iter(roles), None)
 
 
-def target_parameters(fn: Callable[..., Any]) -> dict[str, Target]:
+def target_parameters(fn: Callable[..., Any] | Signature) -> dict[str, Target]:
     targets = {}
-    for name, parameter in signature(fn).parameters.items():
+    parameters = (fn if isinstance(fn, Signature) else signature(fn)).parameters
+    for name, parameter in parameters.items():
         if get_origin(parameter.annotation) is not Annotated:
             continue
         declarations = [
