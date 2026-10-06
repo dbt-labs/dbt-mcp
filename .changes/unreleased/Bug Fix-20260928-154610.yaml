@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Allow up to 10 seconds of clock skew when verifying dbt Platform OAuth access tokens so freshly issued tokens do not fail iat validation.
-time: 2026-09-28T15:46:10Z

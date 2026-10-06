@@ -1,3 +1,0 @@
-kind: Enhancement or New Feature
-body: Tell the user how to re-authenticate when a warehouse query fails because the OAuth connection expired, with a link to their credentials page in dbt platform (query_metrics, get_dimension_values, get_metrics_compiled_sql and execute_sql)
-time: 2026-10-05T13:43:10.971305+02:00

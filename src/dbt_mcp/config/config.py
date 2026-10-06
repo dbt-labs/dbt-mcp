@@ -64,6 +64,7 @@ class DbtCliConfig:
     dbt_path: str
     dbt_cli_timeout: int
     binary_type: BinaryType
+    profiles_dir: str | None = None
 
 
 @dataclass
@@ -72,6 +73,7 @@ class DbtCodegenConfig:
     dbt_path: str
     dbt_cli_timeout: int
     binary_type: BinaryType
+    profiles_dir: str | None = None
 
 
 @dataclass
@@ -213,6 +215,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
             dbt_path=settings.dbt_path,
             dbt_cli_timeout=settings.dbt_cli_timeout,
             binary_type=binary_type,
+            profiles_dir=settings.dbt_profiles_dir,
         )
 
     dbt_codegen_config = None
@@ -222,6 +225,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
             dbt_path=settings.dbt_path,
             dbt_cli_timeout=settings.dbt_cli_timeout,
             binary_type=binary_type,
+            profiles_dir=settings.dbt_profiles_dir,
         )
 
     lsp_config = None

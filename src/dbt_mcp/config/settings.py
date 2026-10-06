@@ -274,7 +274,7 @@ class DbtMcpSettings(BaseSettings):
         if v:
             p = Path(v).expanduser()
             if p.exists():
-                return str(p)
+                return str(p.resolve())
 
             field_name = (
                 getattr(info, "field_name", "None") if info is not None else "None"
@@ -293,7 +293,7 @@ class DbtMcpSettings(BaseSettings):
                     getattr(info, "field_name", "None") if info is not None else "None"
                 ).upper()
                 raise ValueError(f"{field_name} directory does not exist: {v}")
-            return str(path)
+            return str(path.resolve())
         return v
 
     @field_validator("disable_tools", mode="before")

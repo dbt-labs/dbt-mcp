@@ -1,6 +1,7 @@
 import inspect
 import json
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -879,3 +880,33 @@ def test_get_lineage_dev_resolves_manifest_from_relative_project_dir(
         unique_id="model.my_project.some_model", types=None, depth=5
     )
     assert isinstance(result, dict)
+
+
+def test_run_command_uses_project_dir_as_cwd_with_absolute_env(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
+):
+    monkeypatch.setenv("DBT_PROJECT_DIR", "./relative/project")
+    monkeypatch.setenv("DBT_PROFILES_DIR", "relative/profiles")
+    config = replace(mock_dbt_cli_config, profiles_dir="/test/profiles")
+    popen_kwargs: dict = {}
+
+    def mock_popen(args, **kwargs):
+        popen_kwargs.update(kwargs)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    tools["compile"]()
+
+    assert popen_kwargs["cwd"] == config.project_dir
+    assert popen_kwargs["env"]["DBT_PROJECT_DIR"] == config.project_dir
+    assert popen_kwargs["env"]["DBT_PROFILES_DIR"] == config.profiles_dir
