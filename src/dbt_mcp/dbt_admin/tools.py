@@ -200,6 +200,7 @@ async def trigger_job_run(
 @dbt_mcp_tool(
     description=get_prompt("admin_api/list_jobs_runs"),
     title="List Jobs Runs",
+    requirements=(AccountTarget(requires=Permission.RUNS_READ),),
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
@@ -208,10 +209,7 @@ async def list_jobs_runs(
     context: AdminToolContext,
     job_id: Annotated[
         int | None,
-        JobTarget(
-            requires=Permission.RUNS_READ,
-            when_missing=AccountTarget(requires=Permission.RUNS_READ),
-        ),
+        JobTarget(requires=Permission.RUNS_READ),
         Field(description=JOB_RUNS_JOB_DEFINITION_ID_FILTER, gt=0),
     ] = None,
     status: Annotated[JobRunStatus | None, Field(description=JOB_RUN_STATUS)] = None,

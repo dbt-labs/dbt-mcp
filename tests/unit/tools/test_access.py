@@ -3,7 +3,7 @@ from typing import Annotated
 
 import pytest
 
-from dbt_mcp.dbt_admin.tools import list_projects
+from dbt_mcp.dbt_admin.tools import list_jobs_runs, list_projects
 from dbt_mcp.discovery.tools import DISCOVERY_TOOLS
 from dbt_mcp.semantic_layer.tools import SEMANTIC_LAYER_TOOLS
 from dbt_mcp.tools.definitions import (
@@ -63,10 +63,14 @@ def test_service_tools_declare_permissions_on_target_arguments() -> None:
             assert declarations["project_id"].requires == permission
 
 
-def test_account_requirement_is_explicit() -> None:
-    assert list_projects.requirements == (
-        AccountTarget(requires=Permission.PROJECTS_READ),
-    )
+@pytest.mark.parametrize(
+    "tool,permission",
+    [(list_projects, Permission.PROJECTS_READ), (list_jobs_runs, Permission.RUNS_READ)],
+)
+def test_account_requirement_is_explicit(
+    tool: ToolDefinition, permission: Permission
+) -> None:
+    assert tool.requirements == (AccountTarget(requires=permission),)
 
 
 def test_context_adaptation_preserves_requirements_and_argument_metadata() -> None:
