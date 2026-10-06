@@ -14,18 +14,11 @@ def adapt_with_mapper[R](
     **parameter_mappers: Callable[..., Any],
 ) -> Callable[..., R]:
     """Convenience adapter for contexts identified by their annotated type."""
-    return_type = inspect.signature(mapper).return_annotation
-    if return_type is inspect.Parameter.empty:
-        raise AdaptError("mapper must have a return type annotation")
-    destinations = {
-        name: mapper
-        for name, parameter in inspect.signature(func).parameters.items()
-        if parameter.annotation == return_type
-    }
+    destinations = _mapper_destinations(func, mapper)
     overlap = destinations.keys() & parameter_mappers.keys()
     if overlap:
         raise AdaptError(f"Multiple mappers for: {', '.join(sorted(overlap))}")
-    return adapt_with_mappers(func, **destinations, **parameter_mappers)
+    return _inject_parameters(func, destinations | parameter_mappers)
 
 
 def adapt_with_mappers[R](
@@ -40,7 +33,28 @@ def adapt_with_mappers[R](
     Named mappers link directly to parameters and each run once per invocation.
     """
     for mapper in mappers:
-        func = adapt_with_mapper(func, mapper)
+        func = _inject_parameters(func, _mapper_destinations(func, mapper))
+    return _inject_parameters(func, parameter_mappers)
+
+
+def _mapper_destinations(
+    func: Callable[..., Any], mapper: Callable[..., Any]
+) -> dict[str, Callable[..., Any]]:
+    """Translate a type-based context mapper to named destinations."""
+    return_type = inspect.signature(mapper).return_annotation
+    if return_type is inspect.Parameter.empty:
+        raise AdaptError("mapper must have a return type annotation")
+    return {
+        name: mapper
+        for name, parameter in inspect.signature(func).parameters.items()
+        if parameter.annotation == return_type
+    }
+
+
+def _inject_parameters[R](
+    func: Callable[..., R], parameter_mappers: dict[str, Callable[..., Any]]
+) -> Callable[..., R]:
+    """Build a signature and invocation wrapper for named parameter injection."""
     if not parameter_mappers:
         return func
 
