@@ -4,7 +4,6 @@ from dbt_mcp.config.config_providers import SemanticLayerConfig
 from dbt_mcp.config.settings import SEMANTIC_LAYER_GQL_TIMEOUT
 from dbt_mcp.gql.errors import raise_gql_error
 from dbt_mcp.http import response_limit_hook
-from dbt_mcp.result_limits import ensure_result_size
 
 
 async def submit_request(
@@ -34,5 +33,4 @@ async def submit_request(
         response.raise_for_status()
         result = response.json()
         raise_gql_error(result)
-        ensure_result_size(result.get("data", {}))
         return result

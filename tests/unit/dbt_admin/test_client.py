@@ -922,16 +922,18 @@ async def test_list_user_credentials_uses_v3_endpoint(client):
 
 
 @pytest.mark.parametrize("method", ["list_jobs", "list_projects", "list_jobs_runs"])
-async def test_paginated_admin_results_reject_oversized_pages(client, method):
-    row = {"id": 1, "name": "x" * 512001}
+async def test_paginated_admin_results_preserve_fields_and_continuation(client, method):
+    description = "x" * (300 * 1024)
+    rows = [{"id": i, "name": f"item-{i}", "description": description} for i in (1, 2)]
     if method == "list_jobs_runs":
-        row["job"] = {"name": row.pop("name")}
+        for row in rows:
+            row["job"] = {"name": row.pop("name")}
     transport = httpx.MockTransport(
         lambda request: httpx.Response(
             200,
             json={
-                "data": [row],
-                "extra": {"pagination": {"total_count": 2}},
+                "data": rows,
+                "extra": {"pagination": {"total_count": 3}},
             },
         )
     )
@@ -940,5 +942,46 @@ async def test_paginated_admin_results_reject_oversized_pages(client, method):
         "httpx.AsyncClient",
         side_effect=lambda **kwargs: client_class(transport=transport, **kwargs),
     ):
-        with pytest.raises(InvalidParameterError, match="reduce the page size"):
-            await getattr(client, method)(12345, limit=1)
+        page = await getattr(client, method)(12345, limit=2)
+
+    assert [row["id"] for row in page.result] == [1, 2]
+    assert all(row["description"] == description for row in page.result)
+    assert page.pagination.has_more
+    assert page.pagination.next_offset == 2
+    assert page.pagination.total_items == 3
+
+
+@pytest.mark.parametrize("total", [1000, 1001])
+async def test_environment_resolution_selects_across_pages(client, total):
+    offsets = []
+
+    def response(request):
+        offset = int(request.url.params["offset"])
+        limit = int(request.url.params["limit"])
+        offsets.append(offset)
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    {
+                        "id": i,
+                        "name": f"environment-{i}",
+                        "type": "development" if i == 0 else "deployment",
+                        "deployment_type": "production" if i == total - 1 else None,
+                    }
+                    for i in range(offset, min(offset + limit, total))
+                ]
+            },
+        )
+
+    transport = httpx.MockTransport(response)
+    client_class = httpx.AsyncClient
+    with patch(
+        "httpx.AsyncClient",
+        side_effect=lambda **kwargs: client_class(transport=transport, **kwargs),
+    ):
+        prod, dev = await client.get_environments_for_project(9)
+
+    assert prod.id == total - 1
+    assert dev.id == 0
+    assert offsets == list(range(0, 1001, 100))

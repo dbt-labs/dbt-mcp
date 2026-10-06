@@ -5,10 +5,11 @@ enforced while streaming before JSON parsing. Full lineage and resource details
 have the same acquisition limits, including SQL and column descriptions. Lineage
 retains its existing UI response shape and omitted-node count.
 
-Admin collection results, Discovery collections, and Semantic Layer metadata
-responses are capped at 500 KiB before serialization. Checks live in the clients
-and apply to each returned page. Oversized pages fail with narrowing guidance
-instead of dropping rows. Account/environment resolution is also bounded.
+Admin collections, Discovery collections, and Semantic Layer metadata use
+native pagination and the streaming acquisition limits above. Results are not
+re-serialized to enforce a separate generic output-byte limit. Environment
+resolution fetches active environments in pages and rejects upstream responses
+that exceed the requested page size; it has no separate total environment cap.
 
 Pagination arguments, continuation metadata, and combined metric search were
 added in [the pagination PR](https://github.com/dbt-labs/dbt-mcp/pull/915).
@@ -26,8 +27,7 @@ and output limits, but do not enforce that address-space limit.
 
 Unfiltered artifacts stop at the 500 KiB inline threshold and suggest using jq.
 The run-error parser also receives only bounded inline artifacts and processes
-steps sequentially (at most 20 steps). Large diagnostics fail with guidance to
-inspect a specific artifact and step. Cancellation closes the download, reaps
+steps sequentially (at most 20 steps). Cancellation closes the download, reaps
 the worker, removes its temporary file, and releases capacity.
 
 Hosts inject immutable budgets and admission factories through configuration:
@@ -49,7 +49,7 @@ are configuration dependencies, not published tool arguments; tool schemas and
 pagination remain unchanged. The budgets above are portable per-call defaults,
 which hosts can replace independently of their admission policy.
 
-Invalid arguments and oversized selected results include corrective guidance.
+Invalid arguments and oversized inline or filtered artifacts include corrective guidance.
 Response decoding faults, upstream page-contract violations, and acquisition
 limits are server errors; capacity errors indicate temporary overload.
 Product-document downloads and their cache are bounded independently. Cached page

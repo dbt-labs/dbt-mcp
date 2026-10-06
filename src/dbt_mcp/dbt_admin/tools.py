@@ -34,7 +34,6 @@ from dbt_mcp.dbt_admin.param_descriptions import (
 from dbt_mcp.dbt_admin.run_artifacts.parser import ErrorFetcher, WarningFetcher
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.errors import InvalidParameterError
-from dbt_mcp.result_limits import ensure_result_size
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
@@ -354,7 +353,6 @@ async def get_job_run_error(
             run_id, run_details, context.admin_client, admin_api_config
         )
         result = await warning_fetcher.analyze_run_warnings()
-        ensure_result_size(result)
         return result
 
     run_details = await context.admin_client.get_job_run_details(
@@ -376,10 +374,8 @@ async def get_job_run_error(
         warning_result = await warning_fetcher.analyze_run_warnings()
 
         result = {**error_result, "warnings": warning_result}
-        ensure_result_size(result)
         return result
 
-    ensure_result_size(error_result)
     return error_result
 
 

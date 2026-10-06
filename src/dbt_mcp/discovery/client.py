@@ -14,7 +14,6 @@ from dbt_mcp.errors import DiscoveryToolCallError, InvalidParameterError, ToolCa
 from dbt_mcp.errors.common import NotFoundError
 from dbt_mcp.gql.errors import raise_gql_error
 from dbt_mcp.http import response_limit_hook
-from dbt_mcp.result_limits import ensure_result_size
 from dbt_mcp.tools.parameters import LineageDirection, LineageResourceType
 
 from dbt_mcp.pagination import Pagination, ResultPage, validate_page_size
@@ -423,7 +422,6 @@ class PaginatedResourceFetcher:
             if not isinstance(node, dict):
                 continue
             parsed_edges.append(node)
-        ensure_result_size(parsed_edges)
         return parsed_edges
 
     async def fetch_paginated(

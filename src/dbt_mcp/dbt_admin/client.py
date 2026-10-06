@@ -21,7 +21,6 @@ from dbt_mcp.oauth.dbt_platform import (
     DbtPlatformEnvironmentResponse,
 )
 from dbt_mcp.http import response_limit_hook
-from dbt_mcp.result_limits import ensure_result_size
 
 
 from dbt_mcp.pagination import (
@@ -171,7 +170,7 @@ class DbtAdminAPIClient:
         *,
         page_size: int = 100,
     ) -> list[DbtPlatformEnvironmentResponse]:
-        """Resolve environments with bounded offset/limit pagination."""
+        """Fetch active environments using offset/limit pagination."""
         offset = 0
         environments: list[DbtPlatformEnvironmentResponse] = []
         config = await self.config_provider.get_config()
@@ -189,14 +188,9 @@ class DbtAdminAPIClient:
             environments.extend(
                 DbtPlatformEnvironmentResponse(**row) for row in page_raw
             )
-            ensure_result_size(environments)
             if len(page_raw) < page_size:
                 break
             offset += page_size
-            if offset >= 1000:
-                raise InvalidParameterError(
-                    "Environment resolution exceeds 1000 entries; configure the environment directly."
-                )
         return environments
 
     async def get_environments_for_project(
@@ -285,7 +279,6 @@ class DbtAdminAPIClient:
             for job in data
         ]
 
-        ensure_result_size(filtered_data)
         return ResultPage(
             result=filtered_data,
             pagination=offset_pagination(
@@ -344,7 +337,6 @@ class DbtAdminAPIClient:
             for p in data
         ]
 
-        ensure_result_size(filtered_data)
         return ResultPage(
             result=filtered_data,
             pagination=offset_pagination(
@@ -407,7 +399,6 @@ class DbtAdminAPIClient:
             run.pop("deprecation", None)
             run.pop("environment", None)
 
-        ensure_result_size(data)
         return ResultPage(
             result=data,
             pagination=offset_pagination(
@@ -471,7 +462,6 @@ class DbtAdminAPIClient:
                 and not artifact.startswith("metadata/")
             )
         ]
-        ensure_result_size(filtered_data)
         return filtered_data
 
     async def get_job_run_artifact(
