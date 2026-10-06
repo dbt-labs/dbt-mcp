@@ -33,7 +33,7 @@ class AdminApiConfig:
     url: str
     headers_provider: HeadersProvider
     account_id: int
-    prod_environment_id: int | None = None
+    environment_id: int | None = None
     http_config: HttpConfig = HttpConfig()
     artifact_config: ArtifactConfig = ArtifactConfig()
 

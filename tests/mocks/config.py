@@ -103,7 +103,7 @@ mock_admin_api_config = AdminApiConfig(
         token_provider=StaticTokenProvider(token="token")
     ),
     account_id=12345,
-    prod_environment_id=100,
+    environment_id=100,
 )
 
 

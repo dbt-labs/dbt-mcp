@@ -361,7 +361,6 @@ async def register_dbt_mcp_tools(dbt_mcp: FastMCP, config: Config) -> None:
     register_admin_api_tools(
         dbt_mcp,
         config.admin_api_config_provider,
-        production_config_provider=config.discovery_config_provider,
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,

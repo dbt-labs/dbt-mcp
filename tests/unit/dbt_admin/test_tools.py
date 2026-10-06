@@ -146,7 +146,6 @@ async def test_register_admin_api_tools_all_tools(mock_register_tools, mock_fast
     register_admin_api_tools(
         fastmcp,
         mock_config.admin_api_config_provider,
-        production_config_provider=mock_config.discovery_config_provider,
         disabled_tools=set(),
         enabled_tools=None,
         enabled_toolsets=set(),
@@ -170,7 +169,6 @@ async def test_register_admin_api_tools_with_disabled_tools(
     register_admin_api_tools(
         fastmcp,
         mock_config.admin_api_config_provider,
-        production_config_provider=mock_config.discovery_config_provider,
         disabled_tools=set(disable_tools),
         enabled_tools=None,
         enabled_toolsets=set(),
@@ -723,30 +721,25 @@ async def test_admin_tools_list_jobs_params(admin_context):
 
 
 @pytest.mark.parametrize("project_id", [42, 43])
-@pytest.mark.parametrize("prod_environment_id", [None, 100])
+@pytest.mark.parametrize("environment_id", [None, 100])
 async def test_list_jobs_project_scope_and_pagination(
     admin_context: AdminToolContext,
-    project_id: int | None,
-    prod_environment_id: int | None,
+    project_id: int,
+    environment_id: int | None,
 ) -> None:
     config = await admin_context.admin_api_config_provider.get_config()
-    config = replace(config, prod_environment_id=prod_environment_id)
+    config = replace(config, environment_id=environment_id)
     admin_context.admin_api_config_provider = Mock(
         get_config=AsyncMock(return_value=config)
     )
 
-    if prod_environment_id is None:
-        with pytest.raises(InvalidParameterError, match="production environment"):
-            await list_jobs.fn(
-                admin_context, project_id=project_id, limit=10, offset=20
-            )
-        cast(AsyncMock, admin_context.admin_client.list_jobs).assert_not_called()
-        return
     await list_jobs.fn(admin_context, project_id=project_id, limit=10, offset=20)
 
     expected = {"limit": 10, "offset": 20}
-    if prod_environment_id is not None:
-        expected["environment_id"] = prod_environment_id
+    if environment_id is not None:
+        expected["environment_id"] = environment_id
+    else:
+        expected["project_id"] = project_id
     list_jobs_mock = cast(AsyncMock, admin_context.admin_client.list_jobs)
     list_jobs_mock.assert_awaited_once_with(12345, **expected)
 

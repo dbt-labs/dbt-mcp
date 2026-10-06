@@ -1,6 +1,6 @@
-List jobs in the selected project's production environment.
+List jobs in the selected project.
 
-Jobs configure scheduled or triggered dbt runs. When a project selector is exposed, use `project_id` to select the project; otherwise the current context already selects it. A production environment is required. Use `limit` and `offset` to page through large result sets.
+Jobs configure scheduled or triggered dbt runs. When a project selector is exposed, use `project_id` to select the project; otherwise the current context already selects it. An explicitly selected environment narrows the results to that environment, including staging. Otherwise, jobs from all environments in the project are included. Use `limit` and `offset` to page through large result sets.
 
 The `result` field contains a list of job objects with details like:
 - Job ID, name, and description
