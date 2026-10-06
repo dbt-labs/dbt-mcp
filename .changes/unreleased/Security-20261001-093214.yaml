@@ -1,3 +1,0 @@
-kind: Security
-body: Update PyJWT to 2.15.0 to address security advisories.
-time: 2026-10-01T09:32:14.179045-05:00
