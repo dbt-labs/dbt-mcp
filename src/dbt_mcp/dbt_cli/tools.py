@@ -12,6 +12,7 @@ from dbt_mcp.config.config import DbtCliConfig
 from dbt_mcp.dbt_cli.binary_type import BinaryType, get_color_disable_flag
 from dbt_mcp.dbt_cli.models.lineage_types import ModelLineage
 from dbt_mcp.dbt_cli.models.manifest import Manifest
+from dbt_mcp.dbt_cli.subprocess_env import get_dbt_subprocess_env
 from dbt_mcp.errors.common import InvalidParameterError
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.annotations import create_tool_annotations
@@ -122,18 +123,14 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
                 command_args = full_command[1:] if len(full_command) > 1 else []
                 full_command = [main_command, "--quiet", *command_args]
 
-            # We change the path only if this is an absolute path, otherwise we can have
-            # problems with relative paths applied multiple times as DBT_PROJECT_DIR
-            # is applied to dbt Core and Fusion as well (but not the dbt Cloud CLI)
-            cwd_path = config.project_dir if os.path.isabs(config.project_dir) else None
-
             # Add appropriate color disable flag based on binary type
             color_flag = get_color_disable_flag(config.binary_type)
             args = [config.dbt_path, color_flag, *full_command]
 
             process = subprocess.Popen(
                 args=args,
-                cwd=cwd_path,
+                cwd=config.project_dir,
+                env=get_dbt_subprocess_env(config.project_dir, config.profiles_dir),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 stdin=subprocess.DEVNULL,

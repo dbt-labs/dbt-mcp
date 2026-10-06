@@ -539,3 +539,36 @@ def test_all_tools_registered(mock_fastmcp):
 
     for tool_name in expected_tools:
         assert tool_name in tools, f"Tool {tool_name} not registered"
+
+
+def test_codegen_uses_project_dir_as_cwd_with_absolute_env(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
+):
+    monkeypatch.setenv("DBT_PROJECT_DIR", "./relative/project")
+    popen_kwargs: dict = {}
+
+    def mock_popen(args, **kwargs):
+        popen_kwargs.update(kwargs)
+        return mock_process()
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, _ = mock_fastmcp
+    register_dbt_codegen_tools(
+        fastmcp,
+        mock_dbt_codegen_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    fastmcp.tools["generate_source"](
+        schema_name="raw_data",
+        database_name=None,
+        table_names=None,
+        generate_columns=False,
+        include_descriptions=False,
+    )
+
+    assert popen_kwargs["cwd"] == mock_dbt_codegen_config.project_dir
+    assert popen_kwargs["env"]["DBT_PROJECT_DIR"] == mock_dbt_codegen_config.project_dir
