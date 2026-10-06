@@ -137,7 +137,7 @@ def _assert_points_to_credentials_page(text: str) -> None:
 
 async def test_query_metrics_tool_explains_how_to_reconnect(tool_context):
     result = await query_metrics.fn(
-        environment_id=PROD_ENV_ID, context=tool_context, metrics=["revenue"]
+        project_id=42, context=tool_context, metrics=["revenue"]
     )
 
     _assert_points_to_credentials_page(result)
@@ -145,7 +145,7 @@ async def test_query_metrics_tool_explains_how_to_reconnect(tool_context):
 
 async def test_get_metrics_compiled_sql_tool_explains_how_to_reconnect(tool_context):
     result = await get_metrics_compiled_sql.fn(
-        environment_id=PROD_ENV_ID, context=tool_context, metrics=["revenue"]
+        project_id=42, context=tool_context, metrics=["revenue"]
     )
 
     _assert_points_to_credentials_page(result)
@@ -153,7 +153,7 @@ async def test_get_metrics_compiled_sql_tool_explains_how_to_reconnect(tool_cont
 
 async def test_get_dimension_values_tool_explains_how_to_reconnect(tool_context):
     result = await get_dimension_values.fn(
-        environment_id=PROD_ENV_ID,
+        project_id=42,
         context=tool_context,
         dimension="region",
         metrics=["revenue"],
@@ -188,7 +188,7 @@ async def test_service_token_without_user_credentials_gets_docs_fallback(
 
     with patch.object(DbtAdminAPIClient, "_make_request", rejecting_make_request):
         result = await query_metrics.fn(
-            environment_id=PROD_ENV_ID, context=tool_context, metrics=["revenue"]
+            project_id=42, context=tool_context, metrics=["revenue"]
         )
 
     assert "SSO authentication has expired" in result

@@ -154,9 +154,9 @@ async def _snapshot_server() -> AsyncIterator[Any]:
             ),
             patch("dbt_mcp.mcp.server.register_proxied_tools", return_value=None),
             patch(
-                "dbt_mcp.mcp.server.DbtMCP._is_multi_project",
+                "dbt_mcp.mcp.server.DbtMCP._selected_projects",
                 new_callable=AsyncMock,
-                return_value=False,
+                return_value=None,
             ),
         ):
             config = load_config(enable_proxied_tools=False)

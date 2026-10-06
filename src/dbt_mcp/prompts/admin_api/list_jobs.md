@@ -1,8 +1,6 @@
-List a page of jobs in a dbt platform account with optional filtering.
+List jobs in the selected project's production environment.
 
-This tool retrieves jobs from the dbt Admin API. Jobs are the configuration for scheduled or triggered dbt runs.
-
-Pass `project_id` to list jobs across all environments in that project. This overrides the configured production environment filter. When `project_id` is omitted, results remain scoped to the configured production environment, or to the account if no environment is configured. Use `limit` and `offset` to page through large result sets.
+Jobs configure scheduled or triggered dbt runs. When a project selector is exposed, use `project_id` to select the project; otherwise the current context already selects it. A production environment is required. Use `limit` and `offset` to page through large result sets.
 
 The `result` field contains a list of job objects with details like:
 - Job ID, name, and description

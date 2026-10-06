@@ -5,10 +5,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from dbt_mcp.config.config_providers.discovery import (
-    MultiProjectDiscoveryConfigProvider,
+    DefaultDiscoveryConfigProvider,
 )
 from dbt_mcp.config.config_providers.semantic_layer import (
-    MultiProjectSemanticLayerConfigProvider,
+    DefaultSemanticLayerConfigProvider,
 )
 from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.config.settings import DbtMcpSettings
@@ -37,9 +37,9 @@ def _make_admin_client(env_id: int | None = 42) -> DbtAdminAPIClient:
     return client
 
 
-class TestMultiProjectDiscoveryConfigProvider:
+class TestDefaultDiscoveryConfigProvider:
     async def test_raises_when_project_id_not_in_selected(self):
-        provider = MultiProjectDiscoveryConfigProvider(
+        provider = DefaultDiscoveryConfigProvider(
             credentials_provider=_make_credentials_provider([1, 2, 3]),
             admin_client=_make_admin_client(),
         )
@@ -49,7 +49,7 @@ class TestMultiProjectDiscoveryConfigProvider:
             await provider.get_config(project_id=99)
 
     async def test_succeeds_when_project_id_in_selected(self):
-        provider = MultiProjectDiscoveryConfigProvider(
+        provider = DefaultDiscoveryConfigProvider(
             credentials_provider=_make_credentials_provider([1, 2, 3]),
             admin_client=_make_admin_client(env_id=42),
         )
@@ -58,7 +58,7 @@ class TestMultiProjectDiscoveryConfigProvider:
 
     async def test_skips_validation_when_project_ids_none(self):
         """When dbt_project_ids is None (no filter), any project_id is allowed."""
-        provider = MultiProjectDiscoveryConfigProvider(
+        provider = DefaultDiscoveryConfigProvider(
             credentials_provider=_make_credentials_provider(None),
             admin_client=_make_admin_client(env_id=42),
         )
@@ -66,9 +66,9 @@ class TestMultiProjectDiscoveryConfigProvider:
         assert config.environment_id == 42
 
 
-class TestMultiProjectSemanticLayerConfigProvider:
+class TestDefaultSemanticLayerConfigProvider:
     async def test_raises_when_project_id_not_in_selected(self):
-        provider = MultiProjectSemanticLayerConfigProvider(
+        provider = DefaultSemanticLayerConfigProvider(
             credentials_provider=_make_credentials_provider([10, 20]),
             admin_client=_make_admin_client(),
         )
@@ -78,7 +78,7 @@ class TestMultiProjectSemanticLayerConfigProvider:
             await provider.get_config(project_id=99)
 
     async def test_succeeds_when_project_id_in_selected(self):
-        provider = MultiProjectSemanticLayerConfigProvider(
+        provider = DefaultSemanticLayerConfigProvider(
             credentials_provider=_make_credentials_provider([10, 20]),
             admin_client=_make_admin_client(env_id=55),
         )
@@ -87,7 +87,7 @@ class TestMultiProjectSemanticLayerConfigProvider:
 
     async def test_skips_validation_when_project_ids_none(self):
         """When dbt_project_ids is None (no filter), any project_id is allowed."""
-        provider = MultiProjectSemanticLayerConfigProvider(
+        provider = DefaultSemanticLayerConfigProvider(
             credentials_provider=_make_credentials_provider(None),
             admin_client=_make_admin_client(env_id=55),
         )

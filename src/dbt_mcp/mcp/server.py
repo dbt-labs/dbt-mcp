@@ -17,7 +17,6 @@ from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.dbt_codegen.tools import register_dbt_codegen_tools
 from dbt_mcp.apps.register import register_app_resource
 from dbt_mcp.discovery.tools import register_discovery_tools
-from dbt_mcp.discovery.tools_multiproject import register_multiproject_discovery_tools
 from dbt_mcp.errors.common import MissingHostError
 from dbt_mcp.lsp.providers.lsp_connection_provider import LSPConnectionProviderProtocol
 from dbt_mcp.lsp.tools import register_lsp_tools
@@ -27,7 +26,8 @@ from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.proxy.tools import ProxiedToolsManager, register_proxied_tools
 from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
 from dbt_mcp.semantic_layer.tools import register_sl_tools
-from dbt_mcp.semantic_layer.tools_multiproject import register_multiproject_sl_tools
+from dbt_mcp.tools.binding import bind_schema
+from dbt_mcp.tools.toolsets import Toolset, toolsets, proxied_tools
 from dbt_mcp.tracking.tracking import (
     REDACT_ARGS,
     DefaultUsageTracker,
@@ -36,6 +36,25 @@ from dbt_mcp.tracking.tracking import (
 )
 
 logger = logging.getLogger(__name__)
+
+PROJECT_TOOL_NAMES = frozenset(
+    name.value
+    for name in (
+        set().union(
+            *(
+                toolsets[toolset]
+                for toolset in (
+                    Toolset.DISCOVERY,
+                    Toolset.SEMANTIC_LAYER,
+                    Toolset.ADMIN_API,
+                    Toolset.PRODUCT_DOCS,
+                    Toolset.MCP_SERVER_METADATA,
+                )
+            )
+        )
+        - proxied_tools
+    )
+)
 
 
 def _safe_args(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -46,8 +65,7 @@ class DbtMCP(FastMCP):
     def __init__(
         self,
         config: Config,
-        multi_project_mcp: FastMCP,
-        single_project_mcp: FastMCP,
+        tool_server: FastMCP,
         usage_tracker: UsageTracker,
         lifespan: (
             Callable[
@@ -61,13 +79,12 @@ class DbtMCP(FastMCP):
         super().__init__(*args, **kwargs, lifespan=lifespan)
         self.usage_tracker = usage_tracker
         self.config = config
-        self.multi_project_mcp = multi_project_mcp
-        self.single_project_mcp = single_project_mcp
+        self.tool_server = tool_server
         self._lsp_connection_task: (
             asyncio.Task[LSPConnectionProviderProtocol] | None
         ) = None
 
-    async def _is_multi_project(self) -> bool:
+    async def _selected_projects(self) -> list[int] | None:
         try:
             (
                 settings,
@@ -75,13 +92,11 @@ class DbtMCP(FastMCP):
             ) = await self.config.credentials_provider.get_credentials()
         except MissingHostError as e:
             logger.warning(
-                "Could not resolve credentials — defaulting to single-project mode: %s",
+                "Could not resolve credentials — using configured environments: %s",
                 e,
             )
-            return False
-        return bool(
-            settings.dbt_project_ids is not None and len(settings.dbt_project_ids) > 0
-        )
+            return None
+        return settings.dbt_project_ids or None
 
     def _get_mcp_client_info(self) -> tuple[str, str]:
         try:
@@ -100,10 +115,22 @@ class DbtMCP(FastMCP):
         start_time = int(time.time() * 1000)
         mcp_client_name, mcp_client_version = self._get_mcp_client_info()
         try:
-            if await self._is_multi_project():
-                result = await self.multi_project_mcp.call_tool(name, arguments)
-            else:
-                result = await self.single_project_mcp.call_tool(name, arguments)
+            projects = await self._selected_projects()
+            tools = await self.tool_server.list_tools()
+            tool = next(
+                (
+                    tool
+                    for tool in tools
+                    if tool.name == name and self._tool_available(tool, projects)
+                ),
+                None,
+            )
+            if tool is None:
+                raise ValueError(f"Unknown or unavailable tool: {name}")
+            invocation_arguments = self._bind_project_arguments(
+                tool, arguments, projects
+            )
+            result = await self.tool_server.call_tool(name, invocation_arguments)
         except Exception as e:
             end_time = int(time.time() * 1000)
             logger.error(
@@ -145,10 +172,56 @@ class DbtMCP(FastMCP):
             logger.debug("Usage tracking failed — skipping", exc_info=True)
         return result
 
+    @staticmethod
+    def _tool_available(tool: Tool, projects: list[int] | None) -> bool:
+        if projects is None:
+            return True
+        return tool.name in PROJECT_TOOL_NAMES
+
+    @staticmethod
+    def _bind_project_arguments(
+        tool: Tool, arguments: dict[str, Any], projects: list[int] | None
+    ) -> dict[str, Any]:
+        if "project_id" not in tool.inputSchema.get("properties", {}):
+            return arguments
+        if projects is None or len(projects) == 1:
+            if "project_id" in arguments:
+                raise ValueError("project_id is bound by the current context; omit it")
+            # Configured-environment providers need no project selector.
+            return arguments | {"project_id": projects[0] if projects else None}
+        project_id = arguments.get("project_id")
+        if type(project_id) is not int or project_id not in projects:
+            raise ValueError(f"project_id must be one of {projects}")
+        return arguments
+
     async def list_tools(self) -> list[Tool]:
-        if await self._is_multi_project():
-            return await self.multi_project_mcp.list_tools()
-        return await self.single_project_mcp.list_tools()
+        projects = await self._selected_projects()
+        tools = []
+        for tool in await self.tool_server.list_tools():
+            if not self._tool_available(tool, projects):
+                continue
+            if "project_id" in tool.inputSchema.get("properties", {}):
+                if projects is None or len(projects) == 1:
+                    tool = bind_schema(
+                        tool, {"project_id": projects[0] if projects else None}
+                    )
+                else:
+                    schema = dict(tool.inputSchema)
+                    properties = dict(schema["properties"])
+                    properties["project_id"] = {
+                        "type": "integer",
+                        "enum": projects,
+                        "description": properties["project_id"].get(
+                            "description", "Project ID."
+                        ),
+                    }
+                    schema["properties"] = properties
+                    schema["required"] = list(
+                        dict.fromkeys([*schema.get("required", []), "project_id"])
+                    )
+                    tool = tool.model_copy(update={"inputSchema": schema})
+            tools.append(tool)
+        return tools
 
 
 @asynccontextmanager
@@ -162,12 +235,12 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
         # this avoids anyio cancel scope violations (see issue #498)
         if (
             server.config.proxied_tool_config_provider
-            and not await server._is_multi_project()
+            and not await server._selected_projects()
         ):
             try:
                 logger.info("Registering proxied tools")
                 await register_proxied_tools(
-                    dbt_mcp=server.single_project_mcp,
+                    dbt_mcp=server.tool_server,
                     config_provider=server.config.proxied_tool_config_provider,
                     disabled_tools=set(server.config.disable_tools),
                     enabled_tools=(
@@ -210,67 +283,6 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
             shutdown()
         except Exception:
             logger.exception("Error shutting down MCP server")
-
-
-async def register_multi_project_dbt_mcp(dbt_mcp: FastMCP, config: Config) -> None:
-    disabled_tools = set(config.disable_tools)
-    enabled_tools = (
-        set(config.enable_tools) if config.enable_tools is not None else None
-    )
-    enabled_toolsets = config.enabled_toolsets
-    disabled_toolsets = config.disabled_toolsets
-
-    logger.info("Registering semantic layer tools for multi-project")
-    register_multiproject_sl_tools(
-        dbt_mcp=dbt_mcp,
-        config_provider=config.multi_project_semantic_layer_config_provider,
-        client_provider=DefaultSemanticLayerClientProvider(),
-        disabled_tools=disabled_tools,
-        enabled_tools=enabled_tools,
-        enabled_toolsets=enabled_toolsets,
-        disabled_toolsets=disabled_toolsets,
-    )
-
-    logger.info("Registering discovery tools for multi-project")
-    register_multiproject_discovery_tools(
-        dbt_mcp=dbt_mcp,
-        config_provider=config.multi_project_discovery_config_provider,
-        disabled_tools=disabled_tools,
-        enabled_tools=enabled_tools,
-        enabled_toolsets=enabled_toolsets,
-        disabled_toolsets=disabled_toolsets,
-    )
-
-    if config.admin_api_config_provider:
-        logger.info("Registering dbt admin API tools for multi-project")
-        register_admin_api_tools(
-            dbt_mcp,
-            config.admin_api_config_provider,
-            disabled_tools=disabled_tools,
-            enabled_tools=enabled_tools,
-            enabled_toolsets=enabled_toolsets,
-            disabled_toolsets=disabled_toolsets,
-        )
-
-    # Product docs and MCP server metadata are globally available (not project-specific)
-    logger.info("Registering product docs tools for multi-project")
-    register_product_docs_tools(
-        dbt_mcp,
-        dbt_version_provider=config.dbt_version_provider,
-        disabled_tools=disabled_tools,
-        enabled_tools=enabled_tools,
-        enabled_toolsets=enabled_toolsets,
-        disabled_toolsets=disabled_toolsets,
-    )
-
-    logger.info("Registering MCP server tools for multi-project")
-    register_mcp_server_tools(
-        dbt_mcp,
-        disabled_tools=disabled_tools,
-        enabled_tools=enabled_tools,
-        enabled_toolsets=enabled_toolsets,
-        disabled_toolsets=disabled_toolsets,
-    )
 
 
 async def register_dbt_mcp_tools(dbt_mcp: FastMCP, config: Config) -> None:
@@ -349,6 +361,7 @@ async def register_dbt_mcp_tools(dbt_mcp: FastMCP, config: Config) -> None:
     register_admin_api_tools(
         dbt_mcp,
         config.admin_api_config_provider,
+        production_config_provider=config.discovery_config_provider,
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,
@@ -368,11 +381,8 @@ async def register_dbt_mcp_tools(dbt_mcp: FastMCP, config: Config) -> None:
 
 
 async def create_dbt_mcp(config: Config) -> FastMCP:
-    multi_project_dbt_mcp = FastMCP()
-    await register_multi_project_dbt_mcp(multi_project_dbt_mcp, config)
-
-    single_project_dbt_mcp = FastMCP()
-    await register_dbt_mcp_tools(single_project_dbt_mcp, config)
+    tool_server = FastMCP()
+    await register_dbt_mcp_tools(tool_server, config)
 
     tool_dispatcher = DbtMCP(
         name="dbt",
@@ -383,8 +393,7 @@ async def create_dbt_mcp(config: Config) -> FastMCP:
             session_id=uuid.uuid4(),
         ),
         lifespan=app_lifespan,
-        multi_project_mcp=multi_project_dbt_mcp,
-        single_project_mcp=single_project_dbt_mcp,
+        tool_server=tool_server,
     )
     # MCP App UI resources are served by the dispatcher itself (it only routes
     # tool calls, not resources). The bundle is fetched from the CDN on read.

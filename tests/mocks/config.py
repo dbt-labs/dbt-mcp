@@ -8,7 +8,6 @@ from dbt_mcp.config.config import (
 from dbt_mcp.config.config_providers import (
     AdminApiConfig,
     DiscoveryConfig,
-    MultiProjectDiscoveryConfigProvider,
     ProxiedToolConfig,
     SemanticLayerConfig,
 )
@@ -19,7 +18,6 @@ from dbt_mcp.config.config_providers.proxied_tool import (
 )
 from dbt_mcp.config.config_providers.semantic_layer import (
     DefaultSemanticLayerConfigProvider,
-    MultiProjectSemanticLayerConfigProvider,
 )
 from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.config.headers import (
@@ -105,6 +103,7 @@ mock_admin_api_config = AdminApiConfig(
         token_provider=StaticTokenProvider(token="token")
     ),
     account_id=12345,
+    prod_environment_id=100,
 )
 
 
@@ -117,19 +116,11 @@ class MockProxiedToolConfigProvider(DefaultProxiedToolConfigProvider):
         return mock_proxied_tool_config
 
 
-class MockMultiProjectDiscoveryConfigProvider(MultiProjectDiscoveryConfigProvider):
-    def __init__(self):
-        pass  # Skip the base class __init__
-
-    async def get_config(self, project_id: int):
-        return mock_discovery_config
-
-
 class MockDiscoveryConfigProvider(DefaultDiscoveryConfigProvider):
     def __init__(self):
         pass  # Skip the base class __init__
 
-    async def get_config(self):
+    async def get_config(self, project_id: int | None = None):
         return mock_discovery_config
 
 
@@ -137,17 +128,7 @@ class MockSemanticLayerConfigProvider(DefaultSemanticLayerConfigProvider):
     def __init__(self):
         pass  # Skip the base class __init__
 
-    async def get_config(self):
-        return mock_semantic_layer_config
-
-
-class MockMultiProjectSemanticLayerConfigProvider(
-    MultiProjectSemanticLayerConfigProvider
-):
-    def __init__(self):
-        pass  # Skip the base class __init__
-
-    async def get_config(self, project_id: int):
+    async def get_config(self, project_id: int | None = None):
         return mock_semantic_layer_config
 
 
@@ -172,9 +153,7 @@ mock_config = Config(
     proxied_tool_config_provider=MockProxiedToolConfigProvider(),
     dbt_cli_config=mock_dbt_cli_config,
     dbt_codegen_config=mock_dbt_codegen_config,
-    multi_project_discovery_config_provider=MockMultiProjectDiscoveryConfigProvider(),
     discovery_config_provider=MockDiscoveryConfigProvider(),
-    multi_project_semantic_layer_config_provider=MockMultiProjectSemanticLayerConfigProvider(),
     semantic_layer_config_provider=MockSemanticLayerConfigProvider(),
     admin_api_config_provider=MockAdminApiConfigProvider(),
     lsp_config=mock_lsp_config,

@@ -1,3 +1,4 @@
+from collections.abc import Awaitable, Callable
 import logging
 from dataclasses import dataclass
 from typing import Annotated
@@ -5,7 +6,11 @@ from typing import Annotated
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
 
-from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
+from dbt_mcp.config.config_providers import (
+    ConfigProvider,
+    DiscoveryConfig,
+    ProjectConfigProvider,
+)
 from dbt_mcp.discovery.client import (
     AppliedResourceType,
     ExposuresFetcher,
@@ -46,7 +51,6 @@ from dbt_mcp.tools.fields import (
     UNIQUE_ID_REQUIRED_FIELD,
 )
 from dbt_mcp.tools.parameters import LineageDirection, LineageResourceType
-from dbt_mcp.tools.injection import BoundContext
 from dbt_mcp.config.config_providers.base import StaticConfigProvider
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
@@ -136,10 +140,10 @@ async def get_mart_models(
     after: Annotated[str | None, AFTER_FIELD] = None,
     *,
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> ResultPage[list[dict]]:
     mart_models = await context.models_fetcher.fetch_models(
         model_filter={"modelingLayer": "marts"},
@@ -166,10 +170,10 @@ async def get_all_models(
     after: Annotated[str | None, AFTER_FIELD] = None,
     *,
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> ResultPage[list[dict]]:
     config = await context.config_provider.get_config()
     return await context.models_fetcher.fetch_models(
@@ -193,10 +197,10 @@ async def get_node_details(
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> list[dict]:
     config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
@@ -221,10 +225,10 @@ async def get_model_details(
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> list[dict]:
     config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
@@ -251,10 +255,10 @@ async def get_model_parents(
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> list[dict]:
     config = await context.config_provider.get_config()
     return await context.models_fetcher.fetch_model_parents(
@@ -278,10 +282,10 @@ async def get_model_children(
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> list[dict]:
     config = await context.config_provider.get_config()
     return await context.models_fetcher.fetch_model_children(
@@ -302,10 +306,10 @@ async def get_model_health(
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> list[dict]:
     config = await context.config_provider.get_config()
     return await context.models_fetcher.fetch_model_health(
@@ -336,10 +340,10 @@ async def get_model_performance(
     ),
     *,
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> list[dict]:
     """Get model execution performance metrics from historical runs."""
     config = await context.config_provider.get_config()
@@ -425,10 +429,10 @@ async def get_lineage(
     limit: int = LINEAGE_LIMIT_FIELD,
     *,
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> LineageGraph:
     config = await context.config_provider.get_config()
     nodes = await context.lineage_fetcher.fetch_lineage(
@@ -458,10 +462,10 @@ async def get_exposures(
     after: Annotated[str | None, AFTER_FIELD] = None,
     *,
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> ResultPage[list[dict]]:
     config = await context.config_provider.get_config()
     return await context.exposures_fetcher.fetch_exposures(
@@ -483,10 +487,10 @@ async def get_exposure_details(
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> list[dict]:
     config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
@@ -516,10 +520,10 @@ async def get_all_sources(
     after: Annotated[str | None, AFTER_FIELD] = None,
     *,
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> ResultPage[list[dict]]:
     config = await context.config_provider.get_config()
     return await context.sources_fetcher.fetch_sources(
@@ -541,10 +545,10 @@ async def get_source_details(
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> list[dict]:
     config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
@@ -577,10 +581,10 @@ async def get_all_macros(
     after: Annotated[str | None, AFTER_FIELD] = None,
     *,
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> ResultPage[list[dict] | list[str]]:
     config = await context.config_provider.get_config()
     return await context.macros_fetcher.fetch_macros(
@@ -607,10 +611,10 @@ async def get_macro_details(
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> list[dict]:
     config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
@@ -635,10 +639,10 @@ async def get_seed_details(
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> list[dict]:
     config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
@@ -663,10 +667,10 @@ async def get_semantic_model_details(
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> list[dict]:
     config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
@@ -691,10 +695,10 @@ async def get_snapshot_details(
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> list[dict]:
     config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
@@ -719,10 +723,10 @@ async def get_test_details(
     unique_id: str | None = UNIQUE_ID_FIELD,
     *,
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.METADATA_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> list[dict]:
     config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
@@ -756,6 +760,20 @@ DISCOVERY_TOOLS = [
 ]
 
 
+def discovery_context_mapper(
+    config_provider: ConfigProvider[DiscoveryConfig],
+) -> Callable[..., Awaitable[DiscoveryToolContext]]:
+    async def build_context(project_id: int | None = None) -> DiscoveryToolContext:
+        config = (
+            await config_provider.get_config(project_id=project_id)
+            if isinstance(config_provider, ProjectConfigProvider)
+            else await config_provider.get_config()
+        )
+        return DiscoveryToolContext(config_provider=StaticConfigProvider(config))
+
+    return build_context
+
+
 def register_discovery_tools(
     dbt_mcp: FastMCP,
     discovery_config_provider: ConfigProvider[DiscoveryConfig],
@@ -765,22 +783,14 @@ def register_discovery_tools(
     enabled_toolsets: set[Toolset],
     disabled_toolsets: set[Toolset],
 ) -> None:
-    async def bind_context() -> BoundContext[DiscoveryToolContext]:
-        config = await discovery_config_provider.get_config()
-        return BoundContext(
-            context=DiscoveryToolContext(config_provider=StaticConfigProvider(config)),
-            arguments={"project_id": None},
-        )
+    mapper = discovery_context_mapper(discovery_config_provider)
+    definitions = [tool.adapt_context(mapper) for tool in DISCOVERY_TOOLS]
+    if not isinstance(discovery_config_provider, ProjectConfigProvider):
+        definitions = [tool.bind_arguments(project_id=None) for tool in definitions]
 
     register_tools(
         dbt_mcp,
-        tool_definitions=[
-            tool.adapt_context(
-                bind_context,
-                bound_arguments=frozenset({"project_id"}),
-            )
-            for tool in DISCOVERY_TOOLS
-        ],
+        tool_definitions=definitions,
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,

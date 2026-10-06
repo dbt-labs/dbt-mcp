@@ -1,3 +1,4 @@
+from dbt_mcp.config.config_providers.base import ProjectConfigProvider
 from dbt_mcp.config.config_providers.base import DiscoveryConfig
 from unittest.mock import AsyncMock, Mock
 
@@ -8,7 +9,7 @@ from dbt_mcp.discovery.tools import (
     DISCOVERY_TOOLS,
     get_node_details,
 )
-from dbt_mcp.discovery.tools_multiproject import (
+from dbt_mcp.discovery.tools import (
     discovery_context_mapper,
 )
 from dbt_mcp.tools.tool_names import ToolName
@@ -33,10 +34,12 @@ async def test_get_node_details_delegates_to_fetcher(
         url="https://example.com", headers_provider=Mock(), environment_id=1
     )
     context = Mock()
+    context.config_provider = Mock(spec=ProjectConfigProvider)
     context.config_provider.get_config = AsyncMock(return_value=config)
     context.resource_details_fetcher.fetch_details = AsyncMock(return_value=["row"])
 
     result = await get_node_details.fn(
+        project_id=42,
         context=context,
         resource_type=resource_type,
         name=None,
@@ -60,6 +63,7 @@ async def test_get_node_details_multiproject_delegates_to_fetcher(
         url="https://example.com", headers_provider=Mock(), environment_id=1
     )
     context = Mock()
+    context.config_provider = Mock(spec=ProjectConfigProvider)
     context.config_provider.get_config = AsyncMock(return_value=config)
     context.resource_details_fetcher.fetch_details = AsyncMock(return_value=["row"])
 
@@ -67,6 +71,7 @@ async def test_get_node_details_multiproject_delegates_to_fetcher(
     mapped = await mapper(project_id=42)
     mapped.resource_details_fetcher = context.resource_details_fetcher
     result = await get_node_details.fn(
+        project_id=42,
         context=mapped,
         resource_type=resource_type,
         name="thing",

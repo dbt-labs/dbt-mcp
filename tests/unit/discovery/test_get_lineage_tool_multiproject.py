@@ -1,9 +1,10 @@
+from dbt_mcp.config.config_providers.base import ProjectConfigProvider
 from dbt_mcp.config.config_providers.base import DiscoveryConfig
 from unittest.mock import AsyncMock, MagicMock
 
 from dbt_mcp.discovery.tools import LineageEdge, LineageGraph
 from dbt_mcp.discovery.tools import get_lineage
-from dbt_mcp.discovery.tools_multiproject import discovery_context_mapper
+from dbt_mcp.discovery.tools import discovery_context_mapper
 from dbt_mcp.tools.parameters import LineageDirection
 
 
@@ -27,6 +28,7 @@ async def test_multiproject_get_lineage_builds_graph_from_nodes():
         },
     ]
     context = MagicMock()
+    context.config_provider = MagicMock(spec=ProjectConfigProvider)
     context.config_provider.get_config = AsyncMock(
         return_value=DiscoveryConfig(
             url="https://example.com", headers_provider=MagicMock(), environment_id=1
@@ -37,6 +39,7 @@ async def test_multiproject_get_lineage_builds_graph_from_nodes():
     mapped = await discovery_context_mapper(context.config_provider)(project_id=1)
     mapped.lineage_fetcher = context.lineage_fetcher
     result = await get_lineage.fn(
+        project_id=42,
         context=mapped,
         unique_id="model.p.a",
         types=None,

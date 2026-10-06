@@ -31,6 +31,7 @@ async def test_get_model_performance_passes_correct_parameters(
     ]
 
     await get_model_performance(
+        project_id=42,
         context=mock_discovery_tool_context,
         name="stg_orders",
         unique_id="model.analytics.stg_orders",
@@ -70,6 +71,7 @@ async def test_get_model_performance_with_tests_included(
     ]
 
     result = await get_model_performance(
+        project_id=42,
         context=mock_discovery_tool_context,
         name=None,
         unique_id="model.analytics.stg_orders",

@@ -1,15 +1,20 @@
+from collections.abc import Awaitable, Callable
 import csv
 import io
 import json
 import logging
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Annotated, Any
 
 from dbtsl.api.shared.query_params import GroupByParam
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
-from dbt_mcp.config.config_providers import ConfigProvider, SemanticLayerConfig
+from dbt_mcp.config.config_providers import (
+    ConfigProvider,
+    SemanticLayerConfig,
+    ProjectConfigProvider,
+)
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.pagination import LIMIT_FIELD, PAGE_NUM_FIELD, Pagination, ResultPage
 from dbt_mcp.semantic_layer.client import (
@@ -43,13 +48,10 @@ from dbt_mcp.semantic_layer.types import (
     SavedQueryToolResponse,
 )
 from dbt_mcp.tools.targets import (
-    EnvironmentRole,
-    EnvironmentTarget,
     Permission,
     ProjectTarget,
 )
 from dbt_mcp.tools.definitions import dbt_mcp_tool
-from dbt_mcp.tools.injection import BoundContext
 from dbt_mcp.config.config_providers.base import StaticConfigProvider
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
@@ -192,23 +194,13 @@ async def list_metrics(
     page_num: Annotated[int, PAGE_NUM_FIELD] = 1,
     page_size: Annotated[int, LIMIT_FIELD] = 50,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION,
-            requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> ResultPage[str]:
-    config = replace(
-        await context.config_provider.get_config(), prod_environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     response = await context.semantic_layer_fetcher.list_metrics(
         config=config, search=search, page_num=page_num, page_size=page_size
     )
@@ -235,23 +227,13 @@ async def list_saved_queries(
     page_num: Annotated[int, PAGE_NUM_FIELD] = 1,
     page_size: Annotated[int, LIMIT_FIELD] = 50,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION,
-            requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> ResultPage[list[SavedQueryToolResponse]]:
-    config = replace(
-        await context.config_provider.get_config(), prod_environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.semantic_layer_fetcher.list_saved_queries(
         config=config, search=search, page_num=page_num, page_size=page_size
     )
@@ -271,23 +253,13 @@ async def get_dimensions(
     page_num: Annotated[int, PAGE_NUM_FIELD] = 1,
     page_size: Annotated[int, LIMIT_FIELD] = 50,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION,
-            requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> ResultPage[list[DimensionToolResponse]]:
-    config = replace(
-        await context.config_provider.get_config(), prod_environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.semantic_layer_fetcher.get_dimensions(
         config=config,
         metrics=metrics,
@@ -311,23 +283,13 @@ async def get_entities(
     page_num: Annotated[int, PAGE_NUM_FIELD] = 1,
     page_size: Annotated[int, LIMIT_FIELD] = 50,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION,
-            requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> ResultPage[list[EntityToolResponse]]:
-    config = replace(
-        await context.config_provider.get_config(), prod_environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.semantic_layer_fetcher.get_entities(
         config=config,
         metrics=metrics,
@@ -352,23 +314,13 @@ async def get_dimension_values(
         int, Field(ge=1, description=SEMANTIC_DIMENSION_VALUES_LIMIT)
     ] = 100,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION,
-            requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> DimensionValuesResponse | DimensionValuesError:
-    config = replace(
-        await context.config_provider.get_config(), prod_environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     return await context.semantic_layer_fetcher.get_dimension_values(
         config=config,
         dimension=dimension,
@@ -396,23 +348,13 @@ async def query_metrics(
     where: Annotated[str | None, Field(description=SEMANTIC_WHERE)] = None,
     limit: Annotated[int | None, Field(description=QUERY_RESULT_LIMIT)] = None,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION,
-            requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> str:
-    config = replace(
-        await context.config_provider.get_config(), prod_environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     result = await context.semantic_layer_fetcher.query_metrics(
         config=config,
         metrics=metrics,
@@ -446,23 +388,13 @@ async def get_metrics_compiled_sql(
     where: Annotated[str | None, Field(description=SEMANTIC_WHERE)] = None,
     limit: Annotated[int | None, Field(description=QUERY_RESULT_LIMIT)] = None,
     *,
-    environment_id: Annotated[
-        int,
-        EnvironmentTarget(
-            role=EnvironmentRole.PRODUCTION,
-            requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
-        ),
-        Field(description="Production environment ID."),
-    ],
     project_id: Annotated[
-        int | None,
+        int,
         ProjectTarget(requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ),
         Field(description="Project ID."),
-    ] = None,
+    ],
 ) -> str:
-    config = replace(
-        await context.config_provider.get_config(), prod_environment_id=environment_id
-    )
+    config = await context.config_provider.get_config()
     result = await context.semantic_layer_fetcher.get_metrics_compiled_sql(
         config=config,
         metrics=metrics,
@@ -488,6 +420,24 @@ SEMANTIC_LAYER_TOOLS = [
 ]
 
 
+def semantic_layer_context_mapper(
+    config_provider: ConfigProvider[SemanticLayerConfig],
+    client_provider: SemanticLayerClientProvider,
+) -> Callable[..., Awaitable[SemanticLayerToolContext]]:
+    async def build_context(project_id: int | None = None) -> SemanticLayerToolContext:
+        config = (
+            await config_provider.get_config(project_id=project_id)
+            if isinstance(config_provider, ProjectConfigProvider)
+            else await config_provider.get_config()
+        )
+        return SemanticLayerToolContext(
+            config_provider=StaticConfigProvider(config),
+            client_provider=client_provider,
+        )
+
+    return build_context
+
+
 def register_sl_tools(
     dbt_mcp: FastMCP,
     config_provider: ConfigProvider[SemanticLayerConfig],
@@ -498,28 +448,14 @@ def register_sl_tools(
     enabled_toolsets: set[Toolset],
     disabled_toolsets: set[Toolset],
 ) -> None:
-    async def bind_context() -> BoundContext[SemanticLayerToolContext]:
-        config = await config_provider.get_config()
-        return BoundContext(
-            context=SemanticLayerToolContext(
-                config_provider=StaticConfigProvider(config),
-                client_provider=client_provider,
-            ),
-            arguments={
-                "environment_id": config.prod_environment_id,
-                "project_id": None,
-            },
-        )
+    mapper = semantic_layer_context_mapper(config_provider, client_provider)
+    definitions = [tool.adapt_context(mapper) for tool in SEMANTIC_LAYER_TOOLS]
+    if not isinstance(config_provider, ProjectConfigProvider):
+        definitions = [tool.bind_arguments(project_id=None) for tool in definitions]
 
     register_tools(
         dbt_mcp,
-        [
-            tool.adapt_context(
-                bind_context,
-                bound_arguments=frozenset({"environment_id", "project_id"}),
-            )
-            for tool in SEMANTIC_LAYER_TOOLS
-        ],
+        tool_definitions=definitions,
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,

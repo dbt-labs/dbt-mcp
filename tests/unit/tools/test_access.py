@@ -13,7 +13,6 @@ from dbt_mcp.tools.definitions import (
 )
 from dbt_mcp.tools.targets import (
     AccountTarget,
-    EnvironmentTarget,
     Permission,
     ProjectTarget,
     target_parameters,
@@ -52,8 +51,8 @@ def test_service_tools_declare_permissions_on_target_arguments() -> None:
         (DISCOVERY_TOOLS, "project_id", ProjectTarget, Permission.METADATA_READ),
         (
             SEMANTIC_LAYER_TOOLS,
-            "environment_id",
-            EnvironmentTarget,
+            "project_id",
+            ProjectTarget,
             Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
         ),
     ):

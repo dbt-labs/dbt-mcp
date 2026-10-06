@@ -118,9 +118,9 @@ def env_setup(tmp_path: Path, monkeypatch):
             for rel, content in files.items():
                 helpers.write_file(rel, content)
         with patch(
-            "dbt_mcp.mcp.server.DbtMCP._is_multi_project",
+            "dbt_mcp.mcp.server.DbtMCP._selected_projects",
             new_callable=AsyncMock,
-            return_value=False,
+            return_value=None,
         ):
             try:
                 yield project_dir, helpers

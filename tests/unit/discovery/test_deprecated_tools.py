@@ -1,10 +1,6 @@
 from dbt_mcp.discovery.tools import register_discovery_tools
-from dbt_mcp.discovery.tools_multiproject import (
-    register_multiproject_discovery_tools,
-)
 from tests.mocks.config import (
     MockDiscoveryConfigProvider,
-    MockMultiProjectDiscoveryConfigProvider,
 )
 
 DEPRECATED_TOOLS = ["get_model_parents", "get_model_children"]
@@ -25,9 +21,9 @@ def _register_single_project(mock_fastmcp):
 
 def _register_multiproject(mock_fastmcp):
     fastmcp, _ = mock_fastmcp
-    register_multiproject_discovery_tools(
+    register_discovery_tools(
         fastmcp,
-        MockMultiProjectDiscoveryConfigProvider(),
+        MockDiscoveryConfigProvider(),
         disabled_tools=set(),
         enabled_tools=None,
         enabled_toolsets=set(),

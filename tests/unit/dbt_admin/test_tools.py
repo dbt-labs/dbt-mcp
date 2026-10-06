@@ -28,7 +28,7 @@ from dbt_mcp.dbt_admin.tools import (
 from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.resource_limits import ArtifactConfig
 from dbt_mcp.config.config_providers import StaticConfigProvider
-from dbt_mcp.mcp.server import register_multi_project_dbt_mcp
+from dbt_mcp.mcp.server import register_dbt_mcp_tools
 from tests.mocks.config import mock_config
 
 from dbt_mcp.pagination import Pagination, ResultPage
@@ -186,7 +186,7 @@ async def test_register_admin_api_tools_with_disabled_tools(
 
 
 async def test_list_jobs_tool(admin_context):
-    result = await list_jobs.fn(admin_context, limit=10)
+    result = await list_jobs.fn(admin_context, project_id=42, limit=10)
 
     assert isinstance(result.result, list)
     admin_context.admin_client.list_jobs.assert_called_once()
@@ -530,15 +530,15 @@ async def test_tools_handle_exceptions():
     context.admin_client = mock_admin_client
 
     with pytest.raises(Exception) as exc_info:
-        await list_jobs.fn(context)
+        await list_jobs.fn(context, project_id=42)
     assert "API Error" in str(exc_info.value)
 
 
 async def test_tools_with_no_optional_parameters(admin_context):
     # Test list_jobs with no parameters
-    result = await list_jobs.fn(admin_context)
+    result = await list_jobs.fn(admin_context, project_id=42)
     assert isinstance(result.result, list)
-    admin_context.admin_client.list_jobs.assert_called_with(12345, limit=50, offset=0)
+    admin_context.admin_client.list_jobs.assert_called_with(12345, environment_id=100, limit=50, offset=0)
 
     # Test list_jobs_runs with no parameters
     result = await list_jobs_runs.fn(admin_context)
@@ -555,7 +555,7 @@ async def test_tools_with_no_optional_parameters(admin_context):
 
 async def test_admin_tools_registered_in_multi_project_mcp(mock_fastmcp):
     fastmcp, tools = mock_fastmcp
-    await register_multi_project_dbt_mcp(fastmcp, mock_config)
+    await register_dbt_mcp_tools(fastmcp, mock_config)
     admin_tool_names = {tool.fn.__name__ for tool in ADMIN_TOOLS}
     assert admin_tool_names.issubset(tools.keys())
 
@@ -720,7 +720,7 @@ async def test_admin_tools_list_jobs_params(admin_context):
     assert props["offset"]["minimum"] == 0
 
 
-@pytest.mark.parametrize("project_id", [None, 42])
+@pytest.mark.parametrize("project_id", [42, 43])
 @pytest.mark.parametrize("prod_environment_id", [None, 100])
 async def test_list_jobs_project_scope_and_pagination(
     admin_context: AdminToolContext,
@@ -733,12 +733,17 @@ async def test_list_jobs_project_scope_and_pagination(
         get_config=AsyncMock(return_value=config)
     )
 
+    if prod_environment_id is None:
+        with pytest.raises(InvalidParameterError, match="production environment"):
+            await list_jobs.fn(
+                admin_context, project_id=project_id, limit=10, offset=20
+            )
+        cast(AsyncMock, admin_context.admin_client.list_jobs).assert_not_called()
+        return
     await list_jobs.fn(admin_context, project_id=project_id, limit=10, offset=20)
 
     expected = {"limit": 10, "offset": 20}
-    if project_id is not None:
-        expected["project_id"] = project_id
-    elif prod_environment_id is not None:
+    if prod_environment_id is not None:
         expected["environment_id"] = prod_environment_id
     list_jobs_mock = cast(AsyncMock, admin_context.admin_client.list_jobs)
     list_jobs_mock.assert_awaited_once_with(12345, **expected)

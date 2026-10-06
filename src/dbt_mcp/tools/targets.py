@@ -43,7 +43,8 @@ class EnvironmentTarget(Target):
 
 @dataclass(frozen=True)
 class JobTarget(Target):
-    pass
+    # Optional job filters otherwise list at account scope.
+    when_missing: AccountTarget | None = None
 
 
 @dataclass(frozen=True)

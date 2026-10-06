@@ -15,7 +15,7 @@ from dbt_mcp.product_docs.client import (
     parse_llms_txt,
     split_markdown_sections,
 )
-from dbt_mcp.mcp.server import register_multi_project_dbt_mcp
+from dbt_mcp.mcp.server import register_dbt_mcp_tools
 from dbt_mcp.product_docs.tools import (
     PRODUCT_DOCS_TOOLS,
     ProductDocsToolContext,
@@ -855,9 +855,9 @@ class TestProductDocsRegistration:
 
     @pytest.mark.asyncio
     async def test_tools_registered_in_multi_project_mcp(self, mock_fastmcp):
-        """Product docs tools are registered via register_multi_project_dbt_mcp."""
+        """Product docs tools are registered via register_dbt_mcp_tools."""
         fastmcp, tools = mock_fastmcp
-        await register_multi_project_dbt_mcp(fastmcp, mock_config)
+        await register_dbt_mcp_tools(fastmcp, mock_config)
         product_docs_tool_names = {tool.fn.__name__ for tool in PRODUCT_DOCS_TOOLS}
         assert product_docs_tool_names.issubset(tools.keys())
 

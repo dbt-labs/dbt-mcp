@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Annotated, Any
 
 from mcp.server.fastmcp import FastMCP
@@ -8,6 +8,8 @@ from pydantic import Field
 from dbt_mcp.config.config_providers import (
     AdminApiConfig,
     ConfigProvider,
+    DiscoveryConfig,
+    ProjectConfigProvider,
 )
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.dbt_admin.artifacts import InlineArtifactLimitError
@@ -34,9 +36,15 @@ from dbt_mcp.dbt_admin.param_descriptions import (
 from dbt_mcp.dbt_admin.run_artifacts.parser import ErrorFetcher, WarningFetcher
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.errors import InvalidParameterError
-from dbt_mcp.tools.access import AccessPolicy
-from dbt_mcp.tools.targets import AccountTarget, JobTarget, Permission, RunTarget
+from dbt_mcp.tools.targets import (
+    AccountTarget,
+    JobTarget,
+    Permission,
+    ProjectTarget,
+    RunTarget,
+)
 from dbt_mcp.tools.definitions import dbt_mcp_tool
+from dbt_mcp.config.config_providers.base import StaticConfigProvider
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
@@ -85,7 +93,6 @@ async def list_projects(
 
 
 @dbt_mcp_tool(
-    requirements=(AccessPolicy.JOBS_READ,),
     description=get_prompt("admin_api/list_jobs"),
     title="List Jobs",
     read_only_hint=True,
@@ -98,18 +105,21 @@ async def list_jobs(
     offset: Annotated[int, OFFSET_FIELD] = 0,
     *,
     project_id: Annotated[
-        int | None, Field(description=JOBS_PROJECT_ID_FILTER, gt=0)
-    ] = None,
+        int,
+        ProjectTarget(requires=Permission.JOBS_READ),
+        Field(description=JOBS_PROJECT_ID_FILTER, gt=0),
+    ],
 ) -> ResultPage[list[dict[str, Any]]]:
-    """List jobs in an account, optionally across all environments of a project."""
+    """List jobs in the production environment bound by the context mapper."""
     validate_page_size(limit)
     validate_offset(offset)
     admin_api_config = await context.admin_api_config_provider.get_config()
     params = {}
-    if project_id is not None:
-        params["project_id"] = project_id
-    elif admin_api_config.prod_environment_id:
-        params["environment_id"] = admin_api_config.prod_environment_id
+    if admin_api_config.prod_environment_id is None:
+        raise InvalidParameterError(
+            "Select a project with a production environment before listing jobs"
+        )
+    params["environment_id"] = admin_api_config.prod_environment_id
     params["limit"] = limit
     params["offset"] = offset
     return await context.admin_client.list_jobs(admin_api_config.account_id, **params)
@@ -183,7 +193,6 @@ async def trigger_job_run(
 
 
 @dbt_mcp_tool(
-    requirements=(AccessPolicy.RUNS_READ,),
     description=get_prompt("admin_api/list_jobs_runs"),
     title="List Jobs Runs",
     read_only_hint=True,
@@ -193,7 +202,12 @@ async def trigger_job_run(
 async def list_jobs_runs(
     context: AdminToolContext,
     job_id: Annotated[
-        int | None, Field(description=JOB_RUNS_JOB_DEFINITION_ID_FILTER)
+        int | None,
+        JobTarget(
+            requires=Permission.RUNS_READ,
+            when_missing=AccountTarget(requires=Permission.RUNS_READ),
+        ),
+        Field(description=JOB_RUNS_JOB_DEFINITION_ID_FILTER, gt=0),
     ] = None,
     status: Annotated[JobRunStatus | None, Field(description=JOB_RUN_STATUS)] = None,
     limit: Annotated[int, LIMIT_FIELD] = 50,
@@ -423,6 +437,7 @@ def register_admin_api_tools(
     dbt_mcp: FastMCP,
     admin_config_provider: ConfigProvider[AdminApiConfig],
     *,
+    production_config_provider: ProjectConfigProvider[DiscoveryConfig] | None = None,
     disabled_tools: set[ToolName],
     enabled_tools: set[ToolName] | None,
     enabled_toolsets: set[Toolset],
@@ -433,9 +448,29 @@ def register_admin_api_tools(
     def bind_context() -> AdminToolContext:
         return AdminToolContext(admin_api_config_provider=admin_config_provider)
 
+    async def build_jobs_context(project_id: int | None = None) -> AdminToolContext:
+        config = await admin_config_provider.get_config()
+        if production_config_provider is not None:
+            production = await production_config_provider.get_config(
+                project_id=project_id
+            )
+            config = replace(config, prod_environment_id=production.environment_id)
+        return AdminToolContext(admin_api_config_provider=StaticConfigProvider(config))
+
+    definitions = [
+        tool.adapt_context(build_jobs_context if tool is list_jobs else bind_context)
+        for tool in ADMIN_TOOLS
+    ]
+    if production_config_provider is None:
+        definitions = [
+            tool.bind_arguments(project_id=None)
+            if tool.get_name() == ToolName.LIST_JOBS
+            else tool
+            for tool in definitions
+        ]
     register_tools(
         dbt_mcp,
-        tool_definitions=[tool.adapt_context(bind_context) for tool in ADMIN_TOOLS],
+        tool_definitions=definitions,
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,

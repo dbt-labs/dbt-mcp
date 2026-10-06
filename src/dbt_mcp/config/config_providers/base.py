@@ -15,9 +15,9 @@ class ConfigProvider[ConfigType](ABC):
     async def get_config(self) -> ConfigType: ...
 
 
-class MultiProjectConfigProvider[ConfigType](ABC):
+class ProjectConfigProvider[ConfigType](ConfigProvider[ConfigType]):
     @abstractmethod
-    async def get_config(self, project_id: int) -> ConfigType: ...
+    async def get_config(self, project_id: int | None = None) -> ConfigType: ...
 
 
 class StaticConfigProvider[T](ConfigProvider[T]):
