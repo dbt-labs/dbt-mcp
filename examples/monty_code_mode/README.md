@@ -9,8 +9,7 @@ The sandbox has no filesystem, network, subprocess or environment access. The on
 Set the following environment variables:
 - `DBT_TOKEN`
 - `DBT_PROD_ENV_ID`
-- `DBT_HOST`
-- `DBT_HOST_PREFIX` (if your account uses a multi-cell prefix)
+- `DBT_HOST` (the full hostname, for example `abc123.us1.dbt.com`)
 
 ## Usage
 
