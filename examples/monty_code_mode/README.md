@@ -1,6 +1,6 @@
-# Monty Code Mode
+# dbt MCP Code Mode with Monty
 
-An example of "code mode" with the remote dbt MCP server. Instead of the LLM calling MCP tools one at a time and receiving every intermediate result in its context, it writes a short Python script. The script runs in a [Monty](https://github.com/pydantic/monty) sandbox where each MCP tool is an async function. The script chains calls and filters in Python, and only what it `print()`s goes back to the LLM.
+An example of "code mode" with the remote [dbt MCP server](https://github.com/dbt-labs/dbt-mcp). Instead of the LLM calling MCP tools one at a time and receiving every intermediate result in its context, it writes a short Python script. The script runs in a [Monty](https://github.com/pydantic/monty) sandbox where each MCP tool is an async function. The script chains calls and filters in Python, and only what it `print()`s goes back to the LLM.
 
 The sandbox has no filesystem, network, subprocess or environment access. The only thing it can do is call the tools the MCP server exposes. Credentials stay in the host process.
 
