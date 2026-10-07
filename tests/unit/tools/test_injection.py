@@ -3,7 +3,7 @@ from typing import Annotated, get_type_hints
 
 import pytest
 
-from dbt_mcp.tools.injection import AdaptError, adapt_with_mapper, adapt_with_mappers
+from dbt_mcp.tools.injection import AdaptError, adapt_with_mappers
 
 
 class Context:
@@ -48,9 +48,9 @@ async def async_greet_user_id(user_id: int) -> str:
 
 
 # Core functionality tests
-def test_adapt_with_mapper_basic_sync_adaptation():
+def test_adapt_with_mappers_basic_sync_adaptation():
     """Test basic synchronous function adaptation."""
-    adapted = adapt_with_mapper(greet_user_id, extract_user_id)
+    adapted = adapt_with_mappers(greet_user_id, user_id=extract_user_id)
 
     # Check that the adapted function works
     ctx = Context(42)
@@ -66,7 +66,7 @@ def test_adapt_with_mapper_basic_sync_adaptation():
 
 def test_adapted_function_preserves_name_and_docstring():
     """Test that the adapted function preserves the name and docstring."""
-    adapted = adapt_with_mapper(greet_user_id, extract_user_id)
+    adapted = adapt_with_mappers(greet_user_id, user_id=extract_user_id)
     assert adapted.__name__ == "greet_user_id"
     assert adapted.__doc__ == greet_user_id.__doc__
 
@@ -77,17 +77,17 @@ def test_adapts_with_no_argument_mapper():
     def no_argument_mapper() -> int:
         return 42
 
-    adapted = adapt_with_mapper(greet_user_id, no_argument_mapper)
+    adapted = adapt_with_mappers(greet_user_id, user_id=no_argument_mapper)
     assert adapted() == "Hello, user 42!"
 
 
-def test_adapt_with_mapper_multiple_parameters():
+def test_adapt_with_mappers_multiple_parameters():
     """Test adaptation with multiple parameters."""
 
     def complex_func(user_id: int, extra: str, name: str) -> str:
         return f"{name} (ID: {user_id}) - {extra}"
 
-    adapted = adapt_with_mapper(complex_func, extract_user_id)
+    adapted = adapt_with_mappers(complex_func, user_id=extract_user_id)
 
     ctx = Context(42, "Alice")
     result = adapted(ctx, "test", "Bob")
@@ -95,9 +95,9 @@ def test_adapt_with_mapper_multiple_parameters():
 
 
 @pytest.mark.asyncio
-async def test_adapt_with_mapper_async_function_sync_mapper():
+async def test_adapt_with_mappers_async_function_sync_mapper():
     """Test async function with sync mapper."""
-    adapted = adapt_with_mapper(async_greet_user_id, extract_user_id)
+    adapted = adapt_with_mappers(async_greet_user_id, user_id=extract_user_id)
 
     ctx = Context(42)
     result = await adapted(ctx)
@@ -105,56 +105,43 @@ async def test_adapt_with_mapper_async_function_sync_mapper():
 
 
 @pytest.mark.asyncio
-async def test_adapt_with_mapper_both_async():
+async def test_adapt_with_mappers_both_async():
     """Test both function and mapper are async."""
-    adapted = adapt_with_mapper(async_greet_user_id, async_extract_user_id)
+    adapted = adapt_with_mappers(async_greet_user_id, user_id=async_extract_user_id)
 
     ctx = Context(42)
     result = await adapted(ctx)
     assert result == "Hello, user 42!"
 
 
-def test_adapt_with_mapper_no_target_parameters_lenient_skip():
-    """Test lenient behavior when no target parameters found."""
-
-    def no_match_func(other: str) -> str:
-        return f"Other: {other}"
-
-    adapted = adapt_with_mapper(no_match_func, extract_user_id)
-
-    # Should return original function unchanged
-    assert adapted is no_match_func
-    assert adapted("test") == "Other: test"
-
-
-def test_adapt_with_mapper_error_missing_parameter_annotation():
+def test_adapt_with_mappers_error_missing_parameter_annotation():
     """Test error when mapper parameter lacks type annotation."""
 
     def bad_mapper(ctx) -> int:  # No annotation
         return 42
 
     with pytest.raises(AdaptError, match="mapper must have type-annotated parameters"):
-        adapt_with_mapper(greet_user_id, bad_mapper)
+        adapt_with_mappers(greet_user_id, user_id=bad_mapper)
 
 
-def test_adapt_with_mapper_error_missing_return_annotation():
+def test_adapt_with_mappers_error_missing_return_annotation():
     """Test error when mapper lacks return annotation."""
 
     def bad_mapper(ctx: Context):  # No return annotation
         return ctx.user_id
 
     with pytest.raises(AdaptError, match="mapper must have a return type annotation"):
-        adapt_with_mapper(greet_user_id, bad_mapper)
+        adapt_with_mappers(greet_user_id, user_id=bad_mapper)
 
 
 # Signature preservation tests
-def test_adapt_with_mapper_parameter_defaults_preserved():
+def test_adapt_with_mappers_parameter_defaults_preserved():
     """Test that default parameter values are preserved."""
 
     def func_with_defaults(user_id: int, suffix: str = "!") -> str:
         return f"User {user_id}{suffix}"
 
-    adapted = adapt_with_mapper(func_with_defaults, extract_user_id)
+    adapted = adapt_with_mappers(func_with_defaults, user_id=extract_user_id)
 
     sig = inspect.signature(adapted)
     params = list(sig.parameters.values())
@@ -164,13 +151,13 @@ def test_adapt_with_mapper_parameter_defaults_preserved():
     assert params[1].default == "!"
 
 
-def test_adapt_with_mapper_parameter_kinds_preserved():
+def test_adapt_with_mappers_parameter_kinds_preserved():
     """Test that parameter kinds (positional, keyword-only, etc.) are preserved."""
 
     def func_with_kinds(user_id: int, *, keyword_only: str) -> str:
         return f"User {user_id}, {keyword_only}"
 
-    adapted = adapt_with_mapper(func_with_kinds, extract_user_id)
+    adapted = adapt_with_mappers(func_with_kinds, user_id=extract_user_id)
 
     sig = inspect.signature(adapted)
     params = list(sig.parameters.values())
@@ -182,7 +169,7 @@ def test_adapt_with_mapper_parameter_kinds_preserved():
 
 # adapt_with_mappers function tests
 def test_adapt_with_mappers_multiple_mappers():
-    """Test adapt_with_mappers with multiple mappers applied in sequence.
+    """Test adapt_with_mappers with multiple named mappers.
 
     When chaining mappers that use the same carrier type, both mappers should
     work correctly and the carrier should be passed through properly.
@@ -191,16 +178,16 @@ def test_adapt_with_mappers_multiple_mappers():
     def use_both(user_id: int, name: str) -> str:
         return f"Hello {name}, your ID is {user_id}"
 
-    adapted = adapt_with_mappers(use_both, [extract_user_id, extract_name])
+    adapted = adapt_with_mappers(use_both, user_id=extract_user_id, name=extract_name)
 
     ctx = Context(42, "Alice")
     result = adapted(ctx)
     assert result == "Hello Alice, your ID is 42"
 
 
-def test_adapt_with_mappers_empty_mappers_list():
+def test_adapt_with_mappers_empty_mappers():
     """Test adapt_with_mappers with empty mappers list returns original function."""
-    adapted = adapt_with_mappers(greet_user_id, [])
+    adapted = adapt_with_mappers(greet_user_id)
     assert adapted is greet_user_id
 
 
@@ -210,7 +197,9 @@ def test_adapt_with_mappers_different_carrier_types():
     def use_both_types(user_id: int, value: str) -> str:
         return f"User {user_id} has value: {value}"
 
-    adapted = adapt_with_mappers(use_both_types, [extract_user_id, extract_value])
+    adapted = adapt_with_mappers(
+        use_both_types, user_id=extract_user_id, value=extract_value
+    )
 
     # Need to provide both carrier types
     sig = inspect.signature(adapted)
@@ -241,7 +230,9 @@ def test_dependency_injection_pattern():
     def create_user_service(db_connection: str) -> UserService:
         return UserService(db_connection)
 
-    adapted = adapt_with_mapper(create_user_service, extract_db_connection)
+    adapted = adapt_with_mappers(
+        create_user_service, db_connection=extract_db_connection
+    )
 
     ctx = DatabaseContext("postgresql://localhost:5432/test")
     service = adapted(ctx)
@@ -257,7 +248,7 @@ def test_function_with_no_parameters():
         return "no params"
 
     # Should return original function since no target to adapt
-    adapted = adapt_with_mapper(no_params, extract_user_id)
+    adapted = adapt_with_mappers(no_params)
     assert adapted is no_params
     assert adapted() == "no params"
 
@@ -268,17 +259,17 @@ def test_mapper_parameter_name_used_in_adaptation():
     def custom_extract(my_context: Context) -> int:
         return my_context.user_id
 
-    adapted = adapt_with_mapper(greet_user_id, custom_extract)
+    adapted = adapt_with_mappers(greet_user_id, user_id=custom_extract)
 
     sig = inspect.signature(adapted)
     param_name = next(iter(sig.parameters.keys()))
     assert param_name == "my_context"
 
 
-def test_adapt_with_mapper_provides_type_hints():
+def test_adapt_with_mappers_provides_type_hints():
     """Test that the adapted function provides type hints."""
 
-    adapted = adapt_with_mapper(greet_user_id, extract_user_id)
+    adapted = adapt_with_mappers(greet_user_id, user_id=extract_user_id)
 
     hints = get_type_hints(adapted)
 
@@ -286,8 +277,8 @@ def test_adapt_with_mapper_provides_type_hints():
     assert hints["return"] is str
 
 
-def test_adapt_with_mapper_provides_type_hints_for_async_functions():
-    adapted = adapt_with_mapper(async_greet_user_id, extract_user_id)
+def test_adapt_with_mappers_provides_type_hints_for_async_functions():
+    adapted = adapt_with_mappers(async_greet_user_id, user_id=extract_user_id)
 
     hints = get_type_hints(adapted)
 

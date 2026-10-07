@@ -93,7 +93,7 @@ def test_context_adaptation_preserves_requirements_and_argument_metadata() -> No
     def mapper(project_id: int) -> int:
         return project_id
 
-    adapted = example.adapt_context(mapper)
+    adapted = example.adapt_with_mappers(context=mapper)
     assert adapted.requirements == (HostPolicy.EXAMPLE,)
     assert target_parameters(adapted.fn) == target_parameters(example.fn)
     assert adapted.to_fastmcp_internal_tool().parameters["required"] == [

@@ -32,7 +32,8 @@ def test_canonical_service_schemas_explicitly_declare_target_parameters() -> Non
         assert isinstance(declarations["project_id"], ProjectTarget)
         assert declarations["project_id"].environment == EnvironmentRole.PRODUCTION
         schema = (
-            tool.adapt_with_mappers(
+            tool.remove_body_parameters("project_id")
+            .adapt_with_mappers(
                 context=context if tool in DISCOVERY_TOOLS else sl_context
             )
             .to_fastmcp_internal_tool()
@@ -60,9 +61,23 @@ async def test_discovery_uses_the_bound_configuration(
     config = DiscoveryConfig(
         url="https://example.com", headers_provider=MagicMock(), environment_id=12
     )
-    context = DiscoveryToolContext(StaticConfigProvider(config))
-    fetch = AsyncMock(return_value=[{"name": "orders"}])
-    monkeypatch.setattr(context.models_fetcher, "fetch_models", fetch)
+    context = DiscoveryToolContext(config)
+    fetch = AsyncMock(
+        return_value={
+            "data": {
+                "environment": {
+                    "applied": {
+                        "models": {
+                            "edges": [{"node": {"name": "orders"}}],
+                            "pageInfo": {"hasNextPage": False},
+                        }
+                    }
+                }
+            }
+        }
+    )
+    monkeypatch.setattr("dbt_mcp.discovery.client.execute_query", fetch)
     result = await get_all_models.fn(context=context, project_id=99)
-    assert result == [{"name": "orders"}]
+    assert result.result == [{"name": "orders"}]
     assert fetch.call_args.kwargs["config"] is config
+    assert fetch.call_args.args[1]["environmentId"] == 12

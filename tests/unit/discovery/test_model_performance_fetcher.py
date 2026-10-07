@@ -13,9 +13,10 @@ def models_fetcher():
 
 
 @pytest.fixture
-def model_performance_fetcher(models_fetcher):
+def model_performance_fetcher(unit_discovery_config, models_fetcher):
     """Create ModelPerformanceFetcher with mocked dependencies."""
     return ModelPerformanceFetcher(
+        config=unit_discovery_config,
         models_fetcher=models_fetcher,
     )
 
@@ -45,7 +46,6 @@ async def test_fetch_performance_with_unique_id(
     mock_api_client.return_value = mock_response
 
     result = await model_performance_fetcher.fetch_performance(
-        unit_discovery_config,
         unique_id="model.analytics.stg_orders",
         num_runs=1,
     )
@@ -103,7 +103,6 @@ async def test_fetch_performance_with_name_resolution(
     }
 
     result = await model_performance_fetcher.fetch_performance(
-        unit_discovery_config,
         name="stg_orders",
         num_runs=1,
     )
@@ -111,7 +110,6 @@ async def test_fetch_performance_with_name_resolution(
     # Verify name was resolved via models_fetcher
     models_fetcher.resolve_unique_ids_by_name.assert_called_once_with(
         "stg_orders",
-        config=unit_discovery_config,
     )
 
     # Verify result contains correct data
@@ -158,7 +156,6 @@ async def test_fetch_performance_multiple_runs(
     mock_api_client.return_value = mock_response
 
     result = await model_performance_fetcher.fetch_performance(
-        unit_discovery_config,
         unique_id="model.analytics.stg_orders",
         num_runs=3,
     )
@@ -182,9 +179,7 @@ async def test_fetch_performance_no_parameters_raises_error(
     with pytest.raises(
         InvalidParameterError, match="Either 'name' or 'unique_id' must be provided"
     ):
-        await model_performance_fetcher.fetch_performance(
-            unit_discovery_config, num_runs=1
-        )
+        await model_performance_fetcher.fetch_performance(num_runs=1)
 
 
 async def test_fetch_performance_model_not_found(
@@ -195,7 +190,6 @@ async def test_fetch_performance_model_not_found(
 
     with pytest.raises(ToolCallError, match="Model not found"):
         await model_performance_fetcher.fetch_performance(
-            unit_discovery_config,
             name="nonexistent_model",
             num_runs=1,
         )
@@ -214,7 +208,6 @@ async def test_fetch_performance_multiple_name_matches(
         ToolCallError, match="Multiple models found for name 'duplicate'"
     ):
         await model_performance_fetcher.fetch_performance(
-            unit_discovery_config,
             name="duplicate",
         )
 
@@ -228,7 +221,6 @@ async def test_fetch_performance_no_runs_returns_empty(
     mock_api_client.return_value = mock_response
 
     result = await model_performance_fetcher.fetch_performance(
-        unit_discovery_config,
         unique_id="model.analytics.new_model",
         num_runs=1,
     )
@@ -284,7 +276,6 @@ async def test_fetch_performance_include_tests(
     mock_api_client.return_value = mock_response
 
     result = await model_performance_fetcher.fetch_performance(
-        unit_discovery_config,
         unique_id="model.analytics.stg_orders",
         num_runs=1,
         include_tests=include_tests,
@@ -335,14 +326,12 @@ async def test_fetch_performance_strips_whitespace_from_name(
     }
 
     result = await model_performance_fetcher.fetch_performance(
-        unit_discovery_config,
         name="  stg_orders  ",
         num_runs=1,
     )
 
     models_fetcher.resolve_unique_ids_by_name.assert_called_once_with(
         "stg_orders",
-        config=unit_discovery_config,
     )
     assert result[0]["uniqueId"] == "model.analytics.stg_orders"
 
@@ -371,7 +360,6 @@ async def test_fetch_performance_strips_whitespace_from_unique_id(
     }
 
     await model_performance_fetcher.fetch_performance(
-        unit_discovery_config,
         unique_id="  model.analytics.stg_orders  ",
         num_runs=1,
     )

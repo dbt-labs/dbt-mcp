@@ -1,18 +1,12 @@
 import inspect
 from collections import OrderedDict
-from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from collections.abc import Callable
 from functools import wraps
 from types import UnionType
 from typing import Annotated, Any, Union, cast, get_args, get_origin, get_type_hints
 
 
 class AdaptError(TypeError): ...
-
-
-@dataclass(frozen=True)
-class ContextInput:
-    """A schema input consumed by context building, rather than by the body."""
 
 
 def _signature(func: Callable[..., Any]) -> inspect.Signature:
@@ -61,70 +55,60 @@ def _accepts(destination: Any, source: Any) -> bool:
     )
 
 
-def adapt_with_mapper[R](
-    func: Callable[..., R],
-    mapper: Callable[..., Any],
-    **parameter_mappers: Callable[..., Any],
+def remove_body_parameters[R](
+    func: Callable[..., R], /, *names: str
 ) -> Callable[..., R]:
-    """Convenience adapter for contexts identified by their annotated type."""
-    destinations = _mapper_destinations(func, mapper)
-    overlap = destinations.keys() & parameter_mappers.keys()
-    if overlap:
-        raise AdaptError(f"Multiple mappers for: {', '.join(sorted(overlap))}")
-    return _inject_parameters(func, destinations | parameter_mappers)
+    """Omit parameters from invocation, leaving the original defaults in place."""
+    original = _signature(func)
+    unknown = set(names) - original.parameters.keys()
+    if unknown:
+        raise AdaptError(f"Unknown body parameters: {', '.join(sorted(unknown))}")
+    required = {
+        name
+        for name in names
+        if original.parameters[name].default is inspect.Parameter.empty
+    }
+    if required:
+        raise AdaptError(
+            f"Cannot remove required body parameters: {', '.join(sorted(required))}"
+        )
+    if not names:
+        return func
+    exposed = original.replace(
+        parameters=[p for name, p in original.parameters.items() if name not in names]
+    )
+
+    def invoke(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+        values = exposed.bind(*args, **kwargs)
+        body = inspect.BoundArguments(original, values.arguments)
+        return func(*body.args, **body.kwargs)
+
+    if inspect.iscoroutinefunction(func):
+
+        @wraps(func)
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            return await invoke(args, kwargs)
+
+    else:
+
+        @wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> R:
+            return invoke(args, kwargs)
+
+    return cast(Callable[..., R], _with_signature(wrapper, exposed))
 
 
 def adapt_with_mappers[R](
-    func: Callable[..., R],
-    mappers: Iterable[Callable[..., Any]] = (),
-    /,
-    **parameter_mappers: Callable[..., Any],
+    func: Callable[..., R], /, **parameter_mappers: Callable[..., Any]
 ) -> Callable[..., R]:
     """Inject named parameters from mappers, sharing their caller inputs.
 
-    The positional iterable retains sequential type-based context adaptation.
-    Named mappers link directly to parameters and each run once per invocation.
+    Mapper inputs form the exposed signature; each mapper runs once per invocation.
     """
-    for mapper in mappers:
-        func = _inject_parameters(func, _mapper_destinations(func, mapper))
-    return _inject_parameters(func, parameter_mappers)
-
-
-def _mapper_destinations(
-    func: Callable[..., Any], mapper: Callable[..., Any]
-) -> dict[str, Callable[..., Any]]:
-    """Translate a type-based context mapper to named destinations."""
-    return_type = _signature(mapper).return_annotation
-    if return_type is inspect.Parameter.empty:
-        raise AdaptError("mapper must have a return type annotation")
-    return {
-        name: mapper
-        for name, parameter in _signature(func).parameters.items()
-        if parameter.annotation == return_type
-    }
-
-
-def _inject_parameters[R](
-    func: Callable[..., R], parameter_mappers: dict[str, Callable[..., Any]]
-) -> Callable[..., R]:
-    """Build a signature and invocation wrapper for named parameter injection."""
     if not parameter_mappers:
         return func
 
     original = _signature(func)
-    consumed = {
-        name
-        for name, parameter in original.parameters.items()
-        if get_origin(parameter.annotation) is Annotated
-        and any(
-            isinstance(item, ContextInput)
-            for item in get_args(parameter.annotation)[1:]
-        )
-        and name not in parameter_mappers
-    }
-    for name in consumed:
-        if original.parameters[name].default is inspect.Parameter.empty:
-            raise AdaptError(f"{name}: ContextInput requires a schema default")
     unknown = parameter_mappers.keys() - original.parameters.keys()
     if unknown:
         raise AdaptError(f"Unknown mapper destinations: {', '.join(sorted(unknown))}")
@@ -153,11 +137,7 @@ def _inject_parameters[R](
                     if get_origin(parameter.annotation) is Annotated
                     else parameter.annotation
                 )
-                metadata = [
-                    item
-                    for item in get_args(canonical.annotation)[1:]
-                    if not isinstance(item, ContextInput)
-                ]
+                metadata = get_args(canonical.annotation)[1:]
                 parameter = parameter.replace(
                     annotation=Annotated[value_type, *metadata]
                     if metadata
@@ -172,9 +152,7 @@ def _inject_parameters[R](
         *(
             parameter
             for name, parameter in original.parameters.items()
-            if name not in parameter_mappers
-            and name not in inputs
-            and name not in consumed
+            if name not in parameter_mappers and name not in inputs
         ),
     ]
     parameters.sort(key=lambda p: (p.kind, p.default is not inspect.Parameter.empty))
@@ -203,11 +181,7 @@ def _inject_parameters[R](
     def invoke(values: dict[str, Any]) -> Any:
         bound = inspect.BoundArguments(
             original,
-            OrderedDict(
-                (name, values[name])
-                for name in original.parameters
-                if name not in consumed
-            ),
+            OrderedDict((name, values[name]) for name in original.parameters),
         )
         return func(*bound.args, **bound.kwargs)
 
@@ -240,9 +214,15 @@ def _inject_parameters[R](
                 values[destination] = mapped[id(mapper)]
             return invoke(values)
 
-    wrapper.__signature__ = exposed  # type: ignore[attr-defined]
-    wrapper.__annotations__ = {
+    return cast(Callable[..., R], _with_signature(wrapper, exposed))
+
+
+def _with_signature(
+    func: Callable[..., Any], exposed: inspect.Signature
+) -> Callable[..., Any]:
+    func.__signature__ = exposed  # type: ignore[attr-defined]
+    func.__annotations__ = {
         "return": exposed.return_annotation,
         **{name: p.annotation for name, p in exposed.parameters.items()},
     }
-    return cast(Callable[..., R], wrapper)
+    return func

@@ -403,10 +403,12 @@ class PageInfo(BaseModel):
 class PaginatedResourceFetcher:
     def __init__(
         self,
+        config: DiscoveryConfig,
         *,
         edges_path: tuple[str, ...],
         page_info_path: tuple[str, ...],
     ):
+        self._config = config
         self._edges_path = edges_path
         self._page_info_path = page_info_path
 
@@ -436,18 +438,17 @@ class PaginatedResourceFetcher:
         query: str,
         variables: dict[str, Any],
         *,
-        config: DiscoveryConfig,
         limit: int = 50,
         after: str | None = None,
     ) -> ResultPage[list[dict]]:
         validate_page_size(limit)
         request_variables = variables | {
-            "environmentId": config.environment_id,
+            "environmentId": self._config.environment_id,
             "first": limit,
         }
         if after is not None:
             request_variables["after"] = after
-        result = await execute_query(query, request_variables, config=config)
+        result = await execute_query(query, request_variables, config=self._config)
         nodes = self._parse_edges(result)
         if len(nodes) > limit:
             raise DiscoveryToolCallError(
@@ -486,8 +487,10 @@ class MacroFilter(TypedDict, total=False):
 class ModelsFetcher:
     def __init__(
         self,
+        config: DiscoveryConfig,
         paginator: PaginatedResourceFetcher,
     ):
+        self._config = config
         self._paginator = paginator
 
     def _get_model_filters(
@@ -506,7 +509,6 @@ class ModelsFetcher:
         self,
         model_filter: ModelFilter | None = None,
         *,
-        config: DiscoveryConfig,
         limit: int = 50,
         after: str | None = None,
     ) -> ResultPage[list[dict]]:
@@ -516,13 +518,13 @@ class ModelsFetcher:
                 "modelsFilter": model_filter or {},
                 "sort": {"field": "queryUsageCount", "direction": "desc"},
             },
-            config=config,
             limit=limit,
             after=after,
         )
 
     async def resolve_unique_ids_by_name(
-        self, name: str, *, config: DiscoveryConfig
+        self,
+        name: str,
     ) -> list[str]:
         """Resolve a model name to unique_id(s) via the Discovery API's
         `identifier` filter.
@@ -543,7 +545,6 @@ class ModelsFetcher:
         """
         page = await self.fetch_models(
             model_filter=self._get_model_filters(model_name=name),
-            config=config,
             limit=100,
         )
         if page.pagination.has_more:
@@ -561,17 +562,15 @@ class ModelsFetcher:
         self,
         model_name: str | None = None,
         unique_id: str | None = None,
-        *,
-        config: DiscoveryConfig,
     ) -> list[dict]:
         model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
-            "environmentId": config.environment_id,
+            "environmentId": self._config.environment_id,
             "modelsFilter": model_filters,
             "first": 1,
         }
         result = await execute_query(
-            GraphQLQueries.GET_MODEL_PARENTS, variables, config=config
+            GraphQLQueries.GET_MODEL_PARENTS, variables, config=self._config
         )
         raise_gql_error(result)
         edges = result["data"]["environment"]["applied"]["models"]["edges"]
@@ -583,19 +582,17 @@ class ModelsFetcher:
         self,
         model_name: str | None = None,
         unique_id: str | None = None,
-        *,
-        config: DiscoveryConfig,
     ) -> list[dict]:
         model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
-            "environmentId": config.environment_id,
+            "environmentId": self._config.environment_id,
             "modelsFilter": model_filters,
             "first": 1,
         }
         result = await execute_query(
             GraphQLQueries.GET_MODEL_CHILDREN,
             variables,
-            config=config,
+            config=self._config,
         )
         raise_gql_error(result)
         edges = result["data"]["environment"]["applied"]["models"]["edges"]
@@ -607,17 +604,15 @@ class ModelsFetcher:
         self,
         model_name: str | None = None,
         unique_id: str | None = None,
-        *,
-        config: DiscoveryConfig,
     ) -> list[dict]:
         model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
-            "environmentId": config.environment_id,
+            "environmentId": self._config.environment_id,
             "modelsFilter": model_filters,
             "first": 1,
         }
         result = await execute_query(
-            GraphQLQueries.GET_MODEL_HEALTH, variables, config=config
+            GraphQLQueries.GET_MODEL_HEALTH, variables, config=self._config
         )
         raise_gql_error(result)
         edges = result["data"]["environment"]["applied"]["models"]["edges"]
@@ -634,12 +629,11 @@ class ExposuresFetcher:
         self._paginator = paginator
 
     async def fetch_exposures(
-        self, *, config: DiscoveryConfig, limit: int = 50, after: str | None = None
+        self, *, limit: int = 50, after: str | None = None
     ) -> ResultPage[list[dict]]:
         return await self._paginator.fetch_paginated(
             GraphQLQueries.GET_EXPOSURES,
             variables={},
-            config=config,
             limit=limit,
             after=after,
         )
@@ -657,7 +651,6 @@ class SourcesFetcher:
         source_names: list[str] | None = None,
         unique_ids: list[str] | None = None,
         *,
-        config: DiscoveryConfig,
         limit: int = 50,
         after: str | None = None,
     ) -> ResultPage[list[dict]]:
@@ -670,7 +663,6 @@ class SourcesFetcher:
         return await self._paginator.fetch_paginated(
             GraphQLQueries.GET_SOURCES,
             variables={"sourcesFilter": source_filter},
-            config=config,
             limit=limit,
             after=after,
         )
@@ -689,7 +681,6 @@ class MacrosFetcher:
         return_package_names_only: bool = False,
         include_default_dbt_packages: bool = False,
         *,
-        config: DiscoveryConfig,
         limit: int = 50,
         after: str | None = None,
     ) -> ResultPage[list[dict] | list[str]]:
@@ -702,7 +693,6 @@ class MacrosFetcher:
                 packages before drilling down.
             include_default_dbt_packages: If True, includes the default dbt macros that
                 are maintained by dbt Labs.
-            config: Discovery API connection and environment.
 
         Returns:
             List of macros with name, uniqueId, description, and packageName,
@@ -713,7 +703,6 @@ class MacrosFetcher:
         page = await self._paginator.fetch_paginated(
             GraphQLQueries.GET_MACROS,
             variables={"filter": macro_filter},
-            config=config,
             limit=limit,
             after=after,
         )
@@ -765,7 +754,8 @@ class AppliedResourceType(StrEnum):
 
 
 class ResourceDetailsFetcher:
-    def __init__(self, models_fetcher: ModelsFetcher):
+    def __init__(self, config: DiscoveryConfig, models_fetcher: ModelsFetcher):
+        self._config = config
         self._models_fetcher = models_fetcher
 
     GET_PACKAGES_QUERY = load_query("get_packages.gql")
@@ -803,7 +793,6 @@ class ResourceDetailsFetcher:
     async def fetch_details(
         self,
         resource_type: AppliedResourceType,
-        config: DiscoveryConfig,
         name: str | None = None,
         unique_id: str | None = None,
     ) -> list[dict]:
@@ -811,7 +800,7 @@ class ResourceDetailsFetcher:
         normalized_name = stripped_name.lower() if stripped_name else None
         # Do not lowercase unique_id — the Discovery API uniqueIds filter is case-sensitive
         stripped_unique_id = unique_id.strip() if unique_id else None
-        environment_id = config.environment_id
+        environment_id = self._config.environment_id
         if not stripped_name and not stripped_unique_id:
             raise InvalidParameterError("Either name or unique_id must be provided")
         if (
@@ -829,7 +818,7 @@ class ResourceDetailsFetcher:
                 # ModelsFetcher.resolve_unique_ids_by_name), so we can resolve
                 # directly instead of enumerating packages and guessing unique_ids.
                 unique_ids = await self._models_fetcher.resolve_unique_ids_by_name(
-                    stripped_name, config=config
+                    stripped_name,
                 )
                 if not unique_ids:
                     return []
@@ -841,7 +830,7 @@ class ResourceDetailsFetcher:
                             "resource": "macro",
                             "environmentId": environment_id,
                         },
-                        config=config,
+                        config=self._config,
                     ),
                     execute_query(
                         self.GET_PACKAGES_QUERY,
@@ -849,7 +838,7 @@ class ResourceDetailsFetcher:
                             "resource": "model",
                             "environmentId": environment_id,
                         },
-                        config=config,
+                        config=self._config,
                     ),
                 )
                 raise_gql_error(packages_result[0])
@@ -884,7 +873,7 @@ class ResourceDetailsFetcher:
             },
             "first": len(unique_ids),
         }
-        get_details_result = await execute_query(query, variables, config=config)
+        get_details_result = await execute_query(query, variables, config=self._config)
         raise_gql_error(get_details_result)
         edges = get_details_result["data"]["environment"]["applied"]["resources"][
             "edges"
@@ -897,14 +886,15 @@ class ResourceDetailsFetcher:
 class LineageFetcher:
     """Fetcher for lineage data. Returns nodes connected to the target."""
 
+    def __init__(self, config: DiscoveryConfig):
+        self._config = config
+
     async def fetch_lineage(
         self,
         unique_id: str,
         depth: int,
         types: list[LineageResourceType] | None = None,
         direction: LineageDirection = LineageDirection.BOTH,
-        *,
-        config: DiscoveryConfig,
     ) -> list[dict]:
         """Fetch lineage graph filtered to nodes connected to unique_id.
 
@@ -913,7 +903,6 @@ class LineageFetcher:
             depth: how many levels to traverse (0 = infinite, 1 = immediate neighbors only, higher = deeper)
             types: List of resource types to include. If None, includes all types.
             direction: Which direction(s) to traverse relative to unique_id.
-            config: Discovery API connection and environment.
 
         Returns:
             List of nodes connected to unique_id, filtered to `direction`.
@@ -924,7 +913,7 @@ class LineageFetcher:
             t.value for t in (types if types is not None else LineageResourceType)
         ]
         variables = {
-            "environmentId": config.environment_id,
+            "environmentId": self._config.environment_id,
             "types": type_filter,
             # uniqueId removed - not used by GraphQL
         }
@@ -932,7 +921,7 @@ class LineageFetcher:
         result = await execute_query(
             GraphQLQueries.GET_FULL_LINEAGE,
             variables,
-            config=config,
+            config=self._config,
             response_type="discovery.lineage",
         )
         raise_gql_error(result)
@@ -1042,13 +1031,14 @@ class ModelPerformanceFetcher:
 
     def __init__(
         self,
+        config: DiscoveryConfig,
         models_fetcher: ModelsFetcher,
     ):
+        self._config = config
         self._models_fetcher = models_fetcher
 
     async def fetch_performance(
         self,
-        config: DiscoveryConfig,
         name: str | None = None,
         unique_id: str | None = None,
         num_runs: int = 1,
@@ -1069,7 +1059,7 @@ class ModelPerformanceFetcher:
             InvalidParameterError: If neither name nor unique_id provided
             ToolCallError: If model not found or API error
         """
-        environment_id = config.environment_id
+        environment_id = self._config.environment_id
         # Strip whitespace up front -- mirrors ResourceDetailsFetcher.fetch_details,
         # which this method used to delegate through for name resolution.
         stripped_name = name.strip() if name else None
@@ -1082,7 +1072,7 @@ class ModelPerformanceFetcher:
         if not resolved_unique_id:
             assert stripped_name is not None, "Name must be provided"
             unique_ids = await self._models_fetcher.resolve_unique_ids_by_name(
-                stripped_name, config=config
+                stripped_name,
             )
             if not unique_ids:
                 raise NotFoundError(f"Model not found: {stripped_name}")
@@ -1106,7 +1096,7 @@ class ModelPerformanceFetcher:
         result = await execute_query(
             self.GET_MODEL_PERFORMANCE_QUERY,
             variables,
-            config=config,
+            config=self._config,
         )
         raise_gql_error(result)
 

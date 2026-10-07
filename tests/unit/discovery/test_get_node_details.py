@@ -30,12 +30,7 @@ DEPRECATED_DETAIL_TOOLS = [
 async def test_get_node_details_delegates_to_fetcher(
     resource_type: AppliedResourceType,
 ):
-    config = DiscoveryConfig(
-        url="https://example.com", headers_provider=Mock(), environment_id=1
-    )
     context = Mock()
-    context.config_provider = Mock(spec=ProjectConfigProvider)
-    context.config_provider.get_config = AsyncMock(return_value=config)
     context.resource_details_fetcher.fetch_details = AsyncMock(return_value=["row"])
 
     result = await get_node_details.fn(
@@ -50,7 +45,6 @@ async def test_get_node_details_delegates_to_fetcher(
         resource_type=resource_type,
         unique_id=f"{resource_type.value}.pkg.thing",
         name=None,
-        config=config,
     )
 
 
@@ -62,11 +56,11 @@ async def test_get_node_details_multiproject_delegates_to_fetcher(
         url="https://example.com", headers_provider=Mock(), environment_id=1
     )
     context = Mock()
-    context.config_provider = Mock(spec=ProjectConfigProvider)
-    context.config_provider.get_config = AsyncMock(return_value=config)
+    provider = Mock(spec=ProjectConfigProvider)
+    provider.get_config = AsyncMock(return_value=config)
     context.resource_details_fetcher.fetch_details = AsyncMock(return_value=["row"])
 
-    mapper = discovery_context_mappers(context.config_provider)["context"]
+    mapper = discovery_context_mappers(provider)["context"]
     mapped = await mapper(project_id=42)
     mapped.resource_details_fetcher = context.resource_details_fetcher
     result = await get_node_details.fn(
@@ -77,12 +71,11 @@ async def test_get_node_details_multiproject_delegates_to_fetcher(
     )
 
     assert result == ["row"]
-    context.config_provider.get_config.assert_awaited_once_with(project_id=42)
+    provider.get_config.assert_awaited_once_with(project_id=42)
     context.resource_details_fetcher.fetch_details.assert_awaited_once_with(
         resource_type=resource_type,
         unique_id=None,
         name="thing",
-        config=config,
     )
 
 

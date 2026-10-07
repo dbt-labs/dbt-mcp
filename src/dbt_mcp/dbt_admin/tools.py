@@ -42,7 +42,6 @@ from dbt_mcp.tools.targets import (
     ProjectTarget,
     RunTarget,
 )
-from dbt_mcp.tools.injection import ContextInput
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
@@ -118,9 +117,9 @@ async def list_jobs(
     limit: Annotated[int, LIMIT_FIELD] = 50,
     offset: Annotated[int, OFFSET_FIELD] = 0,
     *,
-    project_id: Annotated[
-        int, ProjectTarget(requires=Permission.JOBS_READ), ContextInput()
-    ] = Field(description=JOBS_PROJECT_ID_FILTER, gt=0),
+    project_id: Annotated[int, ProjectTarget(requires=Permission.JOBS_READ)] = Field(
+        description=JOBS_PROJECT_ID_FILTER, gt=0
+    ),
 ) -> ResultPage[list[dict[str, Any]]]:
     """List project jobs, narrowed to the environment selected in the context."""
     validate_page_size(limit)
@@ -457,7 +456,11 @@ def register_admin_api_tools(
         return JobsToolContext(config)
 
     definitions = [
-        tool.adapt_context(bind_context).adapt_context(bind_jobs_context)
+        list_jobs.remove_body_parameters("project_id").adapt_with_mappers(
+            context=bind_jobs_context
+        )
+        if tool is list_jobs
+        else tool.adapt_with_mappers(context=bind_context)
         for tool in ADMIN_TOOLS
     ]
     register_tools(

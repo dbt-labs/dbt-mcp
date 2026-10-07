@@ -40,7 +40,6 @@ from dbt_mcp.tools.targets import (
     Permission,
     ProjectTarget,
 )
-from dbt_mcp.tools.injection import ContextInput
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.deprecation import deprecated_description, deprecation_meta
 from dbt_mcp.tools.fields import (
@@ -53,7 +52,6 @@ from dbt_mcp.tools.fields import (
     UNIQUE_ID_REQUIRED_FIELD,
 )
 from dbt_mcp.tools.parameters import LineageDirection, LineageResourceType
-from dbt_mcp.config.config_providers.base import StaticConfigProvider
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
@@ -75,17 +73,19 @@ class DiscoveryToolContext:
 
     def __init__(
         self,
-        config_provider: ConfigProvider[DiscoveryConfig],
+        config: DiscoveryConfig,
     ):
-        self.config_provider = config_provider
         self.models_fetcher = ModelsFetcher(
+            config=config,
             paginator=PaginatedResourceFetcher(
+                config=config,
                 edges_path=("data", "environment", "applied", "models", "edges"),
                 page_info_path=("data", "environment", "applied", "models", "pageInfo"),
             ),
         )
         self.exposures_fetcher = ExposuresFetcher(
             paginator=PaginatedResourceFetcher(
+                config=config,
                 edges_path=("data", "environment", "definition", "exposures", "edges"),
                 page_info_path=(
                     "data",
@@ -98,6 +98,7 @@ class DiscoveryToolContext:
         )
         self.sources_fetcher = SourcesFetcher(
             paginator=PaginatedResourceFetcher(
+                config=config,
                 edges_path=("data", "environment", "applied", "sources", "edges"),
                 page_info_path=(
                     "data",
@@ -110,6 +111,7 @@ class DiscoveryToolContext:
         )
         self.macros_fetcher = MacrosFetcher(
             paginator=PaginatedResourceFetcher(
+                config=config,
                 edges_path=("data", "environment", "applied", "resources", "edges"),
                 page_info_path=(
                     "data",
@@ -121,10 +123,13 @@ class DiscoveryToolContext:
             ),
         )
         self.resource_details_fetcher = ResourceDetailsFetcher(
-            models_fetcher=self.models_fetcher
+            config=config, models_fetcher=self.models_fetcher
         )
-        self.lineage_fetcher = LineageFetcher()
+        self.lineage_fetcher = LineageFetcher(
+            config=config,
+        )
         self.model_performance_fetcher = ModelPerformanceFetcher(
+            config=config,
             models_fetcher=self.models_fetcher,
         )
 
@@ -147,12 +152,10 @@ async def get_mart_models(
             requires=Permission.METADATA_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> ResultPage[list[dict]]:
     mart_models = await context.models_fetcher.fetch_models(
         model_filter={"modelingLayer": "marts"},
-        config=await context.config_provider.get_config(),
         limit=limit,
         after=after,
     )
@@ -180,13 +183,9 @@ async def get_all_models(
             requires=Permission.METADATA_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> ResultPage[list[dict]]:
-    config = await context.config_provider.get_config()
-    return await context.models_fetcher.fetch_models(
-        config=config, limit=limit, after=after
-    )
+    return await context.models_fetcher.fetch_models(limit=limit, after=after)
 
 
 @dbt_mcp_tool(
@@ -210,15 +209,12 @@ async def get_node_details(
             requires=Permission.METADATA_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=resource_type,
         unique_id=unique_id,
         name=name,
-        config=config,
     )
 
 
@@ -241,15 +237,12 @@ async def get_model_details(
             requires=Permission.METADATA_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.MODEL,
         unique_id=unique_id,
         name=name,
-        config=config,
     )
 
 
@@ -274,12 +267,10 @@ async def get_model_parents(
             requires=Permission.METADATA_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     return await context.models_fetcher.fetch_model_parents(
-        model_name=name, unique_id=unique_id, config=config
+        model_name=name, unique_id=unique_id
     )
 
 
@@ -304,13 +295,9 @@ async def get_model_children(
             requires=Permission.METADATA_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
-    return await context.models_fetcher.fetch_model_children(
-        name, unique_id, config=config
-    )
+    return await context.models_fetcher.fetch_model_children(name, unique_id)
 
 
 @dbt_mcp_tool(
@@ -331,13 +318,9 @@ async def get_model_health(
             requires=Permission.METADATA_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
-    return await context.models_fetcher.fetch_model_health(
-        name, unique_id, config=config
-    )
+    return await context.models_fetcher.fetch_model_health(name, unique_id)
 
 
 @dbt_mcp_tool(
@@ -368,13 +351,10 @@ async def get_model_performance(
             requires=Permission.METADATA_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> list[dict]:
     """Get model execution performance metrics from historical runs."""
-    config = await context.config_provider.get_config()
     return await context.model_performance_fetcher.fetch_performance(
-        config=config,
         name=name,
         unique_id=unique_id,
         num_runs=num_runs,
@@ -460,16 +440,13 @@ async def get_lineage(
             requires=Permission.METADATA_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> LineageGraph:
-    config = await context.config_provider.get_config()
     nodes = await context.lineage_fetcher.fetch_lineage(
         unique_id=unique_id,
         types=types,
         depth=depth,
         direction=direction,
-        config=config,
     )
     return build_lineage_graph(
         root_id=unique_id,
@@ -496,13 +473,9 @@ async def get_exposures(
             requires=Permission.METADATA_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> ResultPage[list[dict]]:
-    config = await context.config_provider.get_config()
-    return await context.exposures_fetcher.fetch_exposures(
-        config=config, limit=limit, after=after
-    )
+    return await context.exposures_fetcher.fetch_exposures(limit=limit, after=after)
 
 
 @dbt_mcp_tool(
@@ -524,15 +497,12 @@ async def get_exposure_details(
             requires=Permission.METADATA_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.EXPOSURE,
         unique_id=unique_id,
         name=name,
-        config=config,
     )
 
 
@@ -560,12 +530,10 @@ async def get_all_sources(
             requires=Permission.METADATA_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> ResultPage[list[dict]]:
-    config = await context.config_provider.get_config()
     return await context.sources_fetcher.fetch_sources(
-        source_names, unique_ids, config=config, limit=limit, after=after
+        source_names, unique_ids, limit=limit, after=after
     )
 
 
@@ -588,15 +556,12 @@ async def get_source_details(
             requires=Permission.METADATA_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SOURCE,
         unique_id=unique_id,
         name=name,
-        config=config,
     )
 
 
@@ -627,15 +592,12 @@ async def get_all_macros(
             requires=Permission.METADATA_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> ResultPage[list[dict] | list[str]]:
-    config = await context.config_provider.get_config()
     return await context.macros_fetcher.fetch_macros(
         package_names=package_names,
         return_package_names_only=return_package_names_only,
         include_default_dbt_packages=include_default_dbt_packages,
-        config=config,
         limit=limit,
         after=after,
     )
@@ -660,15 +622,12 @@ async def get_macro_details(
             requires=Permission.METADATA_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.MACRO,
         unique_id=unique_id,
         name=name,
-        config=config,
     )
 
 
@@ -691,15 +650,12 @@ async def get_seed_details(
             requires=Permission.METADATA_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SEED,
         unique_id=unique_id,
         name=name,
-        config=config,
     )
 
 
@@ -722,15 +678,12 @@ async def get_semantic_model_details(
             requires=Permission.METADATA_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SEMANTIC_MODEL,
         unique_id=unique_id,
         name=name,
-        config=config,
     )
 
 
@@ -753,15 +706,12 @@ async def get_snapshot_details(
             requires=Permission.METADATA_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SNAPSHOT,
         unique_id=unique_id,
         name=name,
-        config=config,
     )
 
 
@@ -784,15 +734,12 @@ async def get_test_details(
             requires=Permission.METADATA_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.TEST,
         unique_id=unique_id,
         name=name,
-        config=config,
     )
 
 
@@ -823,7 +770,7 @@ def discovery_context_mappers(
     config_provider: ConfigProvider[DiscoveryConfig],
 ) -> dict[str, Callable[..., Any]]:
     def context(config: DiscoveryConfig) -> DiscoveryToolContext:
-        return DiscoveryToolContext(config_provider=StaticConfigProvider(config))
+        return DiscoveryToolContext(config=config)
 
     if isinstance(config_provider, ProjectConfigProvider):
 
@@ -848,7 +795,10 @@ def register_discovery_tools(
     disabled_toolsets: set[Toolset],
 ) -> None:
     mappers = discovery_context_mappers(discovery_config_provider)
-    definitions = [tool.adapt_with_mappers(**mappers) for tool in DISCOVERY_TOOLS]
+    definitions = [
+        tool.remove_body_parameters("project_id").adapt_with_mappers(**mappers)
+        for tool in DISCOVERY_TOOLS
+    ]
 
     register_tools(
         dbt_mcp,

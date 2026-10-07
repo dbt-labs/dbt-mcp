@@ -9,8 +9,9 @@ from dbt_mcp.discovery.client import (
 
 
 @pytest.fixture
-def exposures_fetcher():
+def exposures_fetcher(unit_discovery_config):
     paginator = PaginatedResourceFetcher(
+        config=unit_discovery_config,
         edges_path=("data", "environment", "definition", "exposures", "edges"),
         page_info_path=(
             "data",
@@ -61,9 +62,7 @@ async def test_fetch_exposures_single_page(
     mock_api_client.return_value = mock_response
 
     with patch("dbt_mcp.discovery.client.raise_gql_error"):
-        result = (
-            await exposures_fetcher.fetch_exposures(config=unit_discovery_config)
-        ).result
+        result = (await exposures_fetcher.fetch_exposures()).result
 
     assert len(result) == 1
     assert result[0]["name"] == "test_exposure"
@@ -152,9 +151,7 @@ async def test_fetch_exposures_multiple_pages(
     mock_api_client.side_effect = [page1_response, page2_response]
 
     with patch("dbt_mcp.discovery.client.raise_gql_error"):
-        result = (
-            await exposures_fetcher.fetch_exposures(config=unit_discovery_config)
-        ).result
+        result = (await exposures_fetcher.fetch_exposures()).result
 
     assert len(result) == 1
     assert result[0]["name"] == "exposure1"
@@ -187,9 +184,7 @@ async def test_fetch_exposures_empty_response(
     mock_api_client.return_value = mock_response
 
     with patch("dbt_mcp.discovery.client.raise_gql_error"):
-        result = (
-            await exposures_fetcher.fetch_exposures(config=unit_discovery_config)
-        ).result
+        result = (await exposures_fetcher.fetch_exposures()).result
 
     assert len(result) == 0
     assert isinstance(result, list)
@@ -249,9 +244,7 @@ async def test_fetch_exposures_handles_malformed_edges(
     mock_api_client.return_value = mock_response
 
     with patch("dbt_mcp.discovery.client.raise_gql_error"):
-        result = (
-            await exposures_fetcher.fetch_exposures(config=unit_discovery_config)
-        ).result
+        result = (await exposures_fetcher.fetch_exposures()).result
 
     # Should only get the valid exposures (malformed edges should be filtered out)
     assert len(result) == 2

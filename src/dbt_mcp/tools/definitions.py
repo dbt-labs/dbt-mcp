@@ -1,9 +1,9 @@
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from functools import partial, wraps
 from inspect import Parameter, Signature, isawaitable, signature, unwrap
-from typing import Annotated, Any, get_args, get_origin
+from typing import Annotated, Any
 
 from mcp.server.fastmcp.tools.base import Tool
 from mcp.types import ToolAnnotations
@@ -11,10 +11,9 @@ from pydantic.fields import FieldInfo
 
 from dbt_mcp.tools.injection import (
     AdaptError,
-    ContextInput,
     _accepts,
-    adapt_with_mapper,
     adapt_with_mappers,
+    remove_body_parameters,
 )
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.targets import Target, target_parameters
@@ -31,6 +30,9 @@ class GenericToolDefinition[NameEnum: Enum]:
     structured_output: bool = True
     meta: dict[str, Any] | None = None
     requirements: tuple[Target | Enum, ...] | None = None
+    _removed_body_parameters: frozenset[str] = field(
+        default_factory=frozenset, repr=False
+    )
 
     def __post_init__(self) -> None:
         # Adapted/bound signatures may hide every target. The canonical function
@@ -40,12 +42,10 @@ class GenericToolDefinition[NameEnum: Enum]:
 
     @property
     def input_signature(self) -> Signature:
-        """Complete unbound model contract, including context-only selectors."""
+        """Complete unbound model contract, including removed body parameters."""
         parameters = dict(signature(self.fn).parameters)
-        for name, parameter in self._context_inputs.items():
-            parameters[name] = parameter.replace(
-                kind=Parameter.KEYWORD_ONLY, default=Parameter.empty
-            )
+        for name, parameter in self._removed_parameters.items():
+            parameters[name] = parameter.replace(kind=Parameter.KEYWORD_ONLY)
         ordered = sorted(
             parameters.values(),
             key=lambda p: (p.kind, p.default is not Parameter.empty),
@@ -53,20 +53,19 @@ class GenericToolDefinition[NameEnum: Enum]:
         return signature(self.fn).replace(parameters=ordered)
 
     @property
-    def _context_inputs(self) -> dict[str, Parameter]:
-        """Schema inputs declared on the canonical function and consumed by context."""
+    def _removed_parameters(self) -> dict[str, Parameter]:
+        """Canonical declarations retained for context inputs and authorization."""
         return {
             name: parameter.replace(
-                annotation=Annotated[*get_args(parameter.annotation), parameter.default]
+                annotation=Annotated[parameter.annotation, parameter.default],
+                default=Parameter.empty
+                if parameter.default.is_required()
+                else parameter.default.default,
             )
             if isinstance(parameter.default, FieldInfo)
             else parameter
             for name, parameter in signature(unwrap(self.fn)).parameters.items()
-            if get_origin(parameter.annotation) is Annotated
-            and any(
-                isinstance(item, ContextInput)
-                for item in get_args(parameter.annotation)[1:]
-            )
+            if name in self._removed_body_parameters
         }
 
     @property
@@ -83,12 +82,14 @@ class GenericToolDefinition[NameEnum: Enum]:
         declaration stays non-nullable and required whenever it is exposed.
         """
         implementation = signature(self.fn)
-        declarations = self._context_inputs
+        declarations = self._removed_parameters
         if not declarations.keys() & implementation.parameters.keys():
             return self.fn
         invocation = implementation.replace(
             parameters=[
-                p.replace(annotation=declarations[p.name].annotation)
+                p.replace(
+                    annotation=declarations[p.name].annotation,
+                )
                 if p.name in declarations
                 else p
                 for p in implementation.parameters.values()
@@ -116,27 +117,27 @@ class GenericToolDefinition[NameEnum: Enum]:
             structured_output=self.structured_output,
             meta=self.meta,
         )
-        # Context input defaults declare schemas, rather than runtime values.
-        # Transport omission support must not make exposed selectors optional.
-        for name in self._context_inputs.keys() & tool.parameters["properties"].keys():
-            tool.parameters["properties"][name].pop("default", None)
-            tool.parameters.setdefault("required", []).append(name)
+        # Internal omission support lets configured mappers and host authorization
+        # supply selectors. It does not make required model inputs optional.
+        for name, declaration in self._removed_parameters.items():
+            if (
+                name in tool.parameters["properties"]
+                and declaration.default is Parameter.empty
+            ):
+                tool.parameters["properties"][name].pop("default", None)
+                tool.parameters.setdefault("required", []).append(name)
         if "required" in tool.parameters:
             tool.parameters["required"] = list(
                 dict.fromkeys(tool.parameters["required"])
             )
         return tool
 
-    def adapt_context(
-        self,
-        context_mapper: Callable[..., Any],
-        **parameter_mappers: Callable[..., Any],
-    ) -> "GenericToolDefinition[NameEnum]":
-        """
-        Adapt the tool definition to accept a different context object.
-        """
-        return self._adapted(
-            adapt_with_mapper(self.fn, context_mapper, **parameter_mappers)
+    def remove_body_parameters(self, *names: str) -> "GenericToolDefinition[NameEnum]":
+        """Stop forwarding parameters to the body; mappers may still accept them."""
+        return replace(
+            self,
+            fn=remove_body_parameters(self.fn, *names),
+            _removed_body_parameters=self._removed_body_parameters | frozenset(names),
         )
 
     def adapt_with_mappers(
@@ -147,7 +148,7 @@ class GenericToolDefinition[NameEnum: Enum]:
 
     def _adapted(self, fn: Callable[..., Any]) -> "GenericToolDefinition[NameEnum]":
         exposed = signature(fn)
-        for name, declaration in self._context_inputs.items():
+        for name, declaration in self._removed_parameters.items():
             parameter = exposed.parameters.get(name)
             if parameter is not None and not _accepts(
                 parameter.annotation, declaration.annotation

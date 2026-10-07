@@ -9,7 +9,7 @@ from mcp.server.fastmcp.exceptions import ToolError
 from pydantic import Field
 
 from dbt_mcp.tools.targets import Permission, ProjectTarget
-from dbt_mcp.tools.injection import AdaptError, ContextInput
+from dbt_mcp.tools.injection import AdaptError
 
 from dbt_mcp.tools.definitions import GenericToolDefinition, generic_dbt_mcp_tool
 from dbt_mcp.tools.register import generic_register_tools
@@ -33,8 +33,8 @@ def _make_tool(
         read_only_hint=True,
         meta=meta,
     )
-    async def my_tool() -> str:
-        return "ok"
+    async def my_tool(context: str = "ok") -> str:
+        return context
 
     return my_tool
 
@@ -51,14 +51,14 @@ class TestMetaPassthrough:
         tool = _make_tool()
         assert tool.meta is None
 
-    def test_adapt_context_preserves_meta(self):
+    def test_adapt_with_mappers_preserves_meta(self):
         meta = {"ui": {"resourceUri": "ui://test/app.html"}}
         tool = _make_tool(meta=meta)
 
-        def mapper() -> None:
-            return None
+        def mapper() -> str:
+            return "configured"
 
-        adapted = tool.adapt_context(mapper)
+        adapted = tool.adapt_with_mappers(context=mapper)
         assert adapted.meta == meta
 
     def test_to_fastmcp_internal_tool_passes_meta(self):
@@ -118,7 +118,7 @@ async def test_explicit_selector_is_consumed_by_context_building():
         context: str,
         query: str,
         project_id: Annotated[
-            int, ProjectTarget(requires=Permission.METADATA_READ), ContextInput()
+            int, ProjectTarget(requires=Permission.METADATA_READ)
         ] = Field(description="Project ID."),
     ) -> str:
         return f"{context}:{query}"
@@ -126,7 +126,9 @@ async def test_explicit_selector_is_consumed_by_context_building():
     def build_context(project_id: int) -> str:
         return f"project {project_id}"
 
-    adapted = my_tool.adapt_with_mappers(context=build_context)
+    adapted = my_tool.remove_body_parameters("project_id").adapt_with_mappers(
+        context=build_context
+    )
     assert await adapted.fn(project_id=42, query="orders") == "project 42:orders"
     schema = adapted.to_fastmcp_internal_tool().parameters
     assert schema["properties"]["project_id"]["type"] == "integer"
@@ -146,7 +148,9 @@ async def test_explicit_selector_is_consumed_by_context_building():
         return project_id
 
     with pytest.raises(AdaptError, match="cannot accept declared input"):
-        my_tool.adapt_with_mappers(context=wrong_context)
+        my_tool.remove_body_parameters("project_id").adapt_with_mappers(
+            context=wrong_context
+        )
 
 
 async def test_configured_context_consumes_no_selector_and_injects_no_placeholder():
@@ -158,7 +162,7 @@ async def test_configured_context_consumes_no_selector_and_injects_no_placeholde
     async def my_tool(
         context: str,
         project_id: Annotated[
-            int, ProjectTarget(requires=Permission.METADATA_READ), ContextInput()
+            int, ProjectTarget(requires=Permission.METADATA_READ)
         ] = Field(description="Project ID."),
     ) -> str:
         return context
@@ -166,8 +170,37 @@ async def test_configured_context_consumes_no_selector_and_injects_no_placeholde
     def build_context() -> str:
         return "configured environment"
 
-    adapted = my_tool.adapt_with_mappers(context=build_context)
+    adapted = my_tool.remove_body_parameters("project_id").adapt_with_mappers(
+        context=build_context
+    )
     assert await adapted.fn() == "configured environment"
+
+
+@pytest.mark.parametrize(
+    "name,error",
+    [("missing", "Unknown body parameters"), ("context", "required body parameters")],
+)
+def test_body_parameter_removal_rejects_invalid_destinations(name: str, error: str):
+    @generic_dbt_mcp_tool(
+        description="test", title="test", name_enum=FakeToolName, requirements=()
+    )
+    def my_tool(context: str, selector: int = 42) -> str:
+        return context
+
+    with pytest.raises(AdaptError, match=error):
+        my_tool.remove_body_parameters(name)
+
+
+def test_body_parameter_removal_preserves_other_positional_arguments():
+    @generic_dbt_mcp_tool(
+        description="test", title="test", name_enum=FakeToolName, requirements=()
+    )
+    def my_tool(context: str, selector: int = 42, query: str = "orders") -> str:
+        return f"{context}:{query}"
+
+    adapted = my_tool.remove_body_parameters("selector")
+    assert adapted.fn("configured", "customers") == "configured:customers"
+    assert my_tool.fn("original", 99, "products") == "original:products"
     assert "project_id" not in signature(adapted.fn).parameters
     assert adapted.targets == my_tool.targets
 
@@ -181,7 +214,7 @@ async def test_selector_declaration_stays_required_and_non_nullable():
     async def my_tool(
         context: str,
         project_id: Annotated[
-            int, ProjectTarget(requires=Permission.METADATA_READ), ContextInput()
+            int, ProjectTarget(requires=Permission.METADATA_READ)
         ] = Field(description="Project ID."),
     ) -> str:
         return context
@@ -189,7 +222,9 @@ async def test_selector_declaration_stays_required_and_non_nullable():
     def build_context(project_id: int | None = None) -> str:
         return f"project {project_id}" if project_id else "configured environment"
 
-    adapted = my_tool.adapt_with_mappers(context=build_context)
+    adapted = my_tool.remove_body_parameters("project_id").adapt_with_mappers(
+        context=build_context
+    )
     internal = adapted.to_fastmcp_internal_tool()
     assert internal.parameters["properties"]["project_id"]["type"] == "integer"
     assert "project_id" in internal.parameters["required"]

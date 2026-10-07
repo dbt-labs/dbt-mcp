@@ -52,7 +52,6 @@ from dbt_mcp.tools.targets import (
     Permission,
     ProjectTarget,
 )
-from dbt_mcp.tools.injection import ContextInput
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.config.config_providers.base import StaticConfigProvider
 from dbt_mcp.tools.register import register_tools
@@ -202,7 +201,6 @@ async def list_metrics(
             requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> ResultPage[str]:
     config = await context.config_provider.get_config()
@@ -238,7 +236,6 @@ async def list_saved_queries(
             requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> ResultPage[list[SavedQueryToolResponse]]:
     config = await context.config_provider.get_config()
@@ -267,7 +264,6 @@ async def get_dimensions(
             requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> ResultPage[list[DimensionToolResponse]]:
     config = await context.config_provider.get_config()
@@ -300,7 +296,6 @@ async def get_entities(
             requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> ResultPage[list[EntityToolResponse]]:
     config = await context.config_provider.get_config()
@@ -334,7 +329,6 @@ async def get_dimension_values(
             requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> DimensionValuesResponse | DimensionValuesError:
     config = await context.config_provider.get_config()
@@ -371,7 +365,6 @@ async def query_metrics(
             requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> str:
     config = await context.config_provider.get_config()
@@ -414,7 +407,6 @@ async def get_metrics_compiled_sql(
             requires=Permission.SEMANTIC_LAYER_CONFIGURATION_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
 ) -> str:
     config = await context.config_provider.get_config()
@@ -479,7 +471,10 @@ def register_sl_tools(
     disabled_toolsets: set[Toolset],
 ) -> None:
     mappers = semantic_layer_context_mappers(config_provider, client_provider)
-    definitions = [tool.adapt_with_mappers(**mappers) for tool in SEMANTIC_LAYER_TOOLS]
+    definitions = [
+        tool.remove_body_parameters("project_id").adapt_with_mappers(**mappers)
+        for tool in SEMANTIC_LAYER_TOOLS
+    ]
 
     register_tools(
         dbt_mcp,

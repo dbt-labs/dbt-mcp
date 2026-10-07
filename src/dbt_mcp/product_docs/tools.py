@@ -264,7 +264,7 @@ def register_product_docs_tools(
     register_tools(
         dbt_mcp,
         tool_definitions=[
-            tool.adapt_context(bind_context) for tool in PRODUCT_DOCS_TOOLS
+            tool.adapt_with_mappers(context=bind_context) for tool in PRODUCT_DOCS_TOOLS
         ],
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
