@@ -408,12 +408,30 @@ def test_codegen_failure_with_no_output_surfaces_exit_code(
 def test_codegen_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
     """Test timeout handling for long-running operations."""
 
+    # communicate() only raises while the child is still running; once kill()
+    # has been called it returns like a normal reaped process.
     class MockProcessWithTimeout:
+        def __init__(self):
+            self.killed = False
+            self.communicate_calls: list[float | None] = []
+
         def communicate(self, timeout=None):
-            raise subprocess.TimeoutExpired(cmd=["dbt", "run-operation"], timeout=10)
+            self.communicate_calls.append(timeout)
+            if not self.killed:
+                raise subprocess.TimeoutExpired(
+                    cmd=["dbt", "run-operation"], timeout=10
+                )
+            return "", ""
+
+        def kill(self):
+            self.killed = True
+
+    processes: list[MockProcessWithTimeout] = []
 
     def mock_popen(*args, **kwargs):
-        return MockProcessWithTimeout()
+        process = MockProcessWithTimeout()
+        processes.append(process)
+        return process
 
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
@@ -438,6 +456,15 @@ def test_codegen_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
     )
     assert "Timeout: dbt-codegen operation took longer than" in result
     assert "10 seconds" in result
+
+    # The timed-out dbt process must be killed and reaped rather than left
+    # running in the background after the tool has returned.
+    assert len(processes) == 1
+    assert processes[0].killed
+    assert processes[0].communicate_calls == [
+        mock_dbt_codegen_config.dbt_cli_timeout,
+        None,
+    ]
 
 
 def test_quiet_flag_placement(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp):

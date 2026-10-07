@@ -152,6 +152,11 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
                 return "\n".join(parts)
             return f"Command failed with exit code {process.returncode} (no output)"
         except subprocess.TimeoutExpired:
+            # communicate() leaves the child running when it times out. Kill
+            # and reap it so the dbt invocation does not keep executing in the
+            # background after this tool has already reported the timeout.
+            process.kill()
+            process.communicate()
             return "Timeout: dbt command took too long to complete." + (
                 " Try using a specific selector to narrow down the results."
                 if is_selectable
