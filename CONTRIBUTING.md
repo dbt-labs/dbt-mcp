@@ -170,7 +170,7 @@ MCP Apps are tools that have an associated interactive UI rendered by the host (
 
 3. **Build a frontend** in `packages/` using `@modelcontextprotocol/ext-apps`. The app receives tool results via the `ontoolresult` callback and must be bundled as a single HTML file (e.g., using `vite-plugin-singlefile`) or reference external resources via CSP `resourceDomains`.
 
-The `ui://` URI convention is `ui://<server-name>/<resource-name>`. The `meta` field is passed through the full tool registration pipeline (`@dbt_mcp_tool` → `GenericToolDefinition` → `adapt_context` → `register_tools` → `FastMCP.add_tool`).
+The `ui://` URI convention is `ui://<server-name>/<resource-name>`. The `meta` field is passed through the full tool registration pipeline (`@dbt_mcp_tool` → `GenericToolDefinition` → `adapt_with_mappers` → `register_tools` → `FastMCP.add_tool`).
 
 ## Deprecating a tool
 

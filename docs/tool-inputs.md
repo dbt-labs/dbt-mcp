@@ -1,7 +1,8 @@
 # Tool inputs and resolved context
 
-Declare all model inputs on the tool function. Mark selectors consumed by
-context building with `ContextInput()` alongside their target metadata:
+Declare all model inputs on the tool function. Target annotations describe
+resolution and permission requirements; registration controls which inputs
+are consumed by context building:
 
 ```python
 @dbt_mcp_tool(
@@ -10,24 +11,27 @@ context building with `ContextInput()` alongside their target metadata:
 )
 async def get_all_models(
     context: DiscoveryToolContext,
+    limit: int = 50,
+    after: str | None = None,
+    *,
     project_id: Annotated[
         int,
         ProjectTarget(
             requires=Permission.METADATA_READ,
             environment=EnvironmentRole.PRODUCTION,
         ),
-        ContextInput(),
     ] = Field(description="Project ID."),
-    limit: int = 50,
 ):
-    config = await context.config_provider.get_config()
-    return await context.models_fetcher.fetch_models(config=config, limit=limit)
+    return await context.models_fetcher.fetch_models(limit=limit, after=after)
 ```
 
-`ProjectTarget` declares resolution and permission requirements. `ContextInput`
-declares that the context adapter consumes the input. The body must read the
-resolved configuration instead of the selector argument. Ordinary arguments,
-such as `limit` or a job ID used directly by the body, have no `ContextInput`.
+`ProjectTarget` declares resolution and permission requirements. It does not
+change how arguments reach the body. When a selector contributes to resolved
+context, remove it from body invocation explicitly before adapting the tool.
+The body reads resolved context instead of the selector argument. Ordinary
+arguments, such as `limit` or a job ID used directly by the body, pass through.
+Discovery fetchers already hold the resolved config, so bodies need not retrieve
+or forward it on each call.
 
 `Field(...)` declares a required schema input and provides a Python declaration
 default. It is not a usable project ID. It lets a configured adapter omit an
@@ -40,14 +44,18 @@ Use the existing named mapper API to build context from selectors:
 ```python
 async def build_context(project_id: int) -> DiscoveryToolContext:
     config = await config_provider.get_config(project_id=project_id)
-    return DiscoveryToolContext(StaticConfigProvider(config))
+    return DiscoveryToolContext(config=config)
 
-tool = get_all_models.adapt_with_mappers(context=build_context)
+tool = get_all_models.remove_body_parameters("project_id").adapt_with_mappers(
+    context=build_context,
+)
 ```
 
+`remove_body_parameters` removes the selector from body invocation while
+preserving its canonical declaration for schema binding and authorization.
 The mapper receives `project_id` and supplies `context`. The body receives
-context and ordinary arguments; the consumed selector is left unused. A
-configured mapper with no selector arguments exposes no selectors. Local
+context and ordinary arguments; the selector keeps its unused declaration
+default. A configured mapper with no selector arguments exposes no selectors. Local
 providers supporting both project selection and configured environments may
 accept omission internally; the canonical declaration still defines the
 model's type and requiredness. The dispatcher binds known selections and
