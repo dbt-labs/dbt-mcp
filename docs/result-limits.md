@@ -26,6 +26,10 @@ execution deadline that includes downloading and starts after admission. Hosts c
 set `worker_memory_bytes` to enforce a Linux worker address-space limit; it defaults
 to `None`. Other platforms do not enforce that address-space limit.
 
+The worker passes JSON text directly to jq's parser, avoiding a Python document
+and JSON re-serialization. It still buffers the UTF-8 input and jq's native
+document; filtered results are emitted incrementally as a JSON list.
+
 Unfiltered artifacts stop at the 500 KiB inline threshold and suggest using jq.
 The run-error parser also receives only bounded inline artifacts and processes
 steps sequentially (at most 20 steps). Cancellation closes the download, reaps

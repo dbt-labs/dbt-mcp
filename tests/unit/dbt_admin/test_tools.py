@@ -309,8 +309,23 @@ async def test_get_job_run_artifacts_size_routing(
         assert "written to" not in result
 
 
+@pytest.mark.parametrize(
+    "jq_filter,expected",
+    [
+        (
+            '.results[] | select(.status == "error") | .unique_id',
+            ["model.proj.a"],
+        ),
+        (
+            'def failures: .results[] | select(.status == "error"); failures | .unique_id',
+            ["model.proj.a"],
+        ),
+        (".results[0].unique_id # first result", ["model.proj.a"]),
+        (".results[].unique_id", ["model.proj.a", "model.proj.b"]),
+    ],
+)
 async def test_get_job_run_artifacts_jq_filter_extracts_field(
-    monkeypatch, admin_context
+    monkeypatch, admin_context, jq_filter, expected
 ):
     content = '{"results": [{"status": "error", "unique_id": "model.proj.a"}, {"status": "success", "unique_id": "model.proj.b"}]}'
     install_artifact_transport(admin_context, content, monkeypatch)
@@ -319,10 +334,10 @@ async def test_get_job_run_artifacts_jq_filter_extracts_field(
         admin_context,
         run_id=100,
         artifact_path="run_results.json",
-        jq_filter='.results[] | select(.status == "error") | .unique_id',
+        jq_filter=jq_filter,
     )
 
-    assert json.loads(result) == ["model.proj.a"]
+    assert json.loads(result) == expected
 
 
 async def test_get_job_run_artifacts_jq_filter_empty_result_returns_json_array(
@@ -340,6 +355,23 @@ async def test_get_job_run_artifacts_jq_filter_empty_result_returns_json_array(
     )
 
     assert json.loads(result) == []
+
+
+async def test_get_job_run_artifacts_jq_filter_preserves_numeric_text(
+    monkeypatch, admin_context
+):
+    install_artifact_transport(
+        admin_context, '{"number":1.234567890123456789}', monkeypatch
+    )
+
+    result = await get_job_run_artifacts.fn(
+        admin_context,
+        run_id=100,
+        artifact_path="manifest.json",
+        jq_filter=".number | tostring",
+    )
+
+    assert json.loads(result) == ["1.234567890123456789"]
 
 
 async def test_get_job_run_artifacts_jq_filter_small_output_from_large_input(
@@ -452,10 +484,14 @@ async def test_get_job_run_artifacts_jq_filter_invalid_syntax(
         )
 
 
+@pytest.mark.parametrize(
+    "content",
+    ["SELECT * FROM my_table", "", " \n ", "{} {}", '{"key":', "{} garbage"],
+)
 async def test_get_job_run_artifacts_jq_filter_non_json_artifact(
-    monkeypatch, admin_context
+    monkeypatch, admin_context, content
 ):
-    install_artifact_transport(admin_context, "SELECT * FROM my_table", monkeypatch)
+    install_artifact_transport(admin_context, content, monkeypatch)
 
     with pytest.raises(InvalidParameterError, match="not valid JSON"):
         await get_job_run_artifacts.fn(
