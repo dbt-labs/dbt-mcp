@@ -1,10 +1,7 @@
 import httpx
 
-from dbt_mcp.proxy.http_client import (
-    MCP_HTTP_READ_TIMEOUT_SECONDS,
-    MCP_HTTP_TIMEOUT_SECONDS,
-    create_mcp_http_client,
-)
+from dbt_mcp.config.settings import REMOTE_MCP_READ_TIMEOUT, REMOTE_MCP_TIMEOUT
+from dbt_mcp.proxy.http_client import create_mcp_http_client
 
 
 async def test_create_mcp_http_client_applies_headers_and_mcp_timeouts():
@@ -15,5 +12,5 @@ async def test_create_mcp_http_client_applies_headers_and_mcp_timeouts():
         assert client.headers["Authorization"] == "token abc"
         assert client.headers["x-dbt-prod-environment-id"] == "3"
         assert client.timeout == httpx.Timeout(
-            MCP_HTTP_TIMEOUT_SECONDS, read=MCP_HTTP_READ_TIMEOUT_SECONDS
+            REMOTE_MCP_TIMEOUT, read=REMOTE_MCP_READ_TIMEOUT
         )

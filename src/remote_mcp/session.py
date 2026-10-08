@@ -2,10 +2,9 @@ import contextlib
 import os
 from collections.abc import AsyncGenerator
 
+import httpx
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
-
-from dbt_mcp.proxy.http_client import create_mcp_http_client
 
 
 @contextlib.asynccontextmanager
@@ -23,12 +22,16 @@ async def session_context() -> AsyncGenerator[ClientSession, None]:
     )
     token = os.environ.get("DBT_TOKEN")
     prod_environment_id = os.environ.get("DBT_PROD_ENV_ID", "")
+    # This example is packaged on its own (see examples/remote_mcp) and depends
+    # only on `mcp`, so the client is built here rather than imported from
+    # dbt_mcp. Timeouts match the MCP SDK defaults for streamable HTTP.
     async with (
-        create_mcp_http_client(
+        httpx.AsyncClient(
             headers={
                 "Authorization": f"token {token}",
                 "x-dbt-prod-environment-id": prod_environment_id,
-            }
+            },
+            timeout=httpx.Timeout(30.0, read=300.0),
         ) as http_client,
         streamable_http_client(
             url=url,
