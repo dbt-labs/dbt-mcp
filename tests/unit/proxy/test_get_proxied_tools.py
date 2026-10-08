@@ -16,6 +16,7 @@ from dbt_mcp.oauth.token_provider import StaticTokenProvider
 from dbt_mcp.proxy.tools import (
     format_remote_tool_error,
     get_proxied_tools,
+    get_remote_tool_fn_metadata,
     register_proxied_tools,
 )
 from dbt_mcp.tools.tool_names import ToolName
@@ -79,6 +80,25 @@ async def test_get_proxied_tools_filters_to_configured_tools():
     result = await get_proxied_tools(session, {ToolName.EXECUTE_SQL})
 
     assert result == [proxied_tool]
+
+
+def test_get_remote_tool_fn_metadata_builds_arg_model_from_input_schema():
+    """Regression for #921: this path previously depended on a private pydantic
+    helper (`eval_type_backport`) that was removed in pydantic 2.14."""
+    tool = Tool(
+        name="execute_sql",
+        inputSchema={
+            "type": "object",
+            "properties": {"sql": {"type": "string"}, "limit": {"type": "integer"}},
+        },
+    )
+
+    metadata = get_remote_tool_fn_metadata(tool)
+
+    assert metadata.arg_model.__name__ == "execute_sqlArguments"
+    assert set(metadata.arg_model.model_fields) == {"sql", "limit"}
+    parsed = metadata.arg_model.model_validate({"sql": "select 1"})
+    assert parsed.model_dump_one_level() == {"sql": "select 1", "limit": None}
 
 
 async def test_register_proxied_tool_is_listed_and_callable(

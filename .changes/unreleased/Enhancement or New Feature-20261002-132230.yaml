@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Return bounded pages and explicit continuation metadata from Admin, Discovery, and Semantic Layer collection tools. Collection payloads are wrapped in result and pagination fields; callers must follow the continuation metadata to retrieve additional pages.
+time: 2026-10-02T13:22:30Z
