@@ -33,9 +33,9 @@ async def test_binding_hides_and_injects_an_argument_without_mutating_definition
     tool = definition()
     bound = tool.adapt_with_mappers(project_id=selected_project_id)
     assert await bound.fn(query="orders") == "42:orders"
-    assert bound.to_fastmcp_internal_tool().parameters["required"] == ["query"]
-    assert "project_id" not in bound.to_fastmcp_internal_tool().parameters["properties"]
-    assert "project_id" in tool.to_fastmcp_internal_tool().parameters["properties"]
+    assert bound.fastmcp_tool.parameters["required"] == ["query"]
+    assert "project_id" not in bound.fastmcp_tool.parameters["properties"]
+    assert "project_id" in tool.fastmcp_tool.parameters["properties"]
 
     def other_project_id() -> int:
         return 10
@@ -63,26 +63,20 @@ def test_binding_rejects_unknown_arguments_at_registration() -> None:
 async def test_request_binding_uses_one_contract_for_schema_and_invocation() -> None:
     tool = definition()
     bound = tool.bind_inputs(InputBinding(values={"project_id": 42}))
-    assert set(bound.to_fastmcp_internal_tool().parameters["properties"]) == {"query"}
-    assert (
-        await bound.to_fastmcp_internal_tool().run({"query": "orders"}) == "42:orders"
-    )
+    assert set(bound.fastmcp_tool.parameters["properties"]) == {"query"}
+    assert await bound.fastmcp_tool.run({"query": "orders"}) == "42:orders"
     with pytest.raises(ToolError, match="project_id.*|Extra inputs"):
-        await bound.to_fastmcp_internal_tool().run(
-            {"project_id": 42, "query": "orders"}
-        )
-    assert "project_id" in tool.to_fastmcp_internal_tool().parameters["properties"]
+        await bound.fastmcp_tool.run({"project_id": 42, "query": "orders"})
+    assert "project_id" in tool.fastmcp_tool.parameters["properties"]
 
 
 async def test_unbound_input_remains_a_required_integer() -> None:
     bound = definition().bind_inputs(InputBinding())
-    schema = bound.to_fastmcp_internal_tool().parameters
+    schema = bound.fastmcp_tool.parameters
     assert schema["properties"]["project_id"]["type"] == "integer"
     assert "project_id" in schema["required"]
     assert (
-        await bound.to_fastmcp_internal_tool().run(
-            {"project_id": 99, "query": "orders"}
-        )
+        await bound.fastmcp_tool.run({"project_id": 99, "query": "orders"})
         == "99:orders"
     )
 
@@ -95,7 +89,7 @@ async def test_selectable_input_preserves_declared_field_constraints():
 
     tool = ToolDefinition(
         fn=positive_project, title="test", description="test", requirements=()
-    ).to_fastmcp_internal_tool()
+    ).fastmcp_tool
     with pytest.raises(ToolError, match="greater than 0"):
         await tool.run({"project_id": -1})
     assert await tool.run({"project_id": 42}) == 42
@@ -105,9 +99,9 @@ async def test_selectable_input_preserves_declared_field_constraints():
 async def test_request_binding_validates_ordinary_inputs() -> None:
     bound = definition().bind_inputs(InputBinding(values={"project_id": 42}))
     with pytest.raises(ToolError, match="query"):
-        await bound.to_fastmcp_internal_tool().run({})
+        await bound.fastmcp_tool.run({})
     with pytest.raises(ToolError, match="typo"):
-        await bound.to_fastmcp_internal_tool().run({"query": "orders", "typo": 1})
+        await bound.fastmcp_tool.run({"query": "orders", "typo": 1})
 
 
 async def test_framework_context_is_not_a_model_input() -> None:
@@ -115,18 +109,16 @@ async def test_framework_context_is_not_a_model_input() -> None:
         return project_id or 42
 
     adapted = definition().adapt_with_mappers(project_id=resolved_project)
-    assert set(adapted.to_fastmcp_internal_tool().parameters["properties"]) == {
+    assert set(adapted.fastmcp_tool.parameters["properties"]) == {
         "project_id",
         "query",
     }
-    assert set(adapted.to_fastmcp_internal_tool().parameters["required"]) == {
+    assert set(adapted.fastmcp_tool.parameters["required"]) == {
         "project_id",
         "query",
     }
     bound = adapted.bind_inputs(InputBinding(values={"project_id": 42}))
-    assert (
-        await bound.to_fastmcp_internal_tool().run({"query": "orders"}) == "42:orders"
-    )
+    assert await bound.fastmcp_tool.run({"query": "orders"}) == "42:orders"
 
 
 async def test_composed_authorization_mapper_runs_after_validation_before_context_mapping():
@@ -145,7 +137,7 @@ async def test_composed_authorization_mapper_runs_after_validation_before_contex
         .adapt_with_mappers(project_id=project)
         .adapt_with_mappers(project_id=authorize)
         .bind_inputs(InputBinding(values={"project_id": 42}))
-        .to_fastmcp_internal_tool()
+        .fastmcp_tool
     )
     with pytest.raises(ToolError, match="Extra inputs"):
         await tool.run({"project_id": 42, "query": "orders"})
@@ -164,9 +156,9 @@ async def test_fastmcp_rejects_extra_inputs_before_context_mapping(extra):
 
     tool = definition().adapt_with_mappers(project_id=project)
     with pytest.raises(ToolError, match="Extra inputs are not permitted"):
-        await tool.to_fastmcp_internal_tool().run({"query": "orders", **extra})
+        await tool.fastmcp_tool.run({"query": "orders", **extra})
     assert mapped == []
-    assert tool.to_fastmcp_internal_tool().parameters["additionalProperties"] is False
+    assert tool.fastmcp_tool.parameters["additionalProperties"] is False
 
 
 async def test_fastmcp_validates_the_declared_selector_before_mapping():
@@ -178,11 +170,9 @@ async def test_fastmcp_validates_the_declared_selector_before_mapping():
 
     tool = definition().adapt_with_mappers(project_id=project)
     with pytest.raises(ToolError, match="project_id"):
-        await tool.to_fastmcp_internal_tool().run({"query": "orders"})
+        await tool.fastmcp_tool.run({"query": "orders"})
     with pytest.raises(ToolError, match="project_id"):
-        await tool.to_fastmcp_internal_tool().run(
-            {"project_id": None, "query": "orders"}
-        )
+        await tool.fastmcp_tool.run({"project_id": None, "query": "orders"})
     assert mapped == []
 
 
@@ -200,6 +190,4 @@ async def test_adapted_callable_declares_its_contract_directly_to_fastmcp():
         await tool.run({"project_id": None, "query": "orders"})
     assert await tool.run({"project_id": 43, "query": "orders"}) == "43:orders"
     bound = adapted.bind_inputs(InputBinding(values={"project_id": None}))
-    assert (
-        await bound.to_fastmcp_internal_tool().run({"query": "orders"}) == "42:orders"
-    )
+    assert await bound.fastmcp_tool.run({"query": "orders"}) == "42:orders"

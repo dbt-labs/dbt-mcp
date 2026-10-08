@@ -42,7 +42,7 @@ class GenericToolDefinition[NameEnum: Enum]:
         return self.name_enum((self.name or self.fn.__name__).lower())
 
     @cached_property
-    def _internal_tool(self) -> Tool:
+    def fastmcp_tool(self) -> Tool:
         tool = Tool.from_function(
             fn=self.fn,
             name=self.name,
@@ -54,9 +54,6 @@ class GenericToolDefinition[NameEnum: Enum]:
         )
         configure_argument_validation(tool)
         return tool
-
-    def to_fastmcp_internal_tool(self) -> Tool:
-        return self._internal_tool
 
     def bind_inputs(self, binding: InputBinding) -> "GenericToolDefinition[NameEnum]":
         """Return a request-specific interface without changing the original tool."""

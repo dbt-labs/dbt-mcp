@@ -96,7 +96,7 @@ def test_context_adaptation_preserves_requirements_and_argument_metadata() -> No
     adapted = example.adapt_with_mappers(context=mapper)
     assert adapted.requirements == (HostPolicy.EXAMPLE,)
     assert target_parameters(adapted.fn) == target_parameters(example.fn)
-    assert adapted.to_fastmcp_internal_tool().parameters["required"] == [
+    assert adapted.fastmcp_tool.parameters["required"] == [
         "project_id",
         "query",
     ]

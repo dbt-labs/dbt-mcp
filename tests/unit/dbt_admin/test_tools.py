@@ -714,7 +714,7 @@ async def test_admin_tools_list_jobs_params(admin_context):
     def bind_context() -> JobsToolContext:
         return admin_context
 
-    tool = list_jobs.adapt_with_mappers(context=bind_context).to_fastmcp_internal_tool()
+    tool = list_jobs.adapt_with_mappers(context=bind_context).fastmcp_tool
     props = tool.parameters["properties"]
     assert props["limit"]["default"] == 50
     assert props["limit"]["minimum"] == 1
@@ -754,7 +754,7 @@ async def test_list_jobs_mcp_text_and_structured_output_share_pagination(admin_c
         result=[{"id": 1}],
         pagination=Pagination(has_more=True, next_offset=1, total_items=2),
     )
-    tool = list_jobs.adapt_with_mappers(context=bind_context).to_fastmcp_internal_tool()
+    tool = list_jobs.adapt_with_mappers(context=bind_context).fastmcp_tool
     text, structured = await tool.run(
         {"project_id": 42, "limit": 1}, convert_result=True
     )

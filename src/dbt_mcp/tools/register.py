@@ -118,7 +118,7 @@ def generic_register_tools[NameEnum: Enum](
         ):
             continue
         dbt_mcp.add_tool(
-            fn=tool_definition.to_fastmcp_internal_tool().fn,
+            fn=tool_definition.fn,
             name=tool_name.value,
             title=tool_definition.title,
             description=tool_definition.description,

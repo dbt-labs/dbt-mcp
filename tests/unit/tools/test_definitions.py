@@ -61,17 +61,17 @@ class TestMetaPassthrough:
         adapted = tool.adapt_with_mappers(context=mapper)
         assert adapted.meta == meta
 
-    def test_to_fastmcp_internal_tool_passes_meta(self):
+    def test_fastmcp_tool_passes_meta(self):
         meta = {"ui": {"resourceUri": "ui://test/app.html"}}
         tool = _make_tool(meta=meta)
 
-        internal = tool.to_fastmcp_internal_tool()
+        internal = tool.fastmcp_tool
         assert internal.meta == meta
 
-    def test_to_fastmcp_internal_tool_none_meta(self):
+    def test_fastmcp_tool_none_meta(self):
         tool = _make_tool()
 
-        internal = tool.to_fastmcp_internal_tool()
+        internal = tool.fastmcp_tool
         assert internal.meta is None
 
     def test_register_tools_passes_meta(self, mock_fastmcp):
@@ -129,7 +129,7 @@ async def test_context_mapper_shares_declared_selector_with_the_callable():
 
     adapted = my_tool.adapt_with_mappers(context=build_context)
     assert await adapted.fn(project_id=42, query="orders") == "project 42:orders"
-    schema = adapted.to_fastmcp_internal_tool().parameters
+    schema = adapted.fastmcp_tool.parameters
     assert schema["properties"]["project_id"]["type"] == "integer"
     assert "project_id" in schema["required"]
     assert my_tool.targets["project_id"].requires == Permission.METADATA_READ
@@ -189,7 +189,7 @@ async def test_selector_declaration_stays_required_and_non_nullable():
         return f"project {project_id}" if project_id else "configured environment"
 
     adapted = my_tool.adapt_with_mappers(context=build_context)
-    internal = adapted.to_fastmcp_internal_tool()
+    internal = adapted.fastmcp_tool
     assert internal.parameters["properties"]["project_id"]["type"] == "integer"
     assert "project_id" in internal.parameters["required"]
     assert await internal.run({"project_id": 42}) == "project 42"

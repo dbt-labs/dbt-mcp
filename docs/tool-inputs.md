@@ -52,7 +52,7 @@ tool = get_all_models.adapt_with_mappers(
 
 # The host knows the selected project; the model sees limit and after.
 bound = tool.bind_inputs(InputBinding(values={"project_id": 42}))
-result = await bound.to_fastmcp_internal_tool().run({"limit": 10})
+result = await bound.fastmcp_tool.run({"limit": 10})
 ```
 
 1. `adapt_with_mappers` builds the framework callable. Its mapper can accept

@@ -23,7 +23,7 @@ async def test_get_lineage_context_uses_the_supplied_project():
         "dbt_mcp.discovery.tools.LineageFetcher.fetch_lineage",
         new=AsyncMock(return_value=[]),
     ):
-        result = await tool.to_fastmcp_internal_tool().run(
+        result = await tool.fastmcp_tool.run(
             {"project_id": 42, "unique_id": "model.p.a"}
         )
     assert isinstance(result, LineageGraph)
