@@ -119,6 +119,15 @@ wheels = [
 ]
 
 [[package]]
+name = "cachetools"
+version = "7.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/29/2c/3f18755527b03ca9ff6be724bd5370cb777c76a87f17301377cf04a4729b/cachetools-7.2.0.tar.gz", hash = "sha256:bcac1a1b8da6909994a2957238a57b8140dab7c5c5c69a43669654fe87a33c1d", size = 41129, upload-time = "2026-09-16T20:48:27.209Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cc/bb/1c6e7a89b11da19f137e4ef5a5c5fe47a5bb686449ba343944ccf8fb34b2/cachetools-7.2.0-py3-none-any.whl", hash = "sha256:3045213f186b89fdd95d94441354c4bd87c570b7a38d8c3fd1d9dd37f6dc90d8", size = 16918, upload-time = "2026-09-16T20:48:25.575Z" },
+]
+
+[[package]]
 name = "certifi"
 version = "2025.8.3"
 source = { registry = "https://pypi.org/simple" }
@@ -277,6 +286,7 @@ name = "dbt-mcp"
 source = { editable = "." }
 dependencies = [
     { name = "authlib" },
+    { name = "cachetools" },
     { name = "dbt-artifacts-parser" },
     { name = "dbt-protos" },
     { name = "dbt-sl-sdk", extra = ["sync"] },
@@ -309,6 +319,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "authlib", specifier = "~=1.6.7" },
+    { name = "cachetools", specifier = ">=5,<8" },
     { name = "dbt-artifacts-parser", specifier = ">=0.13.2" },
     { name = "dbt-protos", specifier = "~=1.0.431" },
     { name = "dbt-sl-sdk", extras = ["sync"], specifier = "~=0.13.3" },

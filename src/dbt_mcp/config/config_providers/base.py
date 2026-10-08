@@ -7,6 +7,7 @@ from dbt_mcp.config.headers import (
     TokenProvider,
 )
 from dbt_mcp.errors.warehouse_auth import WarehouseAuthHintProvider
+from dbt_mcp.resource_limits import ArtifactConfig, HttpConfig
 
 
 class ConfigProvider[ConfigType](ABC):
@@ -33,6 +34,8 @@ class AdminApiConfig:
     headers_provider: HeadersProvider
     account_id: int
     prod_environment_id: int | None = None
+    http_config: HttpConfig = HttpConfig()
+    artifact_config: ArtifactConfig = ArtifactConfig()
 
 
 @dataclass
@@ -40,6 +43,7 @@ class DiscoveryConfig:
     url: str
     headers_provider: HeadersProvider
     environment_id: int
+    http_config: HttpConfig = HttpConfig()
 
 
 @dataclass
@@ -62,3 +66,4 @@ class SemanticLayerConfig:
     metrics_related_max: int = 10
     max_response_chars: int = 16000
     warehouse_auth_hint_provider: WarehouseAuthHintProvider | None = None
+    http_config: HttpConfig = HttpConfig()
