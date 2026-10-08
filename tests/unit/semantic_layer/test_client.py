@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pyarrow as pa
 import pytest
+from adbc_driver_manager import AdbcStatusCode, OperationalError
 from dbtsl.error import AuthError, QueryFailedError, RetryTimeoutError
 
 from dbtsl.api.shared.query_params import (
@@ -24,12 +25,19 @@ from dbt_mcp.errors.hints import (
     WAREHOUSE_PERMISSION_HINT,
 )
 from dbt_mcp.errors.semantic_layer import SemanticLayerQueryTimeoutError
-from dbt_mcp.semantic_layer.client import DEFAULT_RESULT_FORMATTER, SemanticLayerFetcher
+from dbt_mcp.semantic_layer.client import (
+    DEFAULT_RESULT_FORMATTER,
+    DefaultSemanticLayerClientProvider,
+    SemanticLayerFetcher,
+    _FLIGHT_SQL_ACTION_TIMEOUT_SECONDS,
+    _TimeBoundedFlightSqlClient,
+)
 from dbt_mcp.semantic_layer.types import (
     DimensionValuesError,
     DimensionValuesResponse,
     OrderByParam,
     QueryMetricsError,
+    QueryMetricsSuccess,
 )
 
 
@@ -930,7 +938,9 @@ async def test_query_metrics_sdk_client_uses_fetcher_config_override(
     )
     await fetcher.query_metrics(config=override, metrics=["revenue"])
 
-    mock_client_provider.get_client.assert_awaited_once_with(config=override)
+    mock_client_provider.get_client.assert_awaited_once_with(
+        config=override, time_bounded=True
+    )
 
 
 @pytest.mark.asyncio
@@ -1016,6 +1026,219 @@ def test_dimension_values_response_truncated() -> None:
     response = DimensionValuesResponse(values=["a", "b", "c"], truncated=True)
     assert len(response.values) == 3
     assert response.truncated is True
+
+
+class TestFlightSqlTimeLimit:
+    """Flight SQL action calls, which include preparing a statement, have a time
+    limit so a call whose packets are dropped fails instead of waiting for the OS."""
+
+    def test_extra_db_kwargs_set_action_timeout_and_keep_sdk_defaults(self):
+        kwargs = _TimeBoundedFlightSqlClient._extra_db_kwargs()
+
+        assert kwargs["adbc.flight.sql.rpc.timeout_seconds.update"] == str(
+            _FLIGHT_SQL_ACTION_TIMEOUT_SECONDS
+        )
+        assert "adbc.flight.sql.rpc.timeout_seconds.query" not in kwargs
+        assert "adbc.flight.sql.rpc.timeout_seconds.fetch" not in kwargs
+        # The SDK's own options are preserved.
+        assert kwargs["adbc.flight.sql.rpc.with_cookie_middleware"] == "true"
+
+    async def test_default_provider_builds_a_time_limited_client_only_on_request(self):
+        token_provider = MagicMock()
+        token_provider.get_token.return_value = "tok"
+        config = SemanticLayerConfig(
+            url="https://test-host/api/graphql",
+            host="test-host",
+            prod_environment_id=123,
+            token_provider=token_provider,
+            headers_provider=MagicMock(),
+        )
+        provider = DefaultSemanticLayerClientProvider()
+
+        bounded = await provider.get_client(config=config, time_bounded=True)
+        default = await provider.get_client(config=config)
+
+        assert isinstance(bounded._adbc, _TimeBoundedFlightSqlClient)  # type: ignore[attr-defined]
+        assert not isinstance(default._adbc, _TimeBoundedFlightSqlClient)  # type: ignore[attr-defined]
+
+    async def test_only_query_metrics_asks_for_a_time_limited_client(self):
+        client = MagicMock()
+        session_ctx = MagicMock()
+        client.session.return_value = session_ctx
+        session_ctx.__enter__ = MagicMock(return_value=client)
+        session_ctx.__exit__ = MagicMock(return_value=False)
+        client.query.return_value = pa.table({"revenue": [1]})
+        client.compile_sql.return_value = "select 1"
+        client.dimension_values.return_value = pa.table({"d": ["a"]})
+        provider = AsyncMock()
+        provider.get_client.return_value = client
+        token_provider = MagicMock()
+        token_provider.get_token.return_value = "tok"
+        config = SemanticLayerConfig(
+            url="https://test-host/api/graphql",
+            host="test-host",
+            prod_environment_id=123,
+            token_provider=token_provider,
+            headers_provider=MagicMock(),
+        )
+        fetcher = SemanticLayerFetcher(client_provider=provider)
+
+        await fetcher.get_dimension_values(
+            config=config, dimension="d", metrics=["revenue"]
+        )
+        await fetcher.get_metrics_compiled_sql(config=config, metrics=["revenue"])
+        assert [c.kwargs for c in provider.get_client.call_args_list] == [
+            {"config": config},
+            {"config": config},
+        ]
+
+        await fetcher.query_metrics(config=config, metrics=["revenue"])
+        assert provider.get_client.call_args_list[-1].kwargs == {
+            "config": config,
+            "time_bounded": True,
+        }
+
+
+class TestQueryMetricsGraphQLFallback:
+    """query_metrics runs a query over GraphQL when the Flight SQL connection
+    fails, and leaves every other failure alone."""
+
+    @staticmethod
+    def _client_with_session():
+        client = MagicMock()
+        session_ctx = MagicMock()
+        client.session.return_value = session_ctx
+        session_ctx.__enter__ = MagicMock(return_value=client)
+        session_ctx.__exit__ = MagicMock(return_value=False)
+        return client
+
+    @pytest.fixture
+    def flight_client(self):
+        return self._client_with_session()
+
+    @pytest.fixture
+    def graphql_client(self):
+        client = self._client_with_session()
+        client.query.return_value = pa.table({"revenue": [1]})
+        return client
+
+    @pytest.fixture
+    def mock_config(self):
+        token_p = MagicMock()
+        token_p.get_token.return_value = "tok"
+        headers_p = MagicMock()
+        headers_p.get_headers.return_value = {}
+        return SemanticLayerConfig(
+            url="https://test-host/api/graphql",
+            host="test-host",
+            prod_environment_id=123,
+            token_provider=token_p,
+            headers_provider=headers_p,
+        )
+
+    @pytest.fixture
+    def fetcher(self, flight_client, graphql_client):
+        provider = AsyncMock()
+        provider.get_client.return_value = flight_client
+        provider.get_graphql_client.return_value = graphql_client
+        return SemanticLayerFetcher(client_provider=provider)
+
+    @staticmethod
+    def _connection_error(status_code):
+        return OperationalError(
+            "IO: [FlightSQL] error reading from server: connection timed out "
+            "(Unavailable; Prepare). Vendor code: 14",
+            status_code=status_code,
+            vendor_code=14,
+        )
+
+    @pytest.mark.parametrize("status_code", [AdbcStatusCode.IO, AdbcStatusCode.TIMEOUT])
+    async def test_connection_failure_falls_back_to_graphql(
+        self, fetcher, flight_client, graphql_client, mock_config, status_code
+    ):
+        flight_client.query.side_effect = self._connection_error(status_code)
+
+        result = await fetcher.query_metrics(
+            config=mock_config,
+            metrics=["revenue"],
+            limit=5,
+        )
+
+        assert isinstance(result, QueryMetricsSuccess)
+        assert json.loads(result.result) == [{"revenue": 1}]
+        flight_client.query.assert_called_once()
+        graphql_client.query.assert_called_once()
+        assert (
+            graphql_client.query.call_args.kwargs
+            == flight_client.query.call_args.kwargs
+        )
+
+    async def test_flight_success_does_not_use_graphql(
+        self, fetcher, flight_client, graphql_client, mock_config
+    ):
+        flight_client.query.return_value = pa.table({"revenue": [2]})
+
+        result = await fetcher.query_metrics(config=mock_config, metrics=["revenue"])
+
+        assert isinstance(result, QueryMetricsSuccess)
+        graphql_client.query.assert_not_called()
+
+    async def test_other_operational_errors_propagate(
+        self, fetcher, flight_client, graphql_client, mock_config
+    ):
+        flight_client.query.side_effect = self._connection_error(
+            AdbcStatusCode.INTERNAL
+        )
+
+        with pytest.raises(OperationalError):
+            await fetcher.query_metrics(config=mock_config, metrics=["revenue"])
+
+        graphql_client.query.assert_not_called()
+
+    async def test_query_failure_is_not_retried_over_graphql(
+        self, fetcher, flight_client, graphql_client, mock_config
+    ):
+        flight_client.query.side_effect = QueryFailedError(
+            "Dimension 'foo' not found", "FAILED"
+        )
+
+        result = await fetcher.query_metrics(config=mock_config, metrics=["revenue"])
+
+        assert isinstance(result, QueryMetricsError)
+        graphql_client.query.assert_not_called()
+
+    async def test_graphql_query_failure_is_returned_as_error_result(
+        self, fetcher, flight_client, graphql_client, mock_config
+    ):
+        flight_client.query.side_effect = self._connection_error(AdbcStatusCode.IO)
+        graphql_client.query.side_effect = QueryFailedError(
+            "Dimension 'foo' not found", "FAILED"
+        )
+
+        result = await fetcher.query_metrics(config=mock_config, metrics=["revenue"])
+
+        assert isinstance(result, QueryMetricsError)
+        assert "foo" in result.error
+
+    async def test_graphql_compiled_timeout_raises_client_error(
+        self, fetcher, flight_client, graphql_client, mock_config
+    ):
+        flight_client.query.side_effect = self._connection_error(AdbcStatusCode.IO)
+        graphql_client.query.side_effect = RetryTimeoutError(
+            timeout_s=60, status="COMPILED"
+        )
+
+        with pytest.raises(SemanticLayerQueryTimeoutError):
+            await fetcher.query_metrics(config=mock_config, metrics=["revenue"])
+
+    async def test_graphql_connection_failure_propagates(
+        self, fetcher, flight_client, graphql_client, mock_config
+    ):
+        flight_client.query.side_effect = self._connection_error(AdbcStatusCode.IO)
+        graphql_client.query.side_effect = ConnectionError("refused")
+
+        with pytest.raises(ConnectionError):
+            await fetcher.query_metrics(config=mock_config, metrics=["revenue"])
 
 
 class TestGetDimensionValues:
