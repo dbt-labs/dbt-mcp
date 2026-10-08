@@ -1,3 +1,0 @@
-kind: Breaking Change
-body: Return bounded pages and explicit continuation metadata from Admin, Discovery, and Semantic Layer collection tools.
-time: 2026-10-02T13:22:30Z
