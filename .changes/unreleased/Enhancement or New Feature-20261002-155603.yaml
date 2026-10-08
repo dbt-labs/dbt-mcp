@@ -1,3 +1,3 @@
-kind: Breaking Change
+kind: Enhancement or New Feature
 body: Tools declare their inputs and access requirements. Named context mappers replace positional and type-based injection; implementations read resolved targets from context. InputBinding hides selected arguments on the callable itself. FastMCP generates its schema and validator, rejects extra arguments, then the wrapper injects known values and enters host authorization before context mapping. One registry replaces separate single-project and multi-project tools. Discovery fetchers hold resolved configuration. list_jobs requires a project or selected environment and includes staging; account-wide listing is removed. AdminApiConfig.environment_id replaces prod_environment_id. Hosts resolve targets and enforce permissions, including ownership checks for supplied job/run IDs.
 time: 2026-10-02T15:56:03.015459-05:00
