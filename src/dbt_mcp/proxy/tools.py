@@ -1,18 +1,13 @@
 import logging
 from collections.abc import Sequence
 from contextlib import AsyncExitStack
-from typing import (
-    Annotated,
-    Any,
-    ForwardRef,
-)
+from typing import Annotated, Any
 
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from mcp import ClientSession
 from mcp.client.streamable_http import GetSessionIdCallback, streamable_http_client
 from mcp.shared._httpx_utils import create_mcp_http_client
 from mcp.server.fastmcp import FastMCP
-from mcp.server.fastmcp.exceptions import InvalidSignature
 from mcp.server.fastmcp.tools.base import Tool as InternalTool
 from mcp.server.fastmcp.utilities.func_metadata import (
     ArgModelBase,
@@ -25,7 +20,6 @@ from mcp.types import (
     Tool,
 )
 from pydantic import Field, WithJsonSchema, create_model
-from pydantic._internal._typing_extra import eval_type_backport
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 
@@ -39,43 +33,21 @@ from dbt_mcp.tools.toolsets import TOOL_TO_TOOLSET, Toolset, proxied_tools
 logger = logging.getLogger(__name__)
 
 
-# Based on this: https://github.com/modelcontextprotocol/python-sdk/blob/9ae4df85fbab97bf476ddd160b766ca4c208cd13/src/mcp/server/fastmcp/utilities/func_metadata.py#L179
-def _get_typed_annotation(annotation: Any, globalns: dict[str, Any]) -> Any:
-    def try_eval_type(
-        value: Any, globalns: dict[str, Any], localns: dict[str, Any]
-    ) -> tuple[Any, bool]:
-        try:
-            return eval_type_backport(value, globalns, localns), True
-        except NameError:
-            return value, False
-
-    if isinstance(annotation, str):
-        annotation = ForwardRef(annotation)
-        annotation, status = try_eval_type(annotation, globalns, globalns)
-
-        # This check and raise could perhaps be skipped, and we (FastMCP) just call
-        # model_rebuild right before using it 🤷
-        if status is False:
-            raise InvalidSignature(f"Unable to evaluate type annotation {annotation}")
-
-    return annotation
-
-
 # Based on this: https://github.com/modelcontextprotocol/python-sdk/blob/9ae4df85fbab97bf476ddd160b766ca4c208cd13/src/mcp/server/fastmcp/utilities/func_metadata.py#L105
 def get_remote_tool_fn_metadata(tool: Tool) -> FuncMetadata:
     dynamic_pydantic_model_params: dict[str, Any] = {}
     for key in tool.inputSchema["properties"]:
         # Remote tools shouldn't have type annotations or default values
-        # for their arguments. So, we set them to defaults.
+        # for their arguments. So, we set them to defaults. The annotation is
+        # always a concrete type (never a string forward reference), so no
+        # type evaluation step is needed here.
+        annotation: Any = Annotated[
+            Any,
+            Field(),
+            WithJsonSchema({"title": key, "type": "string"}),
+        ]
         field_info = FieldInfo.from_annotated_attribute(
-            annotation=_get_typed_annotation(
-                annotation=Annotated[
-                    Any,
-                    Field(),
-                    WithJsonSchema({"title": key, "type": "string"}),
-                ],
-                globalns={},
-            ),
+            annotation=annotation,
             default=PydanticUndefined,
         )
         dynamic_pydantic_model_params[key] = (field_info.annotation, None)
