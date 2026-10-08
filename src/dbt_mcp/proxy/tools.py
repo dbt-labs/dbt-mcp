@@ -10,7 +10,6 @@ from typing import (
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from mcp import ClientSession
 from mcp.client.streamable_http import GetSessionIdCallback, streamable_http_client
-from mcp.shared._httpx_utils import create_mcp_http_client
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import InvalidSignature
 from mcp.server.fastmcp.tools.base import Tool as InternalTool
@@ -32,6 +31,7 @@ from pydantic_core import PydanticUndefined
 from dbt_mcp.config.config_providers import ConfigProvider, ProxiedToolConfig
 from dbt_mcp.errors import RemoteToolError
 from dbt_mcp.errors.warehouse_auth import append_hint, is_warehouse_auth_error
+from dbt_mcp.proxy.http_client import create_mcp_http_client
 from dbt_mcp.tools.register import should_register_tool
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import TOOL_TO_TOOLSET, Toolset, proxied_tools
