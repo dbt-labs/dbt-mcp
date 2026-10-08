@@ -2,7 +2,7 @@ from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager, nullcontext
 from dataclasses import dataclass, field
 from functools import partial, wraps
-from inspect import Parameter, Signature, isawaitable
+from inspect import Parameter, isawaitable
 from typing import Annotated, Any
 
 from mcp.server.fastmcp.tools.base import Tool
@@ -46,10 +46,9 @@ class InputBinding:
         self,
         fn: Callable[..., Any],
         *,
-        declaration: Signature | None = None,
         call_scope: CallScope | None = None,
     ) -> Callable[..., Any]:
-        declaration = declaration or _signature(fn)
+        declaration = _signature(fn)
         unknown = (
             self.hidden_parameters | self.choices.keys()
         ) - declaration.parameters.keys()

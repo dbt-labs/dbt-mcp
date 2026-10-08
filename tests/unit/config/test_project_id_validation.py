@@ -1,4 +1,4 @@
-"""Unit tests for project ID validation in multi-project config providers."""
+"""Unit tests for project selection in config providers."""
 
 from unittest.mock import AsyncMock, MagicMock
 

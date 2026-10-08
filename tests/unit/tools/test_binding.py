@@ -2,6 +2,7 @@ import pytest
 from contextlib import asynccontextmanager
 from mcp.server.fastmcp import Context
 from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.fastmcp.tools.base import Tool
 from pydantic import Field
 
 from dbt_mcp.tools.definitions import ToolDefinition
@@ -197,3 +198,22 @@ async def test_fastmcp_validates_the_declared_selector_before_mapping():
             {"project_id": None, "query": "orders"}
         )
     assert mapped == []
+
+
+async def test_adapted_callable_declares_its_contract_directly_to_fastmcp():
+    def project(project_id: int | None = None) -> int:
+        return project_id or 42
+
+    adapted = definition().adapt_with_mappers(project_id=project)
+    tool = Tool.from_function(adapted.fn)
+    assert tool.parameters["properties"]["project_id"]["type"] == "integer"
+    assert "project_id" in tool.parameters["required"]
+    with pytest.raises(ToolError, match="project_id"):
+        await tool.run({"query": "orders"})
+    with pytest.raises(ToolError, match="project_id"):
+        await tool.run({"project_id": None, "query": "orders"})
+    assert await tool.run({"project_id": 43, "query": "orders"}) == "43:orders"
+    bound = adapted.bind_inputs(InputBinding(values={"project_id": None}))
+    assert (
+        await bound.to_fastmcp_internal_tool().run({"query": "orders"}) == "42:orders"
+    )

@@ -136,9 +136,8 @@ async def _snapshot_server() -> AsyncIterator[Any]:
     """Build the in-process server with a deterministic, network-free config.
 
     Proxied tools are disabled at config load and their registration is patched
-    out so the enumeration never reaches a remote endpoint. The server is forced
-    into single-project mode so ``list_tools`` returns the locally registered
-    tools.
+    out so the enumeration never reaches a remote endpoint. Project selection
+    is fixed so ``list_tools`` returns deterministic bound tool schemas.
     """
     from dbt_mcp.config.config import load_config
     from dbt_mcp.dbt_cli.binary_type import BinaryType

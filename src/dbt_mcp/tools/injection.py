@@ -60,7 +60,8 @@ def adapt_with_mappers[R](
 ) -> Callable[..., R]:
     """Inject named parameters from mappers, sharing their caller inputs.
 
-    Mapper inputs form the exposed signature; each mapper runs once per invocation.
+    Mapper inputs form the signature; existing inputs retain their declarations.
+    Each mapper runs once per invocation and uses its own omission defaults.
     """
     if not parameter_mappers:
         return func
@@ -88,17 +89,11 @@ def adapt_with_mappers[R](
             if parameter.annotation is inspect.Parameter.empty:
                 raise AdaptError("mapper must have type-annotated parameters")
             canonical = original.parameters.get(name)
-            if canonical is not None and get_origin(canonical.annotation) is Annotated:
-                value_type = (
-                    get_args(parameter.annotation)[0]
-                    if get_origin(parameter.annotation) is Annotated
-                    else parameter.annotation
-                )
-                metadata = get_args(canonical.annotation)[1:]
-                parameter = parameter.replace(
-                    annotation=Annotated[value_type, *metadata]
-                    if metadata
-                    else value_type
+            if canonical is not None and not _accepts(
+                parameter.annotation, canonical.annotation
+            ):
+                raise AdaptError(
+                    f"{name}: context mapper cannot accept declared input {canonical.annotation!r}"
                 )
             if name in inputs and inputs[name] != parameter:
                 raise AdaptError(f"Conflicting mapper input declarations for {name}")
@@ -114,6 +109,15 @@ def adapt_with_mappers[R](
     ]
     parameters.sort(key=lambda p: (p.kind, p.default is not inspect.Parameter.empty))
     exposed = original.replace(parameters=parameters)
+    # Mapper defaults allow internal omission. They must not weaken the tool's
+    # public types, requiredness, constraints or target annotations.
+    declared_parameters = [
+        original.parameters.get(parameter.name, parameter) for parameter in parameters
+    ]
+    declared_parameters.sort(
+        key=lambda p: (p.kind, p.default is not inspect.Parameter.empty)
+    )
+    declared = original.replace(parameters=declared_parameters)
     is_async = inspect.iscoroutinefunction(func)
     if not is_async and any(
         inspect.iscoroutinefunction(mapper) for mapper in parameter_mappers.values()
@@ -123,22 +127,36 @@ def adapt_with_mappers[R](
     def caller_arguments(
         args: tuple[Any, ...], kwargs: dict[str, Any]
     ) -> dict[str, Any]:
-        bound = exposed.bind(*args, **kwargs)
-        bound.apply_defaults()
-        return dict(bound.arguments)
+        # Positional calls follow the published order; mapper defaults govern
+        # which inputs may be omitted internally.
+        supplied = declared.bind_partial(*args, **kwargs).arguments
+        bound = inspect.BoundArguments(
+            exposed,
+            OrderedDict(
+                (name, supplied[name])
+                for name in exposed.parameters
+                if name in supplied
+            ),
+        )
+        return dict(exposed.bind(*bound.args, **bound.kwargs).arguments)
 
     def map_argument(destination: str, values: dict[str, Any]) -> Any:
         signature = signatures[destination]
         bound = inspect.BoundArguments(
             signature,
-            OrderedDict((name, values[name]) for name in signature.parameters),
+            OrderedDict(
+                (name, values[name]) for name in signature.parameters if name in values
+            ),
         )
+        bound.apply_defaults()
         return parameter_mappers[destination](*bound.args, **bound.kwargs)
 
     def invoke(values: dict[str, Any]) -> Any:
         bound = inspect.BoundArguments(
             original,
-            OrderedDict((name, values[name]) for name in original.parameters),
+            OrderedDict(
+                (name, values[name]) for name in original.parameters if name in values
+            ),
         )
         return func(*bound.args, **bound.kwargs)
 
@@ -171,7 +189,7 @@ def adapt_with_mappers[R](
                 values[destination] = mapped[id(mapper)]
             return invoke(values)
 
-    return cast(Callable[..., R], _with_signature(wrapper, exposed))
+    return cast(Callable[..., R], _with_signature(wrapper, declared))
 
 
 def _with_signature(

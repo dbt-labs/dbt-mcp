@@ -1,9 +1,5 @@
 """JSON Schema parameter descriptions for Discovery MCP tools."""
 
-from dbt_mcp.tools.project_params import PROJECT_ID_DESCRIPTION
-
-DISCOVERY_PROJECT_ID_DESCRIPTION = PROJECT_ID_DESCRIPTION
-
 RESOURCE_TYPE_DESCRIPTION = (
     "The type of dbt resource to fetch details for. "
     "One of: model, source, exposure, test, seed, snapshot, macro, semantic_model. "

@@ -134,7 +134,7 @@ async def test_context_mapper_shares_declared_selector_with_the_callable():
     assert "project_id" in schema["required"]
     assert my_tool.targets["project_id"].requires == Permission.METADATA_READ
     assert "project_id" in signature(my_tool.fn).parameters
-    assert "project_id" in adapted.input_signature.parameters
+    assert "project_id" in signature(adapted.fn).parameters
 
     def build_query(term: str) -> str:
         return term.upper()

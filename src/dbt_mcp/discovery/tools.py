@@ -389,9 +389,7 @@ def build_lineage_graph(
 ) -> LineageGraph:
     """Map the lineage fetcher's list-of-dicts output into a LineageGraph.
 
-    Shared by the single- and multi-project get_lineage tools so both emit the
-    same structured shape. Edges are kept only when both endpoints are present
-    in the returned node set.
+    Edges are kept only when both endpoints are present in the returned node set.
     """
     omitted_node_count = max(0, len(nodes) - limit)
     returned_nodes = nodes[:limit]

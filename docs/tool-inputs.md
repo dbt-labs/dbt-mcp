@@ -57,7 +57,8 @@ result = await bound.to_fastmcp_internal_tool().run({"limit": 10})
 
 1. `adapt_with_mappers` builds the framework callable. Its mapper can accept
    omission internally, while the declared model input remains a required
-   `int`. Framework context parameters are excluded from model inputs.
+   `int` on the adapted callable's signature. FastMCP reads that signature
+   directly. Framework context parameters are excluded from model inputs.
 2. `InputBinding` returns a callable with the selected inputs removed from its
    signature. FastMCP generates its schema and argument validator from that
    callable. Its generated Pydantic model forbids extra inputs, so unknown

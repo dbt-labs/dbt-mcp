@@ -1,20 +1,15 @@
 from collections.abc import Callable
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from enum import Enum
 from functools import cached_property, partial
-from inspect import Parameter, Signature, signature, unwrap
+from inspect import unwrap
 from typing import Any
 
 from mcp.server.fastmcp.tools.base import Tool
 from mcp.types import ToolAnnotations
 
 from dbt_mcp.tools.binding import CallScope, InputBinding, configure_argument_validation
-from dbt_mcp.tools.injection import (
-    AdaptError,
-    _accepts,
-    _signature,
-    adapt_with_mappers,
-)
+from dbt_mcp.tools.injection import adapt_with_mappers
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.targets import Target, target_parameters
 
@@ -30,18 +25,12 @@ class GenericToolDefinition[NameEnum: Enum]:
     structured_output: bool = True
     meta: dict[str, Any] | None = None
     requirements: tuple[Target | Enum, ...] | None = None
-    _input_signature: Signature | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         # Adapted/bound signatures may hide every target. The canonical function
         # must still declare access explicitly before any adaptation takes place.
         if self.requirements is None and not self.targets:
             raise ValueError("Tools must declare access requirements")
-
-    @property
-    def input_signature(self) -> Signature:
-        """Declared model inputs, independent of context mapper defaults."""
-        return self._input_signature or _signature(self.fn)
 
     @property
     def targets(self) -> dict[str, Target]:
@@ -55,13 +44,7 @@ class GenericToolDefinition[NameEnum: Enum]:
     @cached_property
     def _internal_tool(self) -> Tool:
         tool = Tool.from_function(
-            fn=(
-                self.fn
-                if signature(self.fn) == self.input_signature
-                else InputBinding().bind_callable(
-                    self.fn, declaration=self.input_signature
-                )
-            ),
+            fn=self.fn,
             name=self.name,
             title=self.title,
             description=self.description,
@@ -79,33 +62,13 @@ class GenericToolDefinition[NameEnum: Enum]:
         self, binding: InputBinding, *, call_scope: CallScope | None = None
     ) -> "GenericToolDefinition[NameEnum]":
         """Return a request-specific interface without changing the original tool."""
-        fn = binding.bind_callable(
-            self.fn, declaration=self.input_signature, call_scope=call_scope
-        )
-        return replace(self, fn=fn, _input_signature=signature(fn))
+        return replace(self, fn=binding.bind_callable(self.fn, call_scope=call_scope))
 
     def adapt_with_mappers(
         self, **parameter_mappers: Callable[..., Any]
     ) -> "GenericToolDefinition[NameEnum]":
         """Inject parameters by name, including context and resolved selectors."""
-        fn = adapt_with_mappers(self.fn, **parameter_mappers)
-        exposed = signature(fn)
-        declarations = self.input_signature.parameters
-        for name, declaration in declarations.items():
-            parameter = exposed.parameters.get(name)
-            if parameter is not None and not _accepts(
-                parameter.annotation, declaration.annotation
-            ):
-                raise AdaptError(
-                    f"{name}: context mapper cannot accept declared input {declaration.annotation!r}"
-                )
-        parameters = [
-            declarations.get(name, parameter)
-            for name, parameter in exposed.parameters.items()
-        ]
-        parameters.sort(key=lambda p: (p.kind, p.default is not Parameter.empty))
-        contract = exposed.replace(parameters=parameters)
-        return replace(self, fn=fn, _input_signature=contract)
+        return replace(self, fn=adapt_with_mappers(self.fn, **parameter_mappers))
 
 
 @dataclass

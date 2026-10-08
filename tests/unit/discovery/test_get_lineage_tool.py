@@ -1,11 +1,34 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from dbt_mcp.config.config_providers import DiscoveryConfig, ProjectConfigProvider
 
 from dbt_mcp.tools.parameters import LineageDirection
 from dbt_mcp.discovery.tools import (
     LineageEdge,
     LineageGraph,
     get_lineage,
+    discovery_context_mappers,
 )
+
+
+async def test_get_lineage_context_uses_the_supplied_project():
+    provider = MagicMock(spec=ProjectConfigProvider)
+    provider.get_config = AsyncMock(
+        return_value=DiscoveryConfig(
+            url="https://example.com", headers_provider=MagicMock(), environment_id=1
+        )
+    )
+    tool = get_lineage.adapt_with_mappers(**discovery_context_mappers(provider))
+    with patch(
+        "dbt_mcp.discovery.tools.LineageFetcher.fetch_lineage",
+        new=AsyncMock(return_value=[]),
+    ):
+        result = await tool.to_fastmcp_internal_tool().run(
+            {"project_id": 42, "unique_id": "model.p.a"}
+        )
+    assert isinstance(result, LineageGraph)
+    assert result.root_id == "model.p.a"
+    provider.get_config.assert_awaited_once_with(project_id=42)
 
 
 async def test_get_lineage_builds_graph_from_nodes():
