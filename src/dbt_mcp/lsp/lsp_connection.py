@@ -5,16 +5,17 @@ communication according to the Language Server Protocol specification.
 """
 
 import asyncio
+import contextlib
 import itertools
 import json
 import logging
 import socket
 import subprocess
-from collections.abc import Iterator, Sequence
-from dataclasses import dataclass, field
-from typing import Any
 import uuid
-from dataclasses import asdict
+from collections.abc import Iterator, Sequence
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Any
 
 from dbt_mcp.lsp.providers.lsp_connection_provider import (
     LSPConnectionProviderProtocol,
@@ -64,6 +65,7 @@ class LspConnectionState:
         default_factory=dict
     )
     compiled: bool = False
+    open_documents: dict[str, int] = field(default_factory=dict)
     # start at 20 to avoid collisions between ids of requests we are waiting for and the lsp server requests from us
     request_id_counter: Iterator[int] = field(
         default_factory=lambda: itertools.count(20)
@@ -110,6 +112,13 @@ class SocketLSPConnection(LSPConnectionProviderProtocol):
         self.port = 0
 
         self.process: asyncio.subprocess.Process | None = None
+        self.client_configuration: dict[str, Any] = {
+            "lsp": {
+                "maxErrorReporting": 100,
+                "linter": {"enabled": False},
+                "formatter": {"enabled": True},
+            }
+        }
         self.state = LspConnectionState()
 
         # Socket components
@@ -135,6 +144,14 @@ class SocketLSPConnection(LSPConnectionProviderProtocol):
 
     def initialized(self) -> bool:
         return self.state.initialized
+
+    def is_document_open(self, uri: str) -> bool:
+        """Return whether the connection has sent didOpen for a URI."""
+        return uri in self.state.open_documents
+
+    def document_version(self, uri: str) -> int | None:
+        """Return the last sent document version for a URI."""
+        return self.state.open_documents.get(uri)
 
     async def start(self) -> None:
         """Start the LSP server process and socket communication tasks."""
@@ -464,6 +481,36 @@ class SocketLSPConnection(LSPConnectionProviderProtocol):
             logger.error(f"Failed to parse message: {e}")
             return None, buffer[content_end:]
 
+    def _handle_server_request(self, message: JsonRpcMessage) -> None:
+        """Answer requests initiated by the server during the LSP session."""
+        if message.method == "workspace/configuration":
+            if isinstance(message.params, dict):
+                items = message.params.get("items", [])
+            elif isinstance(message.params, list):
+                items = message.params
+            else:
+                items = []
+            result = [self.client_configuration for _ in items]
+            self._send_message(
+                JsonRpcMessage(id=message.id, result=result), none_values=True
+            )
+            return
+
+        logger.debug(
+            "Responding with null to unsupported LSP request %s", message.method
+        )
+        self._send_message(JsonRpcMessage(id=message.id, result=None), none_values=True)
+
+    @staticmethod
+    def _set_future_result(future: asyncio.Future, result: Any) -> None:
+        if not future.done():
+            future.set_result(result)
+
+    @staticmethod
+    def _set_future_exception(future: asyncio.Future, error: BaseException) -> None:
+        if not future.done():
+            future.set_exception(error)
+
     def _handle_incoming_message(self, message: JsonRpcMessage) -> None:
         """Handle an incoming message from the LSP server."""
 
@@ -481,19 +528,24 @@ class SocketLSPConnection(LSPConnectionProviderProtocol):
                 future_loop = future.get_loop()
                 if message.error:
                     future_loop.call_soon_threadsafe(
-                        future.set_exception,
+                        self._set_future_exception,
+                        future,
                         RuntimeError(f"LSP error: {message.error}"),
                     )
                 else:
-                    future_loop.call_soon_threadsafe(future.set_result, message.result)
+                    future_loop.call_soon_threadsafe(
+                        self._set_future_result, future, message.result
+                    )
                 return
+            elif message.method is not None:
+                self._handle_server_request(message)
+                return
+
             else:
-                # it's an unknown request, we respond with an empty result
-                logger.debug(f"LSP request {message.to_dict()}")
+                logger.debug("Unknown LSP response %s", message.to_dict())
                 self._send_message(
                     JsonRpcMessage(id=message.id, result=None), none_values=True
                 )
-
         if message.method is None:
             return
 
@@ -507,10 +559,15 @@ class SocketLSPConnection(LSPConnectionProviderProtocol):
                 # Use call_soon_threadsafe for notification futures as well
                 for future in futures:
                     future_loop = future.get_loop()
-                    future_loop.call_soon_threadsafe(future.set_result, message.params)
+                    future_loop.call_soon_threadsafe(
+                        self._set_future_result, future, message.params
+                    )
 
             match lsp_event_name:
-                case LspEventName.compileComplete:
+                case (
+                    LspEventName.compileComplete
+                    | LspEventName.backgroundCompileComplete
+                ):
                     logger.info("Recorded compile complete event")
                     self.state.compiled = True
                 case _:
@@ -526,7 +583,7 @@ class SocketLSPConnection(LSPConnectionProviderProtocol):
         method: str,
         params: dict[str, Any] | list[Any] | None = None,
         timeout: float | None = None,
-    ) -> dict[str, Any]:
+    ) -> Any:
         """Send a request to the LSP server.
 
         Args:
@@ -536,7 +593,7 @@ class SocketLSPConnection(LSPConnectionProviderProtocol):
                     default_request_timeout from the connection configuration.
 
         Returns:
-            A dictionary containing the response result or error information
+            Any JSON-compatible response result; transport errors are returned as an error dictionary
         """
         if not self.process:
             raise RuntimeError("LSP server is not running")
@@ -564,6 +621,7 @@ class SocketLSPConnection(LSPConnectionProviderProtocol):
                 future, timeout=timeout or self.default_request_timeout
             )
         except Exception as e:
+            self.state.pending_requests.pop(request_id, None)
             return {"error": str(e)}
 
     def send_notification(
@@ -581,6 +639,20 @@ class SocketLSPConnection(LSPConnectionProviderProtocol):
             raise RuntimeError("LSP server is not running")
 
         # Create notification message (no ID)
+        if isinstance(params, dict):
+            text_document = params.get("textDocument")
+            if isinstance(text_document, dict):
+                uri = text_document.get("uri")
+                version = text_document.get("version")
+                if isinstance(uri, str):
+                    if method == "textDocument/didClose":
+                        self.state.open_documents.pop(uri, None)
+                    elif method in {
+                        "textDocument/didOpen",
+                        "textDocument/didChange",
+                    } and isinstance(version, int):
+                        self.state.open_documents[uri] = version
+                        self.state.compiled = False
         message = JsonRpcMessage(
             method=method,
             params=params,
@@ -644,3 +716,232 @@ class SocketLSPConnection(LSPConnectionProviderProtocol):
     def is_running(self) -> bool:
         """Check if the LSP server is running."""
         return self.process is not None and self.process.returncode is None
+
+
+class StdioLSPConnection(SocketLSPConnection):
+    """LSP connection using the standard input/output transport.
+
+    The dbt LSP is a child process owned by the MCP server. Keeping this
+    transport separate from the legacy socket implementation lets callers
+    migrate without changing the tested socket behavior.
+    """
+
+    async def start(self) -> None:
+        """Start the LSP process and its stdio I/O tasks."""
+        if self.process is not None:
+            logger.warning("LSP process is already running")
+            return
+
+        cmd = [*self.cmd, "--project-dir", self.cwd, *self.args]
+        try:
+            logger.debug("Starting stdio LSP server: %s", " ".join(cmd))
+            self.process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                cwd=self.cwd,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            self._stop_event.clear()
+            loop = asyncio.get_running_loop()
+            self._reader_task = loop.create_task(self._stdio_read_loop())
+            self._writer_task = loop.create_task(self._stdio_write_loop())
+            self._stderr_reader_task = loop.create_task(self._stdio_stderr_loop())
+            logger.info("LSP server started with PID: %s", self.process.pid)
+        except Exception:
+            logger.exception("Failed to start stdio LSP server")
+            await self.stop()
+            raise
+
+    async def initialize(self, timeout: float | None = None) -> None:
+        """Initialize the stdio LSP with the dbt-aware client capabilities."""
+        if self.state.initialized:
+            raise RuntimeError("LSP server is already initialized")
+
+        root_uri = Path(self.cwd).resolve().as_uri()
+        params = {
+            "processId": None,
+            "rootUri": root_uri,
+            "workspaceFolders": [{"uri": root_uri, "name": Path(self.cwd).name}],
+            "clientInfo": {"name": "dbt-mcp", "version": "1.0.0"},
+            "capabilities": {
+                "workspace": {"configuration": True},
+                "textDocument": {
+                    "codeAction": {
+                        "dynamicRegistration": False,
+                        "codeActionLiteralSupport": {
+                            "codeActionKind": {
+                                "valueSet": [
+                                    "",
+                                    "quickfix",
+                                    "source",
+                                    "source.fixAll",
+                                ]
+                            }
+                        },
+                    },
+                    "diagnostic": {
+                        "dynamicRegistration": False,
+                        "relatedDocumentSupport": False,
+                    },
+                },
+            },
+            "initializationOptions": {
+                "project-dir": root_uri,
+                "command-prefix": "",
+            },
+        }
+
+        result = await self.send_request(
+            "initialize",
+            params,
+            timeout=timeout or self.default_request_timeout,
+        )
+        if not isinstance(result, dict) or "error" in result:
+            raise RuntimeError(f"Failed to initialize LSP server: {result}")
+
+        self.state.capabilities = result.get("capabilities", {})
+        self.state.initialized = True
+        self.send_notification("initialized", {})
+        logger.info("LSP server initialized successfully")
+
+    async def _stdio_read_loop(self) -> None:
+        """Read framed JSON-RPC messages from the server's stdout."""
+        process = self.process
+        if process is None or process.stdout is None:
+            return
+
+        buffer = b""
+        try:
+            while not self._stop_event.is_set():
+                chunk = await process.stdout.read(4096)
+                if not chunk:
+                    break
+                buffer += chunk
+                while True:
+                    message, remaining = self._parse_message(buffer)
+                    if message is None:
+                        break
+                    buffer = remaining
+                    self._handle_incoming_message(message)
+        except asyncio.CancelledError:
+            return
+        except Exception:
+            if not self._stop_event.is_set():
+                logger.exception("Error reading from stdio LSP server")
+
+    async def _stdio_write_loop(self) -> None:
+        """Write framed JSON-RPC messages to the server's stdin."""
+        process = self.process
+        if process is None or process.stdin is None:
+            return
+
+        try:
+            while not self._stop_event.is_set():
+                try:
+                    data = await asyncio.wait_for(
+                        self._outgoing_queue.get(), timeout=0.1
+                    )
+                except TimeoutError:
+                    continue
+                process.stdin.write(data)
+                await process.stdin.drain()
+        except asyncio.CancelledError:
+            return
+        except Exception:
+            if not self._stop_event.is_set():
+                logger.exception("Error writing to stdio LSP server")
+
+    async def _stdio_stderr_loop(self) -> None:
+        """Log diagnostics emitted on the server's stderr without corrupting stdout."""
+        process = self.process
+        if process is None or process.stderr is None:
+            return
+
+        try:
+            while not self._stop_event.is_set():
+                line = await process.stderr.readline()
+                if not line:
+                    break
+                logger.debug(
+                    "dbt LSP stderr: %s", line.decode(errors="replace").rstrip()
+                )
+        except asyncio.CancelledError:
+            return
+
+    async def stop(self) -> None:
+        """Gracefully stop the child process and close stdio resources."""
+        process = self.process
+        if process is None:
+            self.state = LspConnectionState()
+            return
+
+        logger.info("Stopping stdio LSP server...")
+        if self.state.initialized and not self.state.shutting_down:
+            self.state.shutting_down = True
+            try:
+                result = await self.send_request("shutdown", timeout=5)
+                if isinstance(result, dict) and "error" in result:
+                    logger.warning(
+                        "LSP shutdown returned an error: %s", result["error"]
+                    )
+                self.send_notification("exit")
+            except Exception:
+                if process.stdin:
+                    while not self._outgoing_queue.empty():
+                        process.stdin.write(self._outgoing_queue.get_nowait())
+                        await process.stdin.drain()
+                logger.warning("Error during LSP shutdown handshake", exc_info=True)
+
+        if process.stdin:
+            await asyncio.sleep(0)
+            with contextlib.suppress(Exception):
+                while not self._outgoing_queue.empty():
+                    process.stdin.write(self._outgoing_queue.get_nowait())
+                await process.stdin.drain()
+
+        self._stop_event.set()
+        current_task = asyncio.current_task()
+        for task in (
+            self._reader_task,
+            self._writer_task,
+            self._stderr_reader_task,
+            self._stdout_reader_task,
+        ):
+            if task and task is not current_task and not task.done():
+                task.cancel()
+        tasks = [
+            task
+            for task in (
+                self._reader_task,
+                self._writer_task,
+                self._stderr_reader_task,
+                self._stdout_reader_task,
+            )
+            if task and task is not current_task
+        ]
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+        if process.stdin:
+            process.stdin.close()
+            with contextlib.suppress(Exception):
+                await process.stdin.wait_closed()
+
+        try:
+            await asyncio.wait_for(process.wait(), timeout=3)
+        except TimeoutError:
+            logger.warning("LSP process did not exit; terminating it")
+            process.terminate()
+            try:
+                await asyncio.wait_for(process.wait(), timeout=3)
+            except TimeoutError:
+                logger.warning("LSP process did not terminate; killing it")
+                process.kill()
+                await process.wait()
+        except Exception:
+            logger.exception("Error waiting for LSP process")
+
+        self.process = None
+        self.state = LspConnectionState()
+        logger.info("LSP server stopped")

@@ -184,11 +184,6 @@ async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
                     e,
                 )
 
-        # eager start and initialize the LSP connection
-        if server.config.lsp_config:
-            asyncio.create_task(
-                server.config.lsp_config.local_lsp_connection_provider.get_connection()
-            )
         yield None
     except Exception as e:
         logger.exception(f"Error in MCP server: {e}")
