@@ -22,9 +22,8 @@ async def session_context() -> AsyncGenerator[ClientSession, None]:
     )
     token = os.environ.get("DBT_TOKEN")
     prod_environment_id = os.environ.get("DBT_PROD_ENV_ID", "")
-    # This example is packaged on its own (see examples/remote_mcp) and depends
-    # only on `mcp`, so the client is built here rather than imported from
-    # dbt_mcp. Timeouts match the MCP SDK defaults for streamable HTTP.
+    # Packaged standalone (examples/remote_mcp) with only `mcp` as a dependency,
+    # so this must not import from dbt_mcp.
     async with (
         httpx.AsyncClient(
             headers={
