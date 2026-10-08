@@ -1,3 +1,3 @@
 kind: Under the Hood
 body: Replace the private `mcp.shared._httpx_utils` import with a local HTTP client factory for remote MCP connections.
-time: 2026-10-08T15:02:00.000000-04:00
+time: 2026-10-08T19:02:00Z
