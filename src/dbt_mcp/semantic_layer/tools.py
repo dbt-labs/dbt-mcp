@@ -467,10 +467,7 @@ def register_sl_tools(
     disabled_toolsets: set[Toolset],
 ) -> None:
     mappers = semantic_layer_context_mappers(config_provider, client_provider)
-    definitions = [
-        tool.remove_body_parameters("project_id").adapt_with_mappers(**mappers)
-        for tool in SEMANTIC_LAYER_TOOLS
-    ]
+    definitions = [tool.adapt_with_mappers(**mappers) for tool in SEMANTIC_LAYER_TOOLS]
 
     register_tools(
         dbt_mcp,

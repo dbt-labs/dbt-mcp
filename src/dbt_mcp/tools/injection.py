@@ -55,48 +55,6 @@ def _accepts(destination: Any, source: Any) -> bool:
     )
 
 
-def remove_body_parameters[R](
-    func: Callable[..., R], /, *names: str
-) -> Callable[..., R]:
-    """Consume inputs at invocation, preserving their declarations for schemas."""
-    original = _signature(func)
-    unknown = set(names) - original.parameters.keys()
-    if unknown:
-        raise AdaptError(f"Unknown body parameters: {', '.join(sorted(unknown))}")
-    required = {
-        name
-        for name in names
-        if original.parameters[name].default is inspect.Parameter.empty
-    }
-    if required:
-        raise AdaptError(
-            f"Cannot remove required body parameters: {', '.join(sorted(required))}"
-        )
-    if not names:
-        return func
-
-    def invoke(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
-        values = original.bind(*args, **kwargs)
-        for name in names:
-            values.arguments.pop(name, None)
-        body = inspect.BoundArguments(original, values.arguments)
-        return func(*body.args, **body.kwargs)
-
-    if inspect.iscoroutinefunction(func):
-
-        @wraps(func)
-        async def wrapper(*args: Any, **kwargs: Any) -> Any:
-            return await invoke(args, kwargs)
-
-    else:
-
-        @wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> R:
-            return invoke(args, kwargs)
-
-    return cast(Callable[..., R], _with_signature(wrapper, original))
-
-
 def adapt_with_mappers[R](
     func: Callable[..., R], /, **parameter_mappers: Callable[..., Any]
 ) -> Callable[..., R]:

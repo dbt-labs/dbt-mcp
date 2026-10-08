@@ -456,9 +456,7 @@ def register_admin_api_tools(
         return JobsToolContext(config)
 
     definitions = [
-        list_jobs.remove_body_parameters("project_id").adapt_with_mappers(
-            context=bind_jobs_context
-        )
+        list_jobs.adapt_with_mappers(context=bind_jobs_context)
         if tool is list_jobs
         else tool.adapt_with_mappers(context=bind_context)
         for tool in ADMIN_TOOLS

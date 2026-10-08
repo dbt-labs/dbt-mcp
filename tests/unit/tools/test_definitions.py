@@ -107,7 +107,7 @@ class TestMetaPassthrough:
         assert mock_mcp.tool_kwargs["my_tool"]["meta"] is None
 
 
-async def test_explicit_selector_is_consumed_by_context_building():
+async def test_context_mapper_shares_declared_selector_with_the_callable():
     @generic_dbt_mcp_tool(
         description="test",
         title="test",
@@ -120,14 +120,13 @@ async def test_explicit_selector_is_consumed_by_context_building():
             int, ProjectTarget(requires=Permission.METADATA_READ)
         ] = Field(description="Project ID."),
     ) -> str:
+        assert project_id == 42
         return f"{context}:{query}"
 
     def build_context(project_id: int) -> str:
         return f"project {project_id}"
 
-    adapted = my_tool.remove_body_parameters("project_id").adapt_with_mappers(
-        context=build_context
-    )
+    adapted = my_tool.adapt_with_mappers(context=build_context)
     assert await adapted.fn(project_id=42, query="orders") == "project 42:orders"
     schema = adapted.to_fastmcp_internal_tool().parameters
     assert schema["properties"]["project_id"]["type"] == "integer"
@@ -147,12 +146,10 @@ async def test_explicit_selector_is_consumed_by_context_building():
         return project_id
 
     with pytest.raises(AdaptError, match="cannot accept declared input"):
-        my_tool.remove_body_parameters("project_id").adapt_with_mappers(
-            context=wrong_context
-        )
+        my_tool.adapt_with_mappers(context=wrong_context)
 
 
-async def test_configured_context_consumes_no_selector_and_injects_no_placeholder():
+async def test_configured_context_does_not_require_a_selector_value():
     @generic_dbt_mcp_tool(
         description="test",
         title="test",
@@ -169,39 +166,8 @@ async def test_configured_context_consumes_no_selector_and_injects_no_placeholde
     def build_context() -> str:
         return "configured environment"
 
-    adapted = my_tool.remove_body_parameters("project_id").adapt_with_mappers(
-        context=build_context
-    )
+    adapted = my_tool.adapt_with_mappers(context=build_context)
     assert await adapted.fn() == "configured environment"
-
-
-@pytest.mark.parametrize(
-    "name,error",
-    [("missing", "Unknown body parameters"), ("context", "required body parameters")],
-)
-def test_body_parameter_removal_rejects_invalid_destinations(name: str, error: str):
-    @generic_dbt_mcp_tool(
-        description="test", title="test", name_enum=FakeToolName, requirements=()
-    )
-    def my_tool(context: str, selector: int = 42) -> str:
-        return context
-
-    with pytest.raises(AdaptError, match=error):
-        my_tool.remove_body_parameters(name)
-
-
-def test_body_parameter_removal_preserves_other_positional_arguments():
-    @generic_dbt_mcp_tool(
-        description="test", title="test", name_enum=FakeToolName, requirements=()
-    )
-    def my_tool(context: str, selector: int = 42, query: str = "orders") -> str:
-        return f"{context}:{query}"
-
-    adapted = my_tool.remove_body_parameters("selector")
-    assert adapted.fn("configured", 99, "customers") == "configured:customers"
-    assert my_tool.fn("original", 99, "products") == "original:products"
-    assert "selector" in signature(adapted.fn).parameters
-    assert adapted.targets == my_tool.targets
 
 
 async def test_selector_declaration_stays_required_and_non_nullable():
@@ -221,9 +187,7 @@ async def test_selector_declaration_stays_required_and_non_nullable():
     def build_context(project_id: int | None = None) -> str:
         return f"project {project_id}" if project_id else "configured environment"
 
-    adapted = my_tool.remove_body_parameters("project_id").adapt_with_mappers(
-        context=build_context
-    )
+    adapted = my_tool.adapt_with_mappers(context=build_context)
     internal = adapted.to_fastmcp_internal_tool()
     assert internal.parameters["properties"]["project_id"]["type"] == "integer"
     assert "project_id" in internal.parameters["required"]

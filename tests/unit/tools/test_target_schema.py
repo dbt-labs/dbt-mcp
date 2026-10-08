@@ -32,8 +32,7 @@ def test_canonical_service_schemas_explicitly_declare_target_parameters() -> Non
         assert isinstance(declarations["project_id"], ProjectTarget)
         assert declarations["project_id"].environment == EnvironmentRole.PRODUCTION
         schema = (
-            tool.remove_body_parameters("project_id")
-            .adapt_with_mappers(
+            tool.adapt_with_mappers(
                 context=context if tool in DISCOVERY_TOOLS else sl_context
             )
             .to_fastmcp_internal_tool()

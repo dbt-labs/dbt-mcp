@@ -15,7 +15,6 @@ from dbt_mcp.tools.injection import (
     _accepts,
     _signature,
     adapt_with_mappers,
-    remove_body_parameters,
 )
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.targets import Target, target_parameters
@@ -132,13 +131,6 @@ class GenericToolDefinition[NameEnum: Enum]:
 
         invoke.__signature__ = exposed  # type: ignore[attr-defined]
         return replace(self, fn=invoke, _input_signature=exposed, _binding=binding)
-
-    def remove_body_parameters(self, *names: str) -> "GenericToolDefinition[NameEnum]":
-        """Consume selector inputs without forwarding them to the implementation body."""
-        return replace(
-            self,
-            fn=remove_body_parameters(self.fn, *names),
-        )
 
     def adapt_with_mappers(
         self, **parameter_mappers: Callable[..., Any]

@@ -793,10 +793,7 @@ def register_discovery_tools(
     disabled_toolsets: set[Toolset],
 ) -> None:
     mappers = discovery_context_mappers(discovery_config_provider)
-    definitions = [
-        tool.remove_body_parameters("project_id").adapt_with_mappers(**mappers)
-        for tool in DISCOVERY_TOOLS
-    ]
+    definitions = [tool.adapt_with_mappers(**mappers) for tool in DISCOVERY_TOOLS]
 
     register_tools(
         dbt_mcp,

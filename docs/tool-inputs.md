@@ -1,8 +1,8 @@
 # Tool inputs and resolved context
 
 Declare all model inputs on the tool function. Target annotations describe
-resolution and permission requirements; registration controls which inputs
-are consumed by context building:
+resolution and permission requirements; context mappers use those inputs
+to build resolved context:
 
 ```python
 @dbt_mcp_tool(
@@ -26,16 +26,16 @@ async def get_all_models(
 ```
 
 `ProjectTarget` declares resolution and permission requirements. It does not
-change how arguments reach the body. When a selector contributes to resolved
-context, remove it from body invocation explicitly before adapting the tool.
-The body reads resolved context instead of the selector argument. Ordinary
+change how arguments reach the body. Selector arguments pass through the
+context adapter normally, but the body reads resolved context instead of the
+selector argument. Ordinary
 arguments, such as `limit` or a job ID used directly by the body, pass through.
 Discovery fetchers already hold the resolved config, so bodies need not retrieve
 or forward it on each call.
 
 `Field(...)` declares a required schema input and provides a Python declaration
-default. It is not a usable project ID. It lets the body omit an unused selector
-while the host supplies resolved context. The argument's
+default. It is not a usable project ID. Hosts with fixed runtime context can
+omit an unused selector while supplying resolved context. The argument's
 type remains `int`: it is required whenever exposed, or removed completely
 when bound. Access declarations survive adaptation through `tool.targets`.
 
@@ -46,7 +46,7 @@ async def build_context(project_id: int | None = None) -> DiscoveryToolContext:
     config = await config_provider.get_config(project_id=project_id)
     return DiscoveryToolContext(config=config)
 
-tool = get_all_models.remove_body_parameters("project_id").adapt_with_mappers(
+tool = get_all_models.adapt_with_mappers(
     context=build_context,
 )
 
@@ -58,9 +58,7 @@ inputs = bound.validate_and_bind({"limit": 10})
 1. `adapt_with_mappers` builds the framework callable. Its mapper can accept
    omission internally, while the declared model input remains a required
    `int`. Framework context parameters are excluded from model inputs.
-2. `remove_body_parameters` consumes selectors at invocation without changing
-   their declarations. The body receives context and ordinary arguments.
-3. `InputBinding` describes host selections and available choices. The same
+2. `InputBinding` describes host selections and available choices. The same
    binding hides known values in the schema, rejects overrides, and supplies
    them on calls. `validate_and_bind` also validates ordinary declared inputs.
    A host resolves and authorizes these values before building tool context.
