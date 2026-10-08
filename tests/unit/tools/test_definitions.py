@@ -5,7 +5,6 @@ from inspect import signature
 from typing import Annotated, Any
 
 import pytest
-from mcp.server.fastmcp.exceptions import ToolError
 from pydantic import Field
 
 from dbt_mcp.tools.targets import Permission, ProjectTarget
@@ -199,9 +198,9 @@ def test_body_parameter_removal_preserves_other_positional_arguments():
         return f"{context}:{query}"
 
     adapted = my_tool.remove_body_parameters("selector")
-    assert adapted.fn("configured", "customers") == "configured:customers"
+    assert adapted.fn("configured", 99, "customers") == "configured:customers"
     assert my_tool.fn("original", 99, "products") == "original:products"
-    assert "project_id" not in signature(adapted.fn).parameters
+    assert "selector" in signature(adapted.fn).parameters
     assert adapted.targets == my_tool.targets
 
 
@@ -229,6 +228,6 @@ async def test_selector_declaration_stays_required_and_non_nullable():
     assert internal.parameters["properties"]["project_id"]["type"] == "integer"
     assert "project_id" in internal.parameters["required"]
     assert await internal.run({"project_id": 42}) == "project 42"
-    with pytest.raises(ToolError, match="project_id"):
-        await internal.run({"project_id": None})
+    with pytest.raises(ValueError, match="project_id"):
+        adapted.validate_and_bind({"project_id": None})
     assert await adapted.fn() == "configured environment"

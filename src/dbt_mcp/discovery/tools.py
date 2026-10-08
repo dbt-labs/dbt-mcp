@@ -772,17 +772,15 @@ def discovery_context_mappers(
     def context(config: DiscoveryConfig) -> DiscoveryToolContext:
         return DiscoveryToolContext(config=config)
 
-    if isinstance(config_provider, ProjectConfigProvider):
+    async def build_context(project_id: int | None = None) -> DiscoveryToolContext:
+        config = await (
+            config_provider.get_config(project_id=project_id)
+            if isinstance(config_provider, ProjectConfigProvider)
+            else config_provider.get_config()
+        )
+        return context(config)
 
-        async def build_context(project_id: int | None = None) -> DiscoveryToolContext:
-            return context(await config_provider.get_config(project_id=project_id))
-
-        return {"context": build_context}
-
-    async def build_configured_context() -> DiscoveryToolContext:
-        return context(await config_provider.get_config())
-
-    return {"context": build_configured_context}
+    return {"context": build_context}
 
 
 def register_discovery_tools(

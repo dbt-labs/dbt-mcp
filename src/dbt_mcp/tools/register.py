@@ -117,7 +117,7 @@ def generic_register_tools[NameEnum: Enum](
         ):
             continue
         dbt_mcp.add_tool(
-            fn=tool_definition.invocation_function(),
+            fn=tool_definition.fn,
             name=tool_name.value,
             title=tool_definition.title,
             description=tool_definition.description,
@@ -125,3 +125,8 @@ def generic_register_tools[NameEnum: Enum](
             structured_output=tool_definition.structured_output,
             meta=tool_definition.meta,
         )
+        # FastMCP infers execution validation from the adapter. Its public schema
+        # comes from the declared inputs, which can be stricter than mapper defaults.
+        registered = dbt_mcp._tool_manager.get_tool(tool_name.value)
+        if registered is not None:
+            registered.parameters = tool_definition.input_schema

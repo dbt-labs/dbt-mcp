@@ -26,7 +26,7 @@ from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.proxy.tools import ProxiedToolsManager, register_proxied_tools
 from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
 from dbt_mcp.semantic_layer.tools import register_sl_tools
-from dbt_mcp.tools.binding import bind_schema
+from dbt_mcp.tools.binding import InputBinding
 from dbt_mcp.tools.toolsets import Toolset, toolsets, proxied_tools
 from dbt_mcp.tracking.tracking import (
     REDACT_ARGS,
@@ -127,8 +127,8 @@ class DbtMCP(FastMCP):
             )
             if tool is None:
                 raise ValueError(f"Unknown or unavailable tool: {name}")
-            invocation_arguments = self._bind_project_arguments(
-                tool, arguments, projects
+            invocation_arguments = self._project_binding(tool, projects).bind_arguments(
+                arguments, parameters=set(tool.inputSchema["properties"])
             )
             result = await self.tool_server.call_tool(name, invocation_arguments)
         except Exception as e:
@@ -179,49 +179,22 @@ class DbtMCP(FastMCP):
         return tool.name in PROJECT_TOOL_NAMES
 
     @staticmethod
-    def _bind_project_arguments(
-        tool: Tool, arguments: dict[str, Any], projects: list[int] | None
-    ) -> dict[str, Any]:
+    def _project_binding(tool: Tool, projects: list[int] | None) -> InputBinding:
         if "project_id" not in tool.inputSchema.get("properties", {}):
-            return arguments
+            return InputBinding()
         if projects is None or len(projects) == 1:
-            if "project_id" in arguments:
-                raise ValueError("project_id is bound by the current context; omit it")
-            # Configured-environment providers need no project selector.
-            return arguments | {"project_id": projects[0]} if projects else arguments
-        project_id = arguments.get("project_id")
-        if type(project_id) is not int or project_id not in projects:
-            raise ValueError(f"project_id must be one of {projects}")
-        return arguments
+            return InputBinding(
+                values={"project_id": projects[0] if projects else None}
+            )
+        return InputBinding(choices={"project_id": tuple(projects)})
 
     async def list_tools(self) -> list[Tool]:
         projects = await self._selected_projects()
-        tools = []
-        for tool in await self.tool_server.list_tools():
-            if not self._tool_available(tool, projects):
-                continue
-            if "project_id" in tool.inputSchema.get("properties", {}):
-                if projects is None or len(projects) == 1:
-                    tool = bind_schema(
-                        tool, {"project_id": projects[0] if projects else None}
-                    )
-                else:
-                    schema = dict(tool.inputSchema)
-                    properties = dict(schema["properties"])
-                    properties["project_id"] = {
-                        "type": "integer",
-                        "enum": projects,
-                        "description": properties["project_id"].get(
-                            "description", "Project ID."
-                        ),
-                    }
-                    schema["properties"] = properties
-                    schema["required"] = list(
-                        dict.fromkeys([*schema.get("required", []), "project_id"])
-                    )
-                    tool = tool.model_copy(update={"inputSchema": schema})
-            tools.append(tool)
-        return tools
+        return [
+            self._project_binding(tool, projects).schema(tool)
+            for tool in await self.tool_server.list_tools()
+            if self._tool_available(tool, projects)
+        ]
 
 
 @asynccontextmanager

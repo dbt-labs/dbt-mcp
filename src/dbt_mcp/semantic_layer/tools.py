@@ -445,19 +445,15 @@ def semantic_layer_context_mappers(
             client_provider=client_provider,
         )
 
-    if isinstance(config_provider, ProjectConfigProvider):
+    async def build_context(project_id: int | None = None) -> SemanticLayerToolContext:
+        config = await (
+            config_provider.get_config(project_id=project_id)
+            if isinstance(config_provider, ProjectConfigProvider)
+            else config_provider.get_config()
+        )
+        return context(config)
 
-        async def build_context(
-            project_id: int | None = None,
-        ) -> SemanticLayerToolContext:
-            return context(await config_provider.get_config(project_id=project_id))
-
-        return {"context": build_context}
-
-    async def build_configured_context() -> SemanticLayerToolContext:
-        return context(await config_provider.get_config())
-
-    return {"context": build_configured_context}
+    return {"context": build_context}
 
 
 def register_sl_tools(

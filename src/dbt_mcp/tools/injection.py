@@ -58,7 +58,7 @@ def _accepts(destination: Any, source: Any) -> bool:
 def remove_body_parameters[R](
     func: Callable[..., R], /, *names: str
 ) -> Callable[..., R]:
-    """Omit parameters from invocation, leaving the original defaults in place."""
+    """Consume inputs at invocation, preserving their declarations for schemas."""
     original = _signature(func)
     unknown = set(names) - original.parameters.keys()
     if unknown:
@@ -74,12 +74,11 @@ def remove_body_parameters[R](
         )
     if not names:
         return func
-    exposed = original.replace(
-        parameters=[p for name, p in original.parameters.items() if name not in names]
-    )
 
     def invoke(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
-        values = exposed.bind(*args, **kwargs)
+        values = original.bind(*args, **kwargs)
+        for name in names:
+            values.arguments.pop(name, None)
         body = inspect.BoundArguments(original, values.arguments)
         return func(*body.args, **body.kwargs)
 
@@ -95,7 +94,7 @@ def remove_body_parameters[R](
         def wrapper(*args: Any, **kwargs: Any) -> R:
             return invoke(args, kwargs)
 
-    return cast(Callable[..., R], _with_signature(wrapper, exposed))
+    return cast(Callable[..., R], _with_signature(wrapper, original))
 
 
 def adapt_with_mappers[R](
