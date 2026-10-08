@@ -8,6 +8,7 @@ from typing import Any
 
 from dbtlabs_vortex.producer import shutdown
 from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.tools.base import Tool as RegisteredTool
 from mcp.server.lowlevel.server import LifespanResultT
 from mcp.types import ContentBlock, Tool
 
@@ -116,21 +117,13 @@ class DbtMCP(FastMCP):
         mcp_client_name, mcp_client_version = self._get_mcp_client_info()
         try:
             projects = await self._selected_projects()
-            tools = await self.tool_server.list_tools()
-            tool = next(
-                (
-                    tool
-                    for tool in tools
-                    if tool.name == name and self._tool_available(tool, projects)
-                ),
-                None,
-            )
-            if tool is None:
+            tool = self.tool_server._tool_manager.get_tool(name)
+            if tool is None or not self._tool_available(tool, projects):
                 raise ValueError(f"Unknown or unavailable tool: {name}")
-            invocation_arguments = self._project_binding(tool, projects).bind_arguments(
-                arguments, parameters=set(tool.inputSchema["properties"])
+            tool = self._bind_tool(tool, projects)
+            result = await tool.run(
+                arguments, context=self.tool_server.get_context(), convert_result=True
             )
-            result = await self.tool_server.call_tool(name, invocation_arguments)
         except Exception as e:
             end_time = int(time.time() * 1000)
             logger.error(
@@ -173,14 +166,16 @@ class DbtMCP(FastMCP):
         return result
 
     @staticmethod
-    def _tool_available(tool: Tool, projects: list[int] | None) -> bool:
+    def _tool_available(tool: RegisteredTool, projects: list[int] | None) -> bool:
         if projects is None:
             return True
         return tool.name in PROJECT_TOOL_NAMES
 
     @staticmethod
-    def _project_binding(tool: Tool, projects: list[int] | None) -> InputBinding:
-        if "project_id" not in tool.inputSchema.get("properties", {}):
+    def _project_binding(
+        tool: RegisteredTool, projects: list[int] | None
+    ) -> InputBinding:
+        if "project_id" not in tool.parameters.get("properties", {}):
             return InputBinding()
         if projects is None or len(projects) == 1:
             return InputBinding(
@@ -188,13 +183,25 @@ class DbtMCP(FastMCP):
             )
         return InputBinding(choices={"project_id": tuple(projects)})
 
+    def _bind_tool(
+        self, tool: RegisteredTool, projects: list[int] | None
+    ) -> RegisteredTool:
+        if tool.name in PROJECT_TOOL_NAMES and "project_id" in tool.parameters.get(
+            "properties", {}
+        ):
+            return self._project_binding(tool, projects).bind_tool(tool)
+        return tool
+
     async def list_tools(self) -> list[Tool]:
         projects = await self._selected_projects()
-        return [
-            self._project_binding(tool, projects).schema(tool)
-            for tool in await self.tool_server.list_tools()
-            if self._tool_available(tool, projects)
-        ]
+        bound = FastMCP(
+            tools=[
+                self._bind_tool(tool, projects)
+                for tool in self.tool_server._tool_manager.list_tools()
+                if self._tool_available(tool, projects)
+            ]
+        )
+        return await bound.list_tools()
 
 
 @asynccontextmanager

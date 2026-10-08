@@ -33,6 +33,7 @@
       },
       "description": "Cancel a currently running or queued dbt run.\n\nThis tool allows you to stop a run that is currently executing or waiting in the queue.\n\n## Returns\n\nUpdated run object showing the cancelled status and timing information.\n\n## Run States That Can Be Cancelled\n\n- **Queued (1)**: Run is waiting to start\n- **Starting (2)**: Run is initializing\n- **Running (3)**: Run is currently executing\n\n## Use Cases\n\n- Stop long-running jobs that are no longer needed\n- Cancel jobs that were triggered by mistake\n- Free up run slots for higher priority jobs\n- Stop runs that are stuck or hanging\n- Emergency cancellation during incidents\n\n## Important Notes\n\n- Once cancelled, a run cannot be resumed\n- Partial work may have been completed before cancellation\n- Artifacts from cancelled runs may not be available\n- Use the retry functionality if you need to re-run after cancellation\n\n## Example Usage\n\n```json\n{\n  \"run_id\": 789\n}\n```\n\n## Response\n\nReturns the updated run object with:\n- Status changed to cancelled (30)\n- Cancellation timestamp\n- Final execution timing\n- Any artifacts that were generated before cancellation\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "run_id": {
             "description": "The dbt job run ID",
@@ -66,6 +67,7 @@
       },
       "description": "Get the name, description, and package name of all dbt macros in the environment. Macros are reusable pieces of Jinja SQL that can be called from models, tests, and other macros.\n\nUsage patterns:\n1. Discover available packages first: `get_all_macros(return_package_names_only=True)`\n2. Then get macros for specific packages: `get_all_macros(package_names=['my_project'])`\n\nNote:\n  - dbt-labs first-party packages are excluded by default. These are packages maintained directly by dbt Labs from the dbt-labs/dbt-adapters monorepo:\n    - dbt (dbt-core)\n    - dbt_postgres\n    - dbt_redshift\n    - dbt_snowflake\n    - dbt_bigquery\n    - dbt_spark\n    - dbt_athena\n  - Community packages (dbt_utils, dbt_expectations, dbt_date) are included\n  - Partner-maintained adapters (dbt_databricks, dbt_trino, dbt_synapse) are included\n  - All project-specific macros are included\n\nReturns:\n- When return_package_names_only=False (default): List of macros with name, uniqueId, description, packageName\n- When return_package_names_only=True: List of unique package names (strings)\n\nReturns one source page in `result`, with `pagination.has_more` and `pagination.next_cursor`. Pass the next cursor as `after` with the same filters. `limit` defaults to 50 and is capped at 100. Local filtering may leave an empty page with more pages available.\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "after": {
             "anyOf": [
@@ -229,6 +231,7 @@
       },
       "description": "Get a page of dbt model names and descriptions in the environment.\n\nReturns one source page in `result`, with `pagination.has_more` and `pagination.next_cursor`. Pass the next cursor as `after` with the same filters. `limit` defaults to 50 and is capped at 100. Local filtering may leave an empty page with more pages available.\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "after": {
             "anyOf": [
@@ -354,6 +357,7 @@
       },
       "description": "Get the name, description, and metadata of all dbt sources in the environment. Sources represent external data tables that your dbt models build upon.\n\nNote:\n  - source_names correspond to the top-level source grouping in the source YML config\n  - unique_ids have the form `source.{YOUR-DBT-PROJECT}.{SOURCE-NAME}.{SOURCE-TABLE}`\n\nReturns information including:\n- name: The table name within the source\n- uniqueId: The unique identifier for this source table\n- identifier: The underlying table identifier in the warehouse\n- description: Description of the source table\n- sourceName: The source name (e.g., 'raw_data', 'external_api')\n- database: Database containing the source table\n- schema: Schema containing the source table\n- resourceType: Will be 'source'\n- freshness: Real-time freshness status from production including:\n  - maxLoadedAt: When the source was last loaded\n  - maxLoadedAtTimeAgoInS: How long ago the source was loaded (in seconds)\n  - freshnessStatus: Current freshness status (e.g., 'pass', 'warn', 'error')\n\nReturns one source page in `result`, with `pagination.has_more` and `pagination.next_cursor`. Pass the next cursor as `after` with the same filters. `limit` defaults to 50 and is capped at 100. Local filtering may leave an empty page with more pages available.\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "after": {
             "anyOf": [
@@ -511,6 +515,7 @@
       },
       "description": "<instructions>\nGet the distinct values for a given dimension, optionally scoped to specific metrics.\n\nUse this tool to discover what values exist for a dimension before building a `where`\nfilter in `query_metrics`. For example, to filter by country you first call this tool\nto see which country values exist, then use those values in the `where` clause.\n\nIf the response includes `truncated: true`, there are more values than the current\n`limit`. Increase `limit` to retrieve more, or add `metrics` to narrow the scope.\n</instructions>\n\n<examples>\n<example>\nQuestion: \"I want to filter revenue for a specific country \u2014 what countries are available?\"\nThinking step-by-step:\n   - The user wants to know valid values for a country dimension\n   - I should scope to the \"revenue\" metric for accurate results\nParameters:\n    dimension=\"customer__country\"\n    metrics=[\"revenue\"]\n    limit=100\n</example>\n\n<example>\nQuestion: \"What are the possible order statuses?\"\nThinking step-by-step:\n   - The user wants all distinct values for an order status dimension\n   - No specific metric context needed\nParameters:\n    dimension=\"order__status\"\n    metrics=null\n    limit=100\n</example>\n</examples>\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "dimension": {
             "description": "The dimension name to retrieve values for (e.g. `customer__country`, `order__status`)",
@@ -633,6 +638,7 @@
       },
       "description": "<instructions>\nGet the dimensions for specified metrics\n\nNote: `metric_time` is a standard time dimension available on most metrics. You do not need to call this tool just to confirm time dimensions exist \u2014 call it only when you need categorical dimensions or specific granularity details. If this tool returns no results, proceed to query directly using `metric_time`.\n\nDimensions are the attributes, features, or characteristics\nthat describe or categorize data.\n\nEach dimension includes a metadata field containing config.meta from semantic model YAML files.\nThe metadata contains fields relevant to the semantic models.\n\n</instructions>\n\n<examples>\n<example>\nQuestion: \"I want to analyze revenue trends - what dimensions are available?\"\nThinking step-by-step:\n   - Using list_metrics(), I find \"revenue\" is available\n   - Now I can get the dimensions for this metric\n   - The search parameter is not needed here since the user is interested in all available dimensions.\nParameters:\n    metrics=[\"revenue\"]\n    search=null\n</example>\n\n<example>\nQuestion: \"Are there any time-related dimensions for my sales metrics?\"\nThinking step-by-step:\n   - Using list_metrics(), I find \"total_sales\" and \"average_order_value\" are available\n   - The user is interested in time dimensions specifically\n   - I should use the search parameter to filter for dimensions with \"time\" in the name\n   - This will narrow down the results to just time-related dimensions\nParameters:\n    metrics=[\"total_sales\", \"average_order_value\"]\n    search=\"time\"\n</example>\n</examples>\n\nReturns one source page in `result`, with `pagination.has_more` and `pagination.next_page`. Pass the next page as `page_num` with the same filters and `page_size` (default 50, maximum 100). Local filtering may leave an empty page with more pages available. Restart at page 1 if you reduce the page size after a size-limit error.\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "metrics": {
             "description": "Metric names from list_metrics to query or inspect",
@@ -854,6 +860,7 @@
       },
       "description": "<instructions>\nGet the entities for specified metrics\n\nEntities are real-world concepts in a business such as customers,\ntransactions, and ad campaigns. Analysis is often focused around\nspecific entities, such as customer churn or\nannual recurring revenue modeling.\n</instructions>\n\n<examples>\n<example>\nQuestion: \"I want to analyze revenue - what entities are available?\"\nThinking step-by-step:\n   - Using list_metrics(), I find \"revenue\" is available\n   - Now I can get the entities for this metric\n   - The search parameter is not needed here since the user is interested in all available entities.\nParameters:\n    metrics=[\"revenue\"]\n    search=null\n</example>\n\n<example>\nQuestion: \"Are there any customer-related entities for my sales metrics?\"\nThinking step-by-step:\n   - Using list_metrics(), I find \"total_sales\" and \"average_order_value\" are available\n   - The user is interested in customer entities specifically\n   - I should use the search parameter to filter for entities with \"customer\" in the name\n   - This will narrow down the results to just customer-related entities\nParameters:\n    metrics=[\"total_sales\", \"average_order_value\"]\n    search=\"customer\"\n</example>\n</examples>\n\nReturns one source page in `result`, with `pagination.has_more` and `pagination.next_page`. Pass the next page as `page_num` with the same filters and `page_size` (default 50, maximum 100). Local filtering may leave an empty page with more pages available. Restart at page 1 if you reduce the page size after a size-limit error.\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "metrics": {
             "description": "Metric names from list_metrics to query or inspect",
@@ -1037,6 +1044,7 @@
       },
       "description": "**DEPRECATED \u2014 use `get_node_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "name": {
             "anyOf": [
@@ -1103,6 +1111,7 @@
       },
       "description": "Get the id, name, description, and url of all exposures in the dbt environment. Exposures represent downstream applications or analyses that depend on dbt models.\n\nReturns information including:\n- uniqueId: The unique identifier for this exposure taht can then be used to get more details about the exposure\n- name: The name of the exposure\n- description: Description of the exposure\n- url: URL associated with the exposure\n\nReturns one source page in `result`, with `pagination.has_more` and `pagination.next_cursor`. Pass the next cursor as `after` with the same filters. `limit` defaults to 50 and is capped at 100. Local filtering may leave an empty page with more pages available.\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "after": {
             "anyOf": [
@@ -1228,6 +1237,7 @@
       },
       "description": "Get detailed information for a specific dbt job.\n\nThis tool retrieves comprehensive job configuration including execution settings, triggers, and scheduling information.\n\n## Returns\n\nJob object with detailed configuration including:\n\n- Job metadata (ID, name, description, type)\n- Environment and project associations\n- Execute steps (dbt commands to run)\n- Trigger configuration (schedule, webhooks, CI)\n- Execution settings (timeout, threads, target)\n- dbt version overrides\n- Generate docs and sources settings\n- Most recent run information (if requested)\n\n## Use Cases\n\n- Debug job configuration issues\n- Understand job execution settings\n- Review scheduling and trigger configuration\n- Check dbt commands and execution steps\n- Audit job settings across projects\n- Get recent run status for monitoring\n\n## Job Types\n\n- **ci**: Continuous integration jobs\n- **scheduled**: Regularly scheduled jobs\n- **other**: Manual or API-triggered jobs\n- **merge**: Jobs triggered on merge events\n\n## Example Usage\n\n```json\n{\n  \"job_id\": 456\n}\n```\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "job_id": {
             "description": "The dbt job definition ID",
@@ -1261,6 +1271,7 @@
       },
       "description": "Get a specific artifact file from a dbt job run.\n\nThis tool retrieves the content of a specific artifact file generated during run execution, such as manifest.json, catalog.json, or run_results.json.\n\n## Common Artifact Paths\n\n- **manifest.json**: Complete dbt project metadata, models, and lineage\n- **catalog.json**: Table and column documentation with statistics\n- **run_results.json**: Execution results, timing, and status information\n- **sources.json**: Source freshness check results\n- **logs/dbt.log**: Complete execution logs\n\nUse `list_job_run_artifacts` first to see which artifacts are available for a run.\n\n## Unsupported Paths\n\nPaths under `index/` and `metadata/` are dbt docs v2 / dbt Information Schema Parquet files. They are binary and cannot be returned as text \u2014 calling this tool with those paths will return an error. Support for querying them is not yet available.\n\n## Output Options\n\n- **Default (no filter)**: Returns content inline for artifacts under 500 KB. Large artifacts (like a full `manifest.json`) are not returned inline \u2014 instead you get a short guidance message telling you to re-call with a `jq_filter` to extract just the part you need.\n- **jq_filter set**: Applies a jq filter and returns results as a JSON array inline. Works in both local and remote deployments and is the primary way to read large artifacts like `manifest.json`. Only valid for JSON artifacts; returns `[]` on no match. Filtered output is also capped at 500 KB \u2014 use aggregation filters (e.g. `keys`, `length`, `select()`) if you hit the limit.\n\n## jq Filter Reference\n\n**Output shape:** Results are always a JSON array \u2014 one element per value the filter emits. A single-match filter returns `[{...}]`; no match returns `[]`. Read `result[0]` to unwrap a single value.\n\n**Double-wrap:** Filters that construct a jq array (`[...]`, `group_by | map(...)`) produce `[[...]]`. Prefer iterator-style filters (`.results[] | select(...)`) for flat output.\n\n**Prefer aggregation over enumeration on large manifests** \u2014 enumerating all matching nodes can produce hundreds of kilobytes and exceed the 500 KB output cap:\n```\n[.nodes | to_entries[] | select(.value.config.materialized == \"table\")] | length\n```\n\n**Structural filters are fast; node-traversal filters are slow.** `keys` and `.metadata` touch only the top-level object and return quickly. Any filter that iterates `.nodes` values (even an aggregation that returns a small result) scans the entire manifest, and on a very large project can take tens of seconds and approach the evaluation timeout. Start with `keys`/`.metadata` to orient, then reach for a single targeted traversal rather than several.\n\n**Top-level keys by artifact:**\n- `run_results.json` \u2014 `.results[]` (array of node results with `.status`, `.unique_id`, `.execution_time`, `.message`)\n- `manifest.json` \u2014 `.nodes` (object keyed by `\"model.project.name\"`), `.sources`, `.exposures`, `.metrics`\n- `catalog.json` \u2014 `.nodes[\"model.project.name\"].columns`, `.nodes[\"model.project.name\"].stats`\n\n## Step Selection\n\nBy default, artifacts from the **last step** are returned \u2014 but this is often not what you want.\n\nTwo important caveats:\n\n1. **Docs generation footgun**: Jobs that include a `dbt docs generate` step will have that step's compilation results as the default artifact, not the model execution results. `run_results.json` without a `step` will show all nodes as successful even when an earlier model run step had failures.\n\n2. **Infrastructure steps produce no artifacts**: Steps like git clone, profile creation, and `dbt deps` do not write a `run_results.json`. Requesting an artifact from one of those steps raises a not-found error. The `step` parameter refers only to steps that run a dbt command (`dbt build`, `dbt run`, `dbt test`, `dbt docs generate`, etc.).\n\nAlways use `get_job_run_details` to inspect step names and statuses before specifying `step`, so you can identify which step index corresponds to the actual model execution.\n\n- Step indexing starts at 1 for the first step\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "artifact_path": {
             "description": "Path to the artifact file (e.g. 'manifest.json', 'run_results.json', 'catalog.json'). Use list_job_run_artifacts to see available paths.",
@@ -1335,6 +1346,7 @@
       },
       "description": "Get detailed information for a specific dbt job run.\n\nThis tool retrieves comprehensive run information including execution details, steps, and artifacts.\n\n## Returns\n\nRun object with detailed execution information including:\n\n- Run metadata (ID, status, timing information)\n- Job and environment details\n- Git branch and SHA information\n- Execution steps and their status\n- Artifacts and logs availability\n- Trigger information and cause\n- Performance metrics and timing\n\n## Use Cases\n\n- Monitor run progress and status\n- Debug failed runs with detailed logs\n- Review run performance and timing\n- Check artifact generation status\n- Audit run execution details\n- Troubleshoot run failures\n\n## Example Usage\n\n```json\n{\n  \"run_id\": 789\n}\n```\n\n```json\n{\n  \"run_id\": 789\n}\n```\n\n## Response Information\n\nThe detailed response includes timing, status, and execution context to help with monitoring and debugging dbt job runs.\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "run_id": {
             "description": "The dbt job run ID",
@@ -1368,6 +1380,7 @@
       },
       "description": "Get focused error and/or warning information for a dbt job run.\n\nThis tool retrieves and analyzes job runs to provide concise, actionable error and warning details optimized for troubleshooting and monitoring. Instead of verbose run details, it returns structured information with minimal token usage.\n\n## Returns\n\n### Default Behavior (errors only)\nStructured error information with `failed_steps` containing a list of failed step details:\n\n- failed_steps: List of failed steps, each containing:\n  - target: The dbt target environment where the failure occurred\n  - step_name: The failed step that caused the run to fail\n  - finished_at: Timestamp when the failed step completed\n  - results: List of specific error details, each with:\n    - unique_id: Model/test unique identifier (nullable)\n    - relation_name: Database relation name or \"No database relation\"\n    - message: Error message\n    - compiled_code: Raw compiled SQL code (nullable)\n    - truncated_logs: Raw truncated debug log output (nullable)\n\nNOTE: The \"truncated_logs\" key only populates if there is no `run_results.json` artifact to parse after a job run error.\n\n### When include_warnings=True\nReturns both error information (as above) plus a `warnings` object containing:\n\n- has_warnings: Boolean indicating if any warnings were found\n- warning_steps: List of successful steps containing warnings\n- log_warnings: List of warnings extracted from logs\n- summary: Aggregate warning counts\n\n### When warning_only=True\nReturns only warning information (same structure as the `warnings` object above):\n\n- has_warnings: Boolean indicating if any warnings were found\n- warning_steps: List of successful steps containing warnings, each with:\n  - target: The dbt target environment\n  - step_name: The step that generated warnings\n  - finished_at: Timestamp when the step completed\n  - results: List of specific warning details, each with:\n    - unique_id: Model/test/source unique identifier\n    - relation_name: Database relation name or source name\n    - message: Warning message describing the issue\n    - status: Always \"warn\" to distinguish from errors\n    - compiled_code: Raw compiled SQL code (optional, for test warnings)\n- log_warnings: List of warnings extracted directly from logs (no unique_id)\n- summary: Aggregate warning counts:\n  - total_warnings: Total number of warnings found\n  - test_warnings: Number of test warnings (tests with `severity: warn`)\n  - freshness_warnings: Number of source freshness warnings\n  - log_warnings: Number of warnings extracted from logs\n\n## Example Usage\n\n### Get errors only (default)\n```json\n{\n  \"run_id\": 789\n}\n```\n\n### Get errors with warnings\n```json\n{\n  \"run_id\": 789,\n  \"include_warnings\": true\n}\n```\n\n### Get warnings only\n```json\n{\n  \"run_id\": 789,\n  \"warning_only\": true\n}\n```",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "include_warnings": {
             "default": false,
@@ -1441,6 +1454,7 @@
             "type": "string"
           }
         },
+        "additionalProperties": false,
         "properties": {
           "depth": {
             "default": 1,
@@ -1590,6 +1604,7 @@
       },
       "description": "**DEPRECATED \u2014 use `get_node_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "name": {
             "anyOf": [
@@ -1656,6 +1671,7 @@
       },
       "description": "Get the name and description of all mart models in the environment. A mart model is part of the presentation layer of the dbt project. It's where cleaned, transformed data is organized for consumption by end-users, like analysts, dashboards, or business tools.\n\nReturns one source page in `result`, with `pagination.has_more` and `pagination.next_cursor`. Pass the next cursor as `after` with the same filters. `limit` defaults to 50 and is capped at 100. Local filtering may leave an empty page with more pages available.\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "after": {
             "anyOf": [
@@ -1852,6 +1868,7 @@
             "type": "object"
           }
         },
+        "additionalProperties": false,
         "properties": {
           "group_by": {
             "anyOf": [
@@ -1954,6 +1971,7 @@
       },
       "description": "**DEPRECATED \u2014 use `get_lineage` instead.** This tool will be removed in a future release.\n\nCall get_lineage(unique_id=..., depth=1, direction=\"downstream\") \u2014 it requires unique_id (not name); direction=\"downstream\" returns children up to the node limit. Check omitted_node_count for more.",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "name": {
             "anyOf": [
@@ -2020,6 +2038,7 @@
       },
       "description": "**DEPRECATED \u2014 use `get_node_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "name": {
             "anyOf": [
@@ -2086,6 +2105,7 @@
       },
       "description": "<instructions>\nRetrieves information about the health of a dbt model, including the last time it ran, the last test execution status, and whether the upstream data for the model is fresh.\n\nIMPORTANT: Use uniqueId when available.\n- Using uniqueId guarantees the correct model is retrieved\n- Using only name may return incorrect results or fail entirely\n- If you obtained models via get_all_models(), you should always use the uniqueId from those results\n\nASSESSING MODEL HEALTH:\nFor all of the below, summarize whether the model is healthy, questionable, or unhealthy. Only provide more details when asked.\n\n- for the model executionInfo, if the lastRunStatus is \"success\" consider the model healthy\n- for the test executionInfo, if the lastRunStatus is \"success\" consider the model healthy\n\n- for the models parents:\n-- check the modelexecutionInfo, snapshotExecutionInfo, and seedExecutionInfo. If the lastRunStatus is \"success\" consider the model healthy. If the lastRunStatus is \"error\" consider the model unhealthy.\n\n-- if the parent node is a SourceAppliedStateNestedNode:\n--- If the freshnessStatus is \"pass\", consider the model healthy\n--- If the freshnessStatus is \"fail\", consider the model unhealthy\n--- If the freshnessStatus is null, consider the model health questionable\n--- If the freshnessStatus is \"warn\", consider the model health questionable\n</instructions>\n\n<examples>\n1. PREFERRED METHOD - Using uniqueId (always use this when available):\n   get_model_health(uniqueId=\"model.my_project.customer_orders\")\n\n2. FALLBACK METHOD - Using only name (only when uniqueId is unknown):\n   get_model_health(name=\"customer_orders\")\n</examples>\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "name": {
             "anyOf": [
@@ -2149,6 +2169,7 @@
       },
       "description": "**DEPRECATED \u2014 use `get_lineage` instead.** This tool will be removed in a future release.\n\nCall get_lineage(unique_id=..., depth=1, direction=\"upstream\") \u2014 it requires unique_id (not name); direction=\"upstream\" returns parents up to the node limit. Check omitted_node_count for more.",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "name": {
             "anyOf": [
@@ -2215,6 +2236,7 @@
       },
       "description": "<instructions>\nRetrieve execution performance metrics for a dbt model from historical runs.\n\nThis tool queries the Discovery API to fetch model execution data including:\n- Execution time (duration in seconds)\n- Run status (success, error, skipped)\n- Execution timestamps\n- Associated job run IDs\n- Optional: Test execution history (when include_tests=True)\n\nUse this to:\n- Analyze model performance trends over time\n- Identify performance regressions\n- Optimize slow-running models\n- Debug execution issues\n- Monitor test execution alongside model runs\n\nThe `unique_id` parameter is strongly preferred over `name` for deterministic lookups,\nespecially in projects with multiple packages.\n\nIf a name matches multiple models, the tool will raise an error and ask for a `unique_id`.\n\nResults are always returned as an array (possibly empty), sorted newest-first.\n- When `num_runs=1` (default), the array has at most one element (the latest run).\n- When `num_runs > 1`, the array includes up to `num_runs` historical runs.\n\nWhen `include_tests=True`, each run will include a `tests` array containing:\n- Test name\n- Test status (pass, fail, warn, error, skipped)\n- Test execution time (duration in seconds)\n\nExample unique_id format: model.analytics.stg_orders\n</instructions>\n\n<examples>\n1. PREFERRED METHOD - Get latest run performance using unique_id:\n   get_model_performance(unique_id=\"model.analytics.stg_orders\")\n\n2. Analyze performance trend over last 10 runs:\n   get_model_performance(unique_id=\"model.analytics.fct_orders\", num_runs=10)\n\n3. Get performance with test execution history:\n   get_model_performance(unique_id=\"model.analytics.stg_orders\", num_runs=5, include_tests=True)\n\n4. FALLBACK METHOD - Using only name (only when unique_id is unknown):\n   get_model_performance(name=\"stg_orders\", num_runs=5)\n</examples>\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "include_tests": {
             "default": false,
@@ -2308,6 +2330,7 @@
             "type": "string"
           }
         },
+        "additionalProperties": false,
         "properties": {
           "name": {
             "anyOf": [
@@ -2378,6 +2401,7 @@
       },
       "description": "Retrieve the Markdown content of one or more dbt documentation pages from docs.getdbt.com. Pass a list of URLs or relative paths (e.g. from search_product_docs results). Up to 5 pages can be fetched per call; pages are fetched in parallel for speed. Pass the optional `query` parameter to retrieve only the most relevant sections of each page rather than the full content \u2014 this significantly reduces response size and is recommended when you already know what topic you are looking for.\n\nIMPORTANT \u2014 how to present docs content to the user:\n1. Give a direct answer first, then explain. Don't just summarize \u2014 be specific about WHERE to find a feature in the UI and HOW it works.\n2. Structure around the user's task: lead with what they asked, not the doc's own structure. Include step-by-step actionable detail when the docs describe a workflow or UI feature.\n3. Call out practical limitations and edge cases from the docs.\n4. Close with clear guidance: if the feature only partially answers the question, say what else they can do and where.\n5. ALWAYS include the docs page URL(s) as markdown hyperlinks at the end of your response, e.g. [Page title](https://docs.getdbt.com/...).\n\nVERSION AWARENESS:\nThe response includes a `dbt_project_version` field with the user's installed dbt version (detected via `dbt --version`). Page content is automatically filtered to show only sections relevant to the detected version \u2014 VersionBlock tags from the docs site are resolved so you receive clean, version-appropriate markdown. Pages may also have a `version_note` field if they cover an EOL version. If `dbt_project_version` is null, the version could not be detected \u2014 all version-specific content is kept with tags stripped.\n\nWhen presenting page content to the user, you MUST:\n1. If `dbt_project_version` is set, tell the user their detected version upfront (e.g. \"You're on dbt 1.8\").\n2. If `version_note` is set, prominently warn the user that the page is for an end-of-life version and the information may be outdated. Suggest they look at the current docs instead.\n3. Page content has already been filtered to show only sections relevant to the detected version. If the content seems sparse or incomplete, let the user know that some sections may have been filtered out because they apply to a different dbt version, and suggest they check the full page on docs.getdbt.com.\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "paths": {
             "description": "List of docs.getdbt.com URLs or relative paths to fetch (e.g. ['/docs/build/incremental-models', '/docs/build/models']). Max 5 pages per call.",
@@ -2494,6 +2518,7 @@
       },
       "description": "**DEPRECATED \u2014 use `get_node_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "name": {
             "anyOf": [
@@ -2560,6 +2585,7 @@
       },
       "description": "**DEPRECATED \u2014 use `get_node_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "name": {
             "anyOf": [
@@ -2626,6 +2652,7 @@
       },
       "description": "**DEPRECATED \u2014 use `get_node_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "name": {
             "anyOf": [
@@ -2692,6 +2719,7 @@
       },
       "description": "**DEPRECATED \u2014 use `get_node_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "name": {
             "anyOf": [
@@ -2758,6 +2786,7 @@
       },
       "description": "**DEPRECATED \u2014 use `get_node_details` instead.** This tool will be removed in a future release.",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "name": {
             "anyOf": [
@@ -2824,6 +2853,7 @@
       },
       "description": "List all available artifacts for a completed dbt job run.\n\nThis tool retrieves the list of artifact files generated during a run execution, such as manifest.json, catalog.json, and run_results.json.\n\n## Returns\n\nList of artifact file paths available for download. Common artifacts include:\n\n- **manifest.json**: Complete project metadata and lineage\n- **catalog.json**: Documentation and column information\n- **run_results.json**: Execution results and timing\n- **sources.json**: Source freshness check results\n\n## Excluded Artifacts\n\nThe following artifact prefixes are excluded from results:\n\n- **compiled/**, **run/**: Per-node SQL files \u2014 too numerous to be useful and not human/LLM readable in bulk\n- **index/**, **metadata/**: dbt docs v2 / dbt Information Schema Parquet files \u2014 binary format, not yet supported\n\n## Artifact Availability\n\nArtifacts are only available for:\n- Successfully completed runs\n- Failed runs that progressed beyond compilation\n- Runs where `artifacts_saved` is true\n\n## Use Cases\n\n- Discover available artifacts before downloading\n- Check if specific artifacts were generated\n- Audit artifact generation across runs\n- Integrate with external systems that consume dbt artifacts\n- Validate run completion and output generation\n\n## Example Usage\n\n```json\n{\n  \"run_id\": 789\n}\n```\n\n## Next Steps\n\nUse `get_job_run_artifacts` to download specific artifacts from this list for analysis or integration with other tools.\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "run_id": {
             "description": "The dbt job run ID",
@@ -2868,6 +2898,7 @@
       },
       "description": "List jobs in the selected project.\n\nJobs configure scheduled or triggered dbt runs. When a project selector is exposed, use `project_id` to select the project; otherwise the current context already selects it. An explicitly selected environment narrows the results to that environment, including staging. Otherwise, jobs from all environments in the project are included. Use `limit` and `offset` to page through large result sets.\n\nThe `result` field contains a list of job objects with details like:\n- Job ID, name, and description\n- Environment ID and project ID the job belongs to\n- Schedule configuration\n- Execute steps (dbt commands)\n- Trigger settings\n\nUse this tool to explore available jobs, understand job configurations, or find specific jobs to trigger.\n\nReturns one page in `result`, with `pagination.has_more` and `pagination.next_offset`. Use the next offset with the same filters. `limit` defaults to 50 and is capped at 100.\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "limit": {
             "default": 50,
@@ -3002,6 +3033,7 @@
             "type": "string"
           }
         },
+        "additionalProperties": false,
         "properties": {
           "job_id": {
             "anyOf": [
@@ -3160,6 +3192,7 @@
       },
       "description": "List metrics from the dbt Semantic Layer.\n\nThe `result` field is a CSV string with a header row. Columns are dynamic: a column is only present if at least one metric has a non-empty value for it. `name` and `type` are always present; `label`, `description`, `metadata`, `dimensions`, and `entities` are included only when at least one metric has a value. The `dimensions` and `entities` cells contain comma-separated lists of names.\n\nWhen the number of metrics is below the configured threshold (default: 10), each metric includes the names of its available dimensions and entities. Use get_dimensions or get_entities for full details (types, granularities, descriptions) on specific metrics.\n\nWhen above the threshold, only metrics are returned. `metric_time` is a standard time dimension available on most metrics \u2014 you can often query directly without calling `get_dimensions` first. Call `get_dimensions` only when you need non-time dimensions or specific granularity details.\n\nFor listings that exceed the text budget, columns are dropped progressively to save tokens: `description` is dropped first; `metadata` is dropped only if removing `description` alone is not enough. The CSV is prefixed with one or more `# Note:` lines listing which columns were omitted. When that happens, call `list_metrics` again with the `search` parameter to retrieve those fields for the specific metrics you care about. `search` accepts either a single substring or a list of substrings; when a list is provided, metrics whose name matches **any** of the substrings are returned (deduplicated), so you can fetch details for several metrics in one call.\n\n`meta_filter` accepts a dict of key-value pairs and restricts results to metrics whose `config.meta` contains all specified pairs \u2014 for example `{\"agent_accessible\": true}`. Apply it on broad searches to keep the result set small enough that the `metadata` column is preserved in the response.\n\nIf the user is asking a data-related or business-related question, use this tool as a first step.\n\nReturns one source page in `result`, with `pagination.has_more` and `pagination.next_page`. Pass the next page as `page_num` with the same filters and `page_size` (default 50, maximum 100). Local filtering may leave an empty page with more pages available. Restart at page 1 if you reduce the page size after a size-limit error.\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "meta_filter": {
             "anyOf": [
@@ -3308,6 +3341,7 @@
       },
       "description": "List all active projects in the dbt Cloud account.\n\nThis tool retrieves projects from the dbt Admin API. Projects are the top-level organizational unit in dbt Cloud, each associated with a git repository containing dbt code.\n\nThe `result` field contains a list of project objects with:\n- **id**: The project ID\n- **name**: The project name\n- **description**: The project description (if set)\n- **dbt_project_subdirectory**: Path within the repository where the dbt project lives (if set)\n- **has_semantic_layer**: Whether the project has a semantic layer configured\n- **type**: The project type (0=default, 1=hybrid)\n- **environments**: List of environments, each with id, name, and type (development, production, staging, or generic)\n- **repository_full_name**: The repository name in `org/repo` format (if set)\n\nUse this tool to discover available projects in the account, especially when working across multiple projects.\n\nReturns one page in `result`, with `pagination.has_more` and `pagination.next_offset`. Use the next offset with the same filters. `limit` defaults to 50 and is capped at 100.\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "limit": {
             "default": 50,
@@ -3427,6 +3461,7 @@
       },
       "description": "List all saved queries from the dbt Semantic Layer.\n\nSaved queries are pre-defined queries that have been saved in the Semantic Layer. \nThey contain specific metrics, group-by dimensions, and filters that are commonly used.\nThis tool helps discover what predefined queries are available for quick execution.\n\nUse this tool when:\n- The user wants to see what pre-built queries are available\n- The user mentions \"saved queries\" or \"predefined queries\"\n- You need to find commonly used analytical queries\n\nExamples:\n- \"What saved queries are available?\"\n- \"Show me the predefined reports\"\n- \"List all saved queries for revenue analysis\"\n\nReturns one source page in `result`, with `pagination.has_more` and `pagination.next_page`. Pass the next page as `page_num` with the same filters and `page_size` (default 50, maximum 100). Local filtering may leave an empty page with more pages available. Restart at page 1 if you reduce the page size after a size-limit error.\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "page_num": {
             "default": 1,
@@ -3708,6 +3743,7 @@
             "type": "object"
           }
         },
+        "additionalProperties": false,
         "properties": {
           "group_by": {
             "anyOf": [
@@ -3810,6 +3846,7 @@
       },
       "description": "Retry a failed dbt job run from the point of failure.\n\nThis tool allows you to restart a failed run, continuing from where it failed rather than starting completely over.\n\n## Returns\n\nNew run object for the retry attempt with a new run ID and execution details.\n\n## Requirements for Retry\n\n- Original run must have failed (status 20)\n- Run must be the most recent run for the job\n- dbt version must support retry functionality\n- Run must have generated run_results.json\n\n## Retry Behavior\n\n- Continues from the failed step\n- Skips successfully completed models\n- Uses the same configuration as the original run\n- Creates a new run with a new run ID\n- Maintains the same Git SHA and branch\n\n## Use Cases\n\n- Recover from transient infrastructure failures\n- Continue after warehouse connectivity issues\n- Resume after temporary resource constraints\n- Avoid re-running expensive successful steps\n- Quick recovery from known, fixable issues\n\n## Retry Not Supported Reasons\n\nIf retry fails, possible reasons include:\n- **RETRY_UNSUPPORTED_CMD**: Command type doesn't support retry\n- **RETRY_UNSUPPORTED_VERSION**: dbt version too old\n- **RETRY_NOT_LATEST_RUN**: Not the most recent run for the job\n- **RETRY_NOT_FAILED_RUN**: Run didn't fail\n- **RETRY_NO_RUN_RESULTS**: Missing run results for retry logic\n\n## Example Usage\n\n```json\n{\n  \"run_id\": 789\n}\n```\n\nThis creates a new run that continues from the failure point of run 789.\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "run_id": {
             "description": "The dbt job run ID",
@@ -3843,6 +3880,7 @@
       },
       "description": "Search the dbt product documentation at docs.getdbt.com for pages matching a query. Returns matching page titles, URLs, and descriptions ranked by relevance. Only returns metadata, not page content \u2014 use get_product_doc_pages with URLs from the results to retrieve full page content.\n\nIf the title/description search finds few matches, it automatically falls back to a deep full-text search across all documentation content to find pages where the topic is discussed in the body text.\n\nIf your first query returns few results, try rephrasing with synonyms or the full term (e.g. 'user-defined functions' instead of 'UDFs', 'version control' instead of 'git'). Use the abbreviations on the page as well.\n\nVERSION AWARENESS:\nThe response includes a `dbt_project_version` field (e.g. \"1.8\") detected by running `dbt --version` against the user's installed dbt binary. If null, the version could not be detected \u2014 present docs normally without version-specific callouts.\n\nWhen presenting results to the user, you MUST:\n1. State the user's detected dbt version upfront if available (e.g. \"Based on your project (dbt 1.8), here's what I found:\").\n2. If a result title or description clearly references an older/EOL version (v1.6 or earlier), flag it: \"Note: this page covers dbt v1.X, which has reached end-of-life and is no longer supported.\"\n3. Search results only include titles, descriptions, and URLs \u2014 not page content. Do NOT make version-specific claims based on search results alone. If the user needs to know whether a feature applies to their version, fetch the page with `get_product_doc_pages` first.\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "query": {
             "title": "Query",
@@ -3967,6 +4005,7 @@
       },
       "description": "# Trigger Job Run\n\nTrigger a dbt job run with optional parameter overrides.\n\nThis tool starts a new run for a specified job with the ability to override default settings like Git branch, schema, or other execution parameters.\n\n## Returns\n\nRun object with information about the newly triggered run including:\n\n- Run ID and status\n- Job and environment information\n- Git branch and SHA being used\n- Trigger information and cause\n- Execution queue position\n\n## Use Cases\n\n- Trigger ad-hoc job runs for testing\n- Run jobs with different Git branches for feature testing\n- Execute jobs with schema overrides for development\n- Trigger jobs via API automation or external systems\n- Run jobs with custom parameters for specific scenarios\n- Verify a project builds on a newer dbt version before switching the environment over to it\n\n## Example Usage\n\n```json\n{\n  \"job_id\": 456,\n  \"cause\": \"Manual trigger for testing\"\n}\n```\n\n```json\n{\n  \"job_id\": 456,\n  \"cause\": \"Testing feature branch\",\n  \"git_branch\": \"feature/new-models\",\n  \"schema_override\": \"dev_testing\"\n}\n```\n\n```json\n{\n  \"job_id\": 456,\n  \"cause\": \"Selective production build\",\n  \"steps_override\": [\"dbt run --select my_model+ --full-refresh\"]\n}\n```\n",
       "input_schema": {
+        "additionalProperties": false,
         "properties": {
           "cause": {
             "default": "Triggered by dbt MCP",

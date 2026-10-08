@@ -4,6 +4,7 @@ import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
 from mcp.types import ClientCapabilities, Implementation, InitializeRequestParams
 from dbt_mcp.config.config import Config
 from dbt_mcp.config.credentials import CredentialsProvider
@@ -30,7 +31,7 @@ def make_server(projects: list[int] | None = None) -> DbtMCP:
     tracker.emit_tool_called_event = AsyncMock()
     registry = FastMCP()
 
-    async def get_all_models(project_id: int | None = None) -> str:
+    async def get_all_models(project_id: int) -> str:
         return str(project_id)
 
     async def show(sql_query: str, limit: int = 5) -> str:
@@ -91,7 +92,7 @@ async def test_credential_refresh_changes_binding_without_replacing_registry():
     ],
 )
 async def test_calls_must_match_the_advertised_project_selector(projects, arguments):
-    with pytest.raises(ValueError, match="project_id"):
+    with pytest.raises(ToolError, match="project_id"):
         await make_server(projects).call_tool("get_all_models", arguments)
 
 
@@ -129,13 +130,16 @@ async def test_credential_errors_propagate():
 
 async def test_tracking_failure_preserves_tool_error():
     server = make_server()
-    server.tool_server.call_tool = AsyncMock(
-        side_effect=RuntimeError("something broke")
-    )
+
+    async def broken(project_id: int) -> str:
+        raise RuntimeError("something broke")
+
+    server.tool_server.remove_tool("get_all_models")
+    server.tool_server.add_tool(broken, name="get_all_models")
     server.usage_tracker.emit_tool_called_event.side_effect = RuntimeError(
         "tracking failed"
     )
-    with pytest.raises(RuntimeError, match="something broke"):
+    with pytest.raises(ToolError, match="something broke"):
         await server.call_tool("get_all_models", {})
     server.usage_tracker.emit_tool_called_event.assert_awaited_once()
 

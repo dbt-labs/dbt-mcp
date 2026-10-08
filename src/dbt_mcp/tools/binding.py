@@ -1,13 +1,38 @@
-from collections.abc import Mapping
+from collections.abc import Callable
+from contextlib import AbstractAsyncContextManager, nullcontext
 from dataclasses import dataclass, field
-from typing import Any
+from functools import partial, wraps
+from inspect import Parameter, Signature, isawaitable
+from typing import Annotated, Any
 
-from mcp.types import Tool
+from mcp.server.fastmcp.tools.base import Tool
+from pydantic import BeforeValidator, Field
+from pydantic.fields import FieldInfo
+from pydantic_core import PydanticUndefined
+
+from dbt_mcp.tools.injection import AdaptError, _signature, _with_signature
+
+type CallScope = Callable[[dict[str, Any]], AbstractAsyncContextManager[dict[str, Any]]]
+
+
+def configure_argument_validation(tool: Tool) -> None:
+    # FastMCP doesn't expose model_config in Tool.from_function. Configure its
+    # generated model locally, and publish the schema from that same model.
+    model = tool.fn_metadata.arg_model
+    model.model_config = {**model.model_config, "extra": "forbid"}
+    model.model_rebuild(force=True)
+    tool.parameters = model.model_json_schema(by_alias=True)
+
+
+def _check_choice(value: Any, *, choices: tuple[Any, ...]) -> Any:
+    if not any(type(value) is type(choice) and value == choice for choice in choices):
+        raise ValueError(f"choose one of {list(choices)}")
+    return value
 
 
 @dataclass(frozen=True)
 class InputBinding:
-    """A host's input selection, shared by schema projection and invocation."""
+    """A host's input selection, applied to the callable FastMCP validates."""
 
     values: dict[str, Any] = field(default_factory=dict)
     hidden: frozenset[str] = frozenset()
@@ -17,55 +42,73 @@ class InputBinding:
     def hidden_parameters(self) -> frozenset[str]:
         return self.hidden | self.values.keys()
 
-    def input_schema(self, original: dict[str, Any]) -> dict[str, Any]:
-        schema = dict(original)
-        schema["properties"] = {
-            name: dict(value)
-            for name, value in original.get("properties", {}).items()
-            if name not in self.hidden_parameters
-        }
-        required = [
-            name
-            for name in original.get("required", [])
-            if name not in self.hidden_parameters
-        ]
-        for name, choices in self.choices.items():
-            parameter = schema["properties"][name]
-            non_nullable = [
-                variant
-                for variant in parameter.get("anyOf", [])
-                if variant.get("type") != "null"
-            ]
-            if len(non_nullable) == 1 and None not in choices:
-                parameter.pop("anyOf")
-                parameter.update(non_nullable[0])
-            parameter.pop("default", None)
-            parameter["enum"] = list(choices)
-            required.append(name)
-        if required:
-            schema["required"] = list(dict.fromkeys(required))
-        else:
-            schema.pop("required", None)
-        return schema
-
-    def schema(self, tool: Tool) -> Tool:
-        return tool.model_copy(
-            update={"inputSchema": self.input_schema(tool.inputSchema)}
-        )
-
-    def bind_arguments(
-        self, arguments: Mapping[str, Any], *, parameters: set[str]
-    ) -> dict[str, Any]:
-        unknown = arguments.keys() - parameters - self.hidden_parameters
+    def bind_callable(
+        self,
+        fn: Callable[..., Any],
+        *,
+        declaration: Signature | None = None,
+        call_scope: CallScope | None = None,
+    ) -> Callable[..., Any]:
+        declaration = declaration or _signature(fn)
+        unknown = (
+            self.hidden_parameters | self.choices.keys()
+        ) - declaration.parameters.keys()
         if unknown:
-            raise ValueError(f"Unknown tool arguments: {', '.join(sorted(unknown))}")
-        for name in self.hidden_parameters & arguments.keys():
-            raise ValueError(f"{name} is bound by the tool schema; omit this argument")
-        for name, choices in self.choices.items():
-            selected = arguments.get(name)
-            if not any(
-                type(selected) is type(choice) and selected == choice
-                for choice in choices
-            ):
-                raise ValueError(f"{name} is required; choose one of {list(choices)}")
-        return dict(arguments) | self.values
+            raise AdaptError(f"Unknown input bindings: {', '.join(sorted(unknown))}")
+        if self.hidden_parameters & self.choices.keys():
+            raise AdaptError("An input cannot be both bound and selectable")
+        parameters = []
+        for name, parameter in declaration.parameters.items():
+            if name in self.hidden_parameters:
+                continue
+            if name in self.choices:
+                # Choice constraints are part of FastMCP's argument model too.
+                # Preserve declared field constraints while making it required.
+                declared_field = (
+                    FieldInfo.merge_field_infos(
+                        parameter.default, default=PydanticUndefined
+                    )
+                    if isinstance(parameter.default, FieldInfo)
+                    else Field()
+                )
+                parameter = parameter.replace(
+                    default=Parameter.empty,
+                    annotation=Annotated[
+                        parameter.annotation,
+                        declared_field,
+                        BeforeValidator(
+                            partial(_check_choice, choices=self.choices[name])
+                        ),
+                        Field(
+                            json_schema_extra={"enum": list(self.choices[name])},
+                        ),
+                    ],
+                )
+            parameters.append(parameter)
+        parameters.sort(key=lambda p: (p.kind, p.default is not Parameter.empty))
+        exposed = declaration.replace(parameters=parameters)
+
+        @wraps(fn)
+        async def invoke(*args: Any, **kwargs: Any) -> Any:
+            inputs = dict(exposed.bind(*args, **kwargs).arguments) | self.values
+            scope = call_scope(inputs) if call_scope else nullcontext(inputs)
+            async with scope as resolved:
+                result = fn(**resolved)
+                return await result if isawaitable(result) else result
+
+        return _with_signature(invoke, exposed)
+
+    def bind_tool(self, tool: Tool, *, call_scope: CallScope | None = None) -> Tool:
+        """Return a per-request tool; never mutate the registered callable/model."""
+        bound = Tool.from_function(
+            self.bind_callable(tool.fn, call_scope=call_scope),
+            name=tool.name,
+            title=tool.title,
+            description=tool.description,
+            annotations=tool.annotations,
+            icons=tool.icons,
+            meta=tool.meta,
+            structured_output=tool.output_schema is not None,
+        )
+        configure_argument_validation(bound)
+        return bound

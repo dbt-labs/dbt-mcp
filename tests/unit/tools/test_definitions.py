@@ -5,6 +5,7 @@ from inspect import signature
 from typing import Annotated, Any
 
 import pytest
+from mcp.server.fastmcp.exceptions import ToolError
 from pydantic import Field
 
 from dbt_mcp.tools.targets import Permission, ProjectTarget
@@ -192,6 +193,6 @@ async def test_selector_declaration_stays_required_and_non_nullable():
     assert internal.parameters["properties"]["project_id"]["type"] == "integer"
     assert "project_id" in internal.parameters["required"]
     assert await internal.run({"project_id": 42}) == "project 42"
-    with pytest.raises(ValueError, match="project_id"):
-        adapted.validate_and_bind({"project_id": None})
+    with pytest.raises(ToolError, match="project_id"):
+        await internal.run({"project_id": None})
     assert await adapted.fn() == "configured environment"
