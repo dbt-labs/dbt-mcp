@@ -131,6 +131,7 @@ async def list_jobs(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/get_job_details"),
+    requirements=(AccountTarget(requires=Permission.JOBS_READ),),
     title="Get Job Details",
     read_only_hint=True,
     destructive_hint=False,
@@ -153,6 +154,7 @@ async def get_job_details(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/trigger_job_run"),
+    requirements=(AccountTarget(requires=Permission.RUNS_WRITE),),
     title="Trigger Job Run",
     read_only_hint=False,
     destructive_hint=False,
@@ -237,6 +239,7 @@ async def list_jobs_runs(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/get_job_run_details"),
+    requirements=(AccountTarget(requires=Permission.RUNS_READ),),
     title="Get Job Run Details",
     read_only_hint=True,
     destructive_hint=False,
@@ -257,6 +260,7 @@ async def get_job_run_details(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/cancel_job_run"),
+    requirements=(AccountTarget(requires=Permission.RUNS_WRITE),),
     title="Cancel Job Run",
     read_only_hint=False,
     destructive_hint=False,
@@ -277,6 +281,7 @@ async def cancel_job_run(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/retry_job_run"),
+    requirements=(AccountTarget(requires=Permission.RUNS_WRITE),),
     title="Retry Job Run",
     read_only_hint=False,
     destructive_hint=False,
@@ -295,6 +300,7 @@ async def retry_job_run(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/list_job_run_artifacts"),
+    requirements=(AccountTarget(requires=Permission.RUNS_READ),),
     title="List Job Run Artifacts",
     read_only_hint=True,
     destructive_hint=False,
@@ -315,6 +321,7 @@ async def list_job_run_artifacts(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/get_job_run_artifacts"),
+    requirements=(AccountTarget(requires=Permission.RUNS_READ),),
     title="Get Job Run Artifacts",
     read_only_hint=True,
     destructive_hint=False,
@@ -364,6 +371,7 @@ async def get_job_run_artifacts(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/get_job_run_error"),
+    requirements=(AccountTarget(requires=Permission.RUNS_READ),),
     title="Get Job Run Error",
     read_only_hint=True,
     destructive_hint=False,
