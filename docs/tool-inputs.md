@@ -39,7 +39,7 @@ omit an unused selector while supplying resolved context. The argument's
 type remains `int`: it is required whenever exposed, or removed completely
 when bound. Access declarations survive adaptation through `tool.targets`.
 
-Keep context injection and input binding separate:
+Use named mappers for context injection and input selection:
 
 ```python
 async def build_context(project_id: int | None = None) -> DiscoveryToolContext:
@@ -63,18 +63,18 @@ result = await bound.to_fastmcp_internal_tool().run({"limit": 10})
    signature. FastMCP generates its schema and argument validator from that
    callable. Its generated Pydantic model forbids extra inputs, so unknown
    arguments and attempts to override hidden selectors fail before execution.
-3. After validation, the callable supplies bound values. A host can provide
-   an async `call_scope(inputs)` context manager to authorize the complete call,
-   yield resolved inputs and keep host context active during execution. Context
-   mappers then run inside that scope. Permission decisions remain the host's
-   responsibility; shared binding contains no authorization logic.
+3. After validation, the callable supplies bound values and runs its mappers.
+   A host can capture request-local resolution and authorization state in a
+   mapper, then pass authorized context directly to an inner context builder.
+   Compose adaptations to run selection/authorization before context injection;
+   mappers in the same adaptation independently read the caller's inputs.
 
-For multiple projects, use
-`InputBinding(choices={"project_id": (10, 42)})`: the model sees a required
-integer selector restricted to those choices. Bindings return new tool views;
-they never modify the canonical definition or the server's registered tools.
-Choice constraints use Pydantic field metadata and validation on the same
-generated model, without dynamically introducing Literal types.
+For multiple projects, leave `project_id` exposed as a required integer and
+validate the selected ID in a mapper. Known values can also be injected by
+zero-argument mappers. `InputBinding` remains useful for fixed context whose
+unused selector has no known value, or to hide one selector while exposing
+another. Bindings return new tool views; they never modify canonical definitions
+or registered tools. Permission decisions remain the host's responsibility.
 
 The local dispatcher binds callables from the current credential selection
 for listing and invocation. Remote hosts first batch authorization of available

@@ -56,7 +56,6 @@ async def test_project_selection_binds_schema_and_invocation(projects, expected)
     tool = next(t for t in await server.list_tools() if t.name == "get_all_models")
     if projects is not None and len(projects) > 1:
         assert tool.inputSchema["properties"]["project_id"]["type"] == "integer"
-        assert tool.inputSchema["properties"]["project_id"]["enum"] == projects
         assert tool.inputSchema["required"] == ["project_id"]
         arguments = {"project_id": 20}
     else:

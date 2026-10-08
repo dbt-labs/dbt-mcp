@@ -8,7 +8,7 @@ from typing import Any
 from mcp.server.fastmcp.tools.base import Tool
 from mcp.types import ToolAnnotations
 
-from dbt_mcp.tools.binding import CallScope, InputBinding, configure_argument_validation
+from dbt_mcp.tools.binding import InputBinding, configure_argument_validation
 from dbt_mcp.tools.injection import adapt_with_mappers
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.targets import Target, target_parameters
@@ -58,11 +58,9 @@ class GenericToolDefinition[NameEnum: Enum]:
     def to_fastmcp_internal_tool(self) -> Tool:
         return self._internal_tool
 
-    def bind_inputs(
-        self, binding: InputBinding, *, call_scope: CallScope | None = None
-    ) -> "GenericToolDefinition[NameEnum]":
+    def bind_inputs(self, binding: InputBinding) -> "GenericToolDefinition[NameEnum]":
         """Return a request-specific interface without changing the original tool."""
-        return replace(self, fn=binding.bind_callable(self.fn, call_scope=call_scope))
+        return replace(self, fn=binding.bind_callable(self.fn))
 
     def adapt_with_mappers(
         self, **parameter_mappers: Callable[..., Any]

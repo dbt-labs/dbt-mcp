@@ -28,6 +28,7 @@ from dbt_mcp.proxy.tools import ProxiedToolsManager, register_proxied_tools
 from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
 from dbt_mcp.semantic_layer.tools import register_sl_tools
 from dbt_mcp.tools.binding import InputBinding
+from dbt_mcp.tools.injection import adapt_with_mappers
 from dbt_mcp.tools.toolsets import Toolset, toolsets, proxied_tools
 from dbt_mcp.tracking.tracking import (
     REDACT_ARGS,
@@ -171,25 +172,30 @@ class DbtMCP(FastMCP):
             return True
         return tool.name in PROJECT_TOOL_NAMES
 
-    @staticmethod
-    def _project_binding(
-        tool: RegisteredTool, projects: list[int] | None
-    ) -> InputBinding:
-        if "project_id" not in tool.parameters.get("properties", {}):
-            return InputBinding()
-        if projects is None or len(projects) == 1:
-            return InputBinding(
-                values={"project_id": projects[0] if projects else None}
-            )
-        return InputBinding(choices={"project_id": tuple(projects)})
-
     def _bind_tool(
         self, tool: RegisteredTool, projects: list[int] | None
     ) -> RegisteredTool:
         if tool.name in PROJECT_TOOL_NAMES and "project_id" in tool.parameters.get(
             "properties", {}
         ):
-            return self._project_binding(tool, projects).bind_tool(tool)
+            if projects and len(projects) > 1:
+
+                def selected_project(project_id: int) -> int:
+                    if project_id not in projects:
+                        raise ValueError(
+                            "project_id must be one of the configured projects"
+                        )
+                    return project_id
+
+                # The caller contract is unchanged; only selection validation is added.
+                return tool.model_copy(
+                    update={
+                        "fn": adapt_with_mappers(tool.fn, project_id=selected_project)
+                    }
+                )
+            return InputBinding(
+                values={"project_id": projects[0] if projects else None}
+            ).bind_tool(tool)
         return tool
 
     async def list_tools(self) -> list[Tool]:

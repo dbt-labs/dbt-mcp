@@ -1,5 +1,4 @@
 import pytest
-from contextlib import asynccontextmanager
 from mcp.server.fastmcp import Context
 from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.fastmcp.tools.base import Tool
@@ -75,22 +74,16 @@ async def test_request_binding_uses_one_contract_for_schema_and_invocation() -> 
     assert "project_id" in tool.to_fastmcp_internal_tool().parameters["properties"]
 
 
-@pytest.mark.parametrize("project_id", [None, True, "42", 99])
-async def test_request_binding_enforces_the_advertised_choices(
-    project_id: object,
-) -> None:
-    bound = definition().bind_inputs(InputBinding(choices={"project_id": (10, 42)}))
+async def test_unbound_input_remains_a_required_integer() -> None:
+    bound = definition().bind_inputs(InputBinding())
     schema = bound.to_fastmcp_internal_tool().parameters
-    assert schema["properties"]["project_id"]["enum"] == [10, 42]
-    with pytest.raises(ToolError, match="choose"):
-        await bound.to_fastmcp_internal_tool().run(
-            {"project_id": project_id, "query": "orders"}
-        )
+    assert schema["properties"]["project_id"]["type"] == "integer"
+    assert "project_id" in schema["required"]
     assert (
         await bound.to_fastmcp_internal_tool().run(
-            {"project_id": 42, "query": "orders"}
+            {"project_id": 99, "query": "orders"}
         )
-        == "42:orders"
+        == "99:orders"
     )
 
 
@@ -100,13 +93,9 @@ async def test_selectable_input_preserves_declared_field_constraints():
     ) -> int:
         return project_id
 
-    tool = (
-        ToolDefinition(
-            fn=positive_project, title="test", description="test", requirements=()
-        )
-        .bind_inputs(InputBinding(choices={"project_id": (-1, 42)}))
-        .to_fastmcp_internal_tool()
-    )
+    tool = ToolDefinition(
+        fn=positive_project, title="test", description="test", requirements=()
+    ).to_fastmcp_internal_tool()
     with pytest.raises(ToolError, match="greater than 0"):
         await tool.run({"project_id": -1})
     assert await tool.run({"project_id": 42}) == 42
@@ -140,16 +129,12 @@ async def test_framework_context_is_not_a_model_input() -> None:
     )
 
 
-async def test_call_scope_runs_after_validation_and_before_context_mapping():
+async def test_composed_authorization_mapper_runs_after_validation_before_context_mapping():
     events = []
 
-    @asynccontextmanager
-    async def authorize(inputs):
-        events.append(("authorize", inputs["project_id"]))
-        try:
-            yield inputs | {"project_id": 43}
-        finally:
-            events.append("exit")
+    async def authorize(project_id: int) -> int:
+        events.append(("authorize", project_id))
+        return 43
 
     def project(project_id: int | None = None) -> int:
         events.append(("map", project_id))
@@ -158,14 +143,15 @@ async def test_call_scope_runs_after_validation_and_before_context_mapping():
     tool = (
         definition()
         .adapt_with_mappers(project_id=project)
-        .bind_inputs(InputBinding(values={"project_id": 42}), call_scope=authorize)
+        .adapt_with_mappers(project_id=authorize)
+        .bind_inputs(InputBinding(values={"project_id": 42}))
         .to_fastmcp_internal_tool()
     )
     with pytest.raises(ToolError, match="Extra inputs"):
         await tool.run({"project_id": 42, "query": "orders"})
     assert events == []
     assert await tool.run({"query": "orders"}) == "43:orders"
-    assert events == [("authorize", 42), ("map", 43), "exit"]
+    assert events == [("authorize", 42), ("map", 43)]
 
 
 @pytest.mark.parametrize("extra", [{"typo": 1}, {"project_id": 42}])
