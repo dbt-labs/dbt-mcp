@@ -13,6 +13,7 @@ from dbt_mcp.discovery.graphql import load_query
 from dbt_mcp.errors import DiscoveryToolCallError, InvalidParameterError, ToolCallError
 from dbt_mcp.errors.common import NotFoundError
 from dbt_mcp.gql.errors import raise_gql_error
+from dbt_mcp.http_limits import response_limit_hook
 from dbt_mcp.tools.parameters import LineageDirection, LineageResourceType
 
 from dbt_mcp.pagination import Pagination, ResultPage, validate_page_size
@@ -362,11 +363,27 @@ async def execute_query(
     variables: dict,
     *,
     config: DiscoveryConfig,
+    response_type: str = "discovery",
 ) -> dict:
     url = config.url
     headers = config.headers_provider.get_headers()
 
-    async with httpx.AsyncClient(timeout=PLATFORM_API_TIMEOUT) as client:
+    async with (
+        config.http_config.admission(),
+        httpx.AsyncClient(
+            headers={"Accept-Encoding": "gzip, deflate"},
+            timeout=PLATFORM_API_TIMEOUT,
+            event_hooks={
+                "response": [
+                    response_limit_hook(
+                        config.http_config.response_limits,
+                        response_type=response_type,
+                        observer=config.http_config.observer,
+                    )
+                ]
+            },
+        ) as client,
+    ):
         response = await client.post(
             url=url,
             json={"query": query, "variables": variables},
@@ -913,7 +930,10 @@ class LineageFetcher:
         }
 
         result = await execute_query(
-            GraphQLQueries.GET_FULL_LINEAGE, variables, config=config
+            GraphQLQueries.GET_FULL_LINEAGE,
+            variables,
+            config=config,
+            response_type="discovery.lineage",
         )
         raise_gql_error(result)
 

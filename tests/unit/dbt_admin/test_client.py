@@ -1,4 +1,5 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from contextlib import asynccontextmanager
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import httpx
 import pytest
@@ -69,6 +70,18 @@ def create_mock_httpx_client(mock_response):
     mock_client.get = AsyncMock(return_value=mock_response)
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=None)
+
+    async def chunks():
+        content = mock_response.content
+        yield content if isinstance(content, bytes) else mock_response.text.encode()
+
+    mock_response.aiter_bytes = chunks
+
+    @asynccontextmanager
+    async def stream(*args, **kwargs):
+        yield mock_response
+
+    mock_client.stream = Mock(side_effect=stream)
     return mock_client
 
 
@@ -624,9 +637,14 @@ async def test_get_job_run_artifact_json(client):
         result = await client.get_job_run_artifact(12345, 100, "manifest.json", step=1)
 
     assert result == '{"nodes": {"model.test": {}}}'
-    mock_client.get.assert_called_once_with(
+    mock_client.stream.assert_called_once_with(
+        "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/artifacts/manifest.json",
-        headers={"Authorization": "Bearer test_token", "Accept": "*/*"},
+        headers={
+            "Authorization": "Bearer test_token",
+            "Accept": "*/*",
+            "Accept-Encoding": "gzip, deflate",
+        },
         params={"step": 1},
     )
 
@@ -643,9 +661,14 @@ async def test_get_job_run_artifact_text(client):
         result = await client.get_job_run_artifact(12345, 100, "logs/dbt.log")
 
     assert result == "LOG DATA"
-    mock_client.get.assert_called_once_with(
+    mock_client.stream.assert_called_once_with(
+        "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/artifacts/logs/dbt.log",
-        headers={"Authorization": "Bearer test_token", "Accept": "*/*"},
+        headers={
+            "Authorization": "Bearer test_token",
+            "Accept": "*/*",
+            "Accept-Encoding": "gzip, deflate",
+        },
         params={},
     )
 
@@ -661,9 +684,14 @@ async def test_get_job_run_artifact_no_step_param(client):
     with patch("httpx.AsyncClient", return_value=mock_client):
         await client.get_job_run_artifact(12345, 100, "manifest.json")
 
-    mock_client.get.assert_called_once_with(
+    mock_client.stream.assert_called_once_with(
+        "GET",
         "https://cloud.getdbt.com/api/v2/accounts/12345/runs/100/artifacts/manifest.json",
-        headers={"Authorization": "Bearer test_token", "Accept": "*/*"},
+        headers={
+            "Authorization": "Bearer test_token",
+            "Accept": "*/*",
+            "Accept-Encoding": "gzip, deflate",
+        },
         params={},
     )
 
@@ -891,3 +919,69 @@ async def test_list_user_credentials_uses_v3_endpoint(client):
     client._make_request.assert_awaited_once_with(
         "GET", "/api/v3/users/42/credentials/"
     )
+
+
+@pytest.mark.parametrize("method", ["list_jobs", "list_projects", "list_jobs_runs"])
+async def test_paginated_admin_results_preserve_fields_and_continuation(client, method):
+    description = "x" * (300 * 1024)
+    rows = [{"id": i, "name": f"item-{i}", "description": description} for i in (1, 2)]
+    if method == "list_jobs_runs":
+        for row in rows:
+            row["job"] = {"name": row.pop("name")}
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            json={
+                "data": rows,
+                "extra": {"pagination": {"total_count": 3}},
+            },
+        )
+    )
+    client_class = httpx.AsyncClient
+    with patch(
+        "httpx.AsyncClient",
+        side_effect=lambda **kwargs: client_class(transport=transport, **kwargs),
+    ):
+        page = await getattr(client, method)(12345, limit=2)
+
+    assert [row["id"] for row in page.result] == [1, 2]
+    assert all(row["description"] == description for row in page.result)
+    assert page.pagination.has_more
+    assert page.pagination.next_offset == 2
+    assert page.pagination.total_items == 3
+
+
+@pytest.mark.parametrize("total", [1000, 1001])
+async def test_environment_resolution_selects_across_pages(client, total):
+    offsets = []
+
+    def response(request):
+        offset = int(request.url.params["offset"])
+        limit = int(request.url.params["limit"])
+        offsets.append(offset)
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    {
+                        "id": i,
+                        "name": f"environment-{i}",
+                        "type": "development" if i == 0 else "deployment",
+                        "deployment_type": "production" if i == total - 1 else None,
+                    }
+                    for i in range(offset, min(offset + limit, total))
+                ]
+            },
+        )
+
+    transport = httpx.MockTransport(response)
+    client_class = httpx.AsyncClient
+    with patch(
+        "httpx.AsyncClient",
+        side_effect=lambda **kwargs: client_class(transport=transport, **kwargs),
+    ):
+        prod, dev = await client.get_environments_for_project(9)
+
+    assert prod.id == total - 1
+    assert dev.id == 0
+    assert offsets == list(range(0, 1001, 100))

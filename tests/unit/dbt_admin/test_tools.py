@@ -1,16 +1,18 @@
 import json
-from dataclasses import replace
 from typing import cast
-import multiprocessing
+from dataclasses import replace
 from unittest.mock import AsyncMock, Mock, patch
 
+import httpx
 import pytest
+
+from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
+from tests.unit.dbt_admin.test_artifact_limits import Chunks
 
 from dbt_mcp.dbt_admin.tools import (
     ADMIN_TOOLS,
     AdminToolContext,
     JobRunStatus,
-    INLINE_CONTENT_LIMIT,
     cancel_job_run,
     get_job_details,
     get_job_run_artifacts,
@@ -24,12 +26,28 @@ from dbt_mcp.dbt_admin.tools import (
     trigger_job_run,
 )
 from dbt_mcp.errors import InvalidParameterError
+from dbt_mcp.resource_limits import ArtifactConfig
+from dbt_mcp.config.config_providers import StaticConfigProvider
 from dbt_mcp.mcp.server import register_multi_project_dbt_mcp
 from tests.mocks.config import mock_config
 
 from dbt_mcp.pagination import Pagination, ResultPage
 
 NUM_ADMIN_TOOLS = 11
+INLINE_CONTENT_LIMIT = ArtifactConfig().inline_bytes
+
+
+def install_artifact_transport(context, content, monkeypatch):
+    client_class = httpx.AsyncClient
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(200, stream=Chunks([content.encode()]))
+    )
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda **kwargs: client_class(transport=transport, **kwargs),
+    )
+    context.admin_client = DbtAdminAPIClient(context.admin_api_config_provider)
 
 
 @pytest.fixture
@@ -291,25 +309,43 @@ async def test_get_job_run_artifacts_size_routing(
         assert "written to" not in result
 
 
-async def test_get_job_run_artifacts_jq_filter_extracts_field(admin_context):
+@pytest.mark.parametrize(
+    "jq_filter,expected",
+    [
+        (
+            '.results[] | select(.status == "error") | .unique_id',
+            ["model.proj.a"],
+        ),
+        (
+            'def failures: .results[] | select(.status == "error"); failures | .unique_id',
+            ["model.proj.a"],
+        ),
+        (".results[0].unique_id # first result", ["model.proj.a"]),
+        (".results[].unique_id", ["model.proj.a", "model.proj.b"]),
+    ],
+)
+async def test_get_job_run_artifacts_jq_filter_extracts_field(
+    monkeypatch, admin_context, jq_filter, expected
+):
     content = '{"results": [{"status": "error", "unique_id": "model.proj.a"}, {"status": "success", "unique_id": "model.proj.b"}]}'
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
+    install_artifact_transport(admin_context, content, monkeypatch)
 
     result = await get_job_run_artifacts.fn(
         admin_context,
         run_id=100,
         artifact_path="run_results.json",
-        jq_filter='.results[] | select(.status == "error") | .unique_id',
+        jq_filter=jq_filter,
     )
 
-    assert json.loads(result) == ["model.proj.a"]
+    assert json.loads(result) == expected
 
 
 async def test_get_job_run_artifacts_jq_filter_empty_result_returns_json_array(
+    monkeypatch,
     admin_context,
 ):
     content = '{"results": [{"status": "success", "unique_id": "model.proj.a"}]}'
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
+    install_artifact_transport(admin_context, content, monkeypatch)
 
     result = await get_job_run_artifacts.fn(
         admin_context,
@@ -321,13 +357,31 @@ async def test_get_job_run_artifacts_jq_filter_empty_result_returns_json_array(
     assert json.loads(result) == []
 
 
+async def test_get_job_run_artifacts_jq_filter_preserves_numeric_text(
+    monkeypatch, admin_context
+):
+    install_artifact_transport(
+        admin_context, '{"number":1.234567890123456789}', monkeypatch
+    )
+
+    result = await get_job_run_artifacts.fn(
+        admin_context,
+        run_id=100,
+        artifact_path="manifest.json",
+        jq_filter=".number | tostring",
+    )
+
+    assert json.loads(result) == ["1.234567890123456789"]
+
+
 async def test_get_job_run_artifacts_jq_filter_small_output_from_large_input(
+    monkeypatch,
     admin_context,
 ):
     padding = "x" * (INLINE_CONTENT_LIMIT + 1)
     content = json.dumps({"padding": padding})
     assert len(content) > INLINE_CONTENT_LIMIT
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
+    install_artifact_transport(admin_context, content, monkeypatch)
 
     result = await get_job_run_artifacts.fn(
         admin_context,
@@ -340,12 +394,13 @@ async def test_get_job_run_artifacts_jq_filter_small_output_from_large_input(
 
 
 async def test_get_job_run_artifacts_jq_filter_oversized_output_raises(
+    monkeypatch,
     admin_context,
 ):
     # Each node has a long value to push the filtered output past INLINE_CONTENT_LIMIT
     large_nodes = {f"n{i}": "x" * 100 for i in range(6000)}
     content = json.dumps({"nodes": large_nodes})
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
+    install_artifact_transport(admin_context, content, monkeypatch)
 
     with pytest.raises(InvalidParameterError, match="Filtered output exceeds"):
         await get_job_run_artifacts.fn(
@@ -360,9 +415,7 @@ async def test_get_job_run_artifacts_jq_filter_scrubs_env(admin_context, monkeyp
     # A secret in the parent process environment must not leak through jq's
     # env/$ENV builtins — the spawned worker clears its environment before eval.
     monkeypatch.setenv("SENTINEL", "leakme")
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(
-        return_value='{"key": "value"}'
-    )
+    install_artifact_transport(admin_context, '{"key": "value"}', monkeypatch)
 
     # `env` returns the whole environment as an object — scrubbed to empty.
     env_result = await get_job_run_artifacts.fn(
@@ -394,7 +447,7 @@ async def test_get_job_run_artifacts_jq_filter_scrubs_env(admin_context, monkeyp
     ],
 )
 async def test_get_job_run_artifacts_jq_filter_allows_env_fields(
-    admin_context, jq_filter: str, expected: list
+    monkeypatch, admin_context, jq_filter: str, expected: list
 ):
     # Field access on data named "env" was previously blocked by an over-broad
     # regex; it is now allowed because only jq's env/$ENV builtins are neutralized.
@@ -405,7 +458,7 @@ async def test_get_job_run_artifacts_jq_filter_allows_env_fields(
             "nodes": [{"name": "prod_env"}, {"name": "staging"}],
         }
     )
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(return_value=content)
+    install_artifact_transport(admin_context, content, monkeypatch)
 
     result = await get_job_run_artifacts.fn(
         admin_context,
@@ -417,10 +470,10 @@ async def test_get_job_run_artifacts_jq_filter_allows_env_fields(
     assert json.loads(result) == expected
 
 
-async def test_get_job_run_artifacts_jq_filter_invalid_syntax(admin_context):
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(
-        return_value='{"key": "value"}'
-    )
+async def test_get_job_run_artifacts_jq_filter_invalid_syntax(
+    monkeypatch, admin_context
+):
+    install_artifact_transport(admin_context, '{"key": "value"}', monkeypatch)
 
     with pytest.raises(InvalidParameterError, match="Invalid jq filter:"):
         await get_job_run_artifacts.fn(
@@ -431,10 +484,14 @@ async def test_get_job_run_artifacts_jq_filter_invalid_syntax(admin_context):
         )
 
 
-async def test_get_job_run_artifacts_jq_filter_non_json_artifact(admin_context):
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(
-        return_value="SELECT * FROM my_table"
-    )
+@pytest.mark.parametrize(
+    "content",
+    ["SELECT * FROM my_table", "", " \n ", "{} {}", '{"key":', "{} garbage"],
+)
+async def test_get_job_run_artifacts_jq_filter_non_json_artifact(
+    monkeypatch, admin_context, content
+):
+    install_artifact_transport(admin_context, content, monkeypatch)
 
     with pytest.raises(InvalidParameterError, match="not valid JSON"):
         await get_job_run_artifacts.fn(
@@ -446,24 +503,21 @@ async def test_get_job_run_artifacts_jq_filter_non_json_artifact(admin_context):
 
 
 async def test_get_job_run_artifacts_jq_filter_timeout_raises(
-    admin_context,
+    admin_context, monkeypatch
 ):
-    admin_context.admin_client.get_job_run_artifact = AsyncMock(
-        return_value='{"key": "value"}'
+    install_artifact_transport(admin_context, "{}", monkeypatch)
+    config = await admin_context.admin_api_config_provider.get_config()
+    admin_context.admin_client = DbtAdminAPIClient(
+        StaticConfigProvider(
+            replace(config, artifact_config=ArtifactConfig(execution_seconds=0.2))
+        )
     )
-
-    with (
-        patch(
-            "dbt_mcp.dbt_admin.tools.asyncio.to_thread",
-            AsyncMock(side_effect=multiprocessing.TimeoutError),
-        ),
-        pytest.raises(InvalidParameterError, match="timed out"),
-    ):
+    with pytest.raises(InvalidParameterError, match="timed out"):
         await get_job_run_artifacts.fn(
             admin_context,
             run_id=100,
             artifact_path="manifest.json",
-            jq_filter=".key",
+            jq_filter="until(false; .)",
         )
 
 
