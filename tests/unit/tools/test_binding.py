@@ -121,31 +121,6 @@ async def test_framework_context_is_not_a_model_input() -> None:
     assert await bound.fastmcp_tool.run({"query": "orders"}) == "42:orders"
 
 
-async def test_composed_authorization_mapper_runs_after_validation_before_context_mapping():
-    events = []
-
-    async def authorize(project_id: int) -> int:
-        events.append(("authorize", project_id))
-        return 43
-
-    def project(project_id: int | None = None) -> int:
-        events.append(("map", project_id))
-        return project_id or 42
-
-    tool = (
-        definition()
-        .adapt_with_mappers(project_id=project)
-        .adapt_with_mappers(project_id=authorize)
-        .bind_inputs(InputBinding(values={"project_id": 42}))
-        .fastmcp_tool
-    )
-    with pytest.raises(ToolError, match="Extra inputs"):
-        await tool.run({"project_id": 42, "query": "orders"})
-    assert events == []
-    assert await tool.run({"query": "orders"}) == "43:orders"
-    assert events == [("authorize", 42), ("map", 43)]
-
-
 @pytest.mark.parametrize("extra", [{"typo": 1}, {"project_id": 42}])
 async def test_fastmcp_rejects_extra_inputs_before_context_mapping(extra):
     mapped = []

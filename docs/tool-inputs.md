@@ -63,14 +63,17 @@ result = await bound.fastmcp_tool.run({"limit": 10})
    signature. FastMCP generates its schema and argument validator from that
    callable. Its generated Pydantic model forbids extra inputs, so unknown
    arguments and attempts to override hidden selectors fail before execution.
-3. After validation, the callable supplies bound values and runs its mappers.
-   A host can capture request-local resolution and authorization state in a
-   mapper, then pass authorized context directly to an inner context builder.
-   Compose adaptations to run selection/authorization before context injection;
-   mappers in the same adaptation independently read the caller's inputs.
+3. After validation, the callable supplies bound values, runs a call hook if
+   installed, and runs its context mappers. `with_call_hook(prepare_call,
+   inject="prepared")` gives the hook the complete input dictionary and supplies
+   its result as an internal parameter. The hook does not declare individual
+   input dependencies or change the other input declarations. Install it before
+   `bind_inputs` so it receives bound values too. A host can authorize the call
+   here and pass the result explicitly to a context builder whose parameter is
+   named `prepared`. Group-specific context mappers only construct contexts.
 
 For multiple projects, leave `project_id` exposed as a required integer and
-validate the selected ID in a mapper. Known values can also be injected by
+validate the selected ID in a call hook. Known values can also be injected by
 zero-argument mappers. `InputBinding` remains useful for fixed context whose
 unused selector has no known value, or to hide one selector while exposing
 another. Bindings return new tool views; they never modify canonical definitions
