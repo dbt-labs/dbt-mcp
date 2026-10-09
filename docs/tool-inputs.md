@@ -77,8 +77,8 @@ fixed = get_all_models.adapt_with_mappers(
    Its generated Pydantic model forbids extra inputs, so unknown arguments and
    attempts to override hidden selectors fail before mapping or execution.
 4. The context mapper resolves and authorizes the inputs it declares, then builds
-   the implementation context. A host can capture the particular tool definition
-   and request-local authorizer in the mapper. Mapper inputs also reach the body
+   the implementation context. Framework context can supply the request's
+   authorizer and current tool declaration. Mapper inputs also reach the body
    when it declares them: inspecting `sql` or a job ID does not consume it. Only
    mapper destination parameters are replaced.
 

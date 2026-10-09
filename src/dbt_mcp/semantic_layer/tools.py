@@ -439,19 +439,16 @@ def semantic_layer_context_mappers(
     config_provider: ConfigProvider[SemanticLayerConfig],
     client_provider: SemanticLayerClientProvider,
 ) -> dict[str, Callable[..., Any]]:
-    def context(config: SemanticLayerConfig) -> SemanticLayerToolContext:
-        return SemanticLayerToolContext(
-            config_provider=StaticConfigProvider(config),
-            client_provider=client_provider,
-        )
-
     async def build_context(project_id: int | None = None) -> SemanticLayerToolContext:
         config = await (
             config_provider.get_config(project_id=project_id)
             if isinstance(config_provider, ProjectConfigProvider)
             else config_provider.get_config()
         )
-        return context(config)
+        return SemanticLayerToolContext(
+            config_provider=StaticConfigProvider(config),
+            client_provider=client_provider,
+        )
 
     return {"context": build_context}
 

@@ -767,16 +767,13 @@ DISCOVERY_TOOLS = [
 def discovery_context_mappers(
     config_provider: ConfigProvider[DiscoveryConfig],
 ) -> dict[str, Callable[..., Any]]:
-    def context(config: DiscoveryConfig) -> DiscoveryToolContext:
-        return DiscoveryToolContext(config=config)
-
     async def build_context(project_id: int | None = None) -> DiscoveryToolContext:
         config = await (
             config_provider.get_config(project_id=project_id)
             if isinstance(config_provider, ProjectConfigProvider)
             else config_provider.get_config()
         )
-        return context(config)
+        return DiscoveryToolContext(config=config)
 
     return {"context": build_context}
 
