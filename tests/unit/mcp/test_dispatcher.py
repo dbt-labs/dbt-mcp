@@ -6,12 +6,14 @@ import pytest
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
 from mcp.types import ClientCapabilities, Implementation, InitializeRequestParams
+from pydantic import Field
 from dbt_mcp.config.config import Config
 from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.config.settings import DbtMcpSettings
 from dbt_mcp.errors.common import MissingHostError
 from dbt_mcp.mcp.server import DbtMCP, app_lifespan
 from dbt_mcp.oauth.token_provider import StaticTokenProvider
+from dbt_mcp.tools.injection import adapt_with_mappers
 from dbt_mcp.tracking.tracking import UsageTracker
 
 
@@ -31,13 +33,16 @@ def make_server(projects: list[int] | None = None) -> DbtMCP:
     tracker.emit_tool_called_event = AsyncMock()
     registry = FastMCP()
 
-    async def get_all_models(project_id: int) -> str:
+    async def get_all_models(context: str, *, project_id: int = Field()) -> str:
+        return context
+
+    def build_context(project_id: int | None = None) -> str:
         return str(project_id)
 
     async def show(sql_query: str, limit: int = 5) -> str:
         return "ok"
 
-    registry.add_tool(get_all_models)
+    registry.add_tool(adapt_with_mappers(get_all_models, context=build_context))
     registry.add_tool(show)
     return DbtMCP(
         name="dbt",
@@ -130,7 +135,7 @@ async def test_credential_errors_propagate():
 async def test_tracking_failure_preserves_tool_error():
     server = make_server()
 
-    async def broken(project_id: int) -> str:
+    async def broken(project_id: int = Field()) -> str:
         raise RuntimeError("something broke")
 
     server.tool_server.remove_tool("get_all_models")

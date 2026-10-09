@@ -1,22 +1,15 @@
-from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from enum import Enum
-from functools import cached_property, partial, wraps
-from inspect import BoundArguments, Parameter, isawaitable, unwrap
+from functools import cached_property, partial
+from inspect import unwrap
 from typing import Any
 
 from mcp.server.fastmcp.tools.base import Tool
 from mcp.types import ToolAnnotations
 
-from dbt_mcp.tools.binding import InputBinding, configure_argument_validation
-from dbt_mcp.tools.injection import (
-    AdaptError,
-    _accepts,
-    _signature,
-    _with_signature,
-    adapt_with_mappers,
-)
+from dbt_mcp.tools.injection import ParameterMapper, adapt_with_mappers
+from dbt_mcp.tools.validation import configure_argument_validation
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.targets import Target, target_parameters
 
@@ -62,53 +55,11 @@ class GenericToolDefinition[NameEnum: Enum]:
         configure_argument_validation(tool)
         return tool
 
-    def bind_inputs(self, binding: InputBinding) -> "GenericToolDefinition[NameEnum]":
-        """Return a request-specific interface without changing the original tool."""
-        return replace(self, fn=binding.bind_callable(self.fn))
-
     def adapt_with_mappers(
-        self, **parameter_mappers: Callable[..., Any]
+        self, **parameter_mappers: ParameterMapper
     ) -> "GenericToolDefinition[NameEnum]":
         """Inject parameters by name, including context and resolved selectors."""
         return replace(self, fn=adapt_with_mappers(self.fn, **parameter_mappers))
-
-    def with_call_hook(
-        self, hook: Callable[[dict[str, Any]], Any], *, inject: str
-    ) -> "GenericToolDefinition[NameEnum]":
-        """Run a hook on complete call inputs and inject its result internally.
-
-        Bind inputs after installing the hook so it sees selected values too.
-        FastMCP validates the public inputs before invoking this callable.
-        """
-        declaration = _signature(self.fn)
-        if inject not in declaration.parameters:
-            raise AdaptError(f"Unknown hook destination: {inject}")
-        result_type = _signature(hook).return_annotation
-        if result_type is Parameter.empty or not _accepts(
-            declaration.parameters[inject].annotation, result_type
-        ):
-            raise AdaptError(
-                f"{inject}: hook return type {result_type!r} is incompatible"
-            )
-        exposed = declaration.replace(
-            parameters=[
-                p for name, p in declaration.parameters.items() if name != inject
-            ]
-        )
-
-        @wraps(self.fn)
-        async def invoke(*args: Any, **kwargs: Any) -> Any:
-            inputs = dict(exposed.bind(*args, **kwargs).arguments)
-            prepared = hook(dict(inputs))
-            if isawaitable(prepared):
-                prepared = await prepared
-            arguments = BoundArguments(
-                declaration, OrderedDict(inputs | {inject: prepared})
-            )
-            result = self.fn(*arguments.args, **arguments.kwargs)
-            return await result if isawaitable(result) else result
-
-        return replace(self, fn=_with_signature(invoke, exposed))
 
 
 @dataclass

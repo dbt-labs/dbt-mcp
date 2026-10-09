@@ -6,7 +6,6 @@ from pydantic import Field
 
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.injection import AdaptError
-from dbt_mcp.tools.binding import InputBinding
 
 
 async def selected_project(project_id: int, query: str) -> str:
@@ -62,7 +61,7 @@ def test_binding_rejects_unknown_arguments_at_registration() -> None:
 
 async def test_request_binding_uses_one_contract_for_schema_and_invocation() -> None:
     tool = definition()
-    bound = tool.bind_inputs(InputBinding(values={"project_id": 42}))
+    bound = tool.adapt_with_mappers(project_id=selected_project_id)
     assert set(bound.fastmcp_tool.parameters["properties"]) == {"query"}
     assert await bound.fastmcp_tool.run({"query": "orders"}) == "42:orders"
     with pytest.raises(ToolError, match="project_id.*|Extra inputs"):
@@ -71,7 +70,7 @@ async def test_request_binding_uses_one_contract_for_schema_and_invocation() -> 
 
 
 async def test_unbound_input_remains_a_required_integer() -> None:
-    bound = definition().bind_inputs(InputBinding())
+    bound = definition()
     schema = bound.fastmcp_tool.parameters
     assert schema["properties"]["project_id"]["type"] == "integer"
     assert "project_id" in schema["required"]
@@ -97,7 +96,7 @@ async def test_selectable_input_preserves_declared_field_constraints():
 
 
 async def test_request_binding_validates_ordinary_inputs() -> None:
-    bound = definition().bind_inputs(InputBinding(values={"project_id": 42}))
+    bound = definition().adapt_with_mappers(project_id=selected_project_id)
     with pytest.raises(ToolError, match="query"):
         await bound.fastmcp_tool.run({})
     with pytest.raises(ToolError, match="typo"):
@@ -117,7 +116,7 @@ async def test_framework_context_is_not_a_model_input() -> None:
         "project_id",
         "query",
     }
-    bound = adapted.bind_inputs(InputBinding(values={"project_id": 42}))
+    bound = adapted.adapt_with_mappers(project_id=selected_project_id)
     assert await bound.fastmcp_tool.run({"query": "orders"}) == "42:orders"
 
 
@@ -164,5 +163,3 @@ async def test_adapted_callable_declares_its_contract_directly_to_fastmcp():
     with pytest.raises(ToolError, match="project_id"):
         await tool.run({"project_id": None, "query": "orders"})
     assert await tool.run({"project_id": 43, "query": "orders"}) == "43:orders"
-    bound = adapted.bind_inputs(InputBinding(values={"project_id": None}))
-    assert await bound.fastmcp_tool.run({"query": "orders"}) == "42:orders"

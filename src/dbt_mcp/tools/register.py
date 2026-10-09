@@ -5,7 +5,7 @@ from enum import Enum
 from mcp.server.fastmcp import FastMCP
 
 from dbt_mcp.tools.definitions import GenericToolDefinition
-from dbt_mcp.tools.binding import configure_argument_validation
+from dbt_mcp.tools.validation import configure_argument_validation
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import TOOL_TO_TOOLSET, Toolset
 

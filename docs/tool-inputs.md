@@ -51,38 +51,47 @@ tool = get_all_models.adapt_with_mappers(
 )
 
 # The host knows the selected project; the model sees limit and after.
-bound = tool.bind_inputs(InputBinding(values={"project_id": 42}))
+def selected_project() -> int:
+    return 42
+
+bound = tool.adapt_with_mappers(project_id=selected_project)
 result = await bound.fastmcp_tool.run({"limit": 10})
+
+# Fixed context can omit an unused selector without fabricating a value.
+from dbt_mcp.tools.injection import HIDE
+
+fixed = get_all_models.adapt_with_mappers(
+    context=build_context,
+    project_id=HIDE,
+)
 ```
 
-1. `adapt_with_mappers` builds the framework callable. Its mapper can accept
-   omission internally, while the declared model input remains a required
-   `int` on the adapted callable's signature. FastMCP reads that signature
-   directly. Framework context parameters are excluded from model inputs.
-2. `InputBinding` returns a callable with the selected inputs removed from its
-   signature. FastMCP generates its schema and argument validator from that
-   callable. Its generated Pydantic model forbids extra inputs, so unknown
-   arguments and attempts to override hidden selectors fail before execution.
-3. After validation, the callable supplies bound values, runs a call hook if
-   installed, and runs its context mappers. `with_call_hook(prepare_call,
-   inject="prepared")` gives the hook the complete input dictionary and supplies
-   its result as an internal parameter. The hook does not declare individual
-   input dependencies or change the other input declarations. Install it before
-   `bind_inputs` so it receives bound values too. A host can authorize the call
-   here and pass the result explicitly to a context builder whose parameter is
-   named `prepared`. Group-specific context mappers only construct contexts.
+1. Context mapper inputs form the framework callable's signature. Existing
+   arguments retain the tool's declared types, defaults and annotations. A mapper
+   can accept omission internally without making an exposed selector nullable.
+2. A zero-argument mapper hides its destination and injects its result. `HIDE`
+   removes an input from the exposed signature without supplying a value; any
+   context mapper that uses it must allow omission. Apply known-value mappers
+   after context adaptation so their values reach the context mapper.
+3. FastMCP generates its schema and argument validator from the adapted callable.
+   Its generated Pydantic model forbids extra inputs, so unknown arguments and
+   attempts to override hidden selectors fail before mapping or execution.
+4. The context mapper resolves and authorizes the inputs it declares, then builds
+   the implementation context. A host can capture the particular tool definition
+   and request-local authorizer in the mapper. Mapper inputs also reach the body
+   when it declares them: inspecting `sql` or a job ID does not consume it. Only
+   mapper destination parameters are replaced.
 
-For multiple projects, leave `project_id` exposed as a required integer and
-validate the selected ID in a call hook. Known values can also be injected by
-zero-argument mappers. `InputBinding` remains useful for fixed context whose
-unused selector has no known value, or to hide one selector while exposing
-another. Bindings return new tool views; they never modify canonical definitions
-or registered tools. Permission decisions remain the host's responsibility.
+For multiple projects, leave `project_id` exposed as a required integer. For
+alternative project/environment selectors, hide the unused selector and let the
+context mapper derive the target using the host's shared resolver. The marker
+does not perform resolution or permission checks. Adaptations return new tool
+views and never modify canonical definitions or registered tools.
 
-The local dispatcher binds callables from the current credential selection
-for listing and invocation. Remote hosts first batch authorization of available
-targets, then bind the callables used for listing and calls. Private agents can
-bind selectors from their fixed runtime context before generating model schemas.
+The local dispatcher adapts callables from the current credential selection for
+listing and invocation. Remote hosts first batch authorization of available
+targets, then select argument mappers for listing and calls. Private agents can
+hide selectors supplied by their fixed context before generating model schemas.
 
 Named mappers are checked at adaptation time: their return annotations must fit
 the destination's value type, including nullability. For example, a mapper

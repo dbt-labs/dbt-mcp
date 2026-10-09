@@ -1,12 +1,21 @@
 import inspect
 from collections import OrderedDict
 from collections.abc import Callable
+from enum import Enum, auto
 from functools import wraps
 from types import UnionType
 from typing import Annotated, Any, Union, cast, get_args, get_origin, get_type_hints
 
 
 class AdaptError(TypeError): ...
+
+
+class _HiddenInput(Enum):
+    HIDE = auto()
+
+
+HIDE = _HiddenInput.HIDE
+type ParameterMapper = Callable[..., Any] | _HiddenInput
 
 
 def _signature(func: Callable[..., Any]) -> inspect.Signature:
@@ -56,12 +65,15 @@ def _accepts(destination: Any, source: Any) -> bool:
 
 
 def adapt_with_mappers[R](
-    func: Callable[..., R], /, **parameter_mappers: Callable[..., Any]
+    func: Callable[..., R], /, **parameter_mappers: ParameterMapper
 ) -> Callable[..., R]:
     """Inject named parameters from mappers, sharing their caller inputs.
 
     Mapper inputs form the signature; existing inputs retain their declarations.
     Each mapper runs once per invocation and uses its own omission defaults.
+    HIDE omits an input without supplying a value; dependent mappers must allow
+    its omission. Compose value injection outside context mapping when the
+    context mapper needs the selected value.
     """
     if not parameter_mappers:
         return func
@@ -71,9 +83,16 @@ def adapt_with_mappers[R](
     if unknown:
         raise AdaptError(f"Unknown mapper destinations: {', '.join(sorted(unknown))}")
 
+    hidden = {name for name, mapper in parameter_mappers.items() if mapper is HIDE}
+    for name in hidden:
+        if original.parameters[name].default is inspect.Parameter.empty:
+            raise AdaptError(f"{name}: cannot hide a required body argument")
+    mappers = {
+        name: mapper for name, mapper in parameter_mappers.items() if callable(mapper)
+    }
     signatures = {}
     inputs: dict[str, inspect.Parameter] = {}
-    for destination, mapper in parameter_mappers.items():
+    for destination, mapper in mappers.items():
         signature = _signature(mapper)
         if signature.return_annotation is inspect.Parameter.empty:
             raise AdaptError("mapper must have a return type annotation")
@@ -86,6 +105,10 @@ def adapt_with_mappers[R](
             )
         signatures[destination] = signature
         for name, parameter in signature.parameters.items():
+            if name in hidden:
+                if parameter.default is inspect.Parameter.empty:
+                    raise AdaptError(f"{name}: cannot hide a required mapper input")
+                continue
             if parameter.annotation is inspect.Parameter.empty:
                 raise AdaptError("mapper must have type-annotated parameters")
             canonical = original.parameters.get(name)
@@ -120,7 +143,7 @@ def adapt_with_mappers[R](
     declared = original.replace(parameters=declared_parameters)
     is_async = inspect.iscoroutinefunction(func)
     if not is_async and any(
-        inspect.iscoroutinefunction(mapper) for mapper in parameter_mappers.values()
+        inspect.iscoroutinefunction(mapper) for mapper in mappers.values()
     ):
         raise AdaptError("Async mapper used with sync function")
 
@@ -149,7 +172,7 @@ def adapt_with_mappers[R](
             ),
         )
         bound.apply_defaults()
-        return parameter_mappers[destination](*bound.args, **bound.kwargs)
+        return mappers[destination](*bound.args, **bound.kwargs)
 
     def invoke(values: dict[str, Any]) -> Any:
         bound = inspect.BoundArguments(
@@ -167,7 +190,7 @@ def adapt_with_mappers[R](
             inputs = caller_arguments(args, kwargs)
             values = dict(inputs)
             mapped: dict[int, Any] = {}
-            for destination, mapper in parameter_mappers.items():
+            for destination, mapper in mappers.items():
                 if id(mapper) not in mapped:
                     value = map_argument(destination, inputs)
                     mapped[id(mapper)] = (
@@ -183,7 +206,7 @@ def adapt_with_mappers[R](
             inputs = caller_arguments(args, kwargs)
             values = dict(inputs)
             mapped = {}
-            for destination, mapper in parameter_mappers.items():
+            for destination, mapper in mappers.items():
                 if id(mapper) not in mapped:
                     mapped[id(mapper)] = map_argument(destination, inputs)
                 values[destination] = mapped[id(mapper)]

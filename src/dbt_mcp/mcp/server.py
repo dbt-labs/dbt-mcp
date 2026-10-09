@@ -27,8 +27,8 @@ from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.proxy.tools import ProxiedToolsManager, register_proxied_tools
 from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
 from dbt_mcp.semantic_layer.tools import register_sl_tools
-from dbt_mcp.tools.binding import InputBinding
-from dbt_mcp.tools.injection import adapt_with_mappers
+from dbt_mcp.tools.injection import HIDE, adapt_with_mappers
+from dbt_mcp.tools.validation import configure_argument_validation
 from dbt_mcp.tools.toolsets import Toolset, toolsets, proxied_tools
 from dbt_mcp.tracking.tracking import (
     REDACT_ARGS,
@@ -193,9 +193,27 @@ class DbtMCP(FastMCP):
                         "fn": adapt_with_mappers(tool.fn, project_id=selected_project)
                     }
                 )
-            return InputBinding(
-                values={"project_id": projects[0] if projects else None}
-            ).bind_tool(tool)
+            if projects:
+                project_id = projects[0]
+
+                def fixed_project() -> int:
+                    return project_id
+
+                fn = adapt_with_mappers(tool.fn, project_id=fixed_project)
+            else:
+                fn = adapt_with_mappers(tool.fn, project_id=HIDE)
+            bound = RegisteredTool.from_function(
+                fn,
+                name=tool.name,
+                title=tool.title,
+                description=tool.description,
+                annotations=tool.annotations,
+                icons=tool.icons,
+                meta=tool.meta,
+                structured_output=tool.output_schema is not None,
+            )
+            configure_argument_validation(bound)
+            return bound
         return tool
 
     async def list_tools(self) -> list[Tool]:
