@@ -24,14 +24,14 @@ def adapt_with_mapper[R](
 
     mapper_return_type = mapper_sig.return_annotation
 
-    if mapper_return_type is inspect._empty:
+    if mapper_return_type is inspect.Signature.empty:
         raise AdaptError("mapper must have a return type annotation")
 
     any_replacements = False
     mapper_argument_types = set(
         param.annotation for param in mapper_sig.parameters.values()
     )
-    if inspect._empty in mapper_argument_types:
+    if inspect.Parameter.empty in mapper_argument_types:
         raise AdaptError("mapper must have type-annotated parameters")
 
     new_params = list(mapper_sig.parameters.values())
@@ -50,7 +50,7 @@ def adapt_with_mapper[R](
         annotations = {}
         annotations["return"] = sig.return_annotation
         for param in sig.parameters.values():
-            if param.annotation is not inspect._empty:
+            if param.annotation is not inspect.Parameter.empty:
                 annotations[param.name] = param.annotation
         return annotations
 

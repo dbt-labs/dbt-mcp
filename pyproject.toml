@@ -34,8 +34,9 @@ dependencies = [
   "dbtlabs-vortex~=0.2.0",
   "fastapi~=0.141.0",
   "uvicorn~=0.38.0",
-  # Pinned to an exact version because src/dbt_mcp/proxy/tools.py accesses private
-  # MCP SDK internals (_tool_manager._tools, mcp.server.fastmcp.utilities.func_metadata).
+  # Pinned to an exact version because the code uses private MCP SDK internals:
+  # src/dbt_mcp/proxy/tools.py (_tool_manager._tools, mcp.server.fastmcp.utilities.func_metadata,
+  # mcp.shared._httpx_utils) and src/remote_mcp/session.py (mcp.shared._httpx_utils).
   # When upgrading, verify those APIs are unchanged and update this pin accordingly.
   "mcp[cli]==1.30.0",
   "pydantic-settings~=2.14.1",
