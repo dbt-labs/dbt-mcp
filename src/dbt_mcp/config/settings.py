@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 DEFAULT_DBT_CLI_TIMEOUT = 60
 PLATFORM_API_TIMEOUT = 15.0
 SEMANTIC_LAYER_GQL_TIMEOUT = 30.0
+# Mirrors MCP_DEFAULT_TIMEOUT / MCP_DEFAULT_SSE_READ_TIMEOUT in mcp.shared._httpx_utils.
+REMOTE_MCP_TIMEOUT = 30.0
+REMOTE_MCP_READ_TIMEOUT = 300.0
 
 
 class DbtMcpLogSettings(BaseSettings):
