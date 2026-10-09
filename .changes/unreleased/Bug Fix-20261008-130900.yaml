@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Fix startup ImportError with pydantic 2.14 by removing the private `eval_type_backport` import from proxied tool registration.
-time: 2026-10-08T13:09:00.000000-04:00
