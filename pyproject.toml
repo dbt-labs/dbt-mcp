@@ -69,6 +69,7 @@ dev = [
   "pyarrow-stubs>=19.1",
   "types-pyyaml>=6.0.12.20250516",
   "types-authlib>=1.6.4.20250920",
+  "deptry>=0.25.1",
 ]
 
 [project.urls]
@@ -90,6 +91,13 @@ include = ["src/dbt_mcp/**/*", "README.md", "LICENSE"]
 [tool.hatch.version]
 source = "vcs"
 fallback-version = "0.0.0"
+
+[tool.deptry]
+known_first_party = ["dbt_mcp", "remote_mcp", "client"]
+
+[tool.deptry.per_rule_ignores]
+# `src/client` is a dev-only chat client that is not part of the shipped package.
+DEP004 = ["openai"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
