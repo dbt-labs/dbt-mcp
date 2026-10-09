@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Limit Flight SQL prepare calls to 60 seconds and run query_metrics over the Semantic Layer GraphQL API when the Flight SQL connection fails
+time: 2026-10-08T11:29:11.792798-05:00

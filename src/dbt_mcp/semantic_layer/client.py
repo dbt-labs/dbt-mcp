@@ -9,12 +9,18 @@ from decimal import Decimal
 from typing import Any, Protocol
 
 import pyarrow as pa
+from adbc_driver_flightsql import DatabaseOptions
+from adbc_driver_manager import AdbcStatusCode, OperationalError
+from dbtsl import env as dbtsl_env
+from dbtsl.api.adbc.client.sync import SyncADBCClient
+from dbtsl.api.graphql.client.sync import SyncGraphQLClient
 from dbtsl.api.shared.query_params import (
     GroupByParam,
     OrderByGroupBy,
     OrderByMetric,
     OrderBySpec,
 )
+from dbtsl.client.base import BaseSemanticLayerClient
 from dbtsl.client.sync import SyncSemanticLayerClient
 from dbtsl.error import QueryFailedError, RetryTimeoutError
 from dbtsl.models.query import QueryStatus
@@ -87,6 +93,47 @@ def DEFAULT_RESULT_FORMATTER(table: pa.Table) -> str:
 # GraphQL requests against the Semantic Layer API.
 _MAX_SEARCH_TERMS = 20
 
+# Longest a Flight SQL action call, which includes preparing a statement, may
+# take before it fails. Preparing compiles the query and prepares a statement on
+# the data platform, so this is well above normal latency: about 99.97% of calls
+# finish sooner. Without a limit, a call whose packets are silently dropped waits
+# for the OS to give up, which takes about 16 minutes.
+_FLIGHT_SQL_ACTION_TIMEOUT_SECONDS = 60
+
+# ADBC status codes for a Flight SQL call that could not complete because of
+# the connection rather than the query. `query_metrics` retries these over
+# GraphQL; every other ADBC error propagates.
+_CONNECTION_FAILURE_STATUS_CODES = (AdbcStatusCode.IO, AdbcStatusCode.TIMEOUT)
+
+
+class _TimeBoundedFlightSqlClient(SyncADBCClient):
+    @classmethod
+    def _extra_db_kwargs(cls) -> dict[str, str]:
+        return {
+            **super()._extra_db_kwargs(),
+            DatabaseOptions.TIMEOUT_UPDATE.value: str(
+                _FLIGHT_SQL_ACTION_TIMEOUT_SECONDS
+            ),
+        }
+
+
+class _TimeBoundedSemanticLayerClient(SyncSemanticLayerClient):
+    """A `SyncSemanticLayerClient` whose Flight SQL calls have a time limit."""
+
+    def __init__(self, environment_id: int, auth_token: str, host: str) -> None:
+        # Skips `SyncSemanticLayerClient.__init__`, which fixes the Flight SQL
+        # client class, to pass `_TimeBoundedFlightSqlClient` instead. The SDK's
+        # own subclass needs the same type ignore for its generic parameters.
+        BaseSemanticLayerClient.__init__(  # type: ignore[type-var]
+            self,  # type: ignore[arg-type]
+            environment_id=environment_id,
+            auth_token=auth_token,
+            host=host,
+            gql_factory=SyncGraphQLClient,
+            adbc_factory=_TimeBoundedFlightSqlClient,
+            lazy=False,
+        )
+
 
 class SemanticLayerClientProtocol(Protocol):
     def session(self) -> AbstractContextManager[Any]: ...
@@ -118,20 +165,52 @@ class SemanticLayerClientProtocol(Protocol):
     ) -> Any: ...
 
 
+class SemanticLayerQueryClientProtocol(Protocol):
+    def session(self) -> AbstractContextManager[Any]: ...
+
+    def query(
+        self,
+        metrics: list[str],
+        group_by: list[GroupByParam | str] | None = None,
+        limit: int | None = None,
+        order_by: list[str | OrderByGroupBy | OrderByMetric] | None = None,
+        where: list[str] | None = None,
+        read_cache: bool = True,
+    ) -> pa.Table: ...
+
+
 class SemanticLayerClientProvider(Protocol):
     async def get_client(
-        self, *, config: SemanticLayerConfig
+        self, *, config: SemanticLayerConfig, time_bounded: bool = False
     ) -> SemanticLayerClientProtocol: ...
+
+    async def get_graphql_client(
+        self, *, config: SemanticLayerConfig
+    ) -> SemanticLayerQueryClientProtocol: ...
 
 
 class DefaultSemanticLayerClientProvider:
     async def get_client(
-        self, *, config: SemanticLayerConfig
+        self, *, config: SemanticLayerConfig, time_bounded: bool = False
     ) -> SemanticLayerClientProtocol:
-        return SyncSemanticLayerClient(
+        client_class = (
+            _TimeBoundedSemanticLayerClient if time_bounded else SyncSemanticLayerClient
+        )
+        return client_class(
             environment_id=config.prod_environment_id,
             auth_token=config.token_provider.get_token(),
             host=config.host,
+        )
+
+    async def get_graphql_client(
+        self, *, config: SemanticLayerConfig
+    ) -> SemanticLayerQueryClientProtocol:
+        return SyncGraphQLClient(
+            environment_id=config.prod_environment_id,
+            auth_token=config.token_provider.get_token(),
+            server_host=config.host,
+            url_format=dbtsl_env.GRAPHQL_URL_FORMAT,
+            lazy=True,
         )
 
 
@@ -616,7 +695,11 @@ class SemanticLayerFetcher:
     ) -> QueryMetricsResult:
         try:
             query_error: Exception | None = None
-            sl_client = await self.client_provider.get_client(config=config)
+            # Only `query_metrics` has a GraphQL fallback to recover a call that
+            # times out, so only its Flight SQL client has a time limit.
+            sl_client = await self.client_provider.get_client(
+                config=config, time_bounded=True
+            )
             parsed_order_by: list[OrderBySpec] = self._get_order_bys(
                 order_by=order_by, metrics=metrics, group_by=group_by
             )
@@ -624,9 +707,9 @@ class SemanticLayerFetcher:
 
             # Run the whole session lifecycle off the event loop — see the note
             # in get_dimension_values; opening a session is blocking I/O.
-            def query() -> pa.Table:
-                with sl_client.session():
-                    return sl_client.query(
+            def run(client: SemanticLayerQueryClientProtocol) -> pa.Table:
+                with client.session():
+                    return client.query(
                         metrics=metrics,
                         group_by=group_by,  # type: ignore
                         order_by=parsed_order_by,  # type: ignore
@@ -634,12 +717,32 @@ class SemanticLayerFetcher:
                         limit=limit,
                     )
 
+            # Flight SQL is the primary path. When its connection fails, the same
+            # query runs over the GraphQL API, which reaches the Semantic Layer
+            # over a separate protocol. Every other error, including a query the
+            # Semantic Layer rejects, propagates as before.
+            async def run_with_graphql_fallback() -> pa.Table:
+                try:
+                    return await asyncio.to_thread(run, sl_client)
+                except OperationalError as e:
+                    if e.status_code not in _CONNECTION_FAILURE_STATUS_CODES:
+                        raise
+                    logger.warning(
+                        "Flight SQL connection failed; retrying query over GraphQL: %s",
+                        e,
+                    )
+                    graphql_client = await self.client_provider.get_graphql_client(
+                        config=config
+                    )
+                    return await asyncio.to_thread(run, graphql_client)
+
             # Only query-level failures (the SL processed the query and rejected
             # it) are returned to the caller as data. Operational failures (auth,
-            # connection, transport) propagate so callers can distinguish a bad
-            # query from an unreachable semantic layer.
+            # transport, or a connection that fails over both protocols) propagate
+            # so callers can distinguish a bad query from an unreachable semantic
+            # layer.
             try:
-                query_result = await asyncio.to_thread(query)
+                query_result = await run_with_graphql_fallback()
             except RetryTimeoutError as e:
                 # Queries that timeout with COMPILED status have finished SQL
                 # compilation and are executing against the data platform. In
