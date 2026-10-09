@@ -15,7 +15,7 @@ jobs:
         github.event.pull_request.user.login == 'github-actions[bot]')
     steps:
       - name: checkout code
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout@v7.0.1
         with:
           fetch-depth: 0
       - name: setup python
@@ -48,7 +48,7 @@ jobs:
           fi
 
       - name: Validate unreleased changelog entries
-        uses: miniscruff/changie-action@6dcc2533cac0495148ed4046c438487e4dceaa23
+        uses: miniscruff/changie-action@3223cb29b92a0972dedc864ace3da01e04780ae4 # miniscruff/changie-action@v3.0.1
         with:
           version: latest
           args: next auto
