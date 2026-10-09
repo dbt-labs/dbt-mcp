@@ -63,6 +63,13 @@ Tools can have associated UIs via the `meta` field:
 - Use `*` in param lists when adjacent params share a type
 - Avoid code in `__init__.py`
 
+## Dependencies
+
+- Declare every third-party package your code imports directly. Packages imported by `src/dbt_mcp` or `src/remote_mcp` go in `dependencies`; packages imported only by tests, evals or scripts go in the `dev` group. Never rely on a package that is only installed because another dependency requires it: a change to what that dependency requires then removes or downgrades it, and the first sign is an `ImportError` at runtime.
+- Declare a new import's package in the same change as the import, with `uv add`. Use the version in `uv.lock` as the lower bound.
+- Using a private module or attribute of a third-party package (a name that starts with `_`, such as `pydantic._internal` or `mcp.shared._httpx_utils`) requires an exact pin of that package in `pyproject.toml` (`==`), with a comment naming the private API used and what to re-check when bumping the version, like the `mcp` pin. Prefer a public API where one exists.
+- To check, run `uv run --frozen --no-sync --with deptry deptry src tests scripts evals --known-first-party dbt_mcp --known-first-party remote_mcp` and look for `DEP003` (transitive) findings.
+
 ## Changelog
 
 Every PR requires a changelog entry. Run `changie new --kind "<kind>" --body "<description>"` to create one.
