@@ -1,3 +1,5 @@
+from dbt_mcp.config.config_providers.base import ProjectConfigProvider
+from dbt_mcp.config.config_providers.base import DiscoveryConfig
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -7,9 +9,8 @@ from dbt_mcp.discovery.tools import (
     DISCOVERY_TOOLS,
     get_node_details,
 )
-from dbt_mcp.discovery.tools_multiproject import (
-    MULTIPROJECT_DISCOVERY_TOOLS,
-    get_node_details as get_node_details_multiproject,
+from dbt_mcp.discovery.tools import (
+    discovery_context_mappers,
 )
 from dbt_mcp.tools.tool_names import ToolName
 
@@ -29,9 +30,7 @@ DEPRECATED_DETAIL_TOOLS = [
 async def test_get_node_details_delegates_to_fetcher(
     resource_type: AppliedResourceType,
 ):
-    config = object()
     context = Mock()
-    context.config_provider.get_config = AsyncMock(return_value=config)
     context.resource_details_fetcher.fetch_details = AsyncMock(return_value=["row"])
 
     result = await get_node_details.fn(
@@ -46,7 +45,6 @@ async def test_get_node_details_delegates_to_fetcher(
         resource_type=resource_type,
         unique_id=f"{resource_type.value}.pkg.thing",
         name=None,
-        config=config,
     )
 
 
@@ -54,26 +52,30 @@ async def test_get_node_details_delegates_to_fetcher(
 async def test_get_node_details_multiproject_delegates_to_fetcher(
     resource_type: AppliedResourceType,
 ):
-    config = object()
+    config = DiscoveryConfig(
+        url="https://example.com", headers_provider=Mock(), environment_id=1
+    )
     context = Mock()
-    context.config_provider.get_config = AsyncMock(return_value=config)
+    provider = Mock(spec=ProjectConfigProvider)
+    provider.get_config = AsyncMock(return_value=config)
     context.resource_details_fetcher.fetch_details = AsyncMock(return_value=["row"])
 
-    result = await get_node_details_multiproject.fn(
-        context=context,
-        project_id=42,
+    mapper = discovery_context_mappers(provider)["context"]
+    mapped = await mapper(project_id=42)
+    mapped.resource_details_fetcher = context.resource_details_fetcher
+    result = await get_node_details.fn(
+        context=mapped,
         resource_type=resource_type,
         name="thing",
         unique_id=None,
     )
 
     assert result == ["row"]
-    context.config_provider.get_config.assert_awaited_once_with(project_id=42)
+    provider.get_config.assert_awaited_once_with(project_id=42)
     context.resource_details_fetcher.fetch_details.assert_awaited_once_with(
         resource_type=resource_type,
         unique_id=None,
         name="thing",
-        config=config,
     )
 
 
@@ -90,7 +92,7 @@ def test_detail_tools_are_deprecated(tool_name: ToolName):
 
 @pytest.mark.parametrize("tool_name", DEPRECATED_DETAIL_TOOLS)
 def test_detail_tools_are_deprecated_multiproject(tool_name: ToolName):
-    tool = next(t for t in MULTIPROJECT_DISCOVERY_TOOLS if t.get_name() == tool_name)
+    tool = next(t for t in DISCOVERY_TOOLS if t.get_name() == tool_name)
     assert tool.meta is not None
     assert tool.meta["deprecated"] is True
     assert tool.meta["replacement"] == "get_node_details"
@@ -100,4 +102,4 @@ def test_detail_tools_are_deprecated_multiproject(tool_name: ToolName):
 
 def test_get_node_details_not_deprecated():
     assert get_node_details.meta is None
-    assert get_node_details_multiproject.meta is None
+    assert get_node_details.meta is None

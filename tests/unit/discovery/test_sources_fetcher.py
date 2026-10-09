@@ -7,8 +7,9 @@ from dbt_mcp.discovery.client import (
 
 
 @pytest.fixture
-def sources_fetcher():
+def sources_fetcher(unit_discovery_config):
     paginator = PaginatedResourceFetcher(
+        config=unit_discovery_config,
         edges_path=("data", "environment", "applied", "sources", "edges"),
         page_info_path=("data", "environment", "applied", "sources", "pageInfo"),
     )
@@ -64,7 +65,7 @@ async def test_fetch_sources_single_page(
     mock_api_client.return_value = mock_response
 
     # Execute the fetch
-    result = (await sources_fetcher.fetch_sources(config=unit_discovery_config)).result
+    result = (await sources_fetcher.fetch_sources()).result
 
     # Verify the API was called correctly
     mock_api_client.assert_called_once()
@@ -151,11 +152,7 @@ async def test_fetch_sources_with_filters(
     mock_api_client.return_value = mock_response
 
     # Execute with filters
-    result = (
-        await sources_fetcher.fetch_sources(
-            **filter_params, config=unit_discovery_config
-        )
-    ).result
+    result = (await sources_fetcher.fetch_sources(**filter_params)).result
 
     # Verify the filter was passed correctly to the GraphQL query
     call_args = mock_api_client.call_args
@@ -185,7 +182,7 @@ async def test_fetch_sources_empty_response(
 
     mock_api_client.return_value = mock_response
 
-    result = (await sources_fetcher.fetch_sources(config=unit_discovery_config)).result
+    result = (await sources_fetcher.fetch_sources()).result
 
     assert result == []
 
@@ -260,7 +257,7 @@ async def test_fetch_sources_pagination(
         second_page_response,
     ]
 
-    result = (await sources_fetcher.fetch_sources(config=unit_discovery_config)).result
+    result = (await sources_fetcher.fetch_sources()).result
 
     assert mock_api_client.call_count == 1
     assert len(result) == 1

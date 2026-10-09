@@ -7,8 +7,9 @@ from dbt_mcp.discovery.client import (
 
 
 @pytest.fixture
-def macros_fetcher():
+def macros_fetcher(unit_discovery_config):
     paginator = PaginatedResourceFetcher(
+        config=unit_discovery_config,
         edges_path=("data", "environment", "applied", "resources", "edges"),
         page_info_path=("data", "environment", "applied", "resources", "pageInfo"),
     )
@@ -50,7 +51,7 @@ async def test_fetch_macros_single_page(
 
     mock_api_client.return_value = mock_response
 
-    result = (await macros_fetcher.fetch_macros(config=unit_discovery_config)).result
+    result = (await macros_fetcher.fetch_macros()).result
 
     mock_api_client.assert_called_once()
     call_args = mock_api_client.call_args
@@ -124,7 +125,7 @@ async def test_fetch_macros_excludes_dbt_builtin_by_default(
 
     mock_api_client.return_value = mock_response
 
-    result = (await macros_fetcher.fetch_macros(config=unit_discovery_config)).result
+    result = (await macros_fetcher.fetch_macros()).result
 
     # Custom macro and dbt_utils should be returned (dbt_utils is NOT filtered)
     # Only dbt core and dbt_postgres (first-party) should be filtered
@@ -187,11 +188,7 @@ async def test_fetch_macros_return_package_names_only(
 
     mock_api_client.return_value = mock_response
 
-    result = (
-        await macros_fetcher.fetch_macros(
-            return_package_names_only=True, config=unit_discovery_config
-        )
-    ).result
+    result = (await macros_fetcher.fetch_macros(return_package_names_only=True)).result
 
     # Should return sorted unique package names (excluding dbt core)
     assert result == ["dbt_utils", "my_project"]
@@ -233,11 +230,7 @@ async def test_fetch_macros_filters_by_package_names(
 
     mock_api_client.return_value = mock_response
 
-    result = (
-        await macros_fetcher.fetch_macros(
-            package_names=["my_project"], config=unit_discovery_config
-        )
-    ).result
+    result = (await macros_fetcher.fetch_macros(package_names=["my_project"])).result
 
     # Only the my_project macro should be returned
     assert len(result) == 1
@@ -273,11 +266,7 @@ async def test_fetch_macros_package_filter_case_insensitive(
 
     mock_api_client.return_value = mock_response
 
-    result = (
-        await macros_fetcher.fetch_macros(
-            package_names=["my_project"], config=unit_discovery_config
-        )
-    ).result
+    result = (await macros_fetcher.fetch_macros(package_names=["my_project"])).result
 
     assert len(result) == 1
     assert result[0]["packageName"] == "My_Project"
@@ -301,7 +290,7 @@ async def test_fetch_macros_empty_response(
 
     mock_api_client.return_value = mock_response
 
-    result = (await macros_fetcher.fetch_macros(config=unit_discovery_config)).result
+    result = (await macros_fetcher.fetch_macros()).result
 
     assert result == []
 
@@ -351,9 +340,7 @@ async def test_fetch_macros_includes_default_dbt_packages_when_flag_set(
     mock_api_client.return_value = mock_response
 
     result = (
-        await macros_fetcher.fetch_macros(
-            include_default_dbt_packages=True, config=unit_discovery_config
-        )
+        await macros_fetcher.fetch_macros(include_default_dbt_packages=True)
     ).result
 
     # All macros should be returned, including dbt core and dbt_postgres
@@ -411,7 +398,6 @@ async def test_fetch_macros_return_package_names_only_with_include_default(
         await macros_fetcher.fetch_macros(
             return_package_names_only=True,
             include_default_dbt_packages=True,
-            config=unit_discovery_config,
         )
     ).result
 

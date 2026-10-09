@@ -1,3 +1,5 @@
+from dbt_mcp.config.config_providers.base import SemanticLayerConfig
+from unittest.mock import MagicMock
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -9,7 +11,13 @@ from dbt_mcp.semantic_layer.types import DimensionValuesError, DimensionValuesRe
 
 @pytest.fixture
 def tool_context():
-    config = object()
+    config = SemanticLayerConfig(
+        url="https://example.com",
+        host="example.com",
+        token_provider=MagicMock(),
+        headers_provider=MagicMock(),
+        prod_environment_id=1,
+    )
     return SimpleNamespace(
         config_provider=SimpleNamespace(get_config=AsyncMock(return_value=config)),
         semantic_layer_fetcher=SimpleNamespace(get_dimension_values=AsyncMock()),

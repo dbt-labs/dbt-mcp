@@ -84,6 +84,7 @@ def credentials_provider() -> MagicMock:
         actual_host_prefix="vu491",
         base_host="us1.dbt.com",
         dbt_account_id=ACCOUNT_ID,
+        dbt_project_ids=None,
         actual_prod_environment_id=PROD_ENV_ID,
         dbt_dev_env_id=DEV_ENV_ID,
         dbt_user_id=USER_ID,
@@ -151,7 +152,10 @@ async def test_get_metrics_compiled_sql_tool_explains_how_to_reconnect(tool_cont
 
 async def test_get_dimension_values_tool_explains_how_to_reconnect(tool_context):
     result = await get_dimension_values.fn(
-        context=tool_context, dimension="region", metrics=["revenue"], limit=10
+        context=tool_context,
+        dimension="region",
+        metrics=["revenue"],
+        limit=10,
     )
 
     assert isinstance(result, DimensionValuesError)

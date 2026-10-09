@@ -12,6 +12,7 @@ from tests.unit.dbt_admin.test_artifact_limits import Chunks
 from dbt_mcp.dbt_admin.tools import (
     ADMIN_TOOLS,
     AdminToolContext,
+    JobsToolContext,
     JobRunStatus,
     cancel_job_run,
     get_job_details,
@@ -28,7 +29,7 @@ from dbt_mcp.dbt_admin.tools import (
 from dbt_mcp.errors import InvalidParameterError
 from dbt_mcp.resource_limits import ArtifactConfig
 from dbt_mcp.config.config_providers import StaticConfigProvider
-from dbt_mcp.mcp.server import register_multi_project_dbt_mcp
+from dbt_mcp.mcp.server import register_dbt_mcp_tools
 from tests.mocks.config import mock_config
 
 from dbt_mcp.pagination import Pagination, ResultPage
@@ -131,9 +132,9 @@ def mock_admin_client():
 
 
 @pytest.fixture
-def admin_context(mock_admin_client):
+async def admin_context(mock_admin_client):
     """Create AdminToolContext with mocked client."""
-    context = AdminToolContext(mock_config.admin_api_config_provider)
+    context = JobsToolContext(await mock_config.admin_api_config_provider.get_config())
     # Replace the client with our mock
     context.admin_client = mock_admin_client
     return context
@@ -526,7 +527,7 @@ async def test_tools_handle_exceptions():
     mock_admin_client = Mock()
     mock_admin_client.list_jobs.side_effect = Exception("API Error")
 
-    context = AdminToolContext(mock_config.admin_api_config_provider)
+    context = JobsToolContext(await mock_config.admin_api_config_provider.get_config())
     context.admin_client = mock_admin_client
 
     with pytest.raises(Exception) as exc_info:
@@ -538,7 +539,9 @@ async def test_tools_with_no_optional_parameters(admin_context):
     # Test list_jobs with no parameters
     result = await list_jobs.fn(admin_context)
     assert isinstance(result.result, list)
-    admin_context.admin_client.list_jobs.assert_called_with(12345, limit=50, offset=0)
+    admin_context.admin_client.list_jobs.assert_called_with(
+        12345, environment_id=100, limit=50, offset=0
+    )
 
     # Test list_jobs_runs with no parameters
     result = await list_jobs_runs.fn(admin_context)
@@ -555,7 +558,7 @@ async def test_tools_with_no_optional_parameters(admin_context):
 
 async def test_admin_tools_registered_in_multi_project_mcp(mock_fastmcp):
     fastmcp, tools = mock_fastmcp
-    await register_multi_project_dbt_mcp(fastmcp, mock_config)
+    await register_dbt_mcp_tools(fastmcp, mock_config)
     admin_tool_names = {tool.fn.__name__ for tool in ADMIN_TOOLS}
     assert admin_tool_names.issubset(tools.keys())
 
@@ -708,10 +711,10 @@ def test_admin_tools_list_contains_all_tools():
 
 
 async def test_admin_tools_list_jobs_params(admin_context):
-    def bind_context() -> AdminToolContext:
+    def bind_context() -> JobsToolContext:
         return admin_context
 
-    tool = list_jobs.adapt_context(bind_context).to_fastmcp_internal_tool()
+    tool = list_jobs.adapt_with_mappers(context=bind_context).fastmcp_tool
     props = tool.parameters["properties"]
     assert props["limit"]["default"] == 50
     assert props["limit"]["minimum"] == 1
@@ -720,40 +723,41 @@ async def test_admin_tools_list_jobs_params(admin_context):
     assert props["offset"]["minimum"] == 0
 
 
-@pytest.mark.parametrize("project_id", [None, 42])
-@pytest.mark.parametrize("prod_environment_id", [None, 100])
+@pytest.mark.parametrize("project_id", [42, 43])
+@pytest.mark.parametrize("environment_id", [None, 100])
 async def test_list_jobs_project_scope_and_pagination(
     admin_context: AdminToolContext,
-    project_id: int | None,
-    prod_environment_id: int | None,
+    project_id: int,
+    environment_id: int | None,
 ) -> None:
     config = await admin_context.admin_api_config_provider.get_config()
-    config = replace(config, prod_environment_id=prod_environment_id)
-    admin_context.admin_api_config_provider = Mock(
-        get_config=AsyncMock(return_value=config)
-    )
+    config = replace(config, environment_id=environment_id, project_id=project_id)
+    context = JobsToolContext(config)
+    context.admin_client = admin_context.admin_client
 
-    await list_jobs.fn(admin_context, project_id=project_id, limit=10, offset=20)
+    await list_jobs.fn(context, limit=10, offset=20)
 
     expected = {"limit": 10, "offset": 20}
-    if project_id is not None:
+    if environment_id is not None:
+        expected["environment_id"] = environment_id
+    else:
         expected["project_id"] = project_id
-    elif prod_environment_id is not None:
-        expected["environment_id"] = prod_environment_id
     list_jobs_mock = cast(AsyncMock, admin_context.admin_client.list_jobs)
     list_jobs_mock.assert_awaited_once_with(12345, **expected)
 
 
 async def test_list_jobs_mcp_text_and_structured_output_share_pagination(admin_context):
-    def bind_context() -> AdminToolContext:
+    def bind_context() -> JobsToolContext:
         return admin_context
 
     admin_context.admin_client.list_jobs.return_value = ResultPage(
         result=[{"id": 1}],
         pagination=Pagination(has_more=True, next_offset=1, total_items=2),
     )
-    tool = list_jobs.adapt_context(bind_context).to_fastmcp_internal_tool()
-    text, structured = await tool.run({"limit": 1}, convert_result=True)
+    tool = list_jobs.adapt_with_mappers(context=bind_context).fastmcp_tool
+    text, structured = await tool.run(
+        {"project_id": 42, "limit": 1}, convert_result=True
+    )
     assert structured["result"] == [{"id": 1}]
     assert structured["pagination"]["has_more"] is True
     assert structured["pagination"]["next_offset"] == 1

@@ -3,63 +3,38 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from dbt_mcp.config.headers import DiscoveryHeadersProvider
-from dbt_mcp.errors import NotFoundError
 
 if TYPE_CHECKING:
     from dbt_mcp.config.credentials import CredentialsProvider
     from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 
-from .base import ConfigProvider, DiscoveryConfig, MultiProjectConfigProvider
+from .environments import resolve_production_environment_id
+from .base import DiscoveryConfig, ProjectConfigProvider
 
 
-class DefaultDiscoveryConfigProvider(ConfigProvider[DiscoveryConfig]):
-    def __init__(self, credentials_provider: CredentialsProvider):
-        self.credentials_provider = credentials_provider
-
-    async def get_config(self) -> DiscoveryConfig:
-        settings, token_provider = await self.credentials_provider.get_credentials()
-        assert settings.actual_host and settings.actual_prod_environment_id
-        if settings.actual_host_prefix:
-            url = f"https://{settings.actual_host_prefix}.metadata.{settings.base_host}/graphql"
-        else:
-            url = f"https://metadata.{settings.actual_host}/graphql"
-
-        return DiscoveryConfig(
-            url=url,
-            headers_provider=DiscoveryHeadersProvider(token_provider=token_provider),
-            environment_id=settings.actual_prod_environment_id,
-        )
-
-
-class MultiProjectDiscoveryConfigProvider(MultiProjectConfigProvider[DiscoveryConfig]):
+class DefaultDiscoveryConfigProvider(ProjectConfigProvider[DiscoveryConfig]):
     def __init__(
         self,
-        *,
         credentials_provider: CredentialsProvider,
-        admin_client: DbtAdminAPIClient,
+        *,
+        admin_client: DbtAdminAPIClient | None = None,
     ):
         self.credentials_provider = credentials_provider
         self.admin_client = admin_client
 
-    async def get_config(self, project_id: int) -> DiscoveryConfig:
+    async def get_config(self, project_id: int | None = None) -> DiscoveryConfig:
         settings, token_provider = await self.credentials_provider.get_credentials()
         assert settings.actual_host
-        if settings.dbt_project_ids and project_id not in settings.dbt_project_ids:
-            raise ValueError(
-                f"Project {project_id} is not in the selected projects. "
-                f"Available project IDs: {settings.dbt_project_ids}"
-            )
+        environment_id = await resolve_production_environment_id(
+            settings, project_id=project_id, admin_client=self.admin_client
+        )
         if settings.actual_host_prefix:
             url = f"https://{settings.actual_host_prefix}.metadata.{settings.base_host}/graphql"
         else:
             url = f"https://metadata.{settings.actual_host}/graphql"
-        prod_env, _ = await self.admin_client.get_environments_for_project(project_id)
-        if not prod_env or not prod_env.id:
-            raise NotFoundError(
-                f"No production environment found for project {project_id}"
-            )
+
         return DiscoveryConfig(
             url=url,
             headers_provider=DiscoveryHeadersProvider(token_provider=token_provider),
-            environment_id=prod_env.id,
+            environment_id=environment_id,
         )

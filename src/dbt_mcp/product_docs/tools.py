@@ -115,6 +115,7 @@ async def _fetch_page(
 
 
 @dbt_mcp_tool(
+    requirements=(),
     description=get_prompt("product_docs/search_product_docs"),
     title="Search Product Docs",
     # read_only: the in-memory cache is internal process state,
@@ -177,6 +178,7 @@ async def search_product_docs(
 
 
 @dbt_mcp_tool(
+    requirements=(),
     description=get_prompt("product_docs/get_product_doc_pages"),
     title="Get Product Doc Pages",
     read_only_hint=True,
@@ -262,7 +264,7 @@ def register_product_docs_tools(
     register_tools(
         dbt_mcp,
         tool_definitions=[
-            tool.adapt_context(bind_context) for tool in PRODUCT_DOCS_TOOLS
+            tool.adapt_with_mappers(context=bind_context) for tool in PRODUCT_DOCS_TOOLS
         ],
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,

@@ -1,327 +1,200 @@
-"""Unit tests for DbtMCP tool dispatcher routing."""
+"""The local server binds one registry to current credentials."""
 
 import logging
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-
+import pytest
 from mcp.server.fastmcp import FastMCP
-from mcp.types import TextContent, Tool
-
-from dbt_mcp.errors.common import MissingHostError
+from mcp.server.fastmcp.exceptions import ToolError
+from mcp.types import ClientCapabilities, Implementation, InitializeRequestParams
+from pydantic import Field
+from dbt_mcp.config.config import Config
+from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.config.settings import DbtMcpSettings
-from dbt_mcp.mcp.server import DbtMCP
+from dbt_mcp.errors.common import MissingHostError
+from dbt_mcp.mcp.server import DbtMCP, app_lifespan
 from dbt_mcp.oauth.token_provider import StaticTokenProvider
-from dbt_mcp.tracking.tracking import ToolCalledEvent, UsageTracker
+from dbt_mcp.tools.injection import adapt_with_mappers
+from dbt_mcp.tracking.tracking import UsageTracker
 
 
-def _make_dispatcher(
-    *,
-    multi_project_mcp: FastMCP | None = None,
-    single_project_mcp: FastMCP | None = None,
-    settings: DbtMcpSettings | None = None,
-) -> DbtMCP:
-    """Build a DbtMCP dispatcher with lightweight mock internals."""
-    from dbt_mcp.config.config import Config
-    from dbt_mcp.config.credentials import CredentialsProvider
-
-    if settings is None:
-        settings = DbtMcpSettings.model_construct()
-
-    credentials_provider = MagicMock(spec=CredentialsProvider)
-    credentials_provider.get_credentials = AsyncMock(
-        return_value=(settings, StaticTokenProvider(token="test-token"))
+def make_server(projects: list[int] | None = None) -> DbtMCP:
+    credentials = MagicMock(spec=CredentialsProvider)
+    credentials.get_credentials = AsyncMock(
+        return_value=(
+            DbtMcpSettings.model_construct(dbt_project_ids=projects),
+            StaticTokenProvider(token="test-token"),
+        )
     )
-
     config = MagicMock(spec=Config)
-    config.credentials_provider = credentials_provider
+    config.credentials_provider = credentials
+    config.proxied_tool_config_provider = None
+    config.lsp_config = None
+    tracker = MagicMock(spec=UsageTracker)
+    tracker.emit_tool_called_event = AsyncMock()
+    registry = FastMCP()
 
-    usage_tracker = MagicMock(spec=UsageTracker)
-    usage_tracker.emit_tool_called_event = AsyncMock()
+    async def get_all_models(context: str, *, project_id: int = Field()) -> str:
+        return context
 
+    def build_context(project_id: int | None = None) -> str:
+        return str(project_id)
+
+    async def show(sql_query: str, limit: int = 5) -> str:
+        return "ok"
+
+    registry.add_tool(adapt_with_mappers(get_all_models, context=build_context))
+    registry.add_tool(show)
     return DbtMCP(
         name="dbt",
         config=config,
-        usage_tracker=usage_tracker,
+        usage_tracker=tracker,
         lifespan=None,
-        multi_project_mcp=multi_project_mcp or FastMCP(),
-        single_project_mcp=single_project_mcp or FastMCP(),
+        tool_server=registry,
     )
 
 
-def _make_tool(name: str) -> Tool:
-    return Tool(
-        name=name, description="", inputSchema={"type": "object", "properties": {}}
+@pytest.mark.parametrize(
+    "projects,expected", [(None, "None"), ([10], "10"), ([10, 20], "20")]
+)
+async def test_project_selection_binds_schema_and_invocation(projects, expected):
+    server = make_server(projects)
+    tool = next(t for t in await server.list_tools() if t.name == "get_all_models")
+    if projects is not None and len(projects) > 1:
+        assert tool.inputSchema["properties"]["project_id"]["type"] == "integer"
+        assert tool.inputSchema["required"] == ["project_id"]
+        arguments = {"project_id": 20}
+    else:
+        assert tool.inputSchema["properties"] == {}
+        arguments = {}
+    assert (await server.call_tool("get_all_models", arguments))[0][0].text == expected
+
+
+async def test_credential_refresh_changes_binding_without_replacing_registry():
+    server = make_server([10, 20])
+    registry = server.tool_server
+    assert "project_id" in (await server.list_tools())[0].inputSchema["properties"]
+    server.config.credentials_provider.get_credentials.return_value = (
+        DbtMcpSettings.model_construct(dbt_project_ids=[20]),
+        StaticTokenProvider(token="refreshed"),
     )
+    tool = next(t for t in await server.list_tools() if t.name == "get_all_models")
+    assert tool.inputSchema["properties"] == {}
+    assert (await server.call_tool("get_all_models", {}))[0][0].text == "20"
+    assert server.tool_server is registry
+    assert "project_id" in (await registry.list_tools())[0].inputSchema["properties"]
 
 
-class TestIsMultiProject:
-    async def test_returns_true_when_project_ids_set(self):
-        settings = DbtMcpSettings.model_construct(dbt_project_ids=[1, 2, 3])
-        dispatcher = _make_dispatcher(settings=settings)
-        assert await dispatcher._is_multi_project() is True
-
-    async def test_returns_false_when_project_ids_none(self):
-        settings = DbtMcpSettings.model_construct(dbt_project_ids=None)
-        dispatcher = _make_dispatcher(settings=settings)
-        assert await dispatcher._is_multi_project() is False
-
-    async def test_returns_false_when_project_ids_empty(self):
-        settings = DbtMcpSettings.model_construct(dbt_project_ids=[])
-        dispatcher = _make_dispatcher(settings=settings)
-        assert await dispatcher._is_multi_project() is False
-
-    async def test_returns_false_when_credentials_raise(self):
-        dispatcher = _make_dispatcher()
-        dispatcher.config.credentials_provider.get_credentials = AsyncMock(
-            side_effect=MissingHostError("DBT_HOST is a required environment variable")
-        )
-        assert await dispatcher._is_multi_project() is False
-
-    async def test_raises_non_host_value_errors(self):
-        dispatcher = _make_dispatcher()
-        dispatcher.config.credentials_provider.get_credentials = AsyncMock(
-            side_effect=ValueError("No decoded access token found in OAuth context")
-        )
-        with pytest.raises(ValueError, match="No decoded access token"):
-            await dispatcher._is_multi_project()
+@pytest.mark.parametrize(
+    "projects,arguments",
+    [
+        (None, {"project_id": 20}),
+        ([20], {"project_id": 20}),
+        ([10, 20], {}),
+        ([10, 20], {"project_id": None}),
+        ([10, 20], {"project_id": 30}),
+        ([10, 20], {"project_id": True}),
+    ],
+)
+async def test_calls_must_match_the_advertised_project_selector(projects, arguments):
+    with pytest.raises(ToolError, match="project_id"):
+        await make_server(projects).call_tool("get_all_models", arguments)
 
 
-class TestListToolsRouting:
-    @pytest.mark.parametrize(
-        "is_multi,expected_tool,called,not_called",
-        [
-            pytest.param(True, "multi_tool", "multi", "single", id="multi_project"),
-            pytest.param(False, "single_tool", "single", "multi", id="single_project"),
-        ],
+async def test_local_tools_are_available_with_configured_environment():
+    server = make_server()
+    assert "show" in {t.name for t in await server.list_tools()}
+    assert (await server.call_tool("show", {"sql_query": "select 1"}))[0][
+        0
+    ].text == "ok"
+
+
+async def test_project_selection_preserves_local_tool_eligibility():
+    server = make_server([10, 20])
+    assert {t.name for t in await server.list_tools()} == {"get_all_models"}
+    with pytest.raises(ValueError, match="unavailable"):
+        await server.call_tool("show", {"sql_query": "select 1"})
+
+
+async def test_listing_before_credentials_are_available():
+    server = make_server()
+    server.config.credentials_provider.get_credentials.side_effect = MissingHostError(
+        "DBT_HOST is required"
     )
-    async def test_routes_based_on_project_mode(
-        self, is_multi, expected_tool, called, not_called
-    ):
-        multi = MagicMock(spec=FastMCP)
-        multi.list_tools = AsyncMock(return_value=[_make_tool("multi_tool")])
-        single = MagicMock(spec=FastMCP)
-        single.list_tools = AsyncMock(return_value=[_make_tool("single_tool")])
-
-        mcps = {"multi": multi, "single": single}
-        dispatcher = _make_dispatcher(
-            multi_project_mcp=multi, single_project_mcp=single
-        )
-        with patch.object(
-            dispatcher, "_is_multi_project", AsyncMock(return_value=is_multi)
-        ):
-            tools = await dispatcher.list_tools()
-
-        assert [t.name for t in tools] == [expected_tool]
-        mcps[called].list_tools.assert_awaited_once()
-        mcps[not_called].list_tools.assert_not_awaited()
+    assert "show" in {t.name for t in await server.list_tools()}
 
 
-class TestCallToolRouting:
-    @pytest.mark.parametrize(
-        "is_multi,expected_text,called,not_called",
-        [
-            pytest.param(True, "multi result", "multi", "single", id="multi_project"),
-            pytest.param(
-                False, "single result", "single", "multi", id="single_project"
-            ),
-        ],
+async def test_credential_errors_propagate():
+    server = make_server()
+    server.config.credentials_provider.get_credentials.side_effect = ValueError(
+        "No decoded access token"
     )
-    async def test_routes_based_on_project_mode(
-        self, is_multi, expected_text, called, not_called
-    ):
-        multi = MagicMock(spec=FastMCP)
-        multi.call_tool = AsyncMock(
-            return_value=[TextContent(type="text", text="multi result")]
+    with pytest.raises(ValueError, match="No decoded access token"):
+        await server.list_tools()
+
+
+async def test_tracking_failure_preserves_tool_error():
+    server = make_server()
+
+    async def broken(project_id: int = Field()) -> str:
+        raise RuntimeError("something broke")
+
+    server.tool_server.remove_tool("get_all_models")
+    server.tool_server.add_tool(broken, name="get_all_models")
+    server.usage_tracker.emit_tool_called_event.side_effect = RuntimeError(
+        "tracking failed"
+    )
+    with pytest.raises(ToolError, match="something broke"):
+        await server.call_tool("get_all_models", {})
+    server.usage_tracker.emit_tool_called_event.assert_awaited_once()
+
+
+async def test_client_info_and_results_are_tracked():
+    server = make_server()
+    ctx = MagicMock()
+    ctx.request_context.session.client_params = InitializeRequestParams(
+        protocolVersion="2024-11-05",
+        capabilities=ClientCapabilities(),
+        clientInfo=Implementation(name="Claude", version="1.2.3"),
+    )
+    with patch.object(server, "get_context", return_value=ctx):
+        await server.call_tool("get_all_models", {})
+    event = server.usage_tracker.emit_tool_called_event.call_args.kwargs[
+        "tool_called_event"
+    ]
+    assert (event.mcp_client_name, event.mcp_client_version) == ("Claude", "1.2.3")
+    assert event.result[0][0].text == "None"
+
+
+async def test_sensitive_arguments_are_redacted(caplog):
+    with caplog.at_level(logging.INFO, logger="dbt_mcp.mcp.server"):
+        await make_server().call_tool(
+            "show", {"sql_query": "SELECT secret", "limit": 5}
         )
-        single = MagicMock(spec=FastMCP)
-        single.call_tool = AsyncMock(
-            return_value=[TextContent(type="text", text="single result")]
-        )
-
-        mcps = {"multi": multi, "single": single}
-        dispatcher = _make_dispatcher(
-            multi_project_mcp=multi, single_project_mcp=single
-        )
-        with patch.object(
-            dispatcher, "_is_multi_project", AsyncMock(return_value=is_multi)
-        ):
-            result = await dispatcher.call_tool("some_tool", {"arg": "val"})
-
-        assert result == [TextContent(type="text", text=expected_text)]
-        mcps[called].call_tool.assert_awaited_once()
-        mcps[not_called].call_tool.assert_not_awaited()
-
-    async def test_raises_on_tool_error(self):
-        multi = MagicMock(spec=FastMCP)
-        single = MagicMock(spec=FastMCP)
-        single.call_tool = AsyncMock(side_effect=RuntimeError("something broke"))
-
-        dispatcher = _make_dispatcher(
-            multi_project_mcp=multi, single_project_mcp=single
-        )
-        with patch.object(
-            dispatcher, "_is_multi_project", AsyncMock(return_value=False)
-        ):
-            with pytest.raises(RuntimeError, match="something broke"):
-                await dispatcher.call_tool("bad_tool", {})
-
-    async def test_tracking_failure_does_not_suppress_tool_error(self):
-        single = MagicMock(spec=FastMCP)
-        single.call_tool = AsyncMock(
-            side_effect=MissingHostError("DBT_HOST is a required environment variable")
-        )
-
-        dispatcher = _make_dispatcher(single_project_mcp=single)
-        dispatcher.usage_tracker.emit_tool_called_event = AsyncMock(
-            side_effect=MissingHostError("tracking credentials missing")
-        )
-        with patch.object(
-            dispatcher, "_is_multi_project", AsyncMock(return_value=False)
-        ):
-            with pytest.raises(MissingHostError, match="DBT_HOST"):
-                await dispatcher.call_tool("some_tool", {})
-
-        # Tracking was attempted (and failed, but didn't suppress the tool error)
-        dispatcher.usage_tracker.emit_tool_called_event.assert_awaited_once()
+    assert "SELECT secret" not in caplog.text
+    assert "***" in caplog.text
+    assert "limit" in caplog.text
 
 
-class TestMcpClientInfo:
-    async def test_get_mcp_client_info_extracts_name_and_version(self):
-        """Verify the extraction chain from get_context() to clientInfo fields."""
-        from mcp.types import (
-            ClientCapabilities,
-            Implementation,
-            InitializeRequestParams,
-        )
-
-        client_params = InitializeRequestParams(
-            protocolVersion="2024-11-05",
-            capabilities=ClientCapabilities(),
-            clientInfo=Implementation(name="Claude", version="1.2.3"),
-        )
-        ctx = MagicMock()
-        ctx.request_context.session.client_params = client_params
-
-        dispatcher = _make_dispatcher()
-        with patch.object(dispatcher, "get_context", return_value=ctx):
-            name, version = dispatcher._get_mcp_client_info()
-
-        assert name == "Claude"
-        assert version == "1.2.3"
-
-    async def test_client_info_passed_to_tracking_event(self):
-        single = MagicMock(spec=FastMCP)
-        single.call_tool = AsyncMock(return_value=[TextContent(type="text", text="ok")])
-        dispatcher = _make_dispatcher(single_project_mcp=single)
-
-        with (
-            patch.object(
-                dispatcher, "_is_multi_project", AsyncMock(return_value=False)
-            ),
-            patch.object(
-                dispatcher,
-                "_get_mcp_client_info",
-                return_value=("Claude", "1.2.3"),
-            ),
-        ):
-            await dispatcher.call_tool("some_tool", {})
-
-        event: ToolCalledEvent = (
-            dispatcher.usage_tracker.emit_tool_called_event.call_args.kwargs[
-                "tool_called_event"
-            ]
-        )
-        assert event.mcp_client_name == "Claude"
-        assert event.mcp_client_version == "1.2.3"
-
-    async def test_get_mcp_client_info_returns_empty_when_no_context(self):
-        dispatcher = _make_dispatcher()
-        # FastMCP raises ValueError when request_context is accessed with no active request;
-        # mirror that by having get_context() raise
-        with patch.object(
-            dispatcher, "get_context", side_effect=ValueError("no context")
-        ):
-            name, version = dispatcher._get_mcp_client_info()
-        assert name == ""
-        assert version == ""
-
-    async def test_get_mcp_client_info_returns_empty_when_no_client_params(self):
-        dispatcher = _make_dispatcher()
-        ctx = MagicMock()
-        ctx.request_context.session.client_params = None
-        with patch.object(dispatcher, "get_context", return_value=ctx):
-            name, version = dispatcher._get_mcp_client_info()
-        assert name == ""
-        assert version == ""
-
-    async def test_get_mcp_client_info_returns_empty_when_client_info_missing(self):
-        """Non-compliant clients may omit clientInfo; should not raise."""
-        dispatcher = _make_dispatcher()
-        ctx = MagicMock()
-        ctx.request_context.session.client_params.clientInfo = None
-        with patch.object(dispatcher, "get_context", return_value=ctx):
-            name, version = dispatcher._get_mcp_client_info()
-        assert name == ""
-        assert version == ""
-
-
-class TestAppLifespanLogging:
-    async def test_lifespan_logs_exception_with_traceback(self, caplog):
-        """Regression: app_lifespan used logger.error() without exc_info=True, so an
-        AssertionError with no message logged as 'Error in MCP server:' with no traceback —
-        making the crash completely undiagnosable. Should use logger.exception() instead."""
-        from dbt_mcp.mcp.server import app_lifespan
-
-        server = _make_dispatcher()
-        server.config.proxied_tool_config_provider = MagicMock()
-        server.config.lsp_config = None
-        server.config.disable_tools = []
-        server.config.enable_tools = None
-        server.config.enabled_toolsets = set()
-        server.config.disabled_toolsets = set()
-        server._is_multi_project = AsyncMock(return_value=False)
-
-        with patch(
+async def test_lifespan_logs_exception_with_traceback(caplog):
+    server = make_server()
+    server.config.proxied_tool_config_provider = MagicMock()
+    server.config.disable_tools = []
+    server.config.enable_tools = None
+    server.config.enabled_toolsets = set()
+    server.config.disabled_toolsets = set()
+    with (
+        patch(
             "dbt_mcp.mcp.server.register_proxied_tools", side_effect=AssertionError()
-        ):
-            with patch(
-                "dbt_mcp.mcp.server.ProxiedToolsManager.close", new_callable=AsyncMock
-            ):
-                with patch("dbt_mcp.mcp.server.shutdown"):
-                    with caplog.at_level(logging.ERROR, logger="dbt_mcp.mcp.server"):
-                        with pytest.raises(AssertionError):
-                            async with app_lifespan(server):
-                                pass
-
-        error_records = [
-            r
-            for r in caplog.records
-            if r.levelno == logging.ERROR and "Error in MCP server" in r.message
-        ]
-        assert error_records, "Expected an ERROR log for 'Error in MCP server'"
-        assert any(r.exc_info is not None for r in error_records), (
-            "Expected exc_info to be set so the full traceback appears in the log, "
-            "not just the (empty) exception message"
-        )
-
-
-class TestArgLogging:
-    async def test_sensitive_args_not_logged(self, caplog):
-        single = MagicMock(spec=FastMCP)
-        single.call_tool = AsyncMock(return_value=[TextContent(type="text", text="ok")])
-        dispatcher = _make_dispatcher(single_project_mcp=single)
-
-        with (
-            patch.object(
-                dispatcher, "_is_multi_project", AsyncMock(return_value=False)
-            ),
-            caplog.at_level(logging.INFO, logger="dbt_mcp.mcp.server"),
-        ):
-            await dispatcher.call_tool(
-                "show",
-                {"sql_query": "SELECT id FROM my_model", "limit": 5},
-            )
-
-        assert "SELECT id FROM my_model" not in caplog.text
-        assert "***" in caplog.text
-        assert "limit" in caplog.text
+        ),
+        patch("dbt_mcp.mcp.server.ProxiedToolsManager.close", new_callable=AsyncMock),
+        patch("dbt_mcp.mcp.server.shutdown"),
+        caplog.at_level(logging.ERROR, logger="dbt_mcp.mcp.server"),
+    ):
+        with pytest.raises(AssertionError):
+            async with app_lifespan(server):
+                pass
+    assert any(
+        record.exc_info
+        for record in caplog.records
+        if "Error in MCP server" in record.message
+    )

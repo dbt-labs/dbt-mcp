@@ -17,8 +17,10 @@ def models_fetcher():
 
 
 @pytest.fixture
-def resource_details_fetcher(models_fetcher):
-    return ResourceDetailsFetcher(models_fetcher=models_fetcher)
+def resource_details_fetcher(unit_discovery_config, models_fetcher):
+    return ResourceDetailsFetcher(
+        config=unit_discovery_config, models_fetcher=models_fetcher
+    )
 
 
 async def test_fetch_details_requires_identifier(
@@ -28,9 +30,7 @@ async def test_fetch_details_requires_identifier(
     with pytest.raises(
         InvalidParameterError, match="Either name or unique_id must be provided"
     ):
-        await resource_details_fetcher.fetch_details(
-            AppliedResourceType.MODEL, unit_discovery_config
-        )
+        await resource_details_fetcher.fetch_details(AppliedResourceType.MODEL)
 
 
 async def test_fetch_details_validates_name_unique_id_match(
@@ -40,7 +40,6 @@ async def test_fetch_details_validates_name_unique_id_match(
     with pytest.raises(InvalidParameterError, match="Name and unique_id do not match"):
         await resource_details_fetcher.fetch_details(
             AppliedResourceType.MODEL,
-            unit_discovery_config,
             name="orders",
             unique_id="model.pkg.customers",
         )
@@ -76,7 +75,6 @@ async def test_fetch_details_with_unique_id(
 
     result = await resource_details_fetcher.fetch_details(
         AppliedResourceType.MODEL,
-        unit_discovery_config,
         unique_id=" model.jaffle.orders ",
     )
 
@@ -148,7 +146,6 @@ async def test_fetch_details_with_name_builds_unique_ids(
 
     result = await resource_details_fetcher.fetch_details(
         AppliedResourceType.MACRO,
-        unit_discovery_config,
         name=" My_Macro ",
     )
 
@@ -197,7 +194,6 @@ async def test_fetch_details_preserves_unique_id_casing(
 
     await resource_details_fetcher.fetch_details(
         AppliedResourceType.MODEL,
-        unit_discovery_config,
         unique_id="model.jaffle.MY_MODEL",
     )
 
@@ -236,7 +232,6 @@ async def test_fetch_details_with_lowercase_name_no_duplicate_candidates(
 
     await resource_details_fetcher.fetch_details(
         AppliedResourceType.MACRO,
-        unit_discovery_config,
         name="orders",
     )
 
@@ -265,14 +260,11 @@ async def test_fetch_details_with_name_resolves_model_via_models_fetcher(
 
     result = await resource_details_fetcher.fetch_details(
         AppliedResourceType.MODEL,
-        unit_discovery_config,
         name="orders",
     )
 
     assert result == [details_node]
-    models_fetcher.resolve_unique_ids_by_name.assert_called_once_with(
-        "orders", config=unit_discovery_config
-    )
+    models_fetcher.resolve_unique_ids_by_name.assert_called_once_with("orders")
     mock_api_client.assert_called_once()
     _, variables = mock_api_client.call_args[0]
     assert variables["filter"]["uniqueIds"] == ["model.jaffle.orders"]
@@ -324,7 +316,6 @@ async def test_fetch_details_with_name_resolves_multiple_models(
 
     result = await resource_details_fetcher.fetch_details(
         AppliedResourceType.MODEL,
-        unit_discovery_config,
         name="orders",
     )
 
@@ -349,7 +340,6 @@ async def test_fetch_details_with_name_returns_empty_when_model_not_resolved(
 
     result = await resource_details_fetcher.fetch_details(
         AppliedResourceType.MODEL,
-        unit_discovery_config,
         name="nonexistent",
     )
 
@@ -373,7 +363,6 @@ async def test_fetch_details_returns_empty_when_no_edges(
 
     result = await resource_details_fetcher.fetch_details(
         AppliedResourceType.SOURCE,
-        unit_discovery_config,
         unique_id="source.jaffle.raw_customers",
     )
 
@@ -403,7 +392,6 @@ async def test_fetch_details_name_raises_when_no_packages(
     with pytest.raises(InvalidParameterError, match="No packages found for project"):
         await resource_details_fetcher.fetch_details(
             AppliedResourceType.MACRO,
-            unit_discovery_config,
             name="orders",
         )
 

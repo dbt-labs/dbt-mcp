@@ -26,5 +26,8 @@ class DefaultAdminApiConfigProvider(ConfigProvider[AdminApiConfig]):
             url=url,
             headers_provider=AdminApiHeadersProvider(token_provider=token_provider),
             account_id=settings.dbt_account_id,
-            prod_environment_id=settings.actual_prod_environment_id,
+            environment_id=settings.actual_prod_environment_id,
+            project_id=settings.dbt_project_ids[0]
+            if settings.dbt_project_ids and len(settings.dbt_project_ids) == 1
+            else None,
         )

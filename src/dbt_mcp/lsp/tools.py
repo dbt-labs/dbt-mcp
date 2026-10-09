@@ -9,6 +9,7 @@ from pydantic import Field
 
 from dbt_mcp.lsp.providers.lsp_client_provider import LSPClientProvider
 from dbt_mcp.prompts.prompts import get_prompt
+from dbt_mcp.tools.access import AccessPolicy
 from dbt_mcp.tools.annotations import create_tool_annotations
 from dbt_mcp.tools.definitions import ToolDefinition
 from dbt_mcp.tools.register import register_tools
@@ -70,6 +71,7 @@ async def list_lsp_tools(
     return [
         ToolDefinition(
             fn=call_with_lsp_client(get_column_lineage),
+            requirements=(AccessPolicy.LOCAL,),
             title="Get Column Lineage",
             description=get_prompt("lsp/get_column_lineage"),
             annotations=create_tool_annotations(

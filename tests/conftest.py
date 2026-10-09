@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from mcp.server.fastmcp import FastMCP
 
 # During tests, avoid executing the real `dbt` executable (which in CI/tests
 # may be a placeholder file). Force the detection routine to a deterministic
@@ -118,9 +119,9 @@ def env_setup(tmp_path: Path, monkeypatch):
             for rel, content in files.items():
                 helpers.write_file(rel, content)
         with patch(
-            "dbt_mcp.mcp.server.DbtMCP._is_multi_project",
+            "dbt_mcp.mcp.server.DbtMCP._selected_projects",
             new_callable=AsyncMock,
-            return_value=False,
+            return_value=None,
         ):
             try:
                 yield project_dir, helpers
@@ -137,12 +138,14 @@ def env_setup(tmp_path: Path, monkeypatch):
     yield _make
 
 
-class MockFastMCP:
+class MockFastMCP(FastMCP):
     def __init__(self):
+        super().__init__()
         self.tools = {}
         self.tool_kwargs = {}
 
-    def add_tool(self, fn: Callable[..., Any], **kwargs):
+    def add_tool(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
+        super().add_tool(fn, *args, **kwargs)
         self.tools[fn.__name__] = fn
         self.tool_kwargs[fn.__name__] = kwargs
 
