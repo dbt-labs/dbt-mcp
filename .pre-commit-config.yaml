@@ -48,6 +48,12 @@ repos:
         types_or: [python, pyi, jupyter]
         require_serial: true
         exclude: examples/
+      - id: deptry
+        name: deptry
+        entry: uv run deptry src tests scripts
+        language: system
+        pass_filenames: false
+        require_serial: true
       - id: mypy
         name: mypy
         entry: uv run mypy --show-error-codes --namespace-packages . --exclude examples/

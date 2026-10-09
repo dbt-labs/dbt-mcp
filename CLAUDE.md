@@ -62,7 +62,7 @@ Tools can have associated UIs via the `meta` field:
 
 - Declare every third-party package your code imports directly. Packages imported by `src/dbt_mcp` or `src/remote_mcp` go in `dependencies`; packages imported only by tests, evals or scripts go in the `dev` group. Never rely on a package that is only installed because another dependency requires it: a change to what that dependency requires then removes or downgrades it, and the first sign is an `ImportError` at runtime.
 - Declare a new import's package in the same change as the import, with `uv add`. Use the version in `uv.lock` as the lower bound.
-- To check, run `uv run --frozen --no-sync --with deptry deptry src tests scripts --known-first-party dbt_mcp --known-first-party remote_mcp` and look for `DEP003` (transitive) findings.
+- `deptry` enforces this. It runs as part of `task check` (and so in CI) and fails on a package that is imported but not declared. Configuration is under `[tool.deptry]` in `pyproject.toml`.
 
 ## Changelog
 
