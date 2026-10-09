@@ -1061,6 +1061,29 @@ class TestFlightSqlTimeLimit:
         assert isinstance(bounded._adbc, _TimeBoundedFlightSqlClient)  # type: ignore[attr-defined]
         assert not isinstance(default._adbc, _TimeBoundedFlightSqlClient)  # type: ignore[attr-defined]
 
+    async def test_default_graphql_client_uses_the_configured_url_format(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "dbt_mcp.semantic_layer.client.dbtsl_env.GRAPHQL_URL_FORMAT",
+            "http://{server_host}:8080/custom/graphql",
+        )
+        token_provider = MagicMock()
+        token_provider.get_token.return_value = "tok"
+        config = SemanticLayerConfig(
+            url="https://test-host/api/graphql",
+            host="test-host",
+            prod_environment_id=123,
+            token_provider=token_provider,
+            headers_provider=MagicMock(),
+        )
+
+        client = await DefaultSemanticLayerClientProvider().get_graphql_client(
+            config=config
+        )
+
+        assert client._gql.transport.url == "http://test-host:8080/custom/graphql"  # type: ignore[attr-defined]
+
     async def test_only_query_metrics_asks_for_a_time_limited_client(self):
         client = MagicMock()
         session_ctx = MagicMock()

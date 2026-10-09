@@ -11,6 +11,7 @@ from typing import Any, Protocol
 import pyarrow as pa
 from adbc_driver_flightsql import DatabaseOptions
 from adbc_driver_manager import AdbcStatusCode, OperationalError
+from dbtsl import env as dbtsl_env
 from dbtsl.api.adbc.client.sync import SyncADBCClient
 from dbtsl.api.graphql.client.sync import SyncGraphQLClient
 from dbtsl.api.shared.query_params import (
@@ -208,6 +209,7 @@ class DefaultSemanticLayerClientProvider:
             environment_id=config.prod_environment_id,
             auth_token=config.token_provider.get_token(),
             server_host=config.host,
+            url_format=dbtsl_env.GRAPHQL_URL_FORMAT,
             lazy=True,
         )
 
