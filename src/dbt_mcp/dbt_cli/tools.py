@@ -8,12 +8,12 @@ from typing import Any
 import logging
 
 from mcp.server.fastmcp import FastMCP
-from pydantic import Field
+from pydantic import Field, ValidationError
 
 from dbt_mcp.config.config import DbtCliConfig
 from dbt_mcp.dbt_cli.binary_type import BinaryType, get_color_disable_flag
 from dbt_mcp.dbt_cli.models.lineage_types import ModelLineage
-from dbt_mcp.dbt_cli.models.manifest import Manifest
+from dbt_mcp.dbt_cli.models.manifest import Manifest, looks_like_unique_id
 from dbt_mcp.dbt_cli.subprocess_env import get_dbt_subprocess_env
 from dbt_mcp.errors.common import InvalidParameterError
 from dbt_mcp.prompts.prompts import get_prompt
@@ -366,6 +366,36 @@ def create_dbt_cli_tool_definitions(
             manifest_data = json.load(f)
         return Manifest(**manifest_data)
 
+    def _resolve_node_selector(node_id: str) -> str:
+        """Translate a unique_id into a selector `dbt list --select` accepts.
+
+        Names and method selectors are returned unchanged. A unique_id is
+        resolved through the same manifest `get_lineage_dev` loads. If that
+        manifest is missing or does not contain the id, node_id is passed
+        through.
+        """
+        if not looks_like_unique_id(node_id):
+            return node_id
+        try:
+            manifest = _get_manifest()
+        except (
+            OSError,
+            UnicodeError,
+            json.JSONDecodeError,
+            ValidationError,
+            TypeError,
+        ):
+            logger.debug(
+                "Could not load manifest to resolve unique_id %s",
+                node_id,
+                exc_info=True,
+            )
+            return node_id
+        resolved = manifest.selector_for_unique_id(node_id)
+        if resolved is None:
+            return node_id
+        return resolved
+
     async def get_lineage_dev(
         unique_id: str = UNIQUE_ID_REQUIRED_FIELD,
         types: list[LineageResourceType] | None = TYPES_FIELD,
@@ -428,13 +458,17 @@ def create_dbt_cli_tool_definitions(
             "created_at",
             "unrendered_config",
         ]
-        async with lock:
-            output = await asyncio.to_thread(
-                _run_dbt_command,
+        def _list_node_details() -> str:
+            # Resolve and list under one lock hold so a concurrent dbt command
+            # cannot rewrite target/ between the parse and the list.
+            return _run_dbt_command(
                 ["list", "--output", "json", "--output-keys", *output_keys],
-                node_selection=node_id,
+                node_selection=_resolve_node_selector(node_id),
                 is_selectable=True,
             )
+
+        async with lock:
+            output = await asyncio.to_thread(_list_node_details)
 
         node_result: dict[str, Any] | None = None
         test_ids: list[str] = []
