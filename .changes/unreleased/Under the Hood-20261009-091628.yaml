@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: Declare pydantic, pydantic-core, anyio and pyarrow as direct dependencies, since the code imports them directly
+time: 2026-10-09T09:16:28.047484-05:00

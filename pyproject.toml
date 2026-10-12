@@ -47,6 +47,11 @@ dependencies = [
   "dbt-artifacts-parser>=0.13.2",
   "jq>=1.12.0",
   "cachetools>=5,<8",
+  # Imported directly by src/, so declared rather than relied on transitively.
+  "anyio>=4.14.2",
+  "pyarrow>=23.0.1",
+  "pydantic>=2.12.5",
+  "pydantic-core>=2.41.5",
 ]
 [tool.uv]
 exclude-newer = "7 days"
@@ -54,6 +59,7 @@ exclude-newer-package = { dbt-protos = false, dbt-sl-sdk = false, dbtlabs-vortex
 
 [dependency-groups]
 dev = [
+  "cryptography>=50.0.0",
   "ruff>=0.11.2",
   "mypy>=1.12.1",
   "pre-commit>=4.2.0",
