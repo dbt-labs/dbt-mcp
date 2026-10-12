@@ -19,7 +19,7 @@ from dbt_mcp.tools.tool_names import ToolName
 async def test_fetch_models(
     models_fetcher: ModelsFetcher, discovery_config: DiscoveryConfig
 ):
-    results = (await models_fetcher.fetch_models(config=discovery_config)).result
+    results = (await models_fetcher.fetch_models()).result
 
     # Basic validation of the response
     assert isinstance(results, list)
@@ -42,9 +42,7 @@ async def test_fetch_models_with_filter(
 
     # Fetch filtered results
     filtered_results = (
-        await models_fetcher.fetch_models(
-            model_filter=model_filter, config=discovery_config
-        )
+        await models_fetcher.fetch_models(model_filter=model_filter)
     ).result
 
     # Validate filtered results
@@ -55,13 +53,11 @@ async def test_fetch_models_with_filter(
 async def test_fetch_model_parents(
     models_fetcher: ModelsFetcher, discovery_config: DiscoveryConfig
 ):
-    models = (await models_fetcher.fetch_models(config=discovery_config)).result
+    models = (await models_fetcher.fetch_models()).result
     model_name = models[0]["name"]
 
     # Fetch filtered results
-    filtered_results = await models_fetcher.fetch_model_parents(
-        model_name, config=discovery_config
-    )
+    filtered_results = await models_fetcher.fetch_model_parents(model_name)
 
     # Validate filtered results
     assert len(filtered_results) > 0
@@ -71,19 +67,17 @@ async def test_fetch_model_parents(
 async def test_fetch_model_parents_with_uniqueId(
     models_fetcher: ModelsFetcher, discovery_config: DiscoveryConfig
 ):
-    models = (await models_fetcher.fetch_models(config=discovery_config)).result
+    models = (await models_fetcher.fetch_models()).result
     model = models[0]
     model_name = model["name"]
     unique_id = model["uniqueId"]
 
     # Fetch by name
-    results_by_name = await models_fetcher.fetch_model_parents(
-        model_name, config=discovery_config
-    )
+    results_by_name = await models_fetcher.fetch_model_parents(model_name)
 
     # Fetch by uniqueId
     results_by_uniqueId = await models_fetcher.fetch_model_parents(
-        model_name, unique_id, config=discovery_config
+        model_name, unique_id
     )
 
     # Validate that both methods return the same result
@@ -97,13 +91,11 @@ async def test_fetch_model_parents_with_uniqueId(
 async def test_fetch_model_children(
     models_fetcher: ModelsFetcher, discovery_config: DiscoveryConfig
 ):
-    models = (await models_fetcher.fetch_models(config=discovery_config)).result
+    models = (await models_fetcher.fetch_models()).result
     model_name = models[0]["name"]
 
     # Fetch filtered results
-    filtered_results = await models_fetcher.fetch_model_children(
-        model_name, config=discovery_config
-    )
+    filtered_results = await models_fetcher.fetch_model_children(model_name)
 
     # Validate filtered results
     assert isinstance(filtered_results, list)
@@ -113,19 +105,17 @@ async def test_fetch_model_children(
 async def test_fetch_model_children_with_uniqueId(
     models_fetcher: ModelsFetcher, discovery_config: DiscoveryConfig
 ):
-    models = (await models_fetcher.fetch_models(config=discovery_config)).result
+    models = (await models_fetcher.fetch_models()).result
     model = models[0]
     model_name = model["name"]
     unique_id = model["uniqueId"]
 
     # Fetch by name
-    results_by_name = await models_fetcher.fetch_model_children(
-        model_name, config=discovery_config
-    )
+    results_by_name = await models_fetcher.fetch_model_children(model_name)
 
     # Fetch by uniqueId
     results_by_uniqueId = await models_fetcher.fetch_model_children(
-        model_name, unique_id, config=discovery_config
+        model_name, unique_id
     )
 
     # Validate that both methods return the same result
@@ -139,7 +129,7 @@ async def test_fetch_model_children_with_uniqueId(
 async def test_fetch_exposures(
     exposures_fetcher: ExposuresFetcher, discovery_config: DiscoveryConfig
 ):
-    results = (await exposures_fetcher.fetch_exposures(config=discovery_config)).result
+    results = (await exposures_fetcher.fetch_exposures()).result
 
     # Basic validation of the response
     assert isinstance(results, list)
@@ -159,7 +149,7 @@ async def test_fetch_exposures_pagination(
 ):
     # Test that pagination works correctly by fetching all exposures
     # This test ensures the pagination logic handles multiple pages properly
-    results = (await exposures_fetcher.fetch_exposures(config=discovery_config)).result
+    results = (await exposures_fetcher.fetch_exposures()).result
 
     # Validate that we get results (assuming the test environment has some exposures)
     assert isinstance(results, list)
@@ -178,7 +168,7 @@ async def test_fetch_sources(
     sources_fetcher: SourcesFetcher, discovery_config: DiscoveryConfig
 ):
     """Test basic sources fetching functionality."""
-    results = (await sources_fetcher.fetch_sources(config=discovery_config)).result
+    results = (await sources_fetcher.fetch_sources()).result
 
     # Basic validation of the response
     assert isinstance(results, list)
@@ -212,7 +202,7 @@ async def test_fetch_sources_with_filter(
 ):
     """Test sources fetching with filter."""
     # First get all sources to find a valid source name
-    all_sources = (await sources_fetcher.fetch_sources(config=discovery_config)).result
+    all_sources = (await sources_fetcher.fetch_sources()).result
 
     if len(all_sources) > 0:
         # Pick the first source name for filtering
@@ -220,9 +210,7 @@ async def test_fetch_sources_with_filter(
 
         # Test filtering by source name
         filtered_results = (
-            await sources_fetcher.fetch_sources(
-                source_names=[source_name], config=discovery_config
-            )
+            await sources_fetcher.fetch_sources(source_names=[source_name])
         ).result
 
         # Validate filtered results
@@ -257,7 +245,7 @@ async def test_get_all_sources_tool(
     # Execute the tool function
     page = await get_all_sources_tool.fn(
         context=DiscoveryToolContext(
-            config_provider=config_provider,
+            config=await config_provider.get_config(),
         )
     )
 
@@ -282,7 +270,7 @@ async def test_fetch_macros(
     """Test basic macros fetching functionality (excluding dbt-labs first-party macros)."""
     from dbt_mcp.discovery.client import DBT_BUILTIN_PACKAGES
 
-    results = (await macros_fetcher.fetch_macros(config=discovery_config)).result
+    results = (await macros_fetcher.fetch_macros()).result
 
     # Basic validation of the response
     assert isinstance(results, list)
@@ -311,7 +299,7 @@ async def test_fetch_macros_with_package_filter(
 ):
     """Test macros fetching with package name filter."""
     # First get all macros to find available packages
-    all_macros = (await macros_fetcher.fetch_macros(config=discovery_config)).result
+    all_macros = (await macros_fetcher.fetch_macros()).result
 
     if len(all_macros) > 0:
         first_macro = all_macros[0]
@@ -322,9 +310,7 @@ async def test_fetch_macros_with_package_filter(
 
         # Test filtering by package name
         filtered_results = (
-            await macros_fetcher.fetch_macros(
-                package_names=[package_name], config=discovery_config
-            )
+            await macros_fetcher.fetch_macros(package_names=[package_name])
         ).result
 
         # Validate filtered results
@@ -360,7 +346,7 @@ async def test_get_all_macros_tool(
     # Execute the tool function
     page = await get_all_macros_tool.fn(
         context=DiscoveryToolContext(
-            config_provider=config_provider,
+            config=await config_provider.get_config(),
         ),
         package_names=None,
         return_package_names_only=False,

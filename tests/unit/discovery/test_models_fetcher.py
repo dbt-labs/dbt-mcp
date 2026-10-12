@@ -7,8 +7,8 @@ from dbt_mcp.errors import InvalidParameterError
 
 
 @pytest.fixture
-def models_fetcher():
-    return ModelsFetcher(paginator=Mock())
+def models_fetcher(unit_discovery_config):
+    return ModelsFetcher(config=unit_discovery_config, paginator=Mock())
 
 
 def _models_page(nodes, *, has_next, end_cursor):
@@ -27,14 +27,15 @@ def _models_page(nodes, *, has_next, end_cursor):
 
 
 @pytest.fixture
-def paginated_models_fetcher():
+def paginated_models_fetcher(unit_discovery_config):
     """ModelsFetcher backed by a real PaginatedResourceFetcher, so pagination
     is genuinely exercised rather than mocked away."""
     paginator = PaginatedResourceFetcher(
+        config=unit_discovery_config,
         edges_path=("data", "environment", "applied", "models", "edges"),
         page_info_path=("data", "environment", "applied", "models", "pageInfo"),
     )
-    return ModelsFetcher(paginator=paginator)
+    return ModelsFetcher(config=unit_discovery_config, paginator=paginator)
 
 
 async def test_fetch_model_health_wraps_single_node_in_list(
@@ -51,9 +52,7 @@ async def test_fetch_model_health_wraps_single_node_in_list(
         "data": {"environment": {"applied": {"models": {"edges": [{"node": node}]}}}}
     }
 
-    result = await models_fetcher.fetch_model_health(
-        unique_id="model.project.my_model", config=unit_discovery_config
-    )
+    result = await models_fetcher.fetch_model_health(unique_id="model.project.my_model")
 
     assert isinstance(result, list), (
         "fetch_model_health must return a list, not a bare dict"
@@ -71,7 +70,7 @@ async def test_fetch_model_health_empty_edges_returns_empty_list(
     }
 
     result = await models_fetcher.fetch_model_health(
-        unique_id="model.project.nonexistent", config=unit_discovery_config
+        unique_id="model.project.nonexistent"
     )
 
     assert result == []
@@ -88,9 +87,7 @@ async def test_resolve_unique_ids_by_name_single_match(
         )
     ]
 
-    result = await paginated_models_fetcher.resolve_unique_ids_by_name(
-        "orders", config=unit_discovery_config
-    )
+    result = await paginated_models_fetcher.resolve_unique_ids_by_name("orders")
 
     assert result == ["model.jaffle.orders"]
     query, variables = mock_api_client.call_args[0]
@@ -115,9 +112,7 @@ async def test_resolve_unique_ids_by_name_multi_match(
         ),
     ]
 
-    result = await paginated_models_fetcher.resolve_unique_ids_by_name(
-        "orders", config=unit_discovery_config
-    )
+    result = await paginated_models_fetcher.resolve_unique_ids_by_name("orders")
 
     assert result == ["model.jaffle.orders", "model.other_pkg.orders"]
     assert mock_api_client.await_count == 1
@@ -141,9 +136,7 @@ async def test_resolve_unique_ids_by_name_requires_id_when_candidates_remain(
     ]
 
     with pytest.raises(InvalidParameterError, match="provide unique_id"):
-        await paginated_models_fetcher.resolve_unique_ids_by_name(
-            "orders", config=unit_discovery_config
-        )
+        await paginated_models_fetcher.resolve_unique_ids_by_name("orders")
 
     assert mock_api_client.await_count == 1
 
@@ -158,9 +151,7 @@ async def test_resolve_unique_ids_by_name_accepts_complete_candidate_limit(
         end_cursor="last",
     )
 
-    result = await paginated_models_fetcher.resolve_unique_ids_by_name(
-        "orders", config=unit_discovery_config
-    )
+    result = await paginated_models_fetcher.resolve_unique_ids_by_name("orders")
 
     assert result == ids
     assert mock_api_client.await_count == 1
@@ -171,9 +162,7 @@ async def test_resolve_unique_ids_by_name_empty(
 ):
     mock_api_client.side_effect = [_models_page([], has_next=False, end_cursor=None)]
 
-    result = await paginated_models_fetcher.resolve_unique_ids_by_name(
-        "nonexistent", config=unit_discovery_config
-    )
+    result = await paginated_models_fetcher.resolve_unique_ids_by_name("nonexistent")
 
     assert result == []
 
@@ -190,9 +179,7 @@ async def test_resolve_unique_ids_by_name_filters_out_malformed_edge(
         )
     ]
 
-    result = await paginated_models_fetcher.resolve_unique_ids_by_name(
-        "orders", config=unit_discovery_config
-    )
+    result = await paginated_models_fetcher.resolve_unique_ids_by_name("orders")
 
     assert result == []
 
@@ -213,9 +200,7 @@ async def test_resolve_unique_ids_by_name_filters_false_positive_alias_match(
         )
     ]
 
-    result = await paginated_models_fetcher.resolve_unique_ids_by_name(
-        "orders", config=unit_discovery_config
-    )
+    result = await paginated_models_fetcher.resolve_unique_ids_by_name("orders")
 
     assert result == []
 
@@ -233,9 +218,7 @@ async def test_resolve_unique_ids_by_name_case_insensitive_name_match(
         )
     ]
 
-    result = await paginated_models_fetcher.resolve_unique_ids_by_name(
-        "Orders", config=unit_discovery_config
-    )
+    result = await paginated_models_fetcher.resolve_unique_ids_by_name("Orders")
 
     assert result == ["model.jaffle.orders"]
 
@@ -255,8 +238,6 @@ async def test_resolve_unique_ids_by_name_handles_null_name_field(
         )
     ]
 
-    result = await paginated_models_fetcher.resolve_unique_ids_by_name(
-        "orders", config=unit_discovery_config
-    )
+    result = await paginated_models_fetcher.resolve_unique_ids_by_name("orders")
 
     assert result == []
