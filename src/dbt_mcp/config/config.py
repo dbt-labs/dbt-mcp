@@ -6,14 +6,12 @@ from dataclasses import dataclass, field
 from dbt_mcp.config.config_providers.admin_api import DefaultAdminApiConfigProvider
 from dbt_mcp.config.config_providers.discovery import (
     DefaultDiscoveryConfigProvider,
-    MultiProjectDiscoveryConfigProvider,
 )
 from dbt_mcp.config.config_providers.proxied_tool import (
     DefaultProxiedToolConfigProvider,
 )
 from dbt_mcp.config.config_providers.semantic_layer import (
     DefaultSemanticLayerConfigProvider,
-    MultiProjectSemanticLayerConfigProvider,
 )
 from dbt_mcp.config.credentials import CredentialsProvider
 from dbt_mcp.config.settings import (
@@ -96,11 +94,7 @@ class Config:
     proxied_tool_config_provider: DefaultProxiedToolConfigProvider | None
     dbt_cli_config: DbtCliConfig | None
     dbt_codegen_config: DbtCodegenConfig | None
-    multi_project_discovery_config_provider: MultiProjectDiscoveryConfigProvider
     discovery_config_provider: DefaultDiscoveryConfigProvider
-    multi_project_semantic_layer_config_provider: (
-        MultiProjectSemanticLayerConfigProvider
-    )
     semantic_layer_config_provider: DefaultSemanticLayerConfigProvider
     admin_api_config_provider: DefaultAdminApiConfigProvider
     credentials_provider: CredentialsProvider
@@ -181,23 +175,13 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         credentials_provider=credentials_provider,
     )
     admin_client = DbtAdminAPIClient(admin_api_config_provider)
-    multi_project_discovery_config_provider = MultiProjectDiscoveryConfigProvider(
+    discovery_config_provider = DefaultDiscoveryConfigProvider(
         credentials_provider=credentials_provider,
         admin_client=admin_client,
     )
-    multi_project_semantic_layer_config_provider = (
-        MultiProjectSemanticLayerConfigProvider(
-            credentials_provider=credentials_provider,
-            admin_client=admin_client,
-            metrics_related_max=settings.sl_metrics_related_max,
-            max_response_chars=settings.sl_metrics_max_response_chars,
-        )
-    )
-    discovery_config_provider = DefaultDiscoveryConfigProvider(
-        credentials_provider=credentials_provider,
-    )
     semantic_layer_config_provider = DefaultSemanticLayerConfigProvider(
         credentials_provider=credentials_provider,
+        admin_client=admin_client,
         metrics_related_max=settings.sl_metrics_related_max,
         max_response_chars=settings.sl_metrics_max_response_chars,
     )
@@ -267,9 +251,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
         proxied_tool_config_provider=proxied_tool_config_provider,
         dbt_cli_config=dbt_cli_config,
         dbt_codegen_config=dbt_codegen_config,
-        multi_project_discovery_config_provider=multi_project_discovery_config_provider,
         discovery_config_provider=discovery_config_provider,
-        multi_project_semantic_layer_config_provider=multi_project_semantic_layer_config_provider,
         semantic_layer_config_provider=semantic_layer_config_provider,
         admin_api_config_provider=admin_api_config_provider,
         credentials_provider=credentials_provider,

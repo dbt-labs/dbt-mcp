@@ -9,8 +9,10 @@ from dbt_mcp.tools.parameters import LineageDirection
 
 
 @pytest.fixture
-def lineage_fetcher():
-    return LineageFetcher()
+def lineage_fetcher(unit_discovery_config):
+    return LineageFetcher(
+        config=unit_discovery_config,
+    )
 
 
 async def test_fetch_lineage_returns_connected_nodes(
@@ -61,7 +63,7 @@ async def test_fetch_lineage_returns_connected_nodes(
     }
 
     result = await lineage_fetcher.fetch_lineage(
-        unique_id="model.test.customers", depth=5, config=unit_discovery_config
+        unique_id="model.test.customers", depth=5
     )
 
     # Should return only the 3 connected nodes
@@ -86,7 +88,6 @@ async def test_fetch_lineage_with_type_filter(
         unique_id="model.test.customers",
         depth=5,
         types=[LineageResourceType.MODEL, LineageResourceType.SOURCE],
-        config=unit_discovery_config,
     )
 
     call_args = mock_api_client.call_args
@@ -116,7 +117,7 @@ async def test_fetch_lineage_target_not_found(
     }
 
     result = await lineage_fetcher.fetch_lineage(
-        unique_id="model.test.nonexistent", depth=5, config=unit_discovery_config
+        unique_id="model.test.nonexistent", depth=5
     )
 
     assert result == []
@@ -131,7 +132,7 @@ async def test_fetch_lineage_empty_response(
     }
 
     result = await lineage_fetcher.fetch_lineage(
-        unique_id="model.test.customers", depth=5, config=unit_discovery_config
+        unique_id="model.test.customers", depth=5
     )
 
     assert result == []
@@ -171,7 +172,7 @@ async def test_fetch_lineage_filters_out_macros(
     }
 
     result = await lineage_fetcher.fetch_lineage(
-        unique_id="model.test.customers", depth=5, config=unit_discovery_config
+        unique_id="model.test.customers", depth=5
     )
 
     # Should only return the model, macros should be filtered out
@@ -227,9 +228,7 @@ async def test_fetch_lineage_depth_limits_traversal(
 
     # With depth=2, starting from model2, should include model1, model2, model3
     # (1 step upstream to model1, 1 step downstream to model3)
-    result = await lineage_fetcher.fetch_lineage(
-        unique_id="model.test.model2", depth=2, config=unit_discovery_config
-    )
+    result = await lineage_fetcher.fetch_lineage(unique_id="model.test.model2", depth=2)
 
     unique_ids = {node["uniqueId"] for node in result}
     # Depth 2 from model2: model2 (start), model1 (depth 1), source.raw (depth 2),
@@ -270,9 +269,7 @@ async def test_fetch_lineage_depth_zero_is_infinite(
     }
 
     # Depth 0 should return all connected nodes regardless of distance
-    result = await lineage_fetcher.fetch_lineage(
-        unique_id="model.test.model1", depth=0, config=unit_discovery_config
-    )
+    result = await lineage_fetcher.fetch_lineage(unique_id="model.test.model1", depth=0)
     unique_ids = {node["uniqueId"] for node in result}
     assert unique_ids == {"model.test.model1", "model.test.model2", "model.test.model3"}
 
@@ -282,9 +279,7 @@ async def test_fetch_lineage_negative_depth_raises_error(
 ):
     """Test that negative depth raises a ToolCallError."""
     with pytest.raises(ToolCallError, match="Depth must be greater than or equal to 0"):
-        await lineage_fetcher.fetch_lineage(
-            unique_id="model.test.customers", depth=-1, config=unit_discovery_config
-        )
+        await lineage_fetcher.fetch_lineage(unique_id="model.test.customers", depth=-1)
 
 
 async def test_fetch_lineage_depth_one_returns_immediate_neighbors(
@@ -321,7 +316,7 @@ async def test_fetch_lineage_depth_one_returns_immediate_neighbors(
     }
 
     result = await lineage_fetcher.fetch_lineage(
-        unique_id="model.test.staging", depth=1, config=unit_discovery_config
+        unique_id="model.test.staging", depth=1
     )
 
     unique_ids = {node["uniqueId"] for node in result}
@@ -367,7 +362,7 @@ async def test_fetch_lineage_filters_nodes_without_resource_type(
     }
 
     result = await lineage_fetcher.fetch_lineage(
-        unique_id="model.test.customers", depth=5, config=unit_discovery_config
+        unique_id="model.test.customers", depth=5
     )
 
     # Should only return the model with valid resourceType
@@ -432,9 +427,7 @@ async def test_fetch_lineage_depth_excludes_nodes_beyond_limit(
         }
     }
 
-    result = await lineage_fetcher.fetch_lineage(
-        unique_id="model.test.int", depth=1, config=unit_discovery_config
-    )
+    result = await lineage_fetcher.fetch_lineage(unique_id="model.test.int", depth=1)
 
     unique_ids = {node["uniqueId"] for node in result}
 
@@ -506,9 +499,7 @@ async def test_fetch_lineage_depth_processes_all_queued_items_at_valid_depths(
         }
     }
 
-    result = await lineage_fetcher.fetch_lineage(
-        unique_id="model.test.target", depth=1, config=unit_discovery_config
-    )
+    result = await lineage_fetcher.fetch_lineage(unique_id="model.test.target", depth=1)
 
     unique_ids = {node["uniqueId"] for node in result}
 
@@ -579,9 +570,7 @@ async def test_fetch_lineage_depth_boundary_includes_nodes_at_exact_depth(
         }
     }
 
-    result = await lineage_fetcher.fetch_lineage(
-        unique_id="model.test.c", depth=2, config=unit_discovery_config
-    )
+    result = await lineage_fetcher.fetch_lineage(unique_id="model.test.c", depth=2)
 
     unique_ids = {node["uniqueId"] for node in result}
 
@@ -632,7 +621,6 @@ async def test_fetch_lineage_direction_upstream_excludes_children(
         unique_id="model.test.staging",
         depth=5,
         direction=LineageDirection.UPSTREAM,
-        config=unit_discovery_config,
     )
 
     unique_ids = {node["uniqueId"] for node in result}
@@ -678,7 +666,6 @@ async def test_fetch_lineage_direction_downstream_excludes_parents(
         unique_id="model.test.staging",
         depth=5,
         direction=LineageDirection.DOWNSTREAM,
-        config=unit_discovery_config,
     )
 
     unique_ids = {node["uniqueId"] for node in result}
@@ -721,7 +708,7 @@ async def test_fetch_lineage_direction_defaults_to_both(
     }
 
     result = await lineage_fetcher.fetch_lineage(
-        unique_id="model.test.staging", depth=5, config=unit_discovery_config
+        unique_id="model.test.staging", depth=5
     )
 
     unique_ids = {node["uniqueId"] for node in result}
@@ -765,9 +752,7 @@ async def test_fetch_lineage_large_depth_returns_all_connected(
         }
     }
 
-    result = await lineage_fetcher.fetch_lineage(
-        unique_id="model.test.b", depth=100, config=unit_discovery_config
-    )
+    result = await lineage_fetcher.fetch_lineage(unique_id="model.test.b", depth=100)
 
     unique_ids = {node["uniqueId"] for node in result}
 

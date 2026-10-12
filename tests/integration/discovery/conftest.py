@@ -51,16 +51,17 @@ def credentials_provider() -> CredentialsProvider:
 
 
 @pytest.fixture
-def models_fetcher() -> ModelsFetcher:
+def models_fetcher(discovery_config) -> ModelsFetcher:
     paginator = PaginatedResourceFetcher(
         edges_path=("data", "environment", "applied", "models", "edges"),
         page_info_path=("data", "environment", "applied", "models", "pageInfo"),
+        config=discovery_config,
     )
-    return ModelsFetcher(paginator=paginator)
+    return ModelsFetcher(paginator=paginator, config=discovery_config)
 
 
 @pytest.fixture
-def exposures_fetcher() -> ExposuresFetcher:
+def exposures_fetcher(discovery_config) -> ExposuresFetcher:
     paginator = PaginatedResourceFetcher(
         edges_path=("data", "environment", "definition", "exposures", "edges"),
         page_info_path=(
@@ -70,23 +71,26 @@ def exposures_fetcher() -> ExposuresFetcher:
             "exposures",
             "pageInfo",
         ),
+        config=discovery_config,
     )
     return ExposuresFetcher(paginator=paginator)
 
 
 @pytest.fixture
-def sources_fetcher() -> SourcesFetcher:
+def sources_fetcher(discovery_config) -> SourcesFetcher:
     paginator = PaginatedResourceFetcher(
         edges_path=("data", "environment", "applied", "sources", "edges"),
         page_info_path=("data", "environment", "applied", "sources", "pageInfo"),
+        config=discovery_config,
     )
     return SourcesFetcher(paginator=paginator)
 
 
 @pytest.fixture
-def macros_fetcher() -> MacrosFetcher:
+def macros_fetcher(discovery_config) -> MacrosFetcher:
     paginator = PaginatedResourceFetcher(
         edges_path=("data", "environment", "applied", "resources", "edges"),
         page_info_path=("data", "environment", "applied", "resources", "pageInfo"),
+        config=discovery_config,
     )
     return MacrosFetcher(paginator=paginator)

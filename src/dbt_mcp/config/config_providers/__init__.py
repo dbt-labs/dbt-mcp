@@ -2,19 +2,17 @@ from .base import (
     AdminApiConfig,
     ConfigProvider,
     DiscoveryConfig,
-    MultiProjectConfigProvider,
+    ProjectConfigProvider,
     ProxiedToolConfig,
     SemanticLayerConfig,
     StaticConfigProvider,
 )
-from .discovery import MultiProjectDiscoveryConfigProvider
 
 __all__ = [
     "AdminApiConfig",
     "ConfigProvider",
     "DiscoveryConfig",
-    "MultiProjectConfigProvider",
-    "MultiProjectDiscoveryConfigProvider",
+    "ProjectConfigProvider",
     "ProxiedToolConfig",
     "SemanticLayerConfig",
     "StaticConfigProvider",
