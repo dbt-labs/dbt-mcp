@@ -284,14 +284,11 @@ class TestAppLifespanLogging:
         with patch(
             "dbt_mcp.mcp.server.register_proxied_tools", side_effect=AssertionError()
         ):
-            with patch(
-                "dbt_mcp.mcp.server.ProxiedToolsManager.close", new_callable=AsyncMock
-            ):
-                with patch("dbt_mcp.mcp.server.shutdown"):
-                    with caplog.at_level(logging.ERROR, logger="dbt_mcp.mcp.server"):
-                        with pytest.raises(AssertionError):
-                            async with app_lifespan(server):
-                                pass
+            with patch("dbt_mcp.mcp.server.shutdown"):
+                with caplog.at_level(logging.ERROR, logger="dbt_mcp.mcp.server"):
+                    with pytest.raises(AssertionError):
+                        async with app_lifespan(server):
+                            pass
 
         error_records = [
             r

@@ -1,7 +1,8 @@
 import logging
 from collections.abc import Sequence
 from contextlib import AsyncExitStack
-from typing import Annotated, Any
+from typing import Annotated, Any, Self
+from types import TracebackType
 
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from mcp import ClientSession
@@ -101,7 +102,20 @@ async def format_remote_tool_error(
 
 
 class ProxiedToolsManager:
-    _stack = AsyncExitStack()
+    def __init__(self) -> None:
+        self._stack = AsyncExitStack()
+
+    async def __aenter__(self) -> Self:
+        await self._stack.__aenter__()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool | None:
+        return await self._stack.__aexit__(exc_type, exc, traceback)
 
     async def get_remote_mcp_session(
         self, url: str, headers: dict[str, str]
@@ -124,15 +138,12 @@ class ProxiedToolsManager:
             ClientSession(read_stream, write_stream)
         )
 
-    @classmethod
-    async def close(cls) -> None:
-        await cls._stack.aclose()
-
 
 async def register_proxied_tools(
     dbt_mcp: FastMCP,
     config_provider: ConfigProvider[ProxiedToolConfig],
     *,
+    manager: ProxiedToolsManager,
     disabled_tools: set[ToolName],
     enabled_tools: set[ToolName] | None,
     enabled_toolsets: set[Toolset],
@@ -165,19 +176,12 @@ async def register_proxied_tools(
         headers["x-dbt-dev-environment-id"] = str(config.dev_environment_id)
     if config.user_id:
         headers["x-dbt-user-id"] = str(config.user_id)
-    proxied_tools_manager = ProxiedToolsManager()
     try:
-        session = await proxied_tools_manager.get_remote_mcp_session(
-            config.url, headers
-        )
+        session = await manager.get_remote_mcp_session(config.url, headers)
         await session.initialize()
         tools = await get_proxied_tools(session, configured_proxied_tools)
-    except BaseException as e:
+    except Exception as e:
         logger.error(f"Error getting proxied tools: {e}")
-        try:
-            await proxied_tools_manager.close()
-        except Exception:
-            logger.exception("Error closing proxied tools manager after failure")
         return
     logger.info(f"Loaded proxied tools: {', '.join([tool.name for tool in tools])}")
     for tool in tools:

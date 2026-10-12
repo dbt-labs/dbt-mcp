@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Keep local MCP proxy connections isolated across overlapping clients and reconnects.
+time: 2026-10-12T11:59:32.563663-05:00
