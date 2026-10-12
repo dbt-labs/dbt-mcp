@@ -186,7 +186,6 @@ async def test_lifespan_logs_exception_with_traceback(caplog):
         patch(
             "dbt_mcp.mcp.server.register_proxied_tools", side_effect=AssertionError()
         ),
-        patch("dbt_mcp.mcp.server.ProxiedToolsManager.close", new_callable=AsyncMock),
         patch("dbt_mcp.mcp.server.shutdown"),
         caplog.at_level(logging.ERROR, logger="dbt_mcp.mcp.server"),
     ):

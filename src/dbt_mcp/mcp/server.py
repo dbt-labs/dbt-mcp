@@ -109,6 +109,13 @@ class DbtMCP(FastMCP):
             pass
         return "", ""
 
+    def _session_tools(self) -> FastMCP | None:
+        try:
+            tools = self.get_context().request_context.lifespan_context
+        except ValueError:
+            return None
+        return tools if isinstance(tools, FastMCP) else None
+
     async def call_tool(
         self, name: str, arguments: dict[str, Any]
     ) -> Sequence[ContentBlock] | dict[str, Any]:
@@ -118,12 +125,13 @@ class DbtMCP(FastMCP):
         mcp_client_name, mcp_client_version = self._get_mcp_client_info()
         try:
             projects = await self._selected_projects()
-            tool = self.tool_server._tool_manager.get_tool(name)
+            tool_server = self._session_tools() or self.tool_server
+            tool = tool_server._tool_manager.get_tool(name)
             if tool is None or not self._tool_available(tool, projects):
                 raise ValueError(f"Unknown or unavailable tool: {name}")
             tool = self._bind_tool(tool, projects)
             result = await tool.run(
-                arguments, context=self.tool_server.get_context(), convert_result=True
+                arguments, context=tool_server.get_context(), convert_result=True
             )
         except Exception as e:
             end_time = int(time.time() * 1000)
@@ -218,10 +226,11 @@ class DbtMCP(FastMCP):
 
     async def list_tools(self) -> list[Tool]:
         projects = await self._selected_projects()
+        tool_server = self._session_tools() or self.tool_server
         bound = FastMCP(
             tools=[
                 self._bind_tool(tool, projects)
-                for tool in self.tool_server._tool_manager.list_tools()
+                for tool in tool_server._tool_manager.list_tools()
                 if self._tool_available(tool, projects)
             ]
         )
@@ -229,53 +238,49 @@ class DbtMCP(FastMCP):
 
 
 @asynccontextmanager
-async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[bool | None]:
+async def app_lifespan(server: FastMCP[Any]) -> AsyncIterator[FastMCP]:
     if not isinstance(server, DbtMCP):
         raise TypeError("app_lifespan can only be used with DbtMCP servers")
     logger.info("Starting MCP server")
     try:
-        # register proxied tools inside the app lifespan to ensure the StreamableHTTP client (specific
-        # to dbt Platform connection) lives on the same event loop as the running server
-        # this avoids anyio cancel scope violations (see issue #498)
-        if (
-            server.config.proxied_tool_config_provider
-            and not await server._selected_projects()
-        ):
-            try:
-                logger.info("Registering proxied tools")
-                await register_proxied_tools(
-                    dbt_mcp=server.tool_server,
-                    config_provider=server.config.proxied_tool_config_provider,
-                    disabled_tools=set(server.config.disable_tools),
-                    enabled_tools=(
-                        set(server.config.enable_tools)
-                        if server.config.enable_tools is not None
-                        else None
-                    ),
-                    enabled_toolsets=server.config.enabled_toolsets,
-                    disabled_toolsets=server.config.disabled_toolsets,
-                )
-            except MissingHostError as e:
-                logger.warning(
-                    "Could not register proxied tools — credentials not yet available: %s",
-                    e,
-                )
+        # MCP lifespans run per client session. Keep both proxy handlers and
+        # their transport resources local to that session and its owner task.
+        async with ProxiedToolsManager() as manager:
+            projects = await server._selected_projects()
+            tools = FastMCP(tools=server.tool_server._tool_manager.list_tools())
+            if server.config.proxied_tool_config_provider and not projects:
+                try:
+                    logger.info("Registering proxied tools")
+                    await register_proxied_tools(
+                        dbt_mcp=tools,
+                        config_provider=server.config.proxied_tool_config_provider,
+                        manager=manager,
+                        disabled_tools=set(server.config.disable_tools),
+                        enabled_tools=(
+                            set(server.config.enable_tools)
+                            if server.config.enable_tools is not None
+                            else None
+                        ),
+                        enabled_toolsets=server.config.enabled_toolsets,
+                        disabled_toolsets=server.config.disabled_toolsets,
+                    )
+                except MissingHostError as e:
+                    logger.warning(
+                        "Could not register proxied tools — credentials not yet available: %s",
+                        e,
+                    )
 
-        # eager start and initialize the LSP connection
-        if server.config.lsp_config:
-            asyncio.create_task(
-                server.config.lsp_config.local_lsp_connection_provider.get_connection()
-            )
-        yield None
+            # eager start and initialize the LSP connection
+            if server.config.lsp_config:
+                asyncio.create_task(
+                    server.config.lsp_config.local_lsp_connection_provider.get_connection()
+                )
+            yield tools
     except Exception as e:
         logger.exception(f"Error in MCP server: {e}")
         raise
     finally:
         logger.info("Shutting down MCP server")
-        try:
-            await ProxiedToolsManager.close()
-        except Exception:
-            logger.exception("Error closing proxied tools manager")
         try:
             if server.config.lsp_config:
                 await (
