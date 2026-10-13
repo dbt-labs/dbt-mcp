@@ -1,14 +1,17 @@
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
-from functools import partial
+from functools import cached_property, partial
+from inspect import unwrap
 from typing import Any
 
 from mcp.server.fastmcp.tools.base import Tool
 from mcp.types import ToolAnnotations
 
-from dbt_mcp.tools.injection import adapt_with_mapper
+from dbt_mcp.tools.injection import ParameterMapper, adapt_with_mappers
+from dbt_mcp.tools.validation import configure_argument_validation
 from dbt_mcp.tools.tool_names import ToolName
+from dbt_mcp.tools.targets import Target, target_parameters
 
 
 @dataclass
@@ -21,12 +24,26 @@ class GenericToolDefinition[NameEnum: Enum]:
     annotations: ToolAnnotations | None = None
     structured_output: bool = True
     meta: dict[str, Any] | None = None
+    requirements: tuple[Target | Enum, ...] | None = None
+
+    def __post_init__(self) -> None:
+        # Adapted/bound signatures may hide every target. The canonical function
+        # must still declare access explicitly before any adaptation takes place.
+        if self.requirements is None and not self.targets:
+            raise ValueError("Tools must declare access requirements")
+
+    @property
+    def targets(self) -> dict[str, Target]:
+        # Access declarations survive context adaptation even when no selector
+        # is exposed by the configured mapper.
+        return target_parameters(unwrap(self.fn))
 
     def get_name(self) -> NameEnum:
         return self.name_enum((self.name or self.fn.__name__).lower())
 
-    def to_fastmcp_internal_tool(self) -> Tool:
-        return Tool.from_function(
+    @cached_property
+    def fastmcp_tool(self) -> Tool:
+        tool = Tool.from_function(
             fn=self.fn,
             name=self.name,
             title=self.title,
@@ -35,23 +52,14 @@ class GenericToolDefinition[NameEnum: Enum]:
             structured_output=self.structured_output,
             meta=self.meta,
         )
+        configure_argument_validation(tool)
+        return tool
 
-    def adapt_context(
-        self, context_mapper: Callable[..., Any]
+    def adapt_with_mappers(
+        self, **parameter_mappers: ParameterMapper
     ) -> "GenericToolDefinition[NameEnum]":
-        """
-        Adapt the tool definition to accept a different context object.
-        """
-        return type(self)(
-            fn=adapt_with_mapper(self.fn, context_mapper),
-            description=self.description,
-            name_enum=self.name_enum,
-            name=self.name,
-            title=self.title,
-            annotations=self.annotations,
-            structured_output=self.structured_output,
-            meta=self.meta,
-        )
+        """Inject parameters by name, including context and resolved selectors."""
+        return replace(self, fn=adapt_with_mappers(self.fn, **parameter_mappers))
 
 
 @dataclass
@@ -71,6 +79,7 @@ def generic_dbt_mcp_tool[NameEnum: Enum](
     open_world_hint: bool = True,
     structured_output: bool = True,
     meta: dict[str, Any] | None = None,
+    requirements: tuple[Target | Enum, ...] | None = None,
 ) -> Callable[[Callable], GenericToolDefinition[NameEnum]]:
     """Decorator to define a tool definition for dbt MCP"""
 
@@ -90,6 +99,7 @@ def generic_dbt_mcp_tool[NameEnum: Enum](
             ),
             structured_output=structured_output,
             meta=meta,
+            requirements=requirements,
         )
 
     return decorator
