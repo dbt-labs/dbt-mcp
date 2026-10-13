@@ -285,6 +285,8 @@ wheels = [
 name = "dbt-mcp"
 source = { editable = "." }
 dependencies = [
+    { name = "adbc-driver-flightsql" },
+    { name = "adbc-driver-manager" },
     { name = "anyio" },
     { name = "authlib" },
     { name = "cachetools" },
@@ -324,6 +326,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "adbc-driver-flightsql", specifier = ">=1.8.0" },
+    { name = "adbc-driver-manager", specifier = ">=1.8.0" },
     { name = "anyio", specifier = ">=4.14.2" },
     { name = "authlib", specifier = "~=1.6.7" },
     { name = "cachetools", specifier = ">=5,<8" },
