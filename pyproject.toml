@@ -49,6 +49,8 @@ dependencies = [
   "cachetools>=5,<8",
   # Imported directly by src/, so declared rather than relied on transitively.
   "anyio>=4.14.2",
+  "adbc-driver-flightsql>=1.8.0",
+  "adbc-driver-manager>=1.8.0",
   "pyarrow>=23.0.1",
   "pydantic>=2.12.5",
   "pydantic-core>=2.41.5",
@@ -69,6 +71,7 @@ dev = [
   "pyarrow-stubs>=19.1",
   "types-pyyaml>=6.0.12.20250516",
   "types-authlib>=1.6.4.20250920",
+  "deptry>=0.25.1",
 ]
 
 [project.urls]
@@ -90,6 +93,9 @@ include = ["src/dbt_mcp/**/*", "README.md", "LICENSE"]
 [tool.hatch.version]
 source = "vcs"
 fallback-version = "0.0.0"
+
+[tool.deptry]
+known_first_party = ["dbt_mcp", "remote_mcp", "client"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -48,6 +48,22 @@ repos:
         types_or: [python, pyi, jupyter]
         require_serial: true
         exclude: examples/
+      # Shipped code must declare every package it imports and may not import a dev
+      # dependency.
+      - id: deptry
+        name: deptry (shipped code)
+        entry: uv run deptry src/dbt_mcp src/remote_mcp
+        language: system
+        pass_filenames: false
+        require_serial: true
+      # Dev-only code may import dev dependencies (DEP004) and does not import every
+      # shipped dependency (DEP002), but must still declare what it imports.
+      - id: deptry-dev
+        name: deptry (dev code)
+        entry: uv run deptry src/client tests scripts evals --ignore DEP002,DEP004
+        language: system
+        pass_filenames: false
+        require_serial: true
       - id: mypy
         name: mypy
         entry: uv run mypy --show-error-codes --namespace-packages . --exclude examples/
