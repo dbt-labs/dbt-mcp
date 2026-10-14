@@ -97,10 +97,6 @@ fallback-version = "0.0.0"
 [tool.deptry]
 known_first_party = ["dbt_mcp", "remote_mcp", "client"]
 
-[tool.deptry.per_rule_ignores]
-# `src/client` is a dev-only chat client that is not part of the shipped package.
-DEP004 = ["openai"]
-
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
