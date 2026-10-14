@@ -2,9 +2,9 @@ import contextlib
 import os
 from collections.abc import AsyncGenerator
 
+import httpx
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
-from mcp.shared._httpx_utils import create_mcp_http_client
 
 
 @contextlib.asynccontextmanager
@@ -22,12 +22,15 @@ async def session_context() -> AsyncGenerator[ClientSession, None]:
     )
     token = os.environ.get("DBT_TOKEN")
     prod_environment_id = os.environ.get("DBT_PROD_ENV_ID", "")
+    # Packaged standalone (examples/remote_mcp) with only `mcp` as a dependency,
+    # so this must not import from dbt_mcp.
     async with (
-        create_mcp_http_client(
+        httpx.AsyncClient(
             headers={
                 "Authorization": f"token {token}",
                 "x-dbt-prod-environment-id": prod_environment_id,
-            }
+            },
+            timeout=httpx.Timeout(30.0, read=300.0),
         ) as http_client,
         streamable_http_client(
             url=url,
