@@ -4,8 +4,7 @@ description = "A MCP (Model Context Protocol) server for interacting with dbt re
 authors = [{ name = "dbt Labs" }]
 readme = "README.md"
 license = { file = "LICENSE" }
-# until pyarrow releases wheels for 3.14 https://github.com/apache/arrow/issues/47438
-requires-python = ">=3.12,<3.14"
+requires-python = ">=3.12,<3.15"
 dynamic = ["version"]
 keywords = [
   "dbt",
