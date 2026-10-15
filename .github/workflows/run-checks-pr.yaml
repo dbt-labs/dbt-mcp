@@ -30,8 +30,12 @@ jobs:
 
   # runs the unit tests
   unit-test:
-    name: Unit test
+    name: Unit test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
     permissions:
       contents: read
       pull-requests: write
@@ -43,6 +47,8 @@ jobs:
       - name: setup python
         uses: ./.github/actions/setup-python
         id: setup-python
+        with:
+          python-version: ${{ matrix.python-version }}
       - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
         with:
           version: 10
