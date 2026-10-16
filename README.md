@@ -43,7 +43,7 @@ To learn more about the dbt Semantic Layer, click [here](https://docs.getdbt.com
 
 To learn more about the dbt Discovery API, click [here](https://docs.getdbt.com/docs/dbt-cloud-apis/discovery-api).
 - `get_all_macros`: Retrieves macros; option to filter by package or return package names only.
-- `get_all_models`: Retrieves name and description of all models; optionally filtered to one dbt Mesh access level.
+- `get_all_models`: Retrieves name and description of all models.
 - `get_all_sources`: Gets all sources with freshness status; option to filter by source name.
 - `get_exposure_details`: *(deprecated — use `get_node_details` instead)*
 - `get_exposures`: Gets all exposures (downstream dashboards, apps, or analyses).

@@ -18,20 +18,12 @@ query PublicMeshModels(
             uniqueId
             description
             access
-            # group
-            # contractEnforced
             database
             schema
             alias
             relationName
-            # filePath
-            # fqn
             version
             latestVersion
-            # executionInfo {
-            #   lastRunStatus
-            #   lastRunGeneratedAt
-            # }
           }
         }
       }

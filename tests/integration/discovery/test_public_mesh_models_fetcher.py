@@ -71,7 +71,7 @@ async def test_relation_point_query_is_exact_and_case_insensitive(
     """`relation_name` is documented as an exact, case-insensitive match.
 
     A prefix- or substring-matching API would return a model the caller
-    never asked about, and `build_mesh_lookup` treats every hit as
+    never asked about, and `resolve_lookup` treats every hit as
     conclusive, so a false positive is caught nowhere downstream. A
     case-*sensitive* API fails the other way: an upper-cased relation would
     miss and report `found: false, conclusive: true`, an authoritative wrong

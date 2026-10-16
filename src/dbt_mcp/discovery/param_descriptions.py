@@ -37,12 +37,6 @@ MACRO_INCLUDE_DEFAULT_DBT_PACKAGES = (
     "When true, include default dbt Labs core/adapter macro packages"
 )
 
-MODEL_ACCESS_FILTER = (
-    "Filter to models with this dbt Mesh access level. `public` is ref-able "
-    "by other projects, `protected` within the same project, `private` only "
-    "within its group. Omit to return every access level."
-)
-
 MESH_SEARCH_QUERY_DESCRIPTION = (
     "Optional search text matched as a case-insensitive substring against "
     "model names and descriptions, e.g. 'gold finance sales'. Not semantic "

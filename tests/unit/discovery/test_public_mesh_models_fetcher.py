@@ -15,6 +15,7 @@ from dbt_mcp.discovery.client import (
     PublicMeshModelsFetcher,
     RelationComponents,
 )
+from dbt_mcp.errors import DiscoveryToolCallError
 
 
 def _fetcher(config) -> PublicMeshModelsFetcher:
@@ -84,8 +85,9 @@ async def test_scan_narrows_to_public_and_follows_the_cursor(
     The access narrowing must be *sent*, not applied after: filtering
     client-side would mean transferring every private and protected model
     only to discard it. That cost is what moved this fetcher off
-    `applied.resources`, and if it regresses, `_is_public` in mesh.py keeps
-    the output correct while the transfer silently returns.
+    `applied.resources`; mesh.py trusts the server-side filter rather than
+    re-checking it (see tests/integration for live confirmation the API
+    honors it).
     """
     mock_api_client.side_effect = _dispatch(
         [
@@ -182,30 +184,42 @@ async def test_relation_lookup_is_a_single_filtered_point_query(
 
 
 @pytest.mark.parametrize(
-    "project_name_outcome",
+    ("project_name_outcome", "expected_exception"),
     [
-        RuntimeError("boom"),
+        (RuntimeError("boom"), RuntimeError),
         # A null `environment` with no `errors` array is a well-formed
-        # GraphQL response, so raise_gql_error passes it through -- chained
-        # .get() on it raises AttributeError if unguarded.
-        {"data": {"environment": None}},
+        # GraphQL response; `or {}` keeps the chained `.get()` from raising
+        # AttributeError, surfacing the clean "no project name" error instead.
+        ({"data": {"environment": None}}, DiscoveryToolCallError),
         # Same hazard one level up.
-        {"data": None},
+        ({"data": None}, DiscoveryToolCallError),
+        # A well-formed response with no project name set is not a GraphQL
+        # error, but still unusable: there is no identity to attribute any
+        # node to.
+        ({"data": {"environment": {"dbtProjectName": None}}}, DiscoveryToolCallError),
+        ({"data": {"environment": {"dbtProjectName": ""}}}, DiscoveryToolCallError),
     ],
-    ids=["raises", "null_environment", "null_data"],
+    ids=[
+        "raises",
+        "null_environment",
+        "null_data",
+        "null_project_name",
+        "empty_project_name",
+    ],
 )
-async def test_project_name_lookup_degrades_to_none_without_losing_the_scan(
-    mock_api_client, unit_discovery_config, project_name_outcome
+async def test_project_name_lookup_failure_loses_the_otherwise_successful_scan(
+    mock_api_client, unit_discovery_config, project_name_outcome, expected_exception
 ):
-    """The project-name lookup is auxiliary. However it degrades, it must
-    not propagate through the asyncio.gather and discard an
-    otherwise-successful node scan."""
+    """The project-name lookup is load-bearing, not auxiliary: without a
+    confirmed identity nothing in a node scan can be attributed to this
+    producer. However the lookup fails, `fetch_candidates` must raise and
+    discard the otherwise-successful scan rather than return it unverifiable
+    -- the caller (`_fetch_one_project` in tools.py) turns this into
+    `coverage.failed` with the real error message."""
     mock_api_client.side_effect = _dispatch(
         [_page([_node(1)], has_next=False, end_cursor="c1")],
         project_name_outcome,
     )
 
-    candidates = await _fetcher(unit_discovery_config).fetch_candidates()
-
-    assert [n["name"] for n in candidates.nodes] == ["model_1"]
-    assert candidates.platform_project_name is None
+    with pytest.raises(expected_exception):
+        await _fetcher(unit_discovery_config).fetch_candidates()

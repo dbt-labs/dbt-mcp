@@ -523,11 +523,6 @@ class MacroFilter(TypedDict, total=False):
     uniqueIds: list[str] | None
 
 
-class MeshNodeExecutionInfo(TypedDict, total=False):
-    lastRunStatus: str | None
-    lastRunGeneratedAt: str | None
-
-
 class MeshModelNode(TypedDict, total=False):
     """Fields of a `ModelAppliedStateNode` that GET_PUBLIC_MESH_MODELS
     selects. The Discovery API has no schema the type checker can see."""
@@ -536,17 +531,23 @@ class MeshModelNode(TypedDict, total=False):
     uniqueId: str
     description: str | None
     access: str | None
-    group: str | None
-    contractEnforced: bool | None
     database: str | None
     schema: str | None
     alias: str | None
     relationName: str | None
-    filePath: str | None
-    fqn: list[str]
     version: str | int | float | None
     latestVersion: str | int | float | None
-    executionInfo: MeshNodeExecutionInfo | None
+
+
+def build_models_paginator(config: DiscoveryConfig) -> PaginatedResourceFetcher:
+    """The `applied.models` paginator shape shared by `ModelsFetcher` and
+    `PublicMeshModelsFetcher` -- each project scanned by mesh search needs
+    its own instance bound to that project's own config."""
+    return PaginatedResourceFetcher(
+        config=config,
+        edges_path=("data", "environment", "applied", "models", "edges"),
+        page_info_path=("data", "environment", "applied", "models", "pageInfo"),
+    )
 
 
 class ModelsFetcher:
@@ -576,19 +577,11 @@ class ModelsFetcher:
         *,
         limit: int = 50,
         after: str | None = None,
-        access: ModelAccess | None = None,
     ) -> ResultPage[list[dict]]:
-        """`access` is merged into the GraphQL filter rather than applied
-        after the page arrives, so `has_more`/`next_cursor` describe the
-        filtered stream instead of leaving the caller to page through
-        mostly-empty results."""
-        filters = cast(ModelFilter, dict(model_filter or {}))
-        if access is not None:
-            filters["access"] = access
         return await self._paginator.fetch_paginated(
             GraphQLQueries.GET_MODELS,
             variables={
-                "modelsFilter": filters,
+                "modelsFilter": dict(model_filter or {}),
                 "sort": {"field": "queryUsageCount", "direction": "desc"},
             },
             limit=limit,
@@ -815,15 +808,19 @@ class MacrosFetcher:
         return package_name.lower() in DBT_BUILTIN_PACKAGES
 
 
-# Bounds a scan at 10_000 public nodes. A safety net against an unbounded
+# Bounds a scan at 2_000 public nodes. A safety net against an unbounded
 # loop, not an operational limit -- the scan filters to public server-side.
 MESH_SCAN_PAGE_SIZE = 100
-MESH_SCAN_MAX_PAGES = 100
+MESH_SCAN_MAX_PAGES = 20
 
 
 @dataclass(frozen=True, slots=True)
 class MeshCandidates:
     """One environment's candidate model nodes plus its confirmed identity.
+
+    `platform_project_name` is never empty: `_fetch_platform_project_name`
+    raises rather than returning one, so a `MeshCandidates` only ever exists
+    for a project whose identity is confirmed.
 
     `incomplete` means pages remained unread, so a negative must be treated
     as unproven: on the scan path the page budget ran out; on the point-query
@@ -833,7 +830,7 @@ class MeshCandidates:
 
     nodes: list[MeshModelNode]
     incomplete: bool
-    platform_project_name: str | None
+    platform_project_name: str
 
 
 class PublicMeshModelsFetcher:
@@ -859,7 +856,13 @@ class PublicMeshModelsFetcher:
     ) -> MeshCandidates:
         """With `relation_components`, one filtered request whose rows *are*
         the matches; without it, the bounded public-only sweep. Either runs
-        concurrently with the project-name lookup."""
+        concurrently with the project-name lookup.
+
+        If the project-name lookup fails, this raises rather than degrading:
+        without a confirmed identity nothing in the node scan can be
+        attributed to this producer, so the caller treats the whole project
+        as failed instead of returning unverifiable nodes.
+        """
         nodes_task = (
             self._fetch_relation_match(relation_components)
             if relation_components is not None
@@ -925,23 +928,31 @@ class PublicMeshModelsFetcher:
             after = page.pagination.next_cursor
         return collected, True
 
-    async def _fetch_platform_project_name(self) -> str | None:
-        try:
-            result = await execute_query(
-                GraphQLQueries.GET_ENVIRONMENT_PROJECT_NAME,
-                {"environmentId": self._config.environment_id},
-                config=self._config,
+    async def _fetch_platform_project_name(self) -> str:
+        """Raises when the platform can't confirm this environment's own
+        project identity -- a GraphQL/network error, or a well-formed
+        response with no `dbtProjectName` set. Mesh search cannot trust any
+        node's ownership without this answer, so the exception is left to
+        propagate through the `asyncio.gather` in `fetch_candidates`: the
+        caller (`_fetch_one_project` in tools.py) treats the whole project as
+        failed rather than returning unverifiable nodes.
+        """
+        result = await execute_query(
+            GraphQLQueries.GET_ENVIRONMENT_PROJECT_NAME,
+            {"environmentId": self._config.environment_id},
+            config=self._config,
+        )
+        raise_gql_error(result)
+        # A well-formed response can carry `"environment": null` with no
+        # `errors`; `or {}` keeps that a clean lookup miss instead of an
+        # AttributeError.
+        environment = (result.get("data") or {}).get("environment") or {}
+        project_name = environment.get("dbtProjectName")
+        if not project_name:
+            raise DiscoveryToolCallError(
+                "The platform did not return a project name for this environment"
             )
-            raise_gql_error(result)
-            # Parsing stays inside the try: a well-formed response can carry
-            # `"environment": null` with no `errors`, and an AttributeError
-            # escaping here would propagate through the gather above and
-            # discard an otherwise successful node scan.
-            environment = (result.get("data") or {}).get("environment") or {}
-            return environment.get("dbtProjectName")
-        except Exception:
-            # Auxiliary lookup: the search must still succeed without it.
-            return None
+        return project_name
 
 
 class AppliedResourceType(StrEnum):

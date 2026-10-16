@@ -43,7 +43,7 @@ def _candidates(
     nodes: list[dict],
     *,
     incomplete: bool = False,
-    project_name: str | None = None,
+    project_name: str = "finance_analytics",
 ) -> MeshCandidates:
     return MeshCandidates(
         nodes=cast(list[MeshModelNode], nodes),
@@ -167,7 +167,7 @@ async def test_merges_scans_truncating_models_but_not_dependencies(
 
     assert len(result.models) == expected_model_count
     assert result.omitted_model_count == expected_omitted_count
-    assert {d.name for d in result.dependencies} == expected_dependency_names
+    assert set(result.dependencies) == expected_dependency_names
     # No relation asked, no lookup answered.
     assert result.lookup is None
 
@@ -300,13 +300,18 @@ async def test_fan_out_dedupes_project_ids_and_stays_bounded(mock_fetch_candidat
             False,
             False,
         ),
-        # The platform's project-name lookup failed, so this producer's
-        # identity is unverifiable. The node scan itself succeeded (absent
-        # from failed/incomplete), so without tracking unresolved identity
+        # A node at the relation whose uniqueId carries no package to compare
+        # against is unresolved, not ruled out -- this producer's ownership
+        # of it is unknown, so without tracking unresolved identity
         # separately this would report `found: false, conclusive: true`
         # despite a real match sitting right there.
         (
-            [_candidates([_model_node()])],
+            [
+                _candidates(
+                    [_model_node(uniqueId="malformed_id")],
+                    project_name="finance_analytics",
+                )
+            ],
             "ANALYTICS.GOLD_FINANCE.SALES",
             False,
             False,
@@ -358,7 +363,7 @@ async def test_relation_lookup_conclusiveness_across_the_fan_out(
 
 
 async def test_lookup_found_is_independent_of_query(mock_fetch_candidates):
-    """Deliberately not a build_mesh_lookup test: that helper takes an
+    """Deliberately not a resolve_lookup test: that helper takes an
     already-computed relation_hits and never sees `query`. What matters is
     that the *tool* derives relation_hits from count_relation_matches rather
     than from len(models) -- using the filtered list would report

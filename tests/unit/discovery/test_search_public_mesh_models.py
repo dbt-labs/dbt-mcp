@@ -13,9 +13,9 @@ import pytest
 from dbt_mcp.discovery.client import MeshModelNode, RelationComponents
 from dbt_mcp.discovery.mesh import (
     MeshCoverage,
-    build_mesh_lookup,
     count_relation_matches,
     parse_relation_name,
+    resolve_lookup,
     search_mesh_models,
 )
 from dbt_mcp.errors import InvalidParameterError
@@ -108,25 +108,34 @@ def test_parse_relation_name_rejects_malformed_input(raw, expected_message_subst
 # --- search_mesh_models: selection and normalization ------------------------
 #
 # Relation matching is server-side now (client.py's _fetch_relation_match),
-# so by the time nodes arrive here a relation lookup has already been
-# narrowed. What is left is: is this node public, does it match `query`, and
-# can the queried producer actually ref it?
+# and so is the public-access narrowing -- both fetchers send `access:
+# public` and the live Discovery API honors it (pinned in
+# tests/integration/discovery/test_public_mesh_models_fetcher.py), so
+# `search_mesh_models` trusts `nodes` are already public rather than
+# re-filtering. `platform_project_name` is likewise always a confirmed,
+# non-empty name by the time nodes arrive here -- a project whose own
+# identity lookup failed never reaches this far (see
+# PublicMeshModelsFetcher._fetch_platform_project_name). What is left for
+# this function: does the node match `query`, and can the queried producer
+# actually ref it?
 
 
 @pytest.mark.parametrize(
     ("node", "query", "platform_project_name", "expected"),
     [
-        # Platform confirms the project name -- dbt_project_name populates
-        # and nothing is flagged.
+        # Platform confirms the project name -- dbt_project_name and ref
+        # populate, and nothing is flagged.
         (
             _node(),
             None,
             "finance_analytics",
-            {"kept": True, "project": "finance_analytics", "warned": False},
+            {
+                "kept": True,
+                "project": "finance_analytics",
+                "ref": "{{ ref('finance_analytics', 'fct_sales') }}",
+                "warned": False,
+            },
         ),
-        # Scoped to public Mesh interfaces, not a general model browser.
-        (_node(access="private"), None, "finance_analytics", {"kept": False}),
-        (_node(access="protected"), None, "finance_analytics", {"kept": False}),
         # Query matches name or description, case-insensitively.
         (_node(), "FINANCE", "finance_analytics", {"kept": True}),
         (_node(), "nonexistent_term", "finance_analytics", {"kept": False}),
@@ -142,16 +151,20 @@ def test_parse_relation_name_rejects_malformed_input(raw, expected_message_subst
             "finance_analytics",
             {"kept": False},
         ),
-        # Unlike a confirmed non-producer, an identity that could not be
-        # read is unknown rather than ruled out -- kept, with a warning and
-        # no derived project name. Both falsy-identity causes below.
-        (_node(), None, None, {"kept": True, "project": None, "warned": True}),
-        (_node(), None, "", {"kept": True, "project": None, "warned": True}),
+        # Unlike a confirmed non-producer, a malformed uniqueId leaves
+        # ownership unknown rather than ruled out -- kept, with a warning and
+        # no derived project name or ref.
         (
             _node(uniqueId="malformed_id"),
             None,
             "finance_analytics",
-            {"kept": True, "project": None, "warned": True, "package": None},
+            {
+                "kept": True,
+                "project": None,
+                "ref": None,
+                "warned": True,
+                "package": None,
+            },
         ),
     ],
 )
@@ -172,6 +185,8 @@ def test_search_mesh_models_selects_refable_public_matches(
     model = results[0]
     if "project" in expected:
         assert model.dbt_project_name == expected["project"]
+    if "ref" in expected:
+        assert model.ref == expected["ref"]
     if "package" in expected:
         # Null, never "" -- an empty string would read as a real answer.
         assert model.package_name == expected["package"]
@@ -183,10 +198,11 @@ def test_search_mesh_models_selects_refable_public_matches(
 
 # --- count_relation_matches: producer-identity classification ---------------
 #
-# `nodes` here is what _fetch_relation_match already narrowed server-side;
-# this classifies producer identity, it does not re-match the relation.
-# Deliberately independent of `query`, so a narrowing query cannot turn
-# `lookup.found` into a false negative.
+# `nodes` here is what _fetch_relation_match already narrowed server-side
+# (public-only, included), so this classifies producer identity, it does not
+# re-match the relation or re-check access. Deliberately independent of
+# `query`, so a narrowing query cannot turn `lookup.found` into a false
+# negative.
 
 
 @pytest.mark.parametrize(
@@ -194,8 +210,6 @@ def test_search_mesh_models_selects_refable_public_matches(
     [
         # The queried producer owns it: ref-able, a real hit.
         (_node(), "finance_analytics", 1, False),
-        # Not public, so not a Mesh interface and not a hidden match.
-        (_node(access="private"), "finance_analytics", 0, False),
         # A mismatch the *platform* confirms is evidence, not a guess -- an
         # installed package really isn't this producer's model. Were this
         # unresolved instead, any project with an installed package could
@@ -206,11 +220,6 @@ def test_search_mesh_models_selects_refable_public_matches(
             0,
             False,
         ),
-        # Both falsy-identity causes: the platform named nothing, or it
-        # named something empty. Comparing either would let "" stand as
-        # proof that every node belongs to another project.
-        (_node(), None, 0, True),
-        (_node(), "", 0, True),
         # No package segment to compare the platform's answer against.
         (_node(uniqueId="malformed_id"), "finance_analytics", 0, True),
     ],
@@ -218,12 +227,14 @@ def test_search_mesh_models_selects_refable_public_matches(
 def test_count_relation_matches_classifies_by_producer_identity(
     node, platform_project_name, hits, unresolved
 ):
-    result = count_relation_matches([node], platform_project_name=platform_project_name)
+    result_hits, result_unresolved = count_relation_matches(
+        [node], platform_project_name=platform_project_name
+    )
 
-    assert (result.hits, result.unresolved) == (hits, unresolved)
+    assert (result_hits, result_unresolved) == (hits, unresolved)
 
 
-# --- build_mesh_lookup: the `conclusive` rule --------------------------------
+# --- resolve_lookup: the `conclusive` rule -----------------------------------
 
 
 @pytest.mark.parametrize(
@@ -251,7 +262,7 @@ def test_count_relation_matches_classifies_by_producer_identity(
         (0, {}, [], ["103"], False, False),
     ],
 )
-def test_build_mesh_lookup_conclusive_rule(
+def test_resolve_lookup_conclusive_rule(
     relation_hits: int,
     failed: dict[str, str],
     incomplete: list[str],
@@ -267,7 +278,7 @@ def test_build_mesh_lookup_conclusive_rule(
     `has_more` on both the scan and point-query paths, so that split needs
     no dimension either.
     """
-    lookup = build_mesh_lookup(
+    lookup = resolve_lookup(
         "prod.gold.fct_orders",
         relation_hits=relation_hits,
         coverage=MeshCoverage(

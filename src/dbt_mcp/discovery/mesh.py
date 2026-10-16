@@ -6,7 +6,6 @@ cross-project ref is only actionable when the caller names the producer projects
 it was resolved against.
 """
 
-from dataclasses import dataclass
 from enum import StrEnum
 from typing import assert_never
 
@@ -14,14 +13,9 @@ from pydantic import BaseModel
 
 from dbt_mcp.discovery.client import MeshModelNode, RelationComponents
 from dbt_mcp.errors import InvalidParameterError
-from dbt_mcp.tools.parameters import ModelAccess
 
 # Snowflake/Postgres `"`, BigQuery backtick, SQL Server `[ ]`, stray `'`.
-_RELATION_QUOTE_CHARS = "\"`[]'"
-
-
-class MeshDependency(BaseModel):
-    name: str
+_RELATION_QUOTE_TABLE = str.maketrans("", "", "\"`[]'")
 
 
 class MeshModel(BaseModel):
@@ -35,6 +29,9 @@ class MeshModel(BaseModel):
     project_id: int
     relation_name: str | None = None
     dbt_project_name: str | None = None
+    #: The ready-to-use `{{ ref(...) }}` string. Null exactly when
+    #: `dbt_project_name` is null -- there is nothing else needed to render it.
+    ref: str | None = None
     warnings: list[str] = []
 
 
@@ -43,9 +40,10 @@ class MeshCoverage(BaseModel):
 
     `incomplete` lists projects whose scan stopped with pages still available.
     `unresolved_identity` lists projects where a node at the requested relation
-    was found but its owner could not be verified -- the platform returned no
-    project name, or the node's `uniqueId` carried no package to compare it
-    against. Distinct from a node confirmed to belong to a different project.
+    was found but its owning package could not be read from its `uniqueId` --
+    a single malformed node, not a project-wide failure. A project whose own
+    identity lookup failed is not listed here: it lands in `failed` instead,
+    since none of its nodes could be attributed to it at all.
     `models_scanned` is `None` on a `relation_name` lookup, which is a
     server-side point query rather than a scan.
     """
@@ -81,7 +79,9 @@ class MeshModelSearchResult(BaseModel):
     type: str = "mesh_model_search_result"
     models: list[MeshModel]
     coverage: MeshCoverage
-    dependencies: list[MeshDependency] = []
+    #: One producer project name per entry, deduped -- the `dependencies.yml`
+    #: list.
+    dependencies: list[str] = []
     lookup: MeshLookup | None = None
     omitted_model_count: int = 0
 
@@ -94,25 +94,6 @@ def _matches_mesh_query(node: MeshModelNode, query: str) -> bool:
         return True
     haystack = f"{node.get('name') or ''} {node.get('description') or ''}".lower()
     return all(term in haystack for term in terms)
-
-
-def _parse_access(node: MeshModelNode) -> ModelAccess | None:
-    """None means the API reported no level we recognise, which must never be
-    mistaken for `public`."""
-    raw_access = node.get("access")
-    if raw_access is None:
-        return None
-    try:
-        return ModelAccess(raw_access)
-    except ValueError:
-        return None
-
-
-def _is_public(node: MeshModelNode) -> bool:
-    """Redundant with the server-side `access: public` filter, by design: an
-    unrecognised GraphQL filter key is ignored rather than rejected, and the
-    result is the *unfiltered* set -- here, private models emitted as public."""
-    return _parse_access(node) is ModelAccess.PUBLIC
 
 
 def parse_relation_name(relation_name: str) -> RelationComponents:
@@ -141,7 +122,7 @@ def parse_relation_name(relation_name: str) -> RelationComponents:
         raise InvalidParameterError(
             f"relation_name must not be empty -- {accepted}, got {relation_name!r}"
         )
-    parts = [p.strip().strip(_RELATION_QUOTE_CHARS) for p in raw_parts]
+    parts = [p.strip().translate(_RELATION_QUOTE_TABLE) for p in raw_parts]
     if any(not part for part in parts):
         raise InvalidParameterError(
             f"relation_name has an empty component -- {accepted}, got {relation_name!r}"
@@ -165,7 +146,8 @@ class ProducerVerdict(StrEnum):
     #: The platform named this project, and it is not this node's package.
     #: Evidence of a non-match -- an installed package, typically.
     CONFIRMED_OTHER = "confirmed_other"
-    #: The platform lookup failed. Ownership unknown, not ruled out.
+    #: The node's `uniqueId` carries no package to compare the platform's
+    #: answer against. Ownership unknown, not ruled out.
     UNRESOLVED = "unresolved"
 
 
@@ -181,42 +163,58 @@ def _package_name(node: MeshModelNode) -> str | None:
 
 
 def _producer_verdict(
-    node: MeshModelNode, *, platform_project_name: str | None
+    node: MeshModelNode, *, platform_project_name: str
 ) -> ProducerVerdict:
     """Classify `node` against the Discovery API's own answer for the queried
-    environment's identity (`environment.dbtProjectName`), the only identity
-    source. Only PRODUCER can carry a ref; only CONFIRMED_OTHER is strong
-    enough to support a conclusive absence.
+    environment's identity (`environment.dbtProjectName`). `platform_project_name`
+    is always a confirmed, non-empty name here: a project whose own identity
+    lookup failed never reaches this far (see
+    `PublicMeshModelsFetcher._fetch_platform_project_name`), so only the
+    node's own identity -- a malformed `uniqueId` -- can still be unresolved.
 
-    Both identities are tested for falsiness rather than `is None`: the
-    platform can answer with an empty `dbtProjectName`, and a malformed
-    `uniqueId` yields no package. Comparing either one would make an empty
-    string stand as proof of a non-match, and CONFIRMED_OTHER is exactly the
-    verdict that turns a relation miss conclusive.
+    Only PRODUCER can carry a ref; only CONFIRMED_OTHER is strong enough to
+    support a conclusive absence.
     """
     package_name = _package_name(node)
-    if not platform_project_name or not package_name:
+    if not package_name:
         return ProducerVerdict.UNRESOLVED
     if platform_project_name == package_name:
         return ProducerVerdict.PRODUCER
     return ProducerVerdict.CONFIRMED_OTHER
 
 
-def build_mesh_model(
+def _render_ref(
+    dbt_project_name: str,
+    model_name: str,
+    *,
+    version: str | None,
+    latest_version: str | None,
+) -> str:
+    """Render the `{{ ref(...) }}` Jinja call. `version` is added only when
+    it differs from `latest_version` -- omitting it already means "latest" --
+    and rendered unquoted when it looks like a plain integer, quoted
+    otherwise (dbt also accepts non-numeric version strings)."""
+    if version is None or version == latest_version:
+        return f"{{{{ ref('{dbt_project_name}', '{model_name}') }}}}"
+    rendered_version = version if version.isdigit() else f'"{version}"'
+    return (
+        f"{{{{ ref('{dbt_project_name}', '{model_name}', "
+        f"version={rendered_version}) }}}}"
+    )
+
+
+def _to_mesh_model(
     node: MeshModelNode,
     *,
-    platform_project_name: str | None,
+    platform_project_name: str,
     project_id: int,
+    verdict: ProducerVerdict,
 ) -> MeshModel:
+    """Normalize `node` into a `MeshModel` using the caller's already-computed
+    `verdict` -- recomputing it here would classify the same node twice for
+    no benefit. Callers must have already dropped CONFIRMED_OTHER nodes;
+    passing one is a programming error, not a data condition."""
     package_name = _package_name(node)
-    verdict = _producer_verdict(node, platform_project_name=platform_project_name)
-    if verdict is ProducerVerdict.CONFIRMED_OTHER:
-        raise ValueError(
-            f"{node['uniqueId']} belongs to package '{package_name}', not to "
-            f"project '{platform_project_name}' -- callers must drop "
-            "CONFIRMED_OTHER nodes before building a MeshModel"
-        )
-
     raw_version = node.get("version")
     raw_latest_version = node.get("latestVersion")
     version = str(raw_version) if raw_version is not None else None
@@ -224,23 +222,31 @@ def build_mesh_model(
 
     warnings: list[str] = []
     dbt_project_name: str | None = None
+    ref: str | None = None
 
-    if verdict is ProducerVerdict.PRODUCER:
-        dbt_project_name = platform_project_name
-    elif not platform_project_name:
-        # package_name can also be None here (both identities unreadable at
-        # once); rendering it would put a bare 'None' in user-facing text.
-        subject = f"package '{package_name}'" if package_name else "this model"
-        warnings.append(
-            f"project identity not verified for {subject} -- "
-            "the platform did not return a project name for this environment"
-        )
-    else:
-        warnings.append(
-            f"project identity not verified -- unique ID '{node['uniqueId']}' "
-            "is not of the form model.<package>.<name>, so this model's owning "
-            "package is unknown"
-        )
+    match verdict:
+        case ProducerVerdict.PRODUCER:
+            dbt_project_name = platform_project_name
+            ref = _render_ref(
+                dbt_project_name,
+                node["name"],
+                version=version,
+                latest_version=latest_version,
+            )
+        case ProducerVerdict.UNRESOLVED:
+            warnings.append(
+                f"project identity not verified -- unique ID '{node['uniqueId']}' "
+                "is not of the form model.<package>.<name>, so this model's owning "
+                "package is unknown"
+            )
+        case ProducerVerdict.CONFIRMED_OTHER:
+            raise ValueError(
+                f"{node['uniqueId']} belongs to package '{package_name}', not to "
+                f"project '{platform_project_name}' -- callers must drop "
+                "CONFIRMED_OTHER nodes before building a MeshModel"
+            )
+        case _ as unreachable:
+            assert_never(unreachable)
 
     return MeshModel(
         model_name=node["name"],
@@ -251,6 +257,7 @@ def build_mesh_model(
         project_id=project_id,
         relation_name=node.get("relationName"),
         dbt_project_name=dbt_project_name,
+        ref=ref,
         warnings=warnings,
     )
 
@@ -260,59 +267,54 @@ def search_mesh_models(
     *,
     project_id: int,
     query: str | None = None,
-    platform_project_name: str | None = None,
+    platform_project_name: str,
 ) -> list[MeshModel]:
     """Filter nodes to ref-able public models matching `query`, then normalize.
 
-    A node the platform confirms belongs to a different project is dropped: it
-    can never be ref-ed by the queried producer, so keeping it would only
-    consume `limit`. A node whose identity couldn't be resolved is kept with a
-    warning -- its ownership is unknown, not ruled out.
+    `nodes` is already public -- the caller's server-side `access: public`
+    filter is the only access narrowing applied. A node the platform confirms
+    belongs to a different project is dropped: it can never be ref-ed by the
+    queried producer, so keeping it would only consume `limit`. A node whose
+    identity couldn't be resolved is kept with a warning -- its ownership is
+    unknown, not ruled out.
     """
     matches: list[MeshModel] = []
     for node in nodes:
-        if not (_is_public(node) and _matches_mesh_query(node, query or "")):
+        if not _matches_mesh_query(node, query or ""):
             continue
         verdict = _producer_verdict(node, platform_project_name=platform_project_name)
         if verdict is ProducerVerdict.CONFIRMED_OTHER:
             continue
         matches.append(
-            build_mesh_model(
+            _to_mesh_model(
                 node,
                 platform_project_name=platform_project_name,
                 project_id=project_id,
+                verdict=verdict,
             )
         )
     return matches
 
 
-@dataclass(frozen=True, slots=True)
-class RelationMatchResult:
-    """`unresolved` is True when a node at the relation exists whose owner
-    couldn't be determined. `hits == 0` is not a proven absence while it is
-    set."""
-
-    hits: int
-    unresolved: bool
-
-
 def count_relation_matches(
     nodes: list[MeshModelNode],
     *,
-    platform_project_name: str | None,
-) -> RelationMatchResult:
+    platform_project_name: str,
+) -> tuple[int, bool]:
     """Count models at this relation that this producer can actually supply.
 
-    `nodes` is already the server-filtered match set for one relation (see
-    `fetch_candidates`), so this only classifies by producer identity.
-    Deliberately independent of `query`: a narrowing `query` must not turn
-    `lookup.found` into a false negative.
+    `nodes` is already the server-filtered, public-only match set for one
+    relation (see `fetch_candidates`), so this only classifies by producer
+    identity. Deliberately independent of `query`: a narrowing `query` must
+    not turn `lookup.found` into a false negative.
+
+    Returns `(hits, unresolved)`. `unresolved` is True when a node at the
+    relation exists whose owning package couldn't be read from its
+    `uniqueId`; `hits == 0` is not a proven absence while it is set.
     """
     hits = 0
     unresolved = False
     for node in nodes:
-        if not _is_public(node):
-            continue
         match _producer_verdict(node, platform_project_name=platform_project_name):
             case ProducerVerdict.PRODUCER:
                 hits += 1
@@ -322,19 +324,19 @@ def count_relation_matches(
                 pass
             case _ as unreachable:
                 assert_never(unreachable)
-    return RelationMatchResult(hits=hits, unresolved=unresolved)
+    return hits, unresolved
 
 
-def dedupe_mesh_dependencies(models: list[MeshModel]) -> list[MeshDependency]:
+def dedupe_mesh_dependencies(models: list[MeshModel]) -> list[str]:
     """Collapse `dbt_project_name` to one entry per producer project, in
     first-seen order, skipping models whose identity wasn't resolved."""
     seen: set[str] = set()
-    dependencies: list[MeshDependency] = []
+    dependencies: list[str] = []
     for model in models:
         if model.dbt_project_name is None or model.dbt_project_name in seen:
             continue
         seen.add(model.dbt_project_name)
-        dependencies.append(MeshDependency(name=model.dbt_project_name))
+        dependencies.append(model.dbt_project_name)
     return dependencies
 
 
@@ -351,7 +353,7 @@ def truncate_mesh_models(
     return models[:limit], omitted_count
 
 
-def build_mesh_lookup(
+def resolve_lookup(
     relation_name: str | None,
     *,
     relation_hits: int,

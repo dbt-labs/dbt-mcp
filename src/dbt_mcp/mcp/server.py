@@ -28,9 +28,13 @@ from dbt_mcp.proxy.tools import ProxiedToolsManager, register_proxied_tools
 from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
 from dbt_mcp.semantic_layer.tools import register_sl_tools
 from dbt_mcp.tools.injection import HIDE, adapt_with_mappers
-from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.validation import configure_argument_validation
-from dbt_mcp.tools.toolsets import Toolset, toolsets, proxied_tools
+from dbt_mcp.tools.toolsets import (
+    MULTI_PROJECT_ONLY_TOOL_NAMES,
+    Toolset,
+    proxied_tools,
+    toolsets,
+)
 from dbt_mcp.tracking.tracking import (
     REDACT_ARGS,
     DefaultUsageTracker,
@@ -58,10 +62,6 @@ PROJECT_TOOL_NAMES = frozenset(
         - proxied_tools
     )
 )
-
-# Tools needing an explicit, bounded set of project IDs. Hidden under the
-# single-project default rather than left to fail at call time.
-MULTI_PROJECT_ONLY_TOOL_NAMES = frozenset({ToolName.SEARCH_PUBLIC_MESH_MODELS.value})
 
 
 def _safe_args(arguments: dict[str, Any]) -> dict[str, Any]:

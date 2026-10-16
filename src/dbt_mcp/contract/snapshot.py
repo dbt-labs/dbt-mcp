@@ -54,9 +54,14 @@ from unittest.mock import AsyncMock, patch
 
 from pydantic import BaseModel
 
-from dbt_mcp.mcp.server import MULTI_PROJECT_ONLY_TOOL_NAMES
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.toolsets import TOOL_TO_TOOLSET, Toolset, proxied_tools, toolsets
+from dbt_mcp.tools.toolsets import (
+    MULTI_PROJECT_ONLY_TOOL_NAMES,
+    TOOL_TO_TOOLSET,
+    Toolset,
+    proxied_tools,
+    toolsets,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +129,7 @@ class ContractSnapshot(BaseModel):
 
 def expected_tool_names() -> set[str]:
     """Tool names the snapshot must contain: every tool in an included toolset,
-    minus proxied tools (owned by the remote endpoint)."""
+    minus proxied tools (which are owned by the remote endpoint)."""
     expected: set[ToolName] = set()
     for toolset in INCLUDED_TOOLSETS:
         expected |= toolsets[toolset]
