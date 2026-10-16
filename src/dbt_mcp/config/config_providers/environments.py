@@ -19,7 +19,14 @@ async def resolve_production_environment_id(
         if settings.actual_prod_environment_id is None:
             raise ValueError("Select a project or configure a production environment")
         return settings.actual_prod_environment_id
-    if settings.dbt_project_ids and project_id not in settings.dbt_project_ids:
+    # Must stay unconditional: explicit project selection requires an allowlist to
+    # validate against, even outside multi-project configs.
+    if not settings.dbt_project_ids:
+        raise ValueError(
+            "This server is not configured for project selection. Omit project_id, "
+            "or configure DBT_PROJECT_IDS to enable selecting among multiple projects."
+        )
+    if project_id not in settings.dbt_project_ids:
         raise ValueError(
             f"Project {project_id} is not in the selected projects. "
             f"Available project IDs: {settings.dbt_project_ids}"

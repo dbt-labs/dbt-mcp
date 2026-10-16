@@ -28,8 +28,9 @@ async def test_tool_names_match_server_tools(env_setup):
         config = load_config(enable_proxied_tools=False)
         dbt_mcp = await create_dbt_mcp(config)
 
-        # Get all tools from the server
-        server_tools = await dbt_mcp.list_tools()
+        # Compare registered tools rather than the session-filtered listing:
+        # multi-project-only tools are hidden until project selection.
+        server_tools = await dbt_mcp.tool_server.list_tools()
         # Manually adding proxied tools here because
         # they are not registered on the default server in this unit test.
         server_tool_names = {tool.name for tool in server_tools} | {

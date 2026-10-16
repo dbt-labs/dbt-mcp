@@ -229,10 +229,34 @@
         "readOnlyHint": true,
         "title": "Get All Models"
       },
-      "description": "Get a page of dbt model names and descriptions in the environment.\n\nReturns one source page in `result`, with `pagination.has_more` and `pagination.next_cursor`. Pass the next cursor as `after` with the same filters. `limit` defaults to 50 and is capped at 100. Local filtering may leave an empty page with more pages available.\n",
+      "description": "Get a page of dbt model names and descriptions in the environment.\n\nOptionally pass `access` to return only models at one dbt Mesh access level (`private`/`protected`/`public`) \u2014 use `access=\"public\"` to audit the interface this project exposes to dbt Mesh consumers. Each item carries `name`, `uniqueId`, and `description`; call `get_node_details` for a model's `access`, `group`, `contractEnforced`, or any other config.\n\nReturns one source page in `result`, with `pagination.has_more` and `pagination.next_cursor`. Pass the next cursor as `after` with the same filters. `limit` defaults to 50 and is capped at 100. Local filtering may leave an empty page with more pages available.\n",
       "input_schema": {
+        "$defs": {
+          "ModelAccess": {
+            "description": "dbt Mesh access levels for a model.",
+            "enum": [
+              "private",
+              "protected",
+              "public"
+            ],
+            "title": "ModelAccess",
+            "type": "string"
+          }
+        },
         "additionalProperties": false,
         "properties": {
+          "access": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ModelAccess"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Filter to models with this dbt Mesh access level. `public` is ref-able by other projects, `protected` within the same project, `private` only within its group. Omit to return every access level."
+          },
           "after": {
             "anyOf": [
               {
@@ -3994,6 +4018,303 @@
       },
       "title": "Search Product Docs",
       "toolset": "product_docs"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Search Public Mesh Models"
+      },
+      "description": "Searches for public dbt Mesh models across producer projects and confirms each producer's identity, so you can build the exact cross-project `ref()` and `dependencies.yml` entry.\n\n**Scope:** only models with Mesh `access: public`, and only the projects named in `project_ids` (which must be a subset of the configured project IDs). Private and protected models are never returned \u2014 use `get_node_details` to inspect a specific model regardless of access level. To audit your *own* project's public interface, use `get_all_models(access=\"public\")` instead; it lists the bound environment's public models with no cross-project search. Follow up with `get_node_details` on any of them for `group`, `contractEnforced`, and the rest of a model's governance config.\n\n**Identity verification is automatic.** For each project, the tool asks the platform for that environment's own `dbt_project.yml` name rather than guessing from a model's `unique_id`. When a model's namespace matches, `dbt_project_name` is populated. When the lookup fails \u2014 or when a model's `unique_id` carries no package to compare the answer against \u2014 `dbt_project_name` stays null, the affected model carries a warning naming which of the two happened, and, on a `relation_name` lookup, the project is listed in `coverage.unresolved_identity`.\n\n**Two ways to search:**\n- `query` \u2014 optional text search over model names and descriptions, split into whitespace-separated terms; a model matches when every term appears (case-insensitive, any order) in its name or description. Plain substring matching, not semantic search: \"finance\" will not match a model described only as \"revenue\".\n- `relation_name` \u2014 optional *exact* warehouse relation lookup, for \"does this object already exist as a public Mesh model?\". Supplying it narrows each project to that one relation server-side, before `query` applies. A `query` alongside it can only exclude that single model from `models`; it never broadens the search and has no effect on `lookup`.\n\nOmitting both returns every public model in scope.\n\n**Relation matching** is right-aligned against each model's `database`/`schema`/`identifier`: `fct_orders` matches on identifier alone, `gold.fct_orders` on schema and identifier, `prod.gold.fct_orders` on all three. Every supplied part must match **exactly** \u2014 `services_projects_v2` does not match `dim_services_projects_v2` \u2014 and matching is **case-insensitive** on every component. Because it matches the warehouse identifier rather than the dbt model name, it finds aliased and versioned models that `query` misses: a v2 model is named `dim_customers` but materializes as `dim_customers_v2`, and looking up that identifier still returns a ref to `dim_customers` with `version=2`. More than three parts, or an empty relation, is an error rather than a silent miss.\n\n**Building the ref:** this tool confirms identity; it does not render the ref for you.\n- Only build a ref when `dbt_project_name` is non-null.\n- Default form: `{{ ref('<dbt_project_name>', '<model_name>') }}`.\n- Add `version=<version>` only when `version` is non-null **and** differs from `latest_version` \u2014 omitting it already means \"latest\".\n- `version` is always returned as a string. Render it unquoted (`version=2`) if it looks like a plain integer, otherwise quote it (`version=\"release-2\"`).\n- `dependencies.yml` entry: `- name: <dbt_project_name>`, one per producer project \u2014 exactly what the top-level `dependencies` field already gives you.\n\n**Returns** a `MeshModelSearchResult`:\n- `models` \u2014 matching public models, each with `model_name`, `unique_id`, `package_name` (null when the `unique_id` is not `model.<package>.<name>`), `version`, `latest_version`, `project_id`, `relation_name`, `dbt_project_name`, and `warnings`. Pass `project_id` with `unique_id` to `get_node_details` for anything else about a model. A node the platform confirms belongs to a *different* project (an installed package, say) is excluded entirely, since it could never carry a ref for the queried producer; a node whose identity couldn't be resolved is kept with a warning.\n- `coverage` \u2014 `searched`, `failed` (project \u2192 reason), `incomplete` (scan stopped with pages remaining), `unresolved_identity`, and `models_scanned` (`null` on a `relation_name` lookup, which is a point query rather than a scan).\n- `lookup` \u2014 present only with `relation_name`: the echoed relation, `found`, and `conclusive`.\n- `dependencies` \u2014 one entry per producer project, deduped, in first-seen order.\n- `omitted_model_count` \u2014 how many matches `limit` cut.\n\n**Reading `lookup` correctly.** `found: false` is only authoritative when `conclusive: true`. A negative is undermined by any project in `coverage.failed`, `coverage.incomplete`, or `coverage.unresolved_identity`. Two further limits: a *private or protected* model at the relation yields `found: false`, which is correct (it isn't ref-able) but still means the developer is about to source over a dbt-managed relation. And `conclusive: true` means \"not claimed by a project in `project_ids`\", never \"not claimed by any dbt-managed model\" \u2014 use `get_node_details` for that. Before declaring a new source, make sure every candidate producer is in `project_ids`, then require `conclusive: true`.\n\n**Sizing.** `models` is capped at `limit` (1-100, default 50) across all searched projects \u2014 a cap on the merged list, not a GraphQL page, and there is no cursor for more. A nonzero `omitted_model_count` means you should narrow with `query`, `relation_name`, or fewer `project_ids` rather than raise `limit`, which just moves the same cliff. `lookup`, `coverage`, and `dependencies` are all computed over the full scan before truncation, so none of them are affected by the cap. Within a project, results are ordered most-queried first; the merged list concatenates projects in `project_ids` order, so truncation cuts from the end \u2014 a project late in `project_ids` can contribute nothing to `models` while still appearing in `dependencies`.\n\n**Examples:**\n```python\n# Discover candidates across two producer projects\nsearch_public_mesh_models(query=\"gold finance sales\", project_ids=[101, 102])\n\n# Source-to-ref check: omit query for a definitive `lookup` answer\nsearch_public_mesh_models(relation_name=\"prod.gold.fct_orders\", project_ids=[101, 102])\n```\n\n**From a result to a ref:** a `models` entry only gives you the pieces \u2014 building the string is on you. Given this entry:\n```json\n{\"model_name\": \"fct_orders\", \"dbt_project_name\": \"finance_core\", \"version\": null, \"latest_version\": null}\n```\nrender:\n```sql\n{{ ref('finance_core', 'fct_orders') }}\n```\nA non-null `version` that differs from `latest_version` is added unquoted when it's a plain integer:\n```json\n{\"model_name\": \"dim_customers\", \"dbt_project_name\": \"finance_core\", \"version\": \"2\", \"latest_version\": \"3\"}\n```\n```sql\n{{ ref('finance_core', 'dim_customers', version=2) }}\n```\nbut quoted when it isn't:\n```json\n{\"model_name\": \"dim_customers\", \"dbt_project_name\": \"finance_core\", \"version\": \"release-2\", \"latest_version\": \"release-3\"}\n```\n```sql\n{{ ref('finance_core', 'dim_customers', version=\"release-2\") }}\n```\n",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "default": 50,
+            "description": "Maximum number of matching models to return (1-100, default 50). Caps the merged list across all searched projects, not a single GraphQL page; there is no cursor to fetch more. `lookup`, `coverage`, and `dependencies` are computed before this cap applies.",
+            "maximum": 100,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "project_ids": {
+            "description": "dbt platform project IDs of the producer projects to search for public Mesh models. Must be a subset of the IDs configured via DBT_PROJECT_IDS, or chosen during multi-project OAuth selection.",
+            "items": {
+              "type": "integer"
+            },
+            "minItems": 1,
+            "title": "Project Ids",
+            "type": "array"
+          },
+          "query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional search text matched as a case-insensitive substring against model names and descriptions, e.g. 'gold finance sales'. Not semantic search. Omit to list everything in scope. Alongside `relation_name` it only filters that one relation's model in or out; it never broadens the search.",
+            "title": "Query"
+          },
+          "relation_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Warehouse relation to look up exactly, e.g. 'prod.gold.fct_orders'. Matched right-aligned against each model's database/schema/identifier, so 'prod.gold.fct_orders', 'gold.fct_orders', and 'fct_orders' are all accepted. Every supplied component must match exactly (not a prefix or substring) and matching is case-insensitive. Read the answer from the returned `lookup` field.",
+            "title": "Relation Name"
+          }
+        },
+        "required": [
+          "project_ids"
+        ],
+        "title": "search_public_mesh_modelsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "search_public_mesh_models",
+      "output_schema": {
+        "$defs": {
+          "MeshCoverage": {
+            "description": "Which parts of the requested scope were actually examined.\n\n`incomplete` lists projects whose scan stopped with pages still available.\n`unresolved_identity` lists projects where a node at the requested relation\nwas found but its owner could not be verified -- the platform returned no\nproject name, or the node's `uniqueId` carried no package to compare it\nagainst. Distinct from a node confirmed to belong to a different project.\n`models_scanned` is `None` on a `relation_name` lookup, which is a\nserver-side point query rather than a scan.",
+            "properties": {
+              "failed": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "default": {},
+                "title": "Failed",
+                "type": "object"
+              },
+              "incomplete": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "title": "Incomplete",
+                "type": "array"
+              },
+              "models_scanned": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": 0,
+                "title": "Models Scanned"
+              },
+              "searched": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "title": "Searched",
+                "type": "array"
+              },
+              "unresolved_identity": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "title": "Unresolved Identity",
+                "type": "array"
+              }
+            },
+            "title": "MeshCoverage",
+            "type": "object"
+          },
+          "MeshDependency": {
+            "properties": {
+              "name": {
+                "title": "Name",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "title": "MeshDependency",
+            "type": "object"
+          },
+          "MeshLookup": {
+            "description": "Answer to an exact `relation_name` lookup.\n\n`found` is true only when a public model at that relation is owned by one of\nthe searched projects; a node there belonging to a different project (an\ninstalled package, say) cannot be ref-ed and does not count. It is\nindependent of `query`, so narrowing `query` can empty `models` without\nmaking `found` false.\n\n`conclusive` is false when absence could not be proven -- a project in\n`coverage.failed`, `coverage.incomplete`, or `coverage.unresolved_identity`\ncould still hold the relation. Treat `found: false, conclusive: false` as\n\"not ruled out\", never as licence to declare a new source.",
+            "properties": {
+              "conclusive": {
+                "default": true,
+                "title": "Conclusive",
+                "type": "boolean"
+              },
+              "found": {
+                "title": "Found",
+                "type": "boolean"
+              },
+              "relation_name": {
+                "title": "Relation Name",
+                "type": "string"
+              }
+            },
+            "required": [
+              "relation_name",
+              "found"
+            ],
+            "title": "MeshLookup",
+            "type": "object"
+          },
+          "MeshModel": {
+            "properties": {
+              "dbt_project_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Dbt Project Name"
+              },
+              "latest_version": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Latest Version"
+              },
+              "model_name": {
+                "title": "Model Name",
+                "type": "string"
+              },
+              "package_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Package Name"
+              },
+              "project_id": {
+                "title": "Project Id",
+                "type": "integer"
+              },
+              "relation_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Relation Name"
+              },
+              "unique_id": {
+                "title": "Unique Id",
+                "type": "string"
+              },
+              "version": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Version"
+              },
+              "warnings": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "title": "Warnings",
+                "type": "array"
+              }
+            },
+            "required": [
+              "model_name",
+              "unique_id",
+              "project_id"
+            ],
+            "title": "MeshModel",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "coverage": {
+            "$ref": "#/$defs/MeshCoverage"
+          },
+          "dependencies": {
+            "default": [],
+            "items": {
+              "$ref": "#/$defs/MeshDependency"
+            },
+            "title": "Dependencies",
+            "type": "array"
+          },
+          "lookup": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/MeshLookup"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "models": {
+            "items": {
+              "$ref": "#/$defs/MeshModel"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "omitted_model_count": {
+            "default": 0,
+            "title": "Omitted Model Count",
+            "type": "integer"
+          },
+          "type": {
+            "default": "mesh_model_search_result",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "models",
+          "coverage"
+        ],
+        "title": "MeshModelSearchResult",
+        "type": "object"
+      },
+      "title": "Search Public Mesh Models",
+      "toolset": "discovery"
     },
     {
       "annotations": {

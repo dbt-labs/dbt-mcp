@@ -1,8 +1,9 @@
 import asyncio
 import textwrap
 from collections import defaultdict, deque
+from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, ClassVar, Literal, TypedDict
+from typing import Any, ClassVar, Literal, TypedDict, cast
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
@@ -14,9 +15,12 @@ from dbt_mcp.errors import DiscoveryToolCallError, InvalidParameterError, ToolCa
 from dbt_mcp.errors.common import NotFoundError
 from dbt_mcp.gql.errors import raise_gql_error
 from dbt_mcp.http_limits import response_limit_hook
-from dbt_mcp.tools.parameters import LineageDirection, LineageResourceType
-
 from dbt_mcp.pagination import Pagination, ResultPage, validate_page_size
+from dbt_mcp.tools.parameters import (
+    LineageDirection,
+    LineageResourceType,
+    ModelAccess,
+)
 
 DEFAULT_PAGE_SIZE = 50
 
@@ -357,6 +361,10 @@ class GraphQLQueries:
     # Lineage query
     GET_FULL_LINEAGE = load_query("get_full_lineage.gql")
 
+    # Mesh model search query
+    GET_PUBLIC_MESH_MODELS = load_query("get_public_mesh_models.gql")
+    GET_ENVIRONMENT_PROJECT_NAME = load_query("get_environment_project_name.gql")
+
 
 async def execute_query(
     query: str,
@@ -468,9 +476,40 @@ class PaginatedResourceFetcher:
 
 
 class ModelFilter(TypedDict, total=False):
+    """`ModelAppliedFilter` input, shared by every `applied.models` query.
+
+    Mesh search goes through `applied.models` rather than
+    `applied.resources` because only this filter type exposes `access` and
+    `identifier`; `AppliedResourcesFilter` has neither.
+    """
+
     modelingLayer: Literal["marts"] | None
+    # Matches a model's *alias*, not its dbt `name`.
     identifier: str
+    database: str
+    schema: str
     uniqueIds: list[str]
+    # The API's `AccessLevel` enum rejects uppercase, so ModelAccess is a
+    # lowercase StrEnum passed straight through as a filter variable.
+    access: ModelAccess
+
+
+@dataclass(frozen=True, slots=True)
+class RelationComponents:
+    """A parsed `relation_name` lookup, right-aligned onto `ModelFilter`'s
+    `database`/`schema`/`identifier` fields.
+
+    `database`/`schema` are None when the caller supplied fewer parts --
+    absent, meaning "don't filter on this component", never a wildcard.
+
+    Matching semantics (exact, case-insensitive) are the Discovery API's,
+    not enforced here; they are pinned by
+    tests/integration/discovery/test_public_mesh_models_fetcher.py.
+    """
+
+    database: str | None
+    schema: str | None
+    identifier: str
 
 
 class SourceFilter(TypedDict, total=False):
@@ -482,6 +521,32 @@ class SourceFilter(TypedDict, total=False):
 class MacroFilter(TypedDict, total=False):
     types: list[str]
     uniqueIds: list[str] | None
+
+
+class MeshNodeExecutionInfo(TypedDict, total=False):
+    lastRunStatus: str | None
+    lastRunGeneratedAt: str | None
+
+
+class MeshModelNode(TypedDict, total=False):
+    """Fields of a `ModelAppliedStateNode` that GET_PUBLIC_MESH_MODELS
+    selects. The Discovery API has no schema the type checker can see."""
+
+    name: str
+    uniqueId: str
+    description: str | None
+    access: str | None
+    group: str | None
+    contractEnforced: bool | None
+    database: str | None
+    schema: str | None
+    alias: str | None
+    relationName: str | None
+    filePath: str | None
+    fqn: list[str]
+    version: str | int | float | None
+    latestVersion: str | int | float | None
+    executionInfo: MeshNodeExecutionInfo | None
 
 
 class ModelsFetcher:
@@ -511,11 +576,19 @@ class ModelsFetcher:
         *,
         limit: int = 50,
         after: str | None = None,
+        access: ModelAccess | None = None,
     ) -> ResultPage[list[dict]]:
+        """`access` is merged into the GraphQL filter rather than applied
+        after the page arrives, so `has_more`/`next_cursor` describe the
+        filtered stream instead of leaving the caller to page through
+        mostly-empty results."""
+        filters = cast(ModelFilter, dict(model_filter or {}))
+        if access is not None:
+            filters["access"] = access
         return await self._paginator.fetch_paginated(
             GraphQLQueries.GET_MODELS,
             variables={
-                "modelsFilter": model_filter or {},
+                "modelsFilter": filters,
                 "sort": {"field": "queryUsageCount", "direction": "desc"},
             },
             limit=limit,
@@ -740,6 +813,135 @@ class MacrosFetcher:
         if not package_name:
             return False
         return package_name.lower() in DBT_BUILTIN_PACKAGES
+
+
+# Bounds a scan at 10_000 public nodes. A safety net against an unbounded
+# loop, not an operational limit -- the scan filters to public server-side.
+MESH_SCAN_PAGE_SIZE = 100
+MESH_SCAN_MAX_PAGES = 100
+
+
+@dataclass(frozen=True, slots=True)
+class MeshCandidates:
+    """One environment's candidate model nodes plus its confirmed identity.
+
+    `incomplete` means pages remained unread, so a negative must be treated
+    as unproven: on the scan path the page budget ran out; on the point-query
+    path more rows exist at that one relation than fit in a page, which a
+    near-unique relation match makes a safety net rather than a real signal.
+    """
+
+    nodes: list[MeshModelNode]
+    incomplete: bool
+    platform_project_name: str | None
+
+
+class PublicMeshModelsFetcher:
+    """Scans an environment's public model nodes with Mesh-relevant fields.
+
+    Unlike the other fetchers here, this one does not hand continuation back
+    to the caller: the search fans out across N projects to answer a
+    whole-environment question, so a cursor would have to be per-project and
+    every partial answer would be unsound. It sweeps internally against a
+    page budget and reports whether the sweep completed.
+    """
+
+    def __init__(
+        self,
+        config: DiscoveryConfig,
+        paginator: PaginatedResourceFetcher,
+    ):
+        self._config = config
+        self._paginator = paginator
+
+    async def fetch_candidates(
+        self, relation_components: RelationComponents | None = None
+    ) -> MeshCandidates:
+        """With `relation_components`, one filtered request whose rows *are*
+        the matches; without it, the bounded public-only sweep. Either runs
+        concurrently with the project-name lookup."""
+        nodes_task = (
+            self._fetch_relation_match(relation_components)
+            if relation_components is not None
+            else self._scan_all_nodes()
+        )
+        project_name_task = self._fetch_platform_project_name()
+        (nodes, incomplete), platform_project_name = await asyncio.gather(
+            nodes_task, project_name_task
+        )
+        return MeshCandidates(
+            nodes=nodes,
+            incomplete=incomplete,
+            platform_project_name=platform_project_name,
+        )
+
+    async def _fetch_relation_match(
+        self, relation_components: RelationComponents
+    ) -> tuple[list[MeshModelNode], bool]:
+        """One page is enough -- `(database, schema, identifier)` is
+        effectively unique within a project. `incomplete` stays wired to
+        `has_more` rather than hardcoded False so that if the assumption ever
+        fails, the uncertainty is reported instead of rows being dropped.
+        """
+        model_filter: ModelFilter = {
+            "access": ModelAccess.PUBLIC,
+            "identifier": relation_components.identifier,
+        }
+        if relation_components.database is not None:
+            model_filter["database"] = relation_components.database
+        if relation_components.schema is not None:
+            model_filter["schema"] = relation_components.schema
+        page = await self._paginator.fetch_paginated(
+            GraphQLQueries.GET_PUBLIC_MESH_MODELS,
+            variables={
+                "modelsFilter": model_filter,
+                "sort": {"field": "queryUsageCount", "direction": "desc"},
+            },
+            limit=MESH_SCAN_PAGE_SIZE,
+            after=None,
+        )
+        return cast(list[MeshModelNode], page.result), page.pagination.has_more
+
+    async def _scan_all_nodes(self) -> tuple[list[MeshModelNode], bool]:
+        """Sweep every public model node, most-queried first, so that the
+        tool's `limit` truncates the least-used matches rather than an
+        arbitrary slice."""
+        model_filter: ModelFilter = {"access": ModelAccess.PUBLIC}
+        collected: list[MeshModelNode] = []
+        after: str | None = None
+        for _ in range(MESH_SCAN_MAX_PAGES):
+            page = await self._paginator.fetch_paginated(
+                GraphQLQueries.GET_PUBLIC_MESH_MODELS,
+                variables={
+                    "modelsFilter": model_filter,
+                    "sort": {"field": "queryUsageCount", "direction": "desc"},
+                },
+                limit=MESH_SCAN_PAGE_SIZE,
+                after=after,
+            )
+            collected.extend(cast(list[MeshModelNode], page.result))
+            if not page.pagination.has_more:
+                return collected, False
+            after = page.pagination.next_cursor
+        return collected, True
+
+    async def _fetch_platform_project_name(self) -> str | None:
+        try:
+            result = await execute_query(
+                GraphQLQueries.GET_ENVIRONMENT_PROJECT_NAME,
+                {"environmentId": self._config.environment_id},
+                config=self._config,
+            )
+            raise_gql_error(result)
+            # Parsing stays inside the try: a well-formed response can carry
+            # `"environment": null` with no `errors`, and an AttributeError
+            # escaping here would propagate through the gather above and
+            # discard an otherwise successful node scan.
+            environment = (result.get("data") or {}).get("environment") or {}
+            return environment.get("dbtProjectName")
+        except Exception:
+            # Auxiliary lookup: the search must still succeed without it.
+            return None
 
 
 class AppliedResourceType(StrEnum):

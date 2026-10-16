@@ -12,6 +12,7 @@ from dbt_mcp.discovery.client import (
     SourcesFetcher,
 )
 from dbt_mcp.discovery.tools import DISCOVERY_TOOLS, DiscoveryToolContext
+from dbt_mcp.tools.parameters import ModelAccess
 from dbt_mcp.tools.tool_names import ToolName
 
 
@@ -34,10 +35,30 @@ async def test_fetch_models(
 
 
 @pytest.mark.asyncio
+async def test_fetch_models_filters_by_access_server_side(
+    models_fetcher: ModelsFetcher, discovery_config: DiscoveryConfig
+):
+    """`access` narrows via the ModelAppliedFilter `AccessLevel` enum.
+
+    Proven by disjointness of `uniqueId`s across two levels: a filter key the
+    API silently ignores returns the *unfiltered* set, so both calls would
+    yield the same ids. GET_MODELS does not select `access` -- this tool
+    returns a lean index -- so the labels can't be read back here; that the
+    returned rows really carry the requested level is pinned by
+    test_public_mesh_models_fetcher.py, whose query does select it.
+    """
+    public = (await models_fetcher.fetch_models(access=ModelAccess.PUBLIC)).result
+    private = (await models_fetcher.fetch_models(access=ModelAccess.PRIVATE)).result
+
+    assert len(public) > 0
+    assert len(private) > 0
+    assert {m["uniqueId"] for m in public}.isdisjoint({m["uniqueId"] for m in private})
+
+
+@pytest.mark.asyncio
 async def test_fetch_models_with_filter(
     models_fetcher: ModelsFetcher, discovery_config: DiscoveryConfig
 ):
-    # model_filter: ModelFilter = {"access": "protected"}
     model_filter: ModelFilter = {"modelingLayer": "marts"}
 
     # Fetch filtered results

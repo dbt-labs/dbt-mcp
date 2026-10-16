@@ -56,14 +56,14 @@ class TestDefaultDiscoveryConfigProvider:
         config = await provider.get_config(project_id=1)
         assert config.environment_id == 42
 
-    async def test_skips_validation_when_project_ids_none(self):
-        """When dbt_project_ids is None (no filter), any project_id is allowed."""
+    async def test_raises_when_no_project_allowlist_configured(self):
+        """An explicit project_id requires DBT_PROJECT_IDS to be configured."""
         provider = DefaultDiscoveryConfigProvider(
             credentials_provider=_make_credentials_provider(None),
             admin_client=_make_admin_client(env_id=42),
         )
-        config = await provider.get_config(project_id=99)
-        assert config.environment_id == 42
+        with pytest.raises(ValueError, match="not configured for project selection"):
+            await provider.get_config(project_id=99)
 
 
 class TestDefaultSemanticLayerConfigProvider:
@@ -85,11 +85,11 @@ class TestDefaultSemanticLayerConfigProvider:
         config = await provider.get_config(project_id=10)
         assert config.prod_environment_id == 55
 
-    async def test_skips_validation_when_project_ids_none(self):
-        """When dbt_project_ids is None (no filter), any project_id is allowed."""
+    async def test_raises_when_no_project_allowlist_configured(self):
+        """An explicit project_id requires DBT_PROJECT_IDS to be configured."""
         provider = DefaultSemanticLayerConfigProvider(
             credentials_provider=_make_credentials_provider(None),
             admin_client=_make_admin_client(env_id=55),
         )
-        config = await provider.get_config(project_id=99)
-        assert config.prod_environment_id == 55
+        with pytest.raises(ValueError, match="not configured for project selection"):
+            await provider.get_config(project_id=99)

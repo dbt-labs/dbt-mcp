@@ -1,0 +1,5 @@
+query EnvironmentProjectName($environmentId: BigInt!) {
+  environment(id: $environmentId) {
+    dbtProjectName
+  }
+}

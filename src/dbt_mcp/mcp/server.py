@@ -28,6 +28,7 @@ from dbt_mcp.proxy.tools import ProxiedToolsManager, register_proxied_tools
 from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
 from dbt_mcp.semantic_layer.tools import register_sl_tools
 from dbt_mcp.tools.injection import HIDE, adapt_with_mappers
+from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.validation import configure_argument_validation
 from dbt_mcp.tools.toolsets import Toolset, toolsets, proxied_tools
 from dbt_mcp.tracking.tracking import (
@@ -57,6 +58,10 @@ PROJECT_TOOL_NAMES = frozenset(
         - proxied_tools
     )
 )
+
+# Tools needing an explicit, bounded set of project IDs. Hidden under the
+# single-project default rather than left to fail at call time.
+MULTI_PROJECT_ONLY_TOOL_NAMES = frozenset({ToolName.SEARCH_PUBLIC_MESH_MODELS.value})
 
 
 def _safe_args(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -176,6 +181,11 @@ class DbtMCP(FastMCP):
 
     @staticmethod
     def _tool_available(tool: RegisteredTool, projects: list[int] | None) -> bool:
+        if tool.name in MULTI_PROJECT_ONLY_TOOL_NAMES:
+            # Multi-project mode is DBT_PROJECT_IDS being configured at all,
+            # not how many ids it holds. OAuth single-project selection leaves
+            # `projects` None (see fastapi_app.py's selected_project_ids).
+            return projects is not None
         if projects is None:
             return True
         return tool.name in PROJECT_TOOL_NAMES

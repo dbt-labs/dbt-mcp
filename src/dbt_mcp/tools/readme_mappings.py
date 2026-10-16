@@ -26,7 +26,7 @@ HUMAN_DESCRIPTIONS: dict[ToolName, str] = {
     ToolName.GET_METRICS_COMPILED_SQL: "Returns compiled SQL for metrics without executing the query.",
     # Discovery tools
     ToolName.GET_MART_MODELS: "Retrieves all mart models.",
-    ToolName.GET_ALL_MODELS: "Retrieves name and description of all models.",
+    ToolName.GET_ALL_MODELS: "Retrieves name and description of all models; optionally filtered to one dbt Mesh access level.",
     ToolName.GET_NODE_DETAILS: "Gets full details for any dbt resource type (model, source, exposure, test, seed, snapshot, macro, semantic_model).",
     ToolName.GET_MODEL_DETAILS: "Gets model details including compiled SQL, columns, and schema.",
     ToolName.GET_MODEL_PARENTS: "Gets upstream dependencies of a model.",
@@ -46,6 +46,7 @@ HUMAN_DESCRIPTIONS: dict[ToolName, str] = {
     ToolName.GET_SNAPSHOT_DETAILS: "Gets details for a specific snapshot.",
     ToolName.GET_TEST_DETAILS: "Gets details for a specific test.",
     ToolName.SEARCH: "[Alpha] Searches for resources across the dbt project (not generally available).",
+    ToolName.SEARCH_PUBLIC_MESH_MODELS: "Finds public dbt Mesh models across projects and confirms producer identity so you can build a verified cross-project ref (multi-project configurations only).",
     # SQL tools
     ToolName.TEXT_TO_SQL: "Generates SQL from natural language using project context.",
     ToolName.EXECUTE_SQL: "Executes SQL on dbt Platform infrastructure with Semantic Layer support.",

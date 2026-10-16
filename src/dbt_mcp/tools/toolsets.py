@@ -79,6 +79,7 @@ toolsets = {
         ToolName.GET_SNAPSHOT_DETAILS,
         ToolName.GET_TEST_DETAILS,
         ToolName.SEARCH,
+        ToolName.SEARCH_PUBLIC_MESH_MODELS,
     },
     Toolset.DBT_CLI: {
         ToolName.BUILD,
