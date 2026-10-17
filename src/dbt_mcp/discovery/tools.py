@@ -826,7 +826,7 @@ async def search_public_mesh_models(
             "search_public_mesh_models requires a project-aware configuration provider"
         )
     # Parse before the fan-out so a malformed relation_name fails fast.
-    relation_components = (
+    relation_filter = (
         parse_relation_name(relation_name) if relation_name is not None else None
     )
     # A duplicate id would double-count the project in coverage and emit
@@ -840,7 +840,7 @@ async def search_public_mesh_models(
             fetcher = PublicMeshModelsFetcher(
                 config=config, paginator=build_models_paginator(config)
             )
-            return await fetcher.fetch_candidates(relation_components)
+            return await fetcher.fetch_candidates(relation_filter)
 
     # return_exceptions so one inaccessible producer project -- unauthorized
     # project_id, no prod environment, a GraphQL/HTTP error, or a failed
@@ -855,9 +855,8 @@ async def search_public_mesh_models(
     searched: list[str] = []
     failed: dict[str, str] = {}
     incomplete: list[str] = []
-    unresolved_identity: list[str] = []
     # None on the relation path: a point query has no "how much was examined".
-    models_scanned: int | None = 0 if relation_components is None else None
+    models_scanned: int | None = 0 if relation_filter is None else None
     relation_hits = 0
     for project_id, result in zip(deduped_project_ids, results, strict=True):
         project_key = str(project_id)
@@ -877,20 +876,16 @@ async def search_public_mesh_models(
                 platform_project_name=result.platform_project_name,
             )
         )
-        if relation_components is not None:
-            hits, unresolved = count_relation_matches(
+        if relation_filter is not None:
+            relation_hits += count_relation_matches(
                 result.nodes,
                 platform_project_name=result.platform_project_name,
             )
-            relation_hits += hits
-            if unresolved:
-                unresolved_identity.append(project_key)
 
     coverage = MeshCoverage(
         searched=searched,
         failed=failed,
         incomplete=incomplete,
-        unresolved_identity=unresolved_identity,
         models_scanned=models_scanned,
     )
     # Deduped before truncation so a project whose only matches land past the

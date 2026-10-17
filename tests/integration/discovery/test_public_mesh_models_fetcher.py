@@ -9,11 +9,7 @@ a case-sensitive API would break `relation_name` lookups silently.
 
 import pytest
 
-from dbt_mcp.discovery.client import (
-    ModelsFetcher,
-    PublicMeshModelsFetcher,
-    RelationComponents,
-)
+from dbt_mcp.discovery.client import ModelFilter, ModelsFetcher, PublicMeshModelsFetcher
 from dbt_mcp.discovery.mesh import search_mesh_models
 
 
@@ -87,13 +83,12 @@ async def test_relation_point_query_is_exact_and_case_insensitive(
 
     # Upper-cased on every component: proves both that the point query
     # finds the target at all and that case does not matter.
-    point = await public_mesh_models_fetcher.fetch_candidates(
-        RelationComponents(
-            database=database.upper() if database else None,
-            schema=schema.upper() if schema else None,
-            identifier=identifier.upper(),
-        )
-    )
+    relation_filter: ModelFilter = {"identifier": identifier.upper()}
+    if schema:
+        relation_filter["schema"] = schema.upper()
+    if database:
+        relation_filter["database"] = database.upper()
+    point = await public_mesh_models_fetcher.fetch_candidates(relation_filter)
     assert any(n["uniqueId"] == target["uniqueId"] for n in point.nodes), (
         f"upper-cased lookup of {identifier!r} did not return "
         f"{target['uniqueId']!r} -- the filter is case-sensitive, so "
@@ -112,9 +107,12 @@ async def test_relation_point_query_is_exact_and_case_insensitive(
     # identifier must not match. Without this the test can pass vacuously.
     truncated = identifier[1:]
     assert truncated, f"identifier {identifier!r} too short to probe"
-    near_miss = await public_mesh_models_fetcher.fetch_candidates(
-        RelationComponents(database=database, schema=schema, identifier=truncated)
-    )
+    near_miss_filter: ModelFilter = {"identifier": truncated}
+    if schema:
+        near_miss_filter["schema"] = schema
+    if database:
+        near_miss_filter["database"] = database
+    near_miss = await public_mesh_models_fetcher.fetch_candidates(near_miss_filter)
     assert not any(n["uniqueId"] == target["uniqueId"] for n in near_miss.nodes), (
         f"identifier {truncated!r} matched {target['uniqueId']!r}, whose "
         f"identifier is {identifier!r} -- the filter matches on substring or "

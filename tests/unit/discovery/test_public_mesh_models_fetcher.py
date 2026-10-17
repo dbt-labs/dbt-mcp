@@ -13,9 +13,12 @@ from dbt_mcp.discovery.client import (
     MESH_SCAN_PAGE_SIZE,
     PaginatedResourceFetcher,
     PublicMeshModelsFetcher,
-    RelationComponents,
 )
-from dbt_mcp.errors import DiscoveryToolCallError
+from dbt_mcp.errors import DiscoveryToolCallError, GraphQLError
+
+# Sentinel distinguishing "omit the dbtProjectName key" from `project_name=None`
+# -- the two are different wire shapes and the fetcher must handle both.
+_OMIT_PROJECT_NAME = object()
 
 
 def _fetcher(config) -> PublicMeshModelsFetcher:
@@ -29,51 +32,31 @@ def _fetcher(config) -> PublicMeshModelsFetcher:
     )
 
 
-def _page(nodes: list[dict], *, has_next: bool, end_cursor: str | None) -> dict:
-    return {
-        "data": {
-            "environment": {
-                "applied": {
-                    "models": {
-                        "pageInfo": {
-                            "hasNextPage": has_next,
-                            "endCursor": end_cursor,
-                        },
-                        "edges": [{"node": n} for n in nodes],
-                    }
-                }
+def _page(
+    nodes: list[dict],
+    *,
+    has_next: bool,
+    end_cursor: str | None,
+    project_name: str | None | object = "p",
+) -> dict:
+    environment: dict = {
+        "applied": {
+            "models": {
+                "pageInfo": {
+                    "hasNextPage": has_next,
+                    "endCursor": end_cursor,
+                },
+                "edges": [{"node": n} for n in nodes],
             }
         }
     }
+    if project_name is not _OMIT_PROJECT_NAME:
+        environment["dbtProjectName"] = project_name
+    return {"data": {"environment": environment}}
 
 
 def _node(i: int) -> dict:
     return {"name": f"model_{i}", "uniqueId": f"model.p.model_{i}", "access": "public"}
-
-
-def _dispatch(pages: list[dict], project_name_response):
-    """Route each execute_query call by shape instead of call order.
-
-    fetch_candidates fires the model query and the project-name sub-query
-    concurrently via asyncio.gather, so which one reaches execute_query
-    first isn't guaranteed. The model query always sends a `modelsFilter`
-    variable; the project-name sub-query never does.
-    """
-    pages_iter = iter(pages)
-
-    async def _side_effect(query, variables, *, config):
-        del query, config
-        if "modelsFilter" in variables:
-            return next(pages_iter)
-        if isinstance(project_name_response, Exception):
-            raise project_name_response
-        return project_name_response
-
-    return _side_effect
-
-
-def _mesh_calls(mock_api_client):
-    return [c for c in mock_api_client.await_args_list if "modelsFilter" in c.args[1]]
 
 
 async def test_scan_narrows_to_public_and_follows_the_cursor(
@@ -89,13 +72,10 @@ async def test_scan_narrows_to_public_and_follows_the_cursor(
     re-checking it (see tests/integration for live confirmation the API
     honors it).
     """
-    mock_api_client.side_effect = _dispatch(
-        [
-            _page([_node(1)], has_next=True, end_cursor="c1"),
-            _page([_node(2)], has_next=False, end_cursor="c2"),
-        ],
-        {"data": {"environment": {"dbtProjectName": "p"}}},
-    )
+    mock_api_client.side_effect = [
+        _page([_node(1)], has_next=True, end_cursor="c1"),
+        _page([_node(2)], has_next=False, end_cursor="c2"),
+    ]
 
     candidates = await _fetcher(unit_discovery_config).fetch_candidates()
 
@@ -103,7 +83,7 @@ async def test_scan_narrows_to_public_and_follows_the_cursor(
     assert candidates.incomplete is False
     assert candidates.platform_project_name == "p"
 
-    mesh_calls = _mesh_calls(mock_api_client)
+    mesh_calls = mock_api_client.await_args_list
     assert len(mesh_calls) == 2
     assert mesh_calls[0].args[1]["modelsFilter"] == {"access": "public"}
     assert mesh_calls[0].args[1]["first"] == MESH_SCAN_PAGE_SIZE
@@ -125,8 +105,6 @@ async def test_scan_reports_incomplete_when_the_page_budget_runs_out(
 
     async def _side_effect(query, variables, *, config):
         del query, config
-        if "modelsFilter" not in variables:
-            return {"data": {"environment": {"dbtProjectName": "p"}}}
         # Always another page: the budget, not the server, ends this scan.
         return _page([_node(1)], has_next=True, end_cursor=f"c{id(variables)}")
 
@@ -136,13 +114,14 @@ async def test_scan_reports_incomplete_when_the_page_budget_runs_out(
 
     assert candidates.incomplete is True
     assert len(candidates.nodes) == MESH_SCAN_MAX_PAGES
+    assert candidates.platform_project_name == "p"
 
 
 @pytest.mark.parametrize(
-    ("components", "expected_filter"),
+    ("relation_filter", "expected_filter"),
     [
         (
-            RelationComponents(database="prod", schema="gold", identifier="fct_orders"),
+            {"database": "prod", "schema": "gold", "identifier": "fct_orders"},
             {
                 "access": "public",
                 "identifier": "fct_orders",
@@ -154,72 +133,79 @@ async def test_scan_reports_incomplete_when_the_page_budget_runs_out(
         # None -- that asks the API to filter on a null value rather than
         # not filter on that component at all.
         (
-            RelationComponents(database=None, schema=None, identifier="fct_orders"),
+            {"identifier": "fct_orders"},
             {"access": "public", "identifier": "fct_orders"},
         ),
     ],
     ids=["three_part", "identifier_only"],
 )
 async def test_relation_lookup_is_a_single_filtered_point_query(
-    mock_api_client, unit_discovery_config, components, expected_filter
+    mock_api_client, unit_discovery_config, relation_filter, expected_filter
 ):
-    """With `relation_components` the returned rows *are* the matches: one
+    """With `relation_filter` the returned rows *are* the matches: one
     request, no cursor follow-up even when the server offers another page.
     `incomplete` stays wired to `has_more` rather than hardcoded False, so
     if `(database, schema, identifier)` ever stops being near-unique the
     uncertainty is reported instead of rows being silently dropped.
     """
-    mock_api_client.side_effect = _dispatch(
-        [_page([_node(1)], has_next=True, end_cursor="c1")],
-        {"data": {"environment": {"dbtProjectName": "p"}}},
-    )
+    mock_api_client.side_effect = [_page([_node(1)], has_next=True, end_cursor="c1")]
 
-    candidates = await _fetcher(unit_discovery_config).fetch_candidates(components)
+    candidates = await _fetcher(unit_discovery_config).fetch_candidates(relation_filter)
 
-    mesh_calls = _mesh_calls(mock_api_client)
-    assert len(mesh_calls) == 1
-    assert mesh_calls[0].args[1]["modelsFilter"] == expected_filter
-    assert "after" not in mesh_calls[0].args[1]
+    # The direct proof the project-identity fan-out is gone: one node page,
+    # one network call, total.
+    assert mock_api_client.await_count == 1
+    mesh_call = mock_api_client.await_args_list[0]
+    assert mesh_call.args[1]["modelsFilter"] == expected_filter
+    assert "after" not in mesh_call.args[1]
     assert candidates.incomplete is True
 
 
 @pytest.mark.parametrize(
-    ("project_name_outcome", "expected_exception"),
+    ("response_outcome", "expected_exception"),
     [
         (RuntimeError("boom"), RuntimeError),
-        # A null `environment` with no `errors` array is a well-formed
-        # GraphQL response; `or {}` keeps the chained `.get()` from raising
-        # AttributeError, surfacing the clean "no project name" error instead.
-        ({"data": {"environment": None}}, DiscoveryToolCallError),
-        # Same hazard one level up.
-        ({"data": None}, DiscoveryToolCallError),
-        # A well-formed response with no project name set is not a GraphQL
-        # error, but still unusable: there is no identity to attribute any
-        # node to.
-        ({"data": {"environment": {"dbtProjectName": None}}}, DiscoveryToolCallError),
-        ({"data": {"environment": {"dbtProjectName": ""}}}, DiscoveryToolCallError),
+        ({"errors": [{"message": "boom"}]}, GraphQLError),
+        # A null `environment`/`data` with no `errors` array is a malformed
+        # response for the strict edges/pageInfo path -- that's a different
+        # failure mode than a missing `dbtProjectName`, and propagates as-is
+        # rather than being wrapped.
+        ({"data": {"environment": None}}, TypeError),
+        ({"data": None}, TypeError),
     ],
-    ids=[
-        "raises",
-        "null_environment",
-        "null_data",
-        "null_project_name",
-        "empty_project_name",
-    ],
+    ids=["raises", "graphql_error", "null_environment", "null_data"],
 )
-async def test_project_name_lookup_failure_loses_the_otherwise_successful_scan(
-    mock_api_client, unit_discovery_config, project_name_outcome, expected_exception
+async def test_malformed_response_propagates_as_is(
+    mock_api_client, unit_discovery_config, response_outcome, expected_exception
 ):
-    """The project-name lookup is load-bearing, not auxiliary: without a
-    confirmed identity nothing in a node scan can be attributed to this
-    producer. However the lookup fails, `fetch_candidates` must raise and
-    discard the otherwise-successful scan rather than return it unverifiable
-    -- the caller (`_fetch_one_project` in tools.py) turns this into
-    `coverage.failed` with the real error message."""
-    mock_api_client.side_effect = _dispatch(
-        [_page([_node(1)], has_next=False, end_cursor="c1")],
-        project_name_outcome,
-    )
+    """These failures happen while parsing the node page itself, before the
+    project name is ever looked at -- there is nothing to recover by then."""
+    if isinstance(response_outcome, Exception):
+        mock_api_client.side_effect = response_outcome
+    else:
+        mock_api_client.side_effect = [response_outcome]
 
     with pytest.raises(expected_exception):
+        await _fetcher(unit_discovery_config).fetch_candidates()
+
+
+@pytest.mark.parametrize(
+    "project_name",
+    [None, "", _OMIT_PROJECT_NAME],
+    ids=["null_project_name", "empty_project_name", "missing_project_name"],
+)
+async def test_missing_project_name_loses_the_otherwise_successful_scan(
+    mock_api_client, unit_discovery_config, project_name
+):
+    """The project name is load-bearing, not auxiliary: without a confirmed
+    identity nothing in a node scan can be attributed to this producer. A
+    well-formed page with no usable `dbtProjectName` must raise and discard
+    the otherwise-successful scan rather than return it unverifiable -- the
+    caller (`_fetch_one_project` in tools.py) turns this into
+    `coverage.failed` with the real error message."""
+    mock_api_client.side_effect = [
+        _page([_node(1)], has_next=False, end_cursor="c1", project_name=project_name)
+    ]
+
+    with pytest.raises(DiscoveryToolCallError):
         await _fetcher(unit_discovery_config).fetch_candidates()

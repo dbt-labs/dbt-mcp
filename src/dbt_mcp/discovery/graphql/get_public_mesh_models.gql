@@ -6,6 +6,7 @@ query PublicMeshModels(
   $sort: AppliedModelSort
 ) {
   environment(id: $environmentId) {
+    dbtProjectName
     applied {
       models(filter: $modelsFilter, after: $after, first: $first, sort: $sort) {
         pageInfo {
@@ -24,6 +25,10 @@ query PublicMeshModels(
             relationName
             version
             latestVersion
+            executionInfo {
+              lastRunStatus
+              lastRunGeneratedAt
+            }
           }
         }
       }

@@ -301,10 +301,8 @@ async def test_fan_out_dedupes_project_ids_and_stays_bounded(mock_fetch_candidat
             False,
         ),
         # A node at the relation whose uniqueId carries no package to compare
-        # against is unresolved, not ruled out -- this producer's ownership
-        # of it is unknown, so without tracking unresolved identity
-        # separately this would report `found: false, conclusive: true`
-        # despite a real match sitting right there.
+        # against can never match a real, non-empty project name -- same
+        # conclusive miss as a confirmed installed package.
         (
             [
                 _candidates(
@@ -314,7 +312,7 @@ async def test_fan_out_dedupes_project_ids_and_stays_bounded(mock_fetch_candidat
             ],
             "ANALYTICS.GOLD_FINANCE.SALES",
             False,
-            False,
+            True,
         ),
         # A node at the relation that the platform confirms belongs to an
         # installed package is a verified non-match, so this miss stays
@@ -340,7 +338,7 @@ async def test_fan_out_dedupes_project_ids_and_stays_bounded(mock_fetch_candidat
         "absent_with_failed_sibling",
         "found_despite_failed_sibling",
         "absent_with_incomplete_sibling",
-        "unresolved_identity",
+        "malformed_unique_id",
         "confirmed_installed_package",
     ],
 )

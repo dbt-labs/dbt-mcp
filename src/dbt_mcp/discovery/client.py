@@ -363,7 +363,6 @@ class GraphQLQueries:
 
     # Mesh model search query
     GET_PUBLIC_MESH_MODELS = load_query("get_public_mesh_models.gql")
-    GET_ENVIRONMENT_PROJECT_NAME = load_query("get_environment_project_name.gql")
 
 
 async def execute_query(
@@ -426,6 +425,17 @@ class PaginatedResourceFetcher:
             current = current[key]
         return current
 
+    def _extract_optional_path(self, payload: Any, path: tuple[str, ...]) -> Any | None:
+        """Like `_extract_path`, but for a field that isn't required to exist --
+        walks with `.get()` at every level and returns None on a missing key or a
+        null/non-dict intermediate, instead of raising."""
+        current = payload
+        for key in path:
+            if not isinstance(current, dict):
+                return None
+            current = current.get(key)
+        return current
+
     def _parse_edges(self, result: dict) -> list[dict]:
         raise_gql_error(result)
         edges = self._extract_path(result, self._edges_path)
@@ -441,14 +451,14 @@ class PaginatedResourceFetcher:
             parsed_edges.append(node)
         return parsed_edges
 
-    async def fetch_paginated(
+    async def _fetch_page(
         self,
         query: str,
         variables: dict[str, Any],
         *,
-        limit: int = 50,
-        after: str | None = None,
-    ) -> ResultPage[list[dict]]:
+        limit: int,
+        after: str | None,
+    ) -> tuple[ResultPage[list[dict]], dict]:
         validate_page_size(limit)
         request_variables = variables | {
             "environmentId": self._config.environment_id,
@@ -466,13 +476,46 @@ class PaginatedResourceFetcher:
         has_more = bool(page_info.has_next_page)
         if has_more and (not page_info.end_cursor or page_info.end_cursor == after):
             raise DiscoveryToolCallError("Discovery pagination did not advance.")
-        return ResultPage(
+        page = ResultPage(
             result=nodes,
             pagination=Pagination(
                 has_more=has_more,
                 next_cursor=page_info.end_cursor if has_more else None,
             ),
         )
+        return page, result
+
+    async def fetch_paginated(
+        self,
+        query: str,
+        variables: dict[str, Any],
+        *,
+        limit: int = 50,
+        after: str | None = None,
+    ) -> ResultPage[list[dict]]:
+        page, _ = await self._fetch_page(query, variables, limit=limit, after=after)
+        return page
+
+    async def fetch_paginated_with_extra(
+        self,
+        query: str,
+        variables: dict[str, Any],
+        *,
+        limit: int = 50,
+        after: str | None = None,
+        extra_path: tuple[str, ...],
+    ) -> tuple[ResultPage[list[dict]], Any | None]:
+        """Like `fetch_paginated`, but also hands back one extra field from the
+        same response -- for data that lives alongside the paginated edges (e.g.
+        `environment.dbtProjectName` next to `environment.applied.models`) and
+        would otherwise cost a second round trip to fetch. `extra_path` is
+        extracted defensively: a missing key or null intermediate yields None
+        rather than raising, since its absence is a data condition for the
+        caller to handle, not a malformed response."""
+        page, result = await self._fetch_page(
+            query, variables, limit=limit, after=after
+        )
+        return page, self._extract_optional_path(result, extra_path)
 
 
 class ModelFilter(TypedDict, total=False):
@@ -494,24 +537,6 @@ class ModelFilter(TypedDict, total=False):
     access: ModelAccess
 
 
-@dataclass(frozen=True, slots=True)
-class RelationComponents:
-    """A parsed `relation_name` lookup, right-aligned onto `ModelFilter`'s
-    `database`/`schema`/`identifier` fields.
-
-    `database`/`schema` are None when the caller supplied fewer parts --
-    absent, meaning "don't filter on this component", never a wildcard.
-
-    Matching semantics (exact, case-insensitive) are the Discovery API's,
-    not enforced here; they are pinned by
-    tests/integration/discovery/test_public_mesh_models_fetcher.py.
-    """
-
-    database: str | None
-    schema: str | None
-    identifier: str
-
-
 class SourceFilter(TypedDict, total=False):
     sourceNames: list[str]
     uniqueIds: list[str] | None
@@ -521,6 +546,11 @@ class SourceFilter(TypedDict, total=False):
 class MacroFilter(TypedDict, total=False):
     types: list[str]
     uniqueIds: list[str] | None
+
+
+class MeshNodeExecutionInfo(TypedDict, total=False):
+    lastRunStatus: str | None
+    lastRunGeneratedAt: str | None
 
 
 class MeshModelNode(TypedDict, total=False):
@@ -537,6 +567,7 @@ class MeshModelNode(TypedDict, total=False):
     relationName: str | None
     version: str | int | float | None
     latestVersion: str | int | float | None
+    executionInfo: MeshNodeExecutionInfo | None
 
 
 def build_models_paginator(config: DiscoveryConfig) -> PaginatedResourceFetcher:
@@ -813,12 +844,17 @@ class MacrosFetcher:
 MESH_SCAN_PAGE_SIZE = 100
 MESH_SCAN_MAX_PAGES = 20
 
+# `environment.dbtProjectName` is a sibling of `environment.applied` in
+# GET_PUBLIC_MESH_MODELS, so it rides along with every node page instead of
+# costing its own round trip.
+MESH_PROJECT_NAME_PATH: tuple[str, ...] = ("data", "environment", "dbtProjectName")
+
 
 @dataclass(frozen=True, slots=True)
 class MeshCandidates:
     """One environment's candidate model nodes plus its confirmed identity.
 
-    `platform_project_name` is never empty: `_fetch_platform_project_name`
+    `platform_project_name` is never empty: `PublicMeshModelsFetcher._require_project_name`
     raises rather than returning one, so a `MeshCandidates` only ever exists
     for a project whose identity is confirmed.
 
@@ -852,49 +888,59 @@ class PublicMeshModelsFetcher:
         self._paginator = paginator
 
     async def fetch_candidates(
-        self, relation_components: RelationComponents | None = None
+        self, relation_filter: ModelFilter | None = None
     ) -> MeshCandidates:
-        """With `relation_components`, one filtered request whose rows *are*
-        the matches; without it, the bounded public-only sweep. Either runs
-        concurrently with the project-name lookup.
+        """With `relation_filter`, one filtered request whose rows *are*
+        the matches; without it, the bounded public-only sweep. Either way,
+        the environment's own project name rides along in the same response
+        as the node page(s), so there is no separate identity lookup.
 
-        If the project-name lookup fails, this raises rather than degrading:
+        If that project name is missing, this raises rather than degrading:
         without a confirmed identity nothing in the node scan can be
         attributed to this producer, so the caller treats the whole project
         as failed instead of returning unverifiable nodes.
         """
-        nodes_task = (
-            self._fetch_relation_match(relation_components)
-            if relation_components is not None
-            else self._scan_all_nodes()
-        )
-        project_name_task = self._fetch_platform_project_name()
-        (nodes, incomplete), platform_project_name = await asyncio.gather(
-            nodes_task, project_name_task
-        )
+        if relation_filter is not None:
+            nodes, incomplete, raw_project_name = await self._fetch_relation_match(
+                relation_filter
+            )
+        else:
+            nodes, incomplete, raw_project_name = await self._scan_all_nodes()
         return MeshCandidates(
             nodes=nodes,
             incomplete=incomplete,
-            platform_project_name=platform_project_name,
+            platform_project_name=self._require_project_name(raw_project_name),
         )
 
+    def _require_project_name(self, raw_project_name: str | None) -> str:
+        """Raises when the platform can't confirm this environment's own
+        project identity -- a GraphQL/network error (surfaced earlier, while
+        parsing the node page), or a well-formed response with no
+        `dbtProjectName` set. Mesh search cannot trust any node's ownership
+        without this answer, so the caller (`_fetch_one_project` in
+        tools.py) treats the whole project as failed rather than returning
+        unverifiable nodes.
+        """
+        if not raw_project_name:
+            raise DiscoveryToolCallError(
+                "The platform did not return a project name for this environment"
+            )
+        return raw_project_name
+
     async def _fetch_relation_match(
-        self, relation_components: RelationComponents
-    ) -> tuple[list[MeshModelNode], bool]:
+        self, relation_filter: ModelFilter
+    ) -> tuple[list[MeshModelNode], bool, str | None]:
         """One page is enough -- `(database, schema, identifier)` is
         effectively unique within a project. `incomplete` stays wired to
         `has_more` rather than hardcoded False so that if the assumption ever
         fails, the uncertainty is reported instead of rows being dropped.
         """
-        model_filter: ModelFilter = {
-            "access": ModelAccess.PUBLIC,
-            "identifier": relation_components.identifier,
-        }
-        if relation_components.database is not None:
-            model_filter["database"] = relation_components.database
-        if relation_components.schema is not None:
-            model_filter["schema"] = relation_components.schema
-        page = await self._paginator.fetch_paginated(
+        # Built fresh rather than mutating `relation_filter` in place: the
+        # same dict is shared across concurrent per-project fetches in the
+        # mesh search fan-out.
+        model_filter: ModelFilter = {"access": ModelAccess.PUBLIC}
+        model_filter.update(relation_filter)
+        page, project_name = await self._paginator.fetch_paginated_with_extra(
             GraphQLQueries.GET_PUBLIC_MESH_MODELS,
             variables={
                 "modelsFilter": model_filter,
@@ -902,18 +948,24 @@ class PublicMeshModelsFetcher:
             },
             limit=MESH_SCAN_PAGE_SIZE,
             after=None,
+            extra_path=MESH_PROJECT_NAME_PATH,
         )
-        return cast(list[MeshModelNode], page.result), page.pagination.has_more
+        return (
+            cast(list[MeshModelNode], page.result),
+            page.pagination.has_more,
+            project_name,
+        )
 
-    async def _scan_all_nodes(self) -> tuple[list[MeshModelNode], bool]:
+    async def _scan_all_nodes(self) -> tuple[list[MeshModelNode], bool, str | None]:
         """Sweep every public model node, most-queried first, so that the
         tool's `limit` truncates the least-used matches rather than an
         arbitrary slice."""
         model_filter: ModelFilter = {"access": ModelAccess.PUBLIC}
         collected: list[MeshModelNode] = []
+        project_name: str | None = None
         after: str | None = None
         for _ in range(MESH_SCAN_MAX_PAGES):
-            page = await self._paginator.fetch_paginated(
+            page, page_project_name = await self._paginator.fetch_paginated_with_extra(
                 GraphQLQueries.GET_PUBLIC_MESH_MODELS,
                 variables={
                     "modelsFilter": model_filter,
@@ -921,38 +973,17 @@ class PublicMeshModelsFetcher:
                 },
                 limit=MESH_SCAN_PAGE_SIZE,
                 after=after,
+                extra_path=MESH_PROJECT_NAME_PATH,
             )
             collected.extend(cast(list[MeshModelNode], page.result))
+            # Every page carries the same project name; a transient null on a
+            # later page must not erase an already-confirmed identity.
+            if project_name is None:
+                project_name = page_project_name
             if not page.pagination.has_more:
-                return collected, False
+                return collected, False, project_name
             after = page.pagination.next_cursor
-        return collected, True
-
-    async def _fetch_platform_project_name(self) -> str:
-        """Raises when the platform can't confirm this environment's own
-        project identity -- a GraphQL/network error, or a well-formed
-        response with no `dbtProjectName` set. Mesh search cannot trust any
-        node's ownership without this answer, so the exception is left to
-        propagate through the `asyncio.gather` in `fetch_candidates`: the
-        caller (`_fetch_one_project` in tools.py) treats the whole project as
-        failed rather than returning unverifiable nodes.
-        """
-        result = await execute_query(
-            GraphQLQueries.GET_ENVIRONMENT_PROJECT_NAME,
-            {"environmentId": self._config.environment_id},
-            config=self._config,
-        )
-        raise_gql_error(result)
-        # A well-formed response can carry `"environment": null` with no
-        # `errors`; `or {}` keeps that a clean lookup miss instead of an
-        # AttributeError.
-        environment = (result.get("data") or {}).get("environment") or {}
-        project_name = environment.get("dbtProjectName")
-        if not project_name:
-            raise DiscoveryToolCallError(
-                "The platform did not return a project name for this environment"
-            )
-        return project_name
+        return collected, True, project_name
 
 
 class AppliedResourceType(StrEnum):
