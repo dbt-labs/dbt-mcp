@@ -3998,6 +3998,289 @@
     {
       "annotations": {
         "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Search Public Mesh Models"
+      },
+      "description": "Searches for public dbt Mesh models across producer projects and confirms each producer's identity, returning the exact cross-project `ref` and `dependencies.yml` entry.\n\n**Scope:** only models with Mesh `access: public`, and only the projects named in `project_ids` (which must be a subset of the configured project IDs). Private and protected models are never returned \u2014 use `get_node_details` to inspect a specific model regardless of access level. To audit your *own* project's public interface, use `get_all_models` instead; it lists the bound environment's public models with no cross-project search. Follow up with `get_node_details` on any of them for `group`, `contractEnforced`, and the rest of a model's governance config.\n\n**Identity verification is automatic.** For each project, the tool asks the platform for that environment's own `dbt_project.yml` name rather than guessing from a model's `unique_id`. Only a model whose namespace matches is returned, with `dbt_project_name` and `ref` populated. A project whose *own* identity lookup fails lands in `coverage.failed` instead, since none of its nodes could be attributed to it at all.\n\n**Two ways to search:** `query` (text search over names/descriptions) and `relation_name` (exact warehouse relation lookup, matched right-aligned against each model's `database`/`schema`/`identifier` \u2014 `fct_orders`, `gold.fct_orders`, and `prod.gold.fct_orders` are all accepted). See each parameter's own description for matching rules. Supplying `relation_name` narrows each project to that one relation server-side, before `query` applies; a `query` alongside it can only exclude that single model from `models`, never broaden the search or affect `lookup`. Because `relation_name` matches the warehouse identifier rather than the dbt model name, it finds aliased and versioned models that `query` misses. Omitting both returns every public model in scope.\n\n**Returns** a `MeshModelSearchResult`:\n- `models` \u2014 matching public models, each with `model_name`, `unique_id`, `package_name`, `version`, `latest_version`, `last_run_status` and `last_run_generated_at` (raw passthrough from the platform's last run, null when unavailable \u2014 no staleness logic applied), `project_id`, `relation_name`, `dbt_project_name`, and `ref` (the ready-to-use `{{ ref(...) }}` string). Pass `project_id` with `unique_id` to `get_node_details` for anything else about a model. A node the platform confirms belongs to a *different* project (an installed package, say) is excluded entirely.\n- `coverage` \u2014 `searched`, `failed` (project \u2192 reason, including an identity-lookup failure), `incomplete` (scan stopped with pages remaining), and `models_scanned` (`null` on a `relation_name` lookup, which is a point query rather than a scan).\n- `lookup` \u2014 present only with `relation_name`: the echoed relation, `found`, and `conclusive`.\n- `dependencies` \u2014 one producer project name per entry, deduped, in first-seen order \u2014 exactly the `dependencies.yml` list.\n- `omitted_model_count` \u2014 how many matches `limit` cut.\n\n**Reading `lookup` correctly.** `found: false` is only authoritative when `conclusive: true`. A negative is undermined by any project in `coverage.failed` or `coverage.incomplete`. A *private or protected* model at the relation yields `found: false`, which is correct (it isn't ref-able) but still means the developer is about to source over a dbt-managed relation. And `conclusive: true` means \"not claimed by a project in `project_ids`\", never \"not claimed by any dbt-managed model\" \u2014 use `get_node_details` for that. Before declaring a new source, make sure every candidate producer is in `project_ids`, then require `conclusive: true`.\n\n**Sizing.** `models` is capped at `limit` (1-100, default 50) across all searched projects \u2014 a cap on the merged list, not a GraphQL page, and there is no cursor for more. A nonzero `omitted_model_count` means you should narrow with `query`, `relation_name`, or fewer `project_ids` rather than raise `limit`, which just moves the same cliff. `lookup`, `coverage`, and `dependencies` are all computed over the full scan before truncation. Within a project, results are ordered most-queried first; the merged list concatenates projects in `project_ids` order, so truncation cuts from the end \u2014 a project late in `project_ids` can contribute nothing to `models` while still appearing in `dependencies`.\n",
+      "input_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "default": 50,
+            "description": "Maximum number of matching models to return (1-100, default 50). Caps the merged list across all searched projects, not a single GraphQL page; there is no cursor to fetch more. `lookup`, `coverage`, and `dependencies` are computed before this cap applies.",
+            "maximum": 100,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "project_ids": {
+            "description": "dbt platform project IDs of the producer projects to search for public Mesh models. Must be a subset of the IDs configured via DBT_PROJECT_IDS, or chosen during multi-project OAuth selection.",
+            "items": {
+              "type": "integer"
+            },
+            "minItems": 1,
+            "title": "Project Ids",
+            "type": "array"
+          },
+          "query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional search text matched as a case-insensitive substring against model names and descriptions, e.g. 'gold finance sales'. Not semantic search. Omit to list everything in scope. Alongside `relation_name` it only filters that one relation's model in or out; it never broadens the search.",
+            "title": "Query"
+          },
+          "relation_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Warehouse relation to look up exactly, e.g. 'prod.gold.fct_orders'. Matched right-aligned against each model's database/schema/identifier, so 'prod.gold.fct_orders', 'gold.fct_orders', and 'fct_orders' are all accepted. Every supplied component must match exactly (not a prefix or substring) and matching is case-insensitive. Read the answer from the returned `lookup` field.",
+            "title": "Relation Name"
+          }
+        },
+        "required": [
+          "project_ids"
+        ],
+        "title": "search_public_mesh_modelsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "search_public_mesh_models",
+      "output_schema": {
+        "$defs": {
+          "MeshCoverage": {
+            "description": "Which parts of the requested scope were actually examined.\n\n`incomplete` lists projects whose scan stopped with pages still available.\nA project whose own identity lookup failed lands in `failed`, since none\nof its nodes could be attributed to it at all.\n`models_scanned` is `None` on a `relation_name` lookup, which is a\nserver-side point query rather than a scan.",
+            "properties": {
+              "failed": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "default": {},
+                "title": "Failed",
+                "type": "object"
+              },
+              "incomplete": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "title": "Incomplete",
+                "type": "array"
+              },
+              "models_scanned": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": 0,
+                "title": "Models Scanned"
+              },
+              "searched": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "title": "Searched",
+                "type": "array"
+              }
+            },
+            "title": "MeshCoverage",
+            "type": "object"
+          },
+          "MeshLookup": {
+            "description": "Answer to an exact `relation_name` lookup.\n\n`found` is true only when a public model at that relation is owned by one of\nthe searched projects; a node there belonging to a different project (an\ninstalled package, say) cannot be ref-ed and does not count. It is\nindependent of `query`, so narrowing `query` can empty `models` without\nmaking `found` false.\n\n`conclusive` is false when absence could not be proven -- a project in\n`coverage.failed` or `coverage.incomplete` could still hold the relation.\nTreat `found: false, conclusive: false` as \"not ruled out\", never as\nlicence to declare a new source.",
+            "properties": {
+              "conclusive": {
+                "default": true,
+                "title": "Conclusive",
+                "type": "boolean"
+              },
+              "found": {
+                "title": "Found",
+                "type": "boolean"
+              },
+              "relation_name": {
+                "title": "Relation Name",
+                "type": "string"
+              }
+            },
+            "required": [
+              "relation_name",
+              "found"
+            ],
+            "title": "MeshLookup",
+            "type": "object"
+          },
+          "MeshModel": {
+            "properties": {
+              "dbt_project_name": {
+                "title": "Dbt Project Name",
+                "type": "string"
+              },
+              "last_run_generated_at": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Last Run Generated At"
+              },
+              "last_run_status": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Last Run Status"
+              },
+              "latest_version": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Latest Version"
+              },
+              "model_name": {
+                "title": "Model Name",
+                "type": "string"
+              },
+              "package_name": {
+                "title": "Package Name",
+                "type": "string"
+              },
+              "project_id": {
+                "title": "Project Id",
+                "type": "integer"
+              },
+              "ref": {
+                "title": "Ref",
+                "type": "string"
+              },
+              "relation_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Relation Name"
+              },
+              "unique_id": {
+                "title": "Unique Id",
+                "type": "string"
+              },
+              "version": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Version"
+              }
+            },
+            "required": [
+              "model_name",
+              "unique_id",
+              "package_name",
+              "project_id",
+              "dbt_project_name",
+              "ref"
+            ],
+            "title": "MeshModel",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "coverage": {
+            "$ref": "#/$defs/MeshCoverage"
+          },
+          "dependencies": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Dependencies",
+            "type": "array"
+          },
+          "lookup": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/MeshLookup"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "models": {
+            "items": {
+              "$ref": "#/$defs/MeshModel"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "omitted_model_count": {
+            "default": 0,
+            "title": "Omitted Model Count",
+            "type": "integer"
+          },
+          "type": {
+            "default": "mesh_model_search_result",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "models",
+          "coverage"
+        ],
+        "title": "MeshModelSearchResult",
+        "type": "object"
+      },
+      "title": "Search Public Mesh Models",
+      "toolset": "discovery"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
         "idempotentHint": false,
         "openWorldHint": true,
         "readOnlyHint": false,

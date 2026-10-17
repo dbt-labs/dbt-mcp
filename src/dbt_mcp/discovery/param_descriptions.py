@@ -37,6 +37,36 @@ MACRO_INCLUDE_DEFAULT_DBT_PACKAGES = (
     "When true, include default dbt Labs core/adapter macro packages"
 )
 
+MESH_SEARCH_QUERY_DESCRIPTION = (
+    "Optional search text matched as a case-insensitive substring against "
+    "model names and descriptions, e.g. 'gold finance sales'. Not semantic "
+    "search. Omit to list everything in scope. Alongside `relation_name` it "
+    "only filters that one relation's model in or out; it never broadens the "
+    "search."
+)
+
+MESH_RELATION_NAME_DESCRIPTION = (
+    "Warehouse relation to look up exactly, e.g. 'prod.gold.fct_orders'. "
+    "Matched right-aligned against each model's database/schema/identifier, "
+    "so 'prod.gold.fct_orders', 'gold.fct_orders', and 'fct_orders' are all "
+    "accepted. Every supplied component must match exactly (not a prefix or "
+    "substring) and matching is case-insensitive. Read the answer from the "
+    "returned `lookup` field."
+)
+
+MESH_PROJECT_IDS_DESCRIPTION = (
+    "dbt platform project IDs of the producer projects to search for public "
+    "Mesh models. Must be a subset of the IDs configured via DBT_PROJECT_IDS"
+    ", or chosen during multi-project OAuth selection."
+)
+
+MESH_LIMIT_DESCRIPTION = (
+    "Maximum number of matching models to return (1-100, default 50). Caps "
+    "the merged list across all searched projects, not a single GraphQL page; "
+    "there is no cursor to fetch more. `lookup`, `coverage`, and "
+    "`dependencies` are computed before this cap applies."
+)
+
 # Not a JSON Schema param description — used as the `arg_mapping` for the
 # get_model_parents/get_model_children deprecation banner. get_lineage requires
 # unique_id (these tools accept name alone), and its default node limit can

@@ -100,6 +100,36 @@ async def test_calls_must_match_the_advertised_project_selector(projects, argume
         await make_server(projects).call_tool("get_all_models", arguments)
 
 
+@pytest.mark.parametrize(
+    # `None` is the single-project default (no DBT_PROJECT_IDS configured, or
+    # OAuth single-project selection). A configured project list makes the
+    # tool available regardless of how many IDs it holds -- a static-token
+    # config with exactly one project ID is still multi-project *mode* by
+    # this tool's own definition.
+    "projects,available",
+    [(None, False), ([10], True), ([10, 20], True)],
+)
+async def test_mesh_search_requires_configured_projects(projects, available):
+    server = make_server(projects)
+
+    async def search_public_mesh_models(project_ids: list[int]) -> str:
+        return "ok"
+
+    server.tool_server.add_tool(search_public_mesh_models)
+
+    names = {t.name for t in await server.list_tools()}
+    assert ("search_public_mesh_models" in names) is available
+
+    if available:
+        result = await server.call_tool(
+            "search_public_mesh_models", {"project_ids": [10]}
+        )
+        assert result[0][0].text == "ok"
+    else:
+        with pytest.raises(ValueError, match="unavailable"):
+            await server.call_tool("search_public_mesh_models", {"project_ids": [10]})
+
+
 async def test_local_tools_are_available_with_configured_environment():
     server = make_server()
     assert "show" in {t.name for t in await server.list_tools()}

@@ -55,7 +55,13 @@ from unittest.mock import AsyncMock, patch
 from pydantic import BaseModel
 
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.toolsets import TOOL_TO_TOOLSET, Toolset, proxied_tools, toolsets
+from dbt_mcp.tools.toolsets import (
+    MULTI_PROJECT_ONLY_TOOL_NAMES,
+    TOOL_TO_TOOLSET,
+    Toolset,
+    proxied_tools,
+    toolsets,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -132,12 +138,13 @@ def expected_tool_names() -> set[str]:
 
 
 @asynccontextmanager
-async def _snapshot_server() -> AsyncIterator[Any]:
+async def _snapshot_server(projects: list[int] | None = None) -> AsyncIterator[Any]:
     """Build the in-process server with a deterministic, network-free config.
 
     Proxied tools are disabled at config load and their registration is patched
-    out so the enumeration never reaches a remote endpoint. Project selection
-    is fixed so ``list_tools`` returns deterministic bound tool schemas.
+    out so the enumeration never reaches a remote endpoint. Project selection is
+    fixed to ``projects`` so ``list_tools`` returns deterministic bound tool
+    schemas.
     """
     from dbt_mcp.config.config import load_config
     from dbt_mcp.dbt_cli.binary_type import BinaryType
@@ -155,7 +162,7 @@ async def _snapshot_server() -> AsyncIterator[Any]:
             patch(
                 "dbt_mcp.mcp.server.DbtMCP._selected_projects",
                 new_callable=AsyncMock,
-                return_value=None,
+                return_value=projects,
             ),
         ):
             config = load_config(enable_proxied_tools=False)
@@ -219,42 +226,61 @@ async def _read_resource_hash(dbt_mcp: Any, uri: str) -> str | None:
     return hasher.hexdigest()
 
 
-async def generate_snapshot() -> ContractSnapshot:
-    """Enumerate the live in-process server and render the contract surface."""
-    async with _snapshot_server() as dbt_mcp:
-        all_tools = await dbt_mcp.list_tools()
-
-        included_names: set[str] = set()
-        tool_contracts: list[ToolContract] = []
-        for tool in all_tools:
-            try:
-                tool_name = ToolName(tool.name)
-            except ValueError:
-                # An enumerated tool with no ToolName entry is unexpected once
-                # proxied tools are patched out -- surface it loudly.
-                raise ValueError(
-                    f"Enumerated tool '{tool.name}' is not a known ToolName. "
-                    "If it is a new local tool, add it to ToolName and a toolset."
-                )
-            toolset = TOOL_TO_TOOLSET[tool_name]
-            if toolset not in INCLUDED_TOOLSETS or tool_name in proxied_tools:
-                continue
-            included_names.add(tool.name)
-            tool_contracts.append(
-                ToolContract(
-                    name=tool.name,
-                    toolset=toolset.value,
-                    title=getattr(tool, "title", None),
-                    description=tool.description,
-                    input_schema=_normalize(getattr(tool, "inputSchema", None)),
-                    output_schema=_normalize(getattr(tool, "outputSchema", None)),
-                    annotations=_normalize(getattr(tool, "annotations", None)),
-                    meta=_normalize(
-                        getattr(tool, "meta", None) or getattr(tool, "_meta", None)
-                    ),
-                )
+def _tool_contracts_from(
+    tools: list[Any], *, only: frozenset[str] | None = None
+) -> list[ToolContract]:
+    """Build ToolContracts for enumerated tools in an included toolset,
+    optionally restricted to the names in ``only``."""
+    contracts: list[ToolContract] = []
+    for tool in tools:
+        if only is not None and tool.name not in only:
+            continue
+        try:
+            tool_name = ToolName(tool.name)
+        except ValueError:
+            # An enumerated tool with no ToolName entry is unexpected once
+            # proxied tools are patched out -- surface it loudly.
+            raise ValueError(
+                f"Enumerated tool '{tool.name}' is not a known ToolName. "
+                "If it is a new local tool, add it to ToolName and a toolset."
             )
+        toolset = TOOL_TO_TOOLSET[tool_name]
+        if toolset not in INCLUDED_TOOLSETS or tool_name in proxied_tools:
+            continue
+        contracts.append(
+            ToolContract(
+                name=tool.name,
+                toolset=toolset.value,
+                title=getattr(tool, "title", None),
+                description=tool.description,
+                input_schema=_normalize(getattr(tool, "inputSchema", None)),
+                output_schema=_normalize(getattr(tool, "outputSchema", None)),
+                annotations=_normalize(getattr(tool, "annotations", None)),
+                meta=_normalize(
+                    getattr(tool, "meta", None) or getattr(tool, "_meta", None)
+                ),
+            )
+        )
+    return contracts
 
+
+async def generate_snapshot() -> ContractSnapshot:
+    """Enumerate the live in-process server and render the contract surface.
+
+    Multi-project-only tools are hidden under the single-project simulation
+    (see DbtMCP._tool_available), so a second pass captures just those.
+    """
+    async with _snapshot_server() as dbt_mcp:
+        tool_contracts = _tool_contracts_from(await dbt_mcp.list_tools())
+
+        if MULTI_PROJECT_ONLY_TOOL_NAMES:
+            async with _snapshot_server(projects=[1, 2]) as multi_project_dbt_mcp:
+                tool_contracts += _tool_contracts_from(
+                    await multi_project_dbt_mcp.list_tools(),
+                    only=MULTI_PROJECT_ONLY_TOOL_NAMES,
+                )
+
+        included_names = {tool.name for tool in tool_contracts}
         expected = expected_tool_names()
         if included_names != expected:
             missing = sorted(expected - included_names)

@@ -43,6 +43,10 @@ proxied_tools: set[
     ]
 )
 
+# Tools needing an explicit, bounded set of project IDs. Hidden under the
+# single-project default rather than left to fail at call time.
+MULTI_PROJECT_ONLY_TOOL_NAMES = frozenset({ToolName.SEARCH_PUBLIC_MESH_MODELS.value})
+
 toolsets = {
     Toolset.SQL: {
         ToolName.TEXT_TO_SQL,
@@ -79,6 +83,7 @@ toolsets = {
         ToolName.GET_SNAPSHOT_DETAILS,
         ToolName.GET_TEST_DETAILS,
         ToolName.SEARCH,
+        ToolName.SEARCH_PUBLIC_MESH_MODELS,
     },
     Toolset.DBT_CLI: {
         ToolName.BUILD,
