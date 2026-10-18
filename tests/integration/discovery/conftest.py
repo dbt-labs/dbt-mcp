@@ -14,7 +14,6 @@ from dbt_mcp.discovery.client import (
     MacrosFetcher,
     ModelsFetcher,
     PaginatedResourceFetcher,
-    PublicMeshModelsFetcher,
     SourcesFetcher,
 )
 
@@ -95,13 +94,3 @@ def macros_fetcher(discovery_config) -> MacrosFetcher:
         config=discovery_config,
     )
     return MacrosFetcher(paginator=paginator)
-
-
-@pytest.fixture
-def public_mesh_models_fetcher(discovery_config) -> PublicMeshModelsFetcher:
-    paginator = PaginatedResourceFetcher(
-        edges_path=("data", "environment", "applied", "models", "edges"),
-        page_info_path=("data", "environment", "applied", "models", "pageInfo"),
-        config=discovery_config,
-    )
-    return PublicMeshModelsFetcher(paginator=paginator, config=discovery_config)

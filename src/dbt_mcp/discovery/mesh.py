@@ -1,12 +1,4 @@
-"""Normalization and filtering for dbt Mesh cross-project model search.
-
-Backs `search_public_mesh_models` (`discovery/tools.py`), which fans out across
-caller-supplied `project_ids` rather than binding to one resolved project: a
-cross-project ref is only actionable when the caller names the producer projects
-it was resolved against.
-"""
-
-from enum import StrEnum
+"""Normalization and filtering for dbt Mesh cross-project model search."""
 
 from pydantic import BaseModel
 
@@ -20,14 +12,14 @@ _RELATION_QUOTE_TABLE = str.maketrans("", "", "\"`[]'")
 class MeshModel(BaseModel):
     model_name: str
     unique_id: str
-    #: The middle segment of `unique_id` (`model.<package>.<name>`). Always
-    #: equal to `dbt_project_name`: a node reaches `MeshModel` only once its
+    #: Middle segment of `unique_id` (`model.<package>.<name>`); equals
+    #: `dbt_project_name`, since a node reaches `MeshModel` only after its
     #: package is confirmed to match the queried producer.
     package_name: str
     version: str | None = None
     latest_version: str | None = None
-    #: Raw passthrough from the platform's last run of this model -- no
-    #: staleness interpretation applied here.
+    #: Raw passthrough from the platform's last run -- no staleness
+    #: interpretation applied here.
     last_run_status: str | None = None
     last_run_generated_at: str | None = None
     project_id: int
@@ -40,11 +32,9 @@ class MeshModel(BaseModel):
 class MeshCoverage(BaseModel):
     """Which parts of the requested scope were actually examined.
 
-    `incomplete` lists projects whose scan stopped with pages still available.
     A project whose own identity lookup failed lands in `failed`, since none
-    of its nodes could be attributed to it at all.
-    `models_scanned` is `None` on a `relation_name` lookup, which is a
-    server-side point query rather than a scan.
+    of its nodes could be attributed to it. `models_scanned` is `None` on a
+    `relation_name` lookup -- a point query, not a scan.
     """
 
     searched: list[str] = []
@@ -56,13 +46,12 @@ class MeshCoverage(BaseModel):
 class MeshLookup(BaseModel):
     """Answer to an exact `relation_name` lookup.
 
-    `found` is true only when a public model at that relation is owned by one of
-    the searched projects; a node there belonging to a different project (an
-    installed package, say) cannot be ref-ed and does not count. It is
-    independent of `query`, so narrowing `query` can empty `models` without
-    making `found` false.
+    `found` is true only when a model at that relation is owned by one of the
+    searched projects -- a node belonging to a different project (an installed
+    package, say) can't be ref-ed and doesn't count. Independent of `query`,
+    so narrowing `query` can empty `models` without making `found` false.
 
-    `conclusive` is false when absence could not be proven -- a project in
+    `conclusive` is false when absence couldn't be proven -- a project in
     `coverage.failed` or `coverage.incomplete` could still hold the relation.
     Treat `found: false, conclusive: false` as "not ruled out", never as
     licence to declare a new source.
@@ -98,25 +87,17 @@ def parse_relation_name(relation_name: str) -> ModelFilter:
     """Parse a warehouse relation into a `ModelFilter`, right-aligned onto
     `database`/`schema`/`identifier`.
 
-    Accepts `identifier`, `schema.identifier`, or
-    `database.schema.identifier`. Raises rather than returning an empty result:
-    an empty identifier would filter on nothing, which is not the same question
-    as "no relation was requested".
+    Accepts `identifier`, `schema.identifier`, or `database.schema.identifier`.
+    Raises on an empty identifier rather than filtering on nothing.
 
-    Splitting on every literal `.` happens before quote stripping, so a
-    component containing a `.` inside its own quotes mis-splits rather than
-    erroring. dbt names don't contain those characters in practice.
+    Splits on every literal `.` before quote stripping, so a `.` inside a
+    component's own quotes mis-splits rather than erroring (not an issue for
+    real dbt names).
 
-    `database`/`schema` are omitted entirely when the caller supplied fewer
-    parts -- `ModelFilter` is `total=False`, so an absent key means "don't
-    filter on this component"; a `None` value would mean something else to
-    the API. The returned filter never includes `access`: that's the
-    fetcher's own policy (always `public` for mesh search), not a property
-    of the relation string being parsed.
-
-    Matching semantics (exact, case-insensitive) are the Discovery API's, not
-    enforced here; they are pinned by
-    tests/integration/discovery/test_public_mesh_models_fetcher.py.
+    `database`/`schema` are omitted (not `None`) when absent, since
+    `ModelFilter` is `total=False` and a missing key means "don't filter on
+    this". `access` is never included here -- that's the fetcher's own
+    policy, not a property of the relation string.
     """
     accepted = (
         "expected `identifier`, `schema.identifier`, or `database.schema.identifier`"
@@ -153,44 +134,17 @@ def parse_relation_name(relation_name: str) -> ModelFilter:
     return model_filter
 
 
-class ProducerVerdict(StrEnum):
-    """Whether the queried producer owns a node."""
+def _is_producer_node(node: MeshModelNode, *, platform_project_name: str) -> bool:
+    """Whether the queried producer owns `node`, and so can ref it.
 
-    #: The node's package matches the producer's confirmed name: ref-able.
-    PRODUCER = "producer"
-    #: The platform named this project, and it is not this node's package.
-    #: Evidence of a non-match -- an installed package, typically. A node
-    #: whose `uniqueId` carries no package segment to compare also lands
-    #: here: it cannot match a real, non-empty project name either.
-    CONFIRMED_OTHER = "confirmed_other"
-
-
-def _package_name(node: MeshModelNode) -> str | None:
-    """The middle segment of `model.<package>.<name>`. Evidence of the owning
-    project, not proof: installed packages share the same namespace shape.
-
-    None when `uniqueId` has no such segment -- an unknown package, which must
-    never be compared as though it were a real one.
+    Compares the package segment of `model.<package>.<name>` against the
+    platform's own answer for this environment (`environment.dbtProjectName`,
+    always confirmed and non-empty by the time nodes reach here). A mismatch
+    is an installed package, typically -- evidence strong enough to support a
+    conclusive absence.
     """
-    unique_id = node["uniqueId"]
-    return unique_id.split(".")[1] if unique_id.count(".") >= 2 else None
-
-
-def _producer_verdict(
-    node: MeshModelNode, *, platform_project_name: str
-) -> ProducerVerdict:
-    """Classify `node` against the Discovery API's own answer for the queried
-    environment's identity (`environment.dbtProjectName`). `platform_project_name`
-    is always a confirmed, non-empty name here: a project whose own identity
-    lookup failed never reaches this far (see
-    `PublicMeshModelsFetcher._require_project_name`).
-
-    Only PRODUCER can carry a ref; only CONFIRMED_OTHER is strong enough to
-    support a conclusive absence.
-    """
-    if _package_name(node) == platform_project_name:
-        return ProducerVerdict.PRODUCER
-    return ProducerVerdict.CONFIRMED_OTHER
+    parts = node["uniqueId"].split(".")
+    return len(parts) >= 3 and parts[1] == platform_project_name
 
 
 def _render_ref(
@@ -220,7 +174,7 @@ def _to_mesh_model(
     project_id: int,
 ) -> MeshModel:
     """Normalize `node` into a `MeshModel`. Callers must have already
-    confirmed `node` is PRODUCER (see `_producer_verdict`): a CONFIRMED_OTHER
+    confirmed the producer owns `node` (see `_is_producer_node`): any other
     node cannot be attributed to `platform_project_name` at all."""
     raw_version = node.get("version")
     raw_latest_version = node.get("latestVersion")
@@ -268,8 +222,7 @@ def search_mesh_models(
     for node in nodes:
         if not _matches_mesh_query(node, query or ""):
             continue
-        verdict = _producer_verdict(node, platform_project_name=platform_project_name)
-        if verdict is ProducerVerdict.CONFIRMED_OTHER:
+        if not _is_producer_node(node, platform_project_name=platform_project_name):
             continue
         matches.append(
             _to_mesh_model(
@@ -296,35 +249,8 @@ def count_relation_matches(
     return sum(
         1
         for node in nodes
-        if _producer_verdict(node, platform_project_name=platform_project_name)
-        is ProducerVerdict.PRODUCER
+        if _is_producer_node(node, platform_project_name=platform_project_name)
     )
-
-
-def dedupe_mesh_dependencies(models: list[MeshModel]) -> list[str]:
-    """Collapse `dbt_project_name` to one entry per producer project, in
-    first-seen order."""
-    seen: set[str] = set()
-    dependencies: list[str] = []
-    for model in models:
-        if model.dbt_project_name in seen:
-            continue
-        seen.add(model.dbt_project_name)
-        dependencies.append(model.dbt_project_name)
-    return dependencies
-
-
-def truncate_mesh_models(
-    models: list[MeshModel], limit: int
-) -> tuple[list[MeshModel], int]:
-    """Cap the merged model list at `limit`.
-
-    Must run after `dedupe_mesh_dependencies`: dependencies.yml needs one entry
-    per producer project that matched anything, and truncating first could drop
-    a project whose only matches landed past the cutoff.
-    """
-    omitted_count = max(0, len(models) - limit)
-    return models[:limit], omitted_count
 
 
 def resolve_lookup(
@@ -335,16 +261,13 @@ def resolve_lookup(
 ) -> MeshLookup | None:
     """Build the `lookup` answer, or None when no relation was requested.
 
-    A hit is always conclusive -- nothing unseen can unmake a model already
-    found -- so only a miss can be undermined.
+    A hit is always conclusive; only a miss can be undermined.
 
     Invariant: any input that can hide a genuine match from `relation_hits`
-    must feed into `coverage` and so into `conclusive` here. `project_ids`
-    qualifies (it narrows which nodes are examined at all) and so does a failed
-    platform name lookup (ownership becomes unknown rather than ruled out).
-    `query` and `limit` do not -- they filter after every node has been
-    classified. Nor does the public-access narrowing: a non-public model at the
-    relation is not a hidden match, since it isn't ref-able.
+    must feed into `coverage` (e.g. `project_ids`, a failed platform name
+    lookup). `query`/`limit` don't qualify -- they filter after every node is
+    already classified -- nor does public-access narrowing, since a
+    non-public model at the relation isn't ref-able anyway.
     """
     if relation_name is None:
         return None

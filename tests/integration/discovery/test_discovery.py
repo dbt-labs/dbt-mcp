@@ -37,6 +37,7 @@ async def test_fetch_models(
 async def test_fetch_models_with_filter(
     models_fetcher: ModelsFetcher, discovery_config: DiscoveryConfig
 ):
+    # model_filter: ModelFilter = {"access": "protected"}
     model_filter: ModelFilter = {"modelingLayer": "marts"}
 
     # Fetch filtered results

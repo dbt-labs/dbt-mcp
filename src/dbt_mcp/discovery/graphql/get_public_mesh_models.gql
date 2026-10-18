@@ -18,10 +18,6 @@ query PublicMeshModels(
             name
             uniqueId
             description
-            access
-            database
-            schema
-            alias
             relationName
             version
             latestVersion

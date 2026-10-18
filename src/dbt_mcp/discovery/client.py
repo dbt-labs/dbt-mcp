@@ -425,17 +425,6 @@ class PaginatedResourceFetcher:
             current = current[key]
         return current
 
-    def _extract_optional_path(self, payload: Any, path: tuple[str, ...]) -> Any | None:
-        """Like `_extract_path`, but for a field that isn't required to exist --
-        walks with `.get()` at every level and returns None on a missing key or a
-        null/non-dict intermediate, instead of raising."""
-        current = payload
-        for key in path:
-            if not isinstance(current, dict):
-                return None
-            current = current.get(key)
-        return current
-
     def _parse_edges(self, result: dict) -> list[dict]:
         raise_gql_error(result)
         edges = self._extract_path(result, self._edges_path)
@@ -509,13 +498,19 @@ class PaginatedResourceFetcher:
         same response -- for data that lives alongside the paginated edges (e.g.
         `environment.dbtProjectName` next to `environment.applied.models`) and
         would otherwise cost a second round trip to fetch. `extra_path` is
-        extracted defensively: a missing key or null intermediate yields None
+        walked defensively: a missing key or null intermediate yields None
         rather than raising, since its absence is a data condition for the
         caller to handle, not a malformed response."""
         page, result = await self._fetch_page(
             query, variables, limit=limit, after=after
         )
-        return page, self._extract_optional_path(result, extra_path)
+        extra: Any = result
+        for key in extra_path:
+            if not isinstance(extra, dict):
+                extra = None
+                break
+            extra = extra.get(key)
+        return page, extra
 
 
 class ModelFilter(TypedDict, total=False):
@@ -560,10 +555,6 @@ class MeshModelNode(TypedDict, total=False):
     name: str
     uniqueId: str
     description: str | None
-    access: str | None
-    database: str | None
-    schema: str | None
-    alias: str | None
     relationName: str | None
     version: str | int | float | None
     latestVersion: str | int | float | None
@@ -612,7 +603,7 @@ class ModelsFetcher:
         return await self._paginator.fetch_paginated(
             GraphQLQueries.GET_MODELS,
             variables={
-                "modelsFilter": dict(model_filter or {}),
+                "modelsFilter": model_filter or {},
                 "sort": {"field": "queryUsageCount", "direction": "desc"},
             },
             limit=limit,

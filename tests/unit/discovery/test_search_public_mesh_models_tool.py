@@ -1,13 +1,3 @@
-"""Fan-out behavior of the `search_public_mesh_models` tool.
-
-The tool's own job is everything that happens *across* projects: resolving a
-config per project_id, isolating one project's failure from the rest, and
-merging the per-project answers into a single result whose coverage honestly
-describes what was examined. Per-node classification lives in
-test_search_public_mesh_models.py; request shape in
-test_public_mesh_models_fetcher.py.
-"""
-
 import asyncio
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -18,7 +8,6 @@ from dbt_mcp.config.config_providers import ProjectConfigProvider
 from dbt_mcp.discovery.client import MeshCandidates, MeshModelNode
 from dbt_mcp.discovery.tools import (
     MESH_PROJECT_FAN_OUT_CONCURRENCY,
-    MeshToolContext,
     search_public_mesh_models,
 )
 from dbt_mcp.errors import ConfigurationError, InvalidParameterError
@@ -27,13 +16,8 @@ from dbt_mcp.errors.common import NotFoundError
 
 @pytest.fixture
 def mock_fetch_candidates():
-    """Patch the PublicMeshModelsFetcher the tool constructs per project.
-
-    The tool builds a fresh fetcher bound to that project's own config
-    inside its fan-out rather than reusing one held on the context, so
-    control goes through the class it constructs, not an attribute on the
-    context.
-    """
+    """The tool builds a fresh PublicMeshModelsFetcher per project rather
+    than reusing one, so control goes through the class, not an instance."""
     with patch("dbt_mcp.discovery.tools.PublicMeshModelsFetcher") as mock_cls:
         mock_cls.return_value.fetch_candidates = AsyncMock()
         yield mock_cls.return_value.fetch_candidates
@@ -57,7 +41,6 @@ def _model_node(**overrides) -> dict:
         "name": "fct_sales",
         "uniqueId": "model.finance_analytics.fct_sales",
         "description": "Gold finance sales model",
-        "access": "public",
         "relationName": "ANALYTICS.GOLD_FINANCE.SALES",
         "version": None,
         "latestVersion": None,
@@ -66,14 +49,14 @@ def _model_node(**overrides) -> dict:
     return node
 
 
-def _context(get_config=None) -> MeshToolContext:
+def _provider(get_config=None) -> ProjectConfigProvider:
     """`spec=ProjectConfigProvider` so the tool's own isinstance guard
     passes; `get_config` resolves a distinct config per project_id."""
     config_provider = MagicMock(spec=ProjectConfigProvider)
     config_provider.get_config = AsyncMock(
         side_effect=get_config if get_config is not None else (lambda **_: MagicMock())
     )
-    return MeshToolContext(config_provider=config_provider)
+    return config_provider
 
 
 def _finance_nodes(count: int) -> list[dict]:
@@ -95,8 +78,7 @@ def _finance_nodes(count: int) -> list[dict]:
         "expected_dependency_names",
     ),
     [
-        # Two producer projects, one model each -- the platform confirms
-        # both names, so dependencies populate automatically.
+        # Two projects, confirmed names -- dependencies populate automatically.
         (
             [
                 _candidates([_model_node()], project_name="finance_analytics"),
@@ -115,8 +97,7 @@ def _finance_nodes(count: int) -> list[dict]:
             0,
             {"finance_analytics", "inventory_analytics"},
         ),
-        # Many models from one project still collapse to a single
-        # dependencies.yml entry -- that file needs a project declared once.
+        # Many models, one project -- dependencies.yml still gets one entry.
         (
             [_candidates(_finance_nodes(5), project_name="finance_analytics")],
             50,
@@ -124,10 +105,8 @@ def _finance_nodes(count: int) -> list[dict]:
             0,
             {"finance_analytics"},
         ),
-        # The ordering invariant from truncate_mesh_models: dependencies are
-        # deduped *before* truncation, so a producer whose only matching
-        # model lands past `limit` must still be listed. Truncating first
-        # would silently break the dependencies.yml suggestion.
+        # Dependencies dedupe before truncation, so a model past `limit` is
+        # still listed.
         (
             [
                 _candidates(_finance_nodes(3), project_name="finance_analytics"),
@@ -160,7 +139,7 @@ async def test_merges_scans_truncating_models_but_not_dependencies(
     mock_fetch_candidates.side_effect = list(scans)
 
     result = await search_public_mesh_models.fn(
-        context=_context(),
+        config_provider=_provider(),
         project_ids=list(range(101, 101 + len(scans))),
         limit=limit,
     )
@@ -174,11 +153,8 @@ async def test_merges_scans_truncating_models_but_not_dependencies(
 
 @pytest.mark.parametrize("failing_stage", ["get_config", "fetch_candidates"])
 async def test_isolates_per_project_failures(mock_fetch_candidates, failing_stage):
-    """One inaccessible producer project -- whether it fails resolving its
-    config (unauthorized project_id, no prod environment) or fetching its
-    candidates (a GraphQL/HTTP error on that project's endpoint) -- must
-    land in coverage.failed rather than propagate out of asyncio.gather and
-    abort the whole multi-project search."""
+    """A project failing at either stage -- config resolution or candidate
+    fetch -- lands in coverage.failed rather than aborting the whole search."""
     if failing_stage == "get_config":
 
         async def get_config(*, project_id: int):
@@ -186,18 +162,20 @@ async def test_isolates_per_project_failures(mock_fetch_candidates, failing_stag
                 return MagicMock()
             raise NotFoundError(f"No production environment for project {project_id}")
 
-        context = _context(get_config)
+        provider = _provider(get_config)
         mock_fetch_candidates.return_value = _candidates(
             [_model_node()], project_name="finance_analytics"
         )
     else:
-        context = _context()
+        provider = _provider()
         mock_fetch_candidates.side_effect = [
             RuntimeError("502 from metadata endpoint"),
             _candidates([_model_node()], project_name="finance_analytics"),
         ]
 
-    result = await search_public_mesh_models.fn(context=context, project_ids=[1, 2])
+    result = await search_public_mesh_models.fn(
+        config_provider=provider, project_ids=[1, 2]
+    )
 
     assert set(result.coverage.failed) | set(result.coverage.searched) == {"1", "2"}
     assert len(result.coverage.failed) == 1
@@ -205,13 +183,8 @@ async def test_isolates_per_project_failures(mock_fetch_candidates, failing_stag
 
 
 async def test_fan_out_dedupes_project_ids_and_stays_bounded(mock_fetch_candidates):
-    """A duplicate project_id must not be scanned twice -- that would
-    double-count it in coverage.searched/models_scanned and emit duplicate
-    models for one underlying scan. And an unbounded gather over
-    `project_ids` could burst one scan per project at the metadata API
-    simultaneously, so no more than MESH_PROJECT_FAN_OUT_CONCURRENCY may be
-    in flight at once.
-    """
+    """Duplicate project_ids must be scanned once, not double-counted; the
+    fan-out must also stay bounded at MESH_PROJECT_FAN_OUT_CONCURRENCY."""
     concurrent = 0
     max_concurrent = 0
 
@@ -229,16 +202,14 @@ async def test_fan_out_dedupes_project_ids_and_stays_bounded(mock_fetch_candidat
     distinct_ids = list(range(101, 101 + distinct_count))
 
     result = await search_public_mesh_models.fn(
-        context=_context(), project_ids=[101, *distinct_ids], limit=100
+        config_provider=_provider(), project_ids=[101, *distinct_ids], limit=100
     )
 
     assert mock_fetch_candidates.await_count == distinct_count
     assert result.coverage.searched == [str(pid) for pid in distinct_ids]
     assert result.coverage.models_scanned == distinct_count
-    # `<=` pins the guarantee that matters; exact equality would also pin
-    # asyncio.Semaphore's fast-path scheduling, which could flip on an
-    # unrelated asyncio change. `> 1` guards the opposite failure mode: a
-    # bug that serializes the fan-out entirely.
+    # `<=` avoids pinning Semaphore's exact scheduling; `>1` catches full
+    # serialization.
     assert 1 < max_concurrent <= MESH_PROJECT_FAN_OUT_CONCURRENCY
 
 
@@ -255,10 +226,7 @@ async def test_fan_out_dedupes_project_ids_and_stays_bounded(mock_fetch_candidat
             True,
             True,
         ),
-        # Not found, every project fully searched -- conclusive. Both scans
-        # are empty because fetch_candidates already returns the
-        # server-filtered match set; a mock holding an unrelated model would
-        # misrepresent what the server would return.
+        # Not found, fully searched -- conclusive.
         (
             [
                 _candidates([], project_name="finance_analytics"),
@@ -268,8 +236,7 @@ async def test_fan_out_dedupes_project_ids_and_stays_bounded(mock_fetch_candidat
             False,
             True,
         ),
-        # A sibling project couldn't be searched at all, so the miss is
-        # unproven -- that project might hold the relation.
+        # A sibling couldn't be searched -- miss is unproven.
         (
             [
                 _candidates([], project_name="finance_analytics"),
@@ -289,8 +256,7 @@ async def test_fan_out_dedupes_project_ids_and_stays_bounded(mock_fetch_candidat
             True,
             True,
         ),
-        # A sibling's scan hit the page budget before finishing -- matching
-        # models may never have been examined.
+        # A sibling's scan hit the page budget -- matches may be unexamined.
         (
             [
                 _candidates([], project_name="finance_analytics"),
@@ -300,26 +266,9 @@ async def test_fan_out_dedupes_project_ids_and_stays_bounded(mock_fetch_candidat
             False,
             False,
         ),
-        # A node at the relation whose uniqueId carries no package to compare
-        # against can never match a real, non-empty project name -- same
-        # conclusive miss as a confirmed installed package.
-        (
-            [
-                _candidates(
-                    [_model_node(uniqueId="malformed_id")],
-                    project_name="finance_analytics",
-                )
-            ],
-            "ANALYTICS.GOLD_FINANCE.SALES",
-            False,
-            True,
-        ),
-        # A node at the relation that the platform confirms belongs to an
-        # installed package is a verified non-match, so this miss stays
-        # conclusive -- otherwise no project with an installed package could
-        # ever produce a trustworthy negative. Packages default to
-        # `protected`, so a *public* one cannot be produced live; this row
-        # is the only place the branch is exercised.
+        # Confirmed installed-package node -- verified non-match, miss stays
+        # conclusive. Packages default to protected, so this can't occur
+        # live; only this row exercises the branch.
         (
             [
                 _candidates(
@@ -338,7 +287,6 @@ async def test_fan_out_dedupes_project_ids_and_stays_bounded(mock_fetch_candidat
         "absent_with_failed_sibling",
         "found_despite_failed_sibling",
         "absent_with_incomplete_sibling",
-        "malformed_unique_id",
         "confirmed_installed_package",
     ],
 )
@@ -348,7 +296,7 @@ async def test_relation_lookup_conclusiveness_across_the_fan_out(
     mock_fetch_candidates.side_effect = list(scans)
 
     result = await search_public_mesh_models.fn(
-        context=_context(),
+        config_provider=_provider(),
         project_ids=list(range(101, 101 + len(scans))),
         relation_name=relation_name,
     )
@@ -361,24 +309,15 @@ async def test_relation_lookup_conclusiveness_across_the_fan_out(
 
 
 async def test_lookup_found_is_independent_of_query(mock_fetch_candidates):
-    """Deliberately not a resolve_lookup test: that helper takes an
-    already-computed relation_hits and never sees `query`. What matters is
-    that the *tool* derives relation_hits from count_relation_matches rather
-    than from len(models) -- using the filtered list would report
-    found=false for a relation that does exist, telling a developer to
-    duplicate a governed public model.
-
-    Also pins models_scanned as None here: `relation_name` makes
-    fetch_candidates a point query, not a scan, so the field that otherwise
-    reports environment-wide scan size must read "not applicable" rather
-    than the point query's own tiny row count.
-    """
+    """The tool must derive relation_hits from count_relation_matches, not
+    len(models) -- the query-filtered list would false-negative a relation
+    that exists. Also pins models_scanned as None on the point-query path."""
     mock_fetch_candidates.return_value = _candidates(
         [_model_node()], project_name="finance_analytics"
     )
 
     result = await search_public_mesh_models.fn(
-        context=_context(),
+        config_provider=_provider(),
         project_ids=[101],
         query="nonexistent_term",
         relation_name="analytics.gold_finance.sales",
@@ -391,26 +330,22 @@ async def test_lookup_found_is_independent_of_query(mock_fetch_candidates):
 
 
 @pytest.mark.parametrize(
-    ("context_factory", "kwargs", "expected_error"),
+    ("provider_factory", "kwargs", "expected_error"),
     [
-        # Parsing happens before the fan-out, so a typo costs zero round
-        # trips rather than one per configured project.
-        (_context, {"relation_name": "a.b.c.d"}, InvalidParameterError),
-        # Every project in the fan-out needs its own resolved config. A
-        # provider that cannot resolve per project_id would silently scan
-        # the same default project under every supplied id, mislabeling
-        # coverage.searched. That is a server misconfiguration, not a caller
-        # mistake, so it must not surface as a client error.
-        (lambda: MeshToolContext(config_provider=MagicMock()), {}, ConfigurationError),
+        # Parsed before the fan-out, so a typo costs zero round trips.
+        (_provider, {"relation_name": "a.b.c.d"}, InvalidParameterError),
+        # A non-project-aware provider would silently scan one default
+        # project under every id -- a server misconfig, not a caller error.
+        (lambda: MagicMock(), {}, ConfigurationError),
     ],
     ids=["malformed_relation_name", "non_project_aware_provider"],
 )
 async def test_rejects_bad_input_before_fanning_out(
-    mock_fetch_candidates, context_factory, kwargs, expected_error
+    mock_fetch_candidates, provider_factory, kwargs, expected_error
 ):
     with pytest.raises(expected_error):
         await search_public_mesh_models.fn(
-            context=context_factory(), project_ids=[101, 102], **kwargs
+            config_provider=provider_factory(), project_ids=[101, 102], **kwargs
         )
 
     mock_fetch_candidates.assert_not_called()

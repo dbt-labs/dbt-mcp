@@ -1,11 +1,3 @@
-"""Pure-logic coverage for `discovery/mesh.py`.
-
-Everything here is table-driven on purpose: the module's whole job is
-classifying a node against a producer identity and deciding whether an
-absence was actually proven, so the branches matter far more than the
-scenarios wrapped around them.
-"""
-
 from typing import cast
 
 import pytest
@@ -13,7 +5,6 @@ import pytest
 from dbt_mcp.discovery.client import MeshModelNode
 from dbt_mcp.discovery.mesh import (
     MeshCoverage,
-    count_relation_matches,
     parse_relation_name,
     resolve_lookup,
     search_mesh_models,
@@ -26,7 +17,6 @@ def _node(**overrides) -> MeshModelNode:
         "name": "fct_sales",
         "uniqueId": "model.finance_analytics.fct_sales",
         "description": "Gold finance sales model",
-        "access": "public",
         "relationName": "ANALYTICS.GOLD_FINANCE.SALES",
         "version": None,
         "latestVersion": None,
@@ -36,14 +26,9 @@ def _node(**overrides) -> MeshModelNode:
 
 
 # --- parse_relation_name: caller input -> ModelFilter ------------------------
-#
-# Case is passed through verbatim: the Discovery API's
-# identifier/database/schema filters compare server-side, exactly and
-# case-insensitively (pinned live in tests/integration). Quote chars are
-# stripped defensively, as copy-paste junk, not as a case-pinning signal.
-# `database`/`schema` are omitted entirely (not sent as literal null) when
-# the caller supplied fewer parts -- `ModelFilter` is `total=False`, so an
-# absent key means "don't filter on this component".
+# Case passed through verbatim -- the server matches case-insensitively,
+# unverified here. Absent database/schema (not None) since ModelFilter is
+# total=False.
 
 
 @pytest.mark.parametrize(
@@ -53,8 +38,7 @@ def _node(**overrides) -> MeshModelNode:
             "analytics.gold_finance.sales",
             {"database": "analytics", "schema": "gold_finance", "identifier": "sales"},
         ),
-        # Quote chars stripped per component, whichever dialect, plus a
-        # stray single quote that is no dialect's identifier quote at all.
+        # Quote chars stripped per dialect.
         (
             '"ANALYTICS".`GOLD_FINANCE`.[SALES]',
             {"database": "ANALYTICS", "schema": "GOLD_FINANCE", "identifier": "SALES"},
@@ -63,7 +47,7 @@ def _node(**overrides) -> MeshModelNode:
             "  'analytics'.gold_finance.sales.  ",
             {"database": "analytics", "schema": "gold_finance", "identifier": "sales"},
         ),
-        # Partial forms are right-aligned, not rejected.
+        # Partial forms right-aligned, not rejected.
         (
             "gold_finance.sales",
             {"schema": "gold_finance", "identifier": "sales"},
@@ -78,20 +62,15 @@ def test_parse_relation_name_accepts_supported_forms(raw, expected):
 @pytest.mark.parametrize(
     ("raw", "expected_message_substring"),
     [
-        # Empty must raise, not degrade to a no-op filter: a vacuously true
-        # predicate would report "found" for a relation never actually
-        # checked.
+        # Empty must raise, not silently match everything.
         ("", "must not be empty"),
         ("   ", "must not be empty"),
-        # Quotes strip to nothing, which is an empty *component*, not an
-        # absent relation -- different message, same refusal.
+        # Quotes-only strips to an empty component, not an absent relation.
         ('""', "empty component"),
         ("...", "must not be empty"),
-        # `prod..sales` is ambiguous -- not silently reinterpreted as
-        # schema.identifier.
+        # Ambiguous, not reinterpreted as schema.identifier.
         ("prod..sales", "empty component"),
-        # More than 3 parts: raising beats returning "no match", since a
-        # fabricated negative is indistinguishable from a real one.
+        # >3 parts raises rather than returning a fabricated miss.
         ("a.b.c.d", "database.schema.identifier"),
     ],
 )
@@ -101,25 +80,15 @@ def test_parse_relation_name_rejects_malformed_input(raw, expected_message_subst
 
 
 # --- search_mesh_models: selection and normalization ------------------------
-#
-# Relation matching is server-side now (client.py's _fetch_relation_match),
-# and so is the public-access narrowing -- both fetchers send `access:
-# public` and the live Discovery API honors it (pinned in
-# tests/integration/discovery/test_public_mesh_models_fetcher.py), so
-# `search_mesh_models` trusts `nodes` are already public rather than
-# re-filtering. `platform_project_name` is likewise always a confirmed,
-# non-empty name by the time nodes arrive here -- a project whose own
-# identity lookup failed never reaches this far (see
-# PublicMeshModelsFetcher._require_project_name). What is left for this
-# function: does the node match `query`, and can the queried producer
-# actually ref it?
+# `nodes` arrive already public with a confirmed platform_project_name (both
+# trusted, not re-checked here). This only asks: does the node match `query`,
+# and can the queried producer ref it?
 
 
 @pytest.mark.parametrize(
     ("node", "query", "platform_project_name", "expected"),
     [
-        # Platform confirms the project name -- dbt_project_name and ref
-        # populate, and nothing is flagged.
+        # Confirmed producer -- dbt_project_name/ref populate.
         (
             _node(),
             None,
@@ -134,29 +103,23 @@ def test_parse_relation_name_rejects_malformed_input(raw, expected_message_subst
         # Query matches name or description, case-insensitively.
         (_node(), "FINANCE", "finance_analytics", {"kept": True}),
         (_node(), "nonexistent_term", "finance_analytics", {"kept": False}),
-        # Every term must match, in any order -- not the phrase as one
-        # contiguous substring.
+        # All terms must match, any order -- not one contiguous phrase.
         (_node(), "sales gold finance", "finance_analytics", {"kept": True}),
-        # A node the platform confirms belongs elsewhere (an installed
-        # package, typically) can never be ref-ed by this producer, so
-        # keeping it would only consume `limit`.
+        # Different package -- can never be ref-ed, would only consume limit.
         (
             _node(uniqueId="model.some_installed_package.fct_sales"),
             None,
             "finance_analytics",
             {"kept": False},
         ),
-        # A malformed uniqueId has no package segment to compare against, so
-        # it can never match a real, non-empty project name -- same outcome
-        # as a confirmed non-producer.
+        # No package segment to compare -- same outcome as a non-producer.
         (
             _node(uniqueId="malformed_id"),
             None,
             "finance_analytics",
             {"kept": False},
         ),
-        # last_run_status/last_run_generated_at are a raw passthrough with no
-        # staleness interpretation.
+        # last_run_* is raw passthrough, no staleness logic.
         (
             _node(
                 executionInfo={
@@ -197,44 +160,34 @@ def test_search_mesh_models_selects_refable_public_matches(
         assert model.last_run_status == expected["last_run_status"]
     if "last_run_generated_at" in expected:
         assert model.last_run_generated_at == expected["last_run_generated_at"]
-    # relationName is passed through verbatim rather than rebuilt from
-    # database/schema/identifier, which the response no longer carries.
+    # relationName passed through verbatim, not rebuilt from database/schema.
     assert model.relation_name == "ANALYTICS.GOLD_FINANCE.SALES"
 
 
-# --- count_relation_matches: producer-identity classification ---------------
-#
-# `nodes` here is what _fetch_relation_match already narrowed server-side
-# (public-only, included), so this classifies producer identity, it does not
-# re-match the relation or re-check access. Deliberately independent of
-# `query`, so a narrowing query cannot turn `lookup.found` into a false
-# negative.
+# count_relation_matches shares _is_producer_node, so identity is covered
+# above; query-independence is pinned in the tool test.
 
 
 @pytest.mark.parametrize(
-    ("node", "platform_project_name", "hits"),
+    ("version", "latest_version", "expected_ref"),
     [
-        # The queried producer owns it: ref-able, a real hit.
-        (_node(), "finance_analytics", 1),
-        # A mismatch the *platform* confirms is evidence, not a guess -- an
-        # installed package really isn't this producer's model.
-        (
-            _node(uniqueId="model.some_installed_package.fct_sales"),
-            "finance_analytics",
-            0,
-        ),
-        # No package segment to compare the platform's answer against --
-        # can't match a real, non-empty project name either.
-        (_node(uniqueId="malformed_id"), "finance_analytics", 0),
+        (None, None, "{{ ref('finance_analytics', 'fct_sales') }}"),
+        (2, 2, "{{ ref('finance_analytics', 'fct_sales') }}"),
+        (1, 2, "{{ ref('finance_analytics', 'fct_sales', version=1) }}"),
+        ("v1", "v2", "{{ ref('finance_analytics', 'fct_sales', version=\"v1\") }}"),
     ],
+    ids=["unversioned", "version_is_latest", "numeric_pin", "non_numeric_pin"],
 )
-def test_count_relation_matches_classifies_by_producer_identity(
-    node, platform_project_name, hits
+def test_ref_pins_the_version_only_when_it_is_not_latest(
+    version, latest_version, expected_ref
 ):
-    assert (
-        count_relation_matches([node], platform_project_name=platform_project_name)
-        == hits
+    results = search_mesh_models(
+        [_node(version=version, latestVersion=latest_version)],
+        project_id=101,
+        platform_project_name="finance_analytics",
     )
+
+    assert [m.ref for m in results] == [expected_ref]
 
 
 # --- resolve_lookup: the `conclusive` rule -----------------------------------
@@ -243,14 +196,10 @@ def test_count_relation_matches_classifies_by_producer_identity(
 @pytest.mark.parametrize(
     ("relation_hits", "failed", "incomplete", "found", "conclusive"),
     [
-        # A hit is always conclusive: a partial scan or an unsearchable
-        # sibling project can only hide *further* models, not unmake one
-        # already found.
+        # A hit is always conclusive -- nothing unseen can unmake it.
         (1, {}, [], True, True),
         (1, {"102": "unauthorized"}, ["101"], True, True),
-        # Only a miss can be undermined -- by a partly scanned project
-        # (matching models may never have been examined), or by one that
-        # couldn't be searched at all.
+        # Only a miss can be undermined: by an incomplete or failed sibling.
         (0, {}, [], False, True),
         (0, {}, ["101"], False, False),
         (0, {"102": "unauthorized"}, [], False, False),
@@ -263,14 +212,8 @@ def test_resolve_lookup_conclusive_rule(
     found: bool,
     conclusive: bool,
 ) -> None:
-    """Truth table for the `conclusive` rule.
-
-    The public-access narrowing is deliberately absent as a dimension: it
-    happens server-side, and a non-public model at the relation is not a
-    hidden match, since it isn't ref-able. `incomplete` is wired to
-    `has_more` on both the scan and point-query paths, so that split needs
-    no dimension either.
-    """
+    """Truth table for `conclusive`. Access narrowing is server-side, so it's
+    not a dimension here; a non-public hit isn't a ref-able match to hide."""
     lookup = resolve_lookup(
         "prod.gold.fct_orders",
         relation_hits=relation_hits,

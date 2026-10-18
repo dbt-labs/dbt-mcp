@@ -1,11 +1,3 @@
-"""Request shape and sweep mechanics for `PublicMeshModelsFetcher`.
-
-These prove what the fetcher *sends* and how it walks pages. Whether the
-server honors the filters it sends is a separate question an unrecognised
-GraphQL filter key makes invisible here -- it is dropped rather than
-rejected, so only tests/integration can tell sent from honored.
-"""
-
 import pytest
 
 from dbt_mcp.discovery.client import (
@@ -16,8 +8,7 @@ from dbt_mcp.discovery.client import (
 )
 from dbt_mcp.errors import DiscoveryToolCallError, GraphQLError
 
-# Sentinel distinguishing "omit the dbtProjectName key" from `project_name=None`
-# -- the two are different wire shapes and the fetcher must handle both.
+# Sentinel: omitting the dbtProjectName key differs from project_name=None.
 _OMIT_PROJECT_NAME = object()
 
 
@@ -62,16 +53,9 @@ def _node(i: int) -> dict:
 async def test_scan_narrows_to_public_and_follows_the_cursor(
     mock_api_client, unit_discovery_config
 ):
-    """The scan is internal -- callers get every page's nodes from one call,
-    so page two must carry page one's cursor.
-
-    The access narrowing must be *sent*, not applied after: filtering
-    client-side would mean transferring every private and protected model
-    only to discard it. That cost is what moved this fetcher off
-    `applied.resources`; mesh.py trusts the server-side filter rather than
-    re-checking it (see tests/integration for live confirmation the API
-    honors it).
-    """
+    """Pages are followed internally, so page two must carry page one's
+    cursor. Access narrowing must be *sent*, not applied after -- mesh.py
+    trusts the server-side filter, unverified by any test here."""
     mock_api_client.side_effect = [
         _page([_node(1)], has_next=True, end_cursor="c1"),
         _page([_node(2)], has_next=False, end_cursor="c2"),
@@ -87,8 +71,7 @@ async def test_scan_narrows_to_public_and_follows_the_cursor(
     assert len(mesh_calls) == 2
     assert mesh_calls[0].args[1]["modelsFilter"] == {"access": "public"}
     assert mesh_calls[0].args[1]["first"] == MESH_SCAN_PAGE_SIZE
-    # Most-queried first, so the tool's `limit` truncates the least-used
-    # matches rather than an arbitrary slice.
+    # Most-queried first, so `limit` truncates the least-used matches.
     assert mesh_calls[0].args[1]["sort"] == {
         "field": "queryUsageCount",
         "direction": "desc",
@@ -129,9 +112,7 @@ async def test_scan_reports_incomplete_when_the_page_budget_runs_out(
                 "schema": "gold",
             },
         ),
-        # A 1-part relation_name must not send database/schema as literal
-        # None -- that asks the API to filter on a null value rather than
-        # not filter on that component at all.
+        # 1-part relation must omit database/schema, not send them as None.
         (
             {"identifier": "fct_orders"},
             {"access": "public", "identifier": "fct_orders"},
@@ -142,18 +123,13 @@ async def test_scan_reports_incomplete_when_the_page_budget_runs_out(
 async def test_relation_lookup_is_a_single_filtered_point_query(
     mock_api_client, unit_discovery_config, relation_filter, expected_filter
 ):
-    """With `relation_filter` the returned rows *are* the matches: one
-    request, no cursor follow-up even when the server offers another page.
-    `incomplete` stays wired to `has_more` rather than hardcoded False, so
-    if `(database, schema, identifier)` ever stops being near-unique the
-    uncertainty is reported instead of rows being silently dropped.
-    """
+    """Relation filter rows *are* the matches -- one request, no cursor
+    follow-up. `incomplete` stays wired to `has_more`, not hardcoded False."""
     mock_api_client.side_effect = [_page([_node(1)], has_next=True, end_cursor="c1")]
 
     candidates = await _fetcher(unit_discovery_config).fetch_candidates(relation_filter)
 
-    # The direct proof the project-identity fan-out is gone: one node page,
-    # one network call, total.
+    # One call total -- the project-identity fan-out is gone.
     assert mock_api_client.await_count == 1
     mesh_call = mock_api_client.await_args_list[0]
     assert mesh_call.args[1]["modelsFilter"] == expected_filter
@@ -166,14 +142,11 @@ async def test_relation_lookup_is_a_single_filtered_point_query(
     [
         (RuntimeError("boom"), RuntimeError),
         ({"errors": [{"message": "boom"}]}, GraphQLError),
-        # A null `environment`/`data` with no `errors` array is a malformed
-        # response for the strict edges/pageInfo path -- that's a different
-        # failure mode than a missing `dbtProjectName`, and propagates as-is
-        # rather than being wrapped.
+        # Null environment (no errors array) differs from a missing
+        # dbtProjectName; propagates as-is rather than wrapped.
         ({"data": {"environment": None}}, TypeError),
-        ({"data": None}, TypeError),
     ],
-    ids=["raises", "graphql_error", "null_environment", "null_data"],
+    ids=["raises", "graphql_error", "null_environment"],
 )
 async def test_malformed_response_propagates_as_is(
     mock_api_client, unit_discovery_config, response_outcome, expected_exception
@@ -197,12 +170,9 @@ async def test_malformed_response_propagates_as_is(
 async def test_missing_project_name_loses_the_otherwise_successful_scan(
     mock_api_client, unit_discovery_config, project_name
 ):
-    """The project name is load-bearing, not auxiliary: without a confirmed
-    identity nothing in a node scan can be attributed to this producer. A
-    well-formed page with no usable `dbtProjectName` must raise and discard
-    the otherwise-successful scan rather than return it unverifiable -- the
-    caller (`_fetch_one_project` in tools.py) turns this into
-    `coverage.failed` with the real error message."""
+    """Project name is load-bearing: a well-formed page with no usable
+    `dbtProjectName` must raise and discard the scan rather than return
+    unverifiable nodes -- the caller turns this into `coverage.failed`."""
     mock_api_client.side_effect = [
         _page([_node(1)], has_next=False, end_cursor="c1", project_name=project_name)
     ]

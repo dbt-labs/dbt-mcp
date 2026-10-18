@@ -31,11 +31,9 @@ from dbt_mcp.discovery.mesh import (
     MeshModel,
     MeshModelSearchResult,
     count_relation_matches,
-    dedupe_mesh_dependencies,
     parse_relation_name,
     resolve_lookup,
     search_mesh_models,
-    truncate_mesh_models,
 )
 from dbt_mcp.discovery.param_descriptions import (
     GET_MODEL_CHILDREN_ARG_MAPPING,
@@ -788,14 +786,6 @@ DISCOVERY_TOOLS = [
 MESH_PROJECT_FAN_OUT_CONCURRENCY = 5
 
 
-@dataclass
-class MeshToolContext:
-    """Holds the raw provider rather than a bound fetcher: a mesh search fans
-    out across caller-supplied `project_ids`, each needing its own config."""
-
-    config_provider: ConfigProvider[DiscoveryConfig]
-
-
 @dbt_mcp_tool(
     requirements=(AccountTarget(requires=Permission.METADATA_READ),),
     description=get_prompt("discovery/search_public_mesh_models"),
@@ -806,7 +796,8 @@ class MeshToolContext:
     structured_output=True,
 )
 async def search_public_mesh_models(
-    context: MeshToolContext,
+    # Raw provider, not a bound fetcher: each project_id needs its own config.
+    config_provider: ConfigProvider[DiscoveryConfig],
     project_ids: Annotated[
         list[int], Field(description=MESH_PROJECT_IDS_DESCRIPTION, min_length=1)
     ],
@@ -818,7 +809,6 @@ async def search_public_mesh_models(
     ] = None,
     limit: Annotated[int, Field(description=MESH_LIMIT_DESCRIPTION, ge=1, le=100)] = 50,
 ) -> MeshModelSearchResult:
-    config_provider = context.config_provider
     if not isinstance(config_provider, ProjectConfigProvider):
         # Without per-project_id resolution the fan-out would silently scan
         # the same default project under every supplied id.
@@ -862,6 +852,9 @@ async def search_public_mesh_models(
         project_key = str(project_id)
         if isinstance(result, BaseException):
             failed[project_key] = str(result) or "unknown error"
+            logger.warning(
+                f"Mesh scan of project {project_key} failed", exc_info=result
+            )
             continue
         searched.append(project_key)
         if models_scanned is not None:
@@ -890,10 +883,9 @@ async def search_public_mesh_models(
     )
     # Deduped before truncation so a project whose only matches land past the
     # limit still appears in the dependencies.yml suggestion.
-    dependencies = dedupe_mesh_dependencies(models)
-    truncated_models, omitted_model_count = truncate_mesh_models(models, limit)
+    dependencies = list(dict.fromkeys(model.dbt_project_name for model in models))
     return MeshModelSearchResult(
-        models=truncated_models,
+        models=models[:limit],
         coverage=coverage,
         dependencies=dependencies,
         lookup=resolve_lookup(
@@ -901,7 +893,7 @@ async def search_public_mesh_models(
             relation_hits=relation_hits,
             coverage=coverage,
         ),
-        omitted_model_count=omitted_model_count,
+        omitted_model_count=max(0, len(models) - limit),
     )
 
 
@@ -927,10 +919,10 @@ def discovery_context_mappers(
 def mesh_context_mappers(
     config_provider: ConfigProvider[DiscoveryConfig],
 ) -> dict[str, Callable[..., Any]]:
-    async def build_mesh_context() -> MeshToolContext:
-        return MeshToolContext(config_provider=config_provider)
+    async def provide_config_provider() -> ConfigProvider[DiscoveryConfig]:
+        return config_provider
 
-    return {"context": build_mesh_context}
+    return {"config_provider": provide_config_provider}
 
 
 def register_discovery_tools(
