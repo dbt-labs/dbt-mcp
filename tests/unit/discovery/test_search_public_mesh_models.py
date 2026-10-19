@@ -168,8 +168,25 @@ def test_search_mesh_models_selects_refable_public_matches(
         (2, 2, "{{ ref('finance_analytics', 'fct_sales') }}"),
         (1, 2, "{{ ref('finance_analytics', 'fct_sales', version=1) }}"),
         ("v1", "v2", "{{ ref('finance_analytics', 'fct_sales', version=\"v1\") }}"),
+        (
+            'rc"1',
+            "v2",
+            "{{ ref('finance_analytics', 'fct_sales', version=\"rc\\\"1\") }}",
+        ),
+        (
+            "rc\\1",
+            "v2",
+            "{{ ref('finance_analytics', 'fct_sales', version=\"rc\\\\1\") }}",
+        ),
     ],
-    ids=["unversioned", "version_is_latest", "numeric_pin", "non_numeric_pin"],
+    ids=[
+        "unversioned",
+        "version_is_latest",
+        "numeric_pin",
+        "non_numeric_pin",
+        "quote_in_version_is_escaped",
+        "backslash_in_version_is_escaped",
+    ],
 )
 def test_ref_pins_the_version_only_when_it_is_not_latest(
     version, latest_version, expected_ref

@@ -139,11 +139,15 @@ def _render_ref(
 ) -> str:
     """Render the `{{ ref(...) }}` Jinja call. `version` is added only when
     it differs from `latest_version` -- omitting it already means "latest" --
-    and rendered unquoted when it looks like a plain integer, quoted
-    otherwise (dbt also accepts non-numeric version strings)."""
+    and rendered unquoted when it looks like a plain integer, quoted and
+    escaped otherwise, since dbt's `versions:` config accepts any string."""
     if version is None or version == latest_version:
         return f"{{{{ ref('{dbt_project_name}', '{model_name}') }}}}"
-    rendered_version = version if version.isdigit() else f'"{version}"'
+    if version.isdigit():
+        rendered_version = version
+    else:
+        escaped = version.replace("\\", "\\\\").replace('"', '\\"')
+        rendered_version = f'"{escaped}"'
     return (
         f"{{{{ ref('{dbt_project_name}', '{model_name}', "
         f"version={rendered_version}) }}}}"
