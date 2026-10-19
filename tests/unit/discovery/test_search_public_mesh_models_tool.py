@@ -6,11 +6,12 @@ import pytest
 
 from dbt_mcp.config.config_providers import ProjectConfigProvider
 from dbt_mcp.discovery.client import MeshCandidates, MeshModelNode
+from dbt_mcp.discovery.mesh import MeshRelationFilter
 from dbt_mcp.discovery.tools import (
     MESH_PROJECT_FAN_OUT_CONCURRENCY,
     search_public_mesh_models,
 )
-from dbt_mcp.errors import ConfigurationError, InvalidParameterError
+from dbt_mcp.errors import ConfigurationError
 from dbt_mcp.errors.common import NotFoundError
 
 
@@ -213,8 +214,19 @@ async def test_fan_out_dedupes_project_ids_and_stays_bounded(mock_fetch_candidat
     assert 1 < max_concurrent <= MESH_PROJECT_FAN_OUT_CONCURRENCY
 
 
+_GOLD_FINANCE_SALES = MeshRelationFilter(
+    database="ANALYTICS", schema="GOLD_FINANCE", identifier="SALES"
+)
+_GOLD_FINANCE_SALES_LOWER = MeshRelationFilter(
+    database="analytics", schema="gold_finance", identifier="sales"
+)
+_ABSENT_TABLE = MeshRelationFilter(
+    database="prod", schema="gold", identifier="absent_table"
+)
+
+
 @pytest.mark.parametrize(
-    ("scans", "relation_name", "expected_found", "expected_conclusive"),
+    ("scans", "relation", "expected_found", "expected_conclusive"),
     [
         # Found in one of two fully searched projects.
         (
@@ -222,7 +234,7 @@ async def test_fan_out_dedupes_project_ids_and_stays_bounded(mock_fetch_candidat
                 _candidates([_model_node()], project_name="finance_analytics"),
                 _candidates([], project_name="inventory_analytics"),
             ],
-            "ANALYTICS.GOLD_FINANCE.SALES",
+            _GOLD_FINANCE_SALES,
             True,
             True,
         ),
@@ -232,7 +244,7 @@ async def test_fan_out_dedupes_project_ids_and_stays_bounded(mock_fetch_candidat
                 _candidates([], project_name="finance_analytics"),
                 _candidates([], project_name="inventory_analytics"),
             ],
-            "prod.gold.absent_table",
+            _ABSENT_TABLE,
             False,
             True,
         ),
@@ -242,7 +254,7 @@ async def test_fan_out_dedupes_project_ids_and_stays_bounded(mock_fetch_candidat
                 _candidates([], project_name="finance_analytics"),
                 NotFoundError("no production environment"),
             ],
-            "prod.gold.absent_table",
+            _ABSENT_TABLE,
             False,
             False,
         ),
@@ -252,7 +264,7 @@ async def test_fan_out_dedupes_project_ids_and_stays_bounded(mock_fetch_candidat
                 _candidates([_model_node()], project_name="finance_analytics"),
                 NotFoundError("unauthorized"),
             ],
-            "analytics.gold_finance.sales",
+            _GOLD_FINANCE_SALES_LOWER,
             True,
             True,
         ),
@@ -262,7 +274,7 @@ async def test_fan_out_dedupes_project_ids_and_stays_bounded(mock_fetch_candidat
                 _candidates([], project_name="finance_analytics"),
                 _candidates([], incomplete=True, project_name="inventory_analytics"),
             ],
-            "prod.gold.absent_table",
+            _ABSENT_TABLE,
             False,
             False,
         ),
@@ -276,7 +288,7 @@ async def test_fan_out_dedupes_project_ids_and_stays_bounded(mock_fetch_candidat
                     project_name="finance_analytics",
                 )
             ],
-            "ANALYTICS.GOLD_FINANCE.SALES",
+            _GOLD_FINANCE_SALES,
             False,
             True,
         ),
@@ -291,14 +303,14 @@ async def test_fan_out_dedupes_project_ids_and_stays_bounded(mock_fetch_candidat
     ],
 )
 async def test_relation_lookup_conclusiveness_across_the_fan_out(
-    mock_fetch_candidates, scans, relation_name, expected_found, expected_conclusive
+    mock_fetch_candidates, scans, relation, expected_found, expected_conclusive
 ):
     mock_fetch_candidates.side_effect = list(scans)
 
     result = await search_public_mesh_models.fn(
         config_provider=_provider(),
         project_ids=list(range(101, 101 + len(scans))),
-        relation_name=relation_name,
+        relation=relation,
     )
 
     assert result.lookup is not None
@@ -320,7 +332,7 @@ async def test_lookup_found_is_independent_of_query(mock_fetch_candidates):
         config_provider=_provider(),
         project_ids=[101],
         query="nonexistent_term",
-        relation_name="analytics.gold_finance.sales",
+        relation=_GOLD_FINANCE_SALES_LOWER,
     )
 
     assert result.models == []
@@ -329,23 +341,14 @@ async def test_lookup_found_is_independent_of_query(mock_fetch_candidates):
     assert result.coverage.models_scanned is None
 
 
-@pytest.mark.parametrize(
-    ("provider_factory", "kwargs", "expected_error"),
-    [
-        # Parsed before the fan-out, so a typo costs zero round trips.
-        (_provider, {"relation_name": "a.b.c.d"}, InvalidParameterError),
-        # A non-project-aware provider would silently scan one default
-        # project under every id -- a server misconfig, not a caller error.
-        (lambda: MagicMock(), {}, ConfigurationError),
-    ],
-    ids=["malformed_relation_name", "non_project_aware_provider"],
-)
-async def test_rejects_bad_input_before_fanning_out(
-    mock_fetch_candidates, provider_factory, kwargs, expected_error
+async def test_rejects_non_project_aware_provider_before_fanning_out(
+    mock_fetch_candidates,
 ):
-    with pytest.raises(expected_error):
+    """A non-project-aware provider would silently scan one default project
+    under every id -- a server misconfig, not a caller error."""
+    with pytest.raises(ConfigurationError):
         await search_public_mesh_models.fn(
-            config_provider=provider_factory(), project_ids=[101, 102], **kwargs
+            config_provider=MagicMock(), project_ids=[101, 102]
         )
 
     mock_fetch_candidates.assert_not_called()

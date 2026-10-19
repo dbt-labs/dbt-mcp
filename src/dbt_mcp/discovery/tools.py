@@ -30,8 +30,8 @@ from dbt_mcp.discovery.mesh import (
     MeshCoverage,
     MeshModel,
     MeshModelSearchResult,
+    MeshRelationFilter,
     count_relation_matches,
-    parse_relation_name,
     resolve_lookup,
     search_mesh_models,
 )
@@ -43,7 +43,7 @@ from dbt_mcp.discovery.param_descriptions import (
     MACRO_RETURN_PACKAGE_NAMES_ONLY,
     MESH_LIMIT_DESCRIPTION,
     MESH_PROJECT_IDS_DESCRIPTION,
-    MESH_RELATION_NAME_DESCRIPTION,
+    MESH_RELATION_DESCRIPTION,
     MESH_SEARCH_QUERY_DESCRIPTION,
     MODEL_PERF_INCLUDE_TESTS,
     MODEL_PERF_NUM_RUNS,
@@ -805,8 +805,8 @@ async def search_public_mesh_models(
     query: Annotated[
         str | None, Field(description=MESH_SEARCH_QUERY_DESCRIPTION)
     ] = None,
-    relation_name: Annotated[
-        str | None, Field(description=MESH_RELATION_NAME_DESCRIPTION)
+    relation: Annotated[
+        MeshRelationFilter | None, Field(description=MESH_RELATION_DESCRIPTION)
     ] = None,
     limit: Annotated[int, Field(description=MESH_LIMIT_DESCRIPTION, ge=1, le=100)] = 50,
 ) -> MeshModelSearchResult:
@@ -816,10 +816,7 @@ async def search_public_mesh_models(
         raise ConfigurationError(
             "search_public_mesh_models requires a project-aware configuration provider"
         )
-    # Parse before the fan-out so a malformed relation_name fails fast.
-    relation_filter = (
-        parse_relation_name(relation_name) if relation_name is not None else None
-    )
+    relation_filter = relation.to_model_filter() if relation is not None else None
     # A duplicate id would double-count the project in coverage and emit
     # duplicate models. dict.fromkeys preserves first-seen order.
     deduped_project_ids = list(dict.fromkeys(project_ids))
@@ -890,7 +887,7 @@ async def search_public_mesh_models(
         coverage=coverage,
         dependencies=dependencies,
         lookup=resolve_lookup(
-            relation_name,
+            relation,
             relation_hits=relation_hits,
             coverage=coverage,
         ),

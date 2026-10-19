@@ -40,18 +40,17 @@ MACRO_INCLUDE_DEFAULT_DBT_PACKAGES = (
 MESH_SEARCH_QUERY_DESCRIPTION = (
     "Optional search text matched as a case-insensitive substring against "
     "model names and descriptions, e.g. 'gold finance sales'. Not semantic "
-    "search. Omit to list everything in scope. Alongside `relation_name` it "
+    "search. Omit to list everything in scope. Alongside `relation` it "
     "only filters that one relation's model in or out; it never broadens the "
     "search."
 )
 
-MESH_RELATION_NAME_DESCRIPTION = (
-    "Warehouse relation to look up exactly, e.g. 'prod.gold.fct_orders'. "
-    "Matched right-aligned against each model's database/schema/identifier, "
-    "so 'prod.gold.fct_orders', 'gold.fct_orders', and 'fct_orders' are all "
-    "accepted. Every supplied component must match exactly (not a prefix or "
-    "substring) and matching is case-insensitive. Read the answer from the "
-    "returned `lookup` field."
+MESH_RELATION_DESCRIPTION = (
+    "Exact warehouse relation to look up, as separate fields rather than one "
+    "dotted string -- provide `identifier` (required), and `schema`/"
+    "`database` to narrow further when known. Each supplied field is matched "
+    "exactly (not a prefix or substring) and case-insensitively. Read the "
+    "answer from the returned `lookup` field."
 )
 
 MESH_PROJECT_IDS_DESCRIPTION = (

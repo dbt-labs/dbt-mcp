@@ -1,12 +1,8 @@
 """Normalization and filtering for dbt Mesh cross-project model search."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from dbt_mcp.discovery.client import MeshModelNode, ModelFilter
-from dbt_mcp.errors import InvalidParameterError
-
-# Snowflake/Postgres `"`, BigQuery backtick, SQL Server `[ ]`, stray `'`.
-_RELATION_QUOTE_TABLE = str.maketrans("", "", "\"`[]'")
 
 
 class MeshModel(BaseModel):
@@ -31,7 +27,7 @@ class MeshCoverage(BaseModel):
 
     A project whose own identity lookup failed lands in `failed`, since none
     of its nodes could be attributed to it. `models_scanned` is `None` on a
-    `relation_name` lookup -- a point query, not a scan.
+    `relation` lookup -- a point query, not a scan.
     """
 
     searched: list[str] = []
@@ -40,8 +36,50 @@ class MeshCoverage(BaseModel):
     models_scanned: int | None = 0
 
 
+class MeshRelationFilter(BaseModel):
+    """Exact warehouse relation to look up, as separate fields instead of one
+    dotted string -- each supplied field is matched independently against a
+    model's own database/schema/identifier, case-insensitively, with no
+    quoting or parsing involved. `database` without `schema` is accepted:
+    the underlying filter fields are independent, nothing requires
+    contiguity between them.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    identifier: str = Field(
+        min_length=1, description="The relation's identifier (table/view name)."
+    )
+    schema_: str | None = Field(
+        default=None,
+        alias="schema",
+        min_length=1,
+        description="The relation's schema, if known.",
+    )
+    database: str | None = Field(
+        default=None,
+        min_length=1,
+        description="The relation's database, if known.",
+    )
+
+    @field_validator("identifier", "schema_", "database", mode="before")
+    @classmethod
+    def _strip(cls, v: str | None) -> str | None:
+        # Runs before min_length, so a whitespace-only value still fails
+        # the length check instead of silently stripping down to "".
+        return v.strip() if isinstance(v, str) else v
+
+    def to_model_filter(self) -> ModelFilter:
+        model_filter: ModelFilter = {"identifier": self.identifier}
+        if self.schema_ is not None:
+            model_filter["schema"] = self.schema_
+        if self.database is not None:
+            model_filter["database"] = self.database
+        return model_filter
+
+
 class MeshLookup(BaseModel):
-    """Answer to an exact `relation_name` lookup.
+    """Answer to an exact `relation` lookup.
 
     `found` is true only when a model at that relation is owned by one of the
     searched projects -- a node belonging to a different project (an installed
@@ -54,7 +92,7 @@ class MeshLookup(BaseModel):
     licence to declare a new source.
     """
 
-    relation_name: str
+    relation: MeshRelationFilter
     found: bool
     conclusive: bool = True
 
@@ -77,57 +115,6 @@ def _matches_mesh_query(node: MeshModelNode, query: str) -> bool:
         return True
     haystack = f"{node.get('name') or ''} {node.get('description') or ''}".lower()
     return all(term in haystack for term in terms)
-
-
-def parse_relation_name(relation_name: str) -> ModelFilter:
-    """Parse a warehouse relation into a `ModelFilter`, right-aligned onto
-    `database`/`schema`/`identifier`.
-
-    Accepts `identifier`, `schema.identifier`, or `database.schema.identifier`.
-    Raises on an empty identifier rather than filtering on nothing.
-
-    Splits on every literal `.` before quote stripping, so a `.` inside a
-    component's own quotes mis-splits rather than erroring (not an issue for
-    real dbt names).
-
-    `database`/`schema` are omitted (not `None`) when absent, since
-    `ModelFilter` is `total=False` and a missing key means "don't filter on
-    this". `access` is never included here -- that's the fetcher's own
-    policy, not a property of the relation string.
-    """
-    accepted = (
-        "expected `identifier`, `schema.identifier`, or `database.schema.identifier`"
-    )
-    raw_parts = relation_name.strip().split(".")
-    # A leading/trailing dot is an unambiguous typo; an interior one
-    # (`prod..fct_orders`) is ambiguous and must not be reinterpreted.
-    while raw_parts and not raw_parts[0].strip():
-        raw_parts.pop(0)
-    while raw_parts and not raw_parts[-1].strip():
-        raw_parts.pop()
-    if not raw_parts:
-        raise InvalidParameterError(
-            f"relation_name must not be empty -- {accepted}, got {relation_name!r}"
-        )
-    parts = [p.strip().translate(_RELATION_QUOTE_TABLE) for p in raw_parts]
-    if any(not part for part in parts):
-        raise InvalidParameterError(
-            f"relation_name has an empty component -- {accepted}, got {relation_name!r}"
-        )
-    if len(parts) > 3:
-        raise InvalidParameterError(
-            f"relation_name has {len(parts)} dot-separated parts -- {accepted}, "
-            f"got {relation_name!r}"
-        )
-    identifier = parts[-1]
-    schema = parts[-2] if len(parts) >= 2 else None
-    database = parts[-3] if len(parts) >= 3 else None
-    model_filter: ModelFilter = {"identifier": identifier}
-    if schema is not None:
-        model_filter["schema"] = schema
-    if database is not None:
-        model_filter["database"] = database
-    return model_filter
 
 
 def _is_producer_node(node: MeshModelNode, *, platform_project_name: str) -> bool:
@@ -250,7 +237,7 @@ def count_relation_matches(
 
 
 def resolve_lookup(
-    relation_name: str | None,
+    relation: MeshRelationFilter | None,
     *,
     relation_hits: int,
     coverage: MeshCoverage,
@@ -265,11 +252,11 @@ def resolve_lookup(
     already classified -- nor does public-access narrowing, since a
     non-public model at the relation isn't ref-able anyway.
     """
-    if relation_name is None:
+    if relation is None:
         return None
     found = relation_hits > 0
     return MeshLookup(
-        relation_name=relation_name,
+        relation=relation,
         found=found,
         conclusive=found or (not coverage.failed and not coverage.incomplete),
     )

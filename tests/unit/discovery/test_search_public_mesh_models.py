@@ -1,15 +1,15 @@
 from typing import cast
 
 import pytest
+from pydantic import ValidationError
 
 from dbt_mcp.discovery.client import MeshModelNode
 from dbt_mcp.discovery.mesh import (
     MeshCoverage,
-    parse_relation_name,
+    MeshRelationFilter,
     resolve_lookup,
     search_mesh_models,
 )
-from dbt_mcp.errors import InvalidParameterError
 
 
 def _node(**overrides) -> MeshModelNode:
@@ -25,58 +25,51 @@ def _node(**overrides) -> MeshModelNode:
     return cast(MeshModelNode, node)
 
 
-# --- parse_relation_name: caller input -> ModelFilter ------------------------
+# --- MeshRelationFilter: caller input -> ModelFilter -------------------------
 # Case passed through verbatim -- the server matches case-insensitively,
 # unverified here. Absent database/schema (not None) since ModelFilter is
 # total=False.
 
 
 @pytest.mark.parametrize(
-    ("raw", "expected"),
+    ("kwargs", "expected"),
     [
         (
-            "analytics.gold_finance.sales",
+            {"database": "analytics", "schema": "gold_finance", "identifier": "sales"},
             {"database": "analytics", "schema": "gold_finance", "identifier": "sales"},
         ),
-        # Quote chars stripped per dialect.
+        # Partial forms accepted -- no requirement that schema/database be set.
         (
-            '"ANALYTICS".`GOLD_FINANCE`.[SALES]',
-            {"database": "ANALYTICS", "schema": "GOLD_FINANCE", "identifier": "SALES"},
-        ),
-        (
-            "  'analytics'.gold_finance.sales.  ",
-            {"database": "analytics", "schema": "gold_finance", "identifier": "sales"},
-        ),
-        # Partial forms right-aligned, not rejected.
-        (
-            "gold_finance.sales",
+            {"schema": "gold_finance", "identifier": "sales"},
             {"schema": "gold_finance", "identifier": "sales"},
         ),
-        ("sales", {"identifier": "sales"}),
+        ({"identifier": "sales"}, {"identifier": "sales"}),
+        # database without schema -- newly expressible, no contiguity rule.
+        (
+            {"database": "analytics", "identifier": "sales"},
+            {"database": "analytics", "identifier": "sales"},
+        ),
+        # Whitespace is stripped, not treated as a distinguishing character.
+        ({"identifier": "  sales  "}, {"identifier": "sales"}),
     ],
 )
-def test_parse_relation_name_accepts_supported_forms(raw, expected):
-    assert parse_relation_name(raw) == expected
+def test_mesh_relation_filter_builds_expected_model_filter(kwargs, expected):
+    assert MeshRelationFilter(**kwargs).to_model_filter() == expected
 
 
 @pytest.mark.parametrize(
-    ("raw", "expected_message_substring"),
+    "kwargs",
     [
-        # Empty must raise, not silently match everything.
-        ("", "must not be empty"),
-        ("   ", "must not be empty"),
-        # Quotes-only strips to an empty component, not an absent relation.
-        ('""', "empty component"),
-        ("...", "must not be empty"),
-        # Ambiguous, not reinterpreted as schema.identifier.
-        ("prod..sales", "empty component"),
-        # >3 parts raises rather than returning a fabricated miss.
-        ("a.b.c.d", "database.schema.identifier"),
+        {},  # identifier is required
+        {"identifier": ""},
+        {"identifier": "   "},  # whitespace-only -- stripped before min_length
+        {"identifier": "sales", "schema": ""},
+        {"identifier": "sales", "database": "   "},
     ],
 )
-def test_parse_relation_name_rejects_malformed_input(raw, expected_message_substring):
-    with pytest.raises(InvalidParameterError, match=expected_message_substring):
-        parse_relation_name(raw)
+def test_mesh_relation_filter_rejects_empty_fields(kwargs):
+    with pytest.raises(ValidationError):
+        MeshRelationFilter(**kwargs)
 
 
 # --- search_mesh_models: selection and normalization ------------------------
@@ -214,8 +207,11 @@ def test_resolve_lookup_conclusive_rule(
 ) -> None:
     """Truth table for `conclusive`. Access narrowing is server-side, so it's
     not a dimension here; a non-public hit isn't a ref-able match to hide."""
+    relation = MeshRelationFilter(
+        database="prod", schema="gold", identifier="fct_orders"
+    )
     lookup = resolve_lookup(
-        "prod.gold.fct_orders",
+        relation,
         relation_hits=relation_hits,
         coverage=MeshCoverage(
             searched=["101"],
@@ -226,5 +222,5 @@ def test_resolve_lookup_conclusive_rule(
 
     assert lookup is not None
     # The caller's input is echoed verbatim, not the normalized form.
-    assert lookup.relation_name == "prod.gold.fct_orders"
+    assert lookup.relation == relation
     assert (lookup.found, lookup.conclusive) == (found, conclusive)
