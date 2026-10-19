@@ -4057,7 +4057,9 @@
         "title": "search_public_mesh_modelsArguments",
         "type": "object"
       },
-      "meta": null,
+      "meta": {
+        "requiresMultiProject": true
+      },
       "name": "search_public_mesh_models",
       "output_schema": {
         "$defs": {

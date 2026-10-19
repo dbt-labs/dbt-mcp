@@ -14,6 +14,7 @@ from dbt_mcp.errors.common import MissingHostError
 from dbt_mcp.mcp.server import DbtMCP, app_lifespan
 from dbt_mcp.oauth.token_provider import StaticTokenProvider
 from dbt_mcp.tools.injection import adapt_with_mappers
+from dbt_mcp.tools.toolsets import REQUIRES_MULTI_PROJECT_META_KEY
 from dbt_mcp.tracking.tracking import UsageTracker
 
 
@@ -115,7 +116,10 @@ async def test_mesh_search_requires_configured_projects(projects, available):
     async def search_public_mesh_models(project_ids: list[int]) -> str:
         return "ok"
 
-    server.tool_server.add_tool(search_public_mesh_models)
+    server.tool_server.add_tool(
+        search_public_mesh_models,
+        meta={REQUIRES_MULTI_PROJECT_META_KEY: True},
+    )
 
     names = {t.name for t in await server.list_tools()}
     assert ("search_public_mesh_models" in names) is available

@@ -77,7 +77,7 @@ from dbt_mcp.tools.parameters import (
 )
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.toolsets import Toolset
+from dbt_mcp.tools.toolsets import REQUIRES_MULTI_PROJECT_META_KEY, Toolset
 
 logger = logging.getLogger(__name__)
 
@@ -794,6 +794,7 @@ MESH_PROJECT_FAN_OUT_CONCURRENCY = 5
     destructive_hint=False,
     idempotent_hint=True,
     structured_output=True,
+    meta={REQUIRES_MULTI_PROJECT_META_KEY: True},
 )
 async def search_public_mesh_models(
     # Raw provider, not a bound fetcher: each project_id needs its own config.
@@ -919,6 +920,8 @@ def discovery_context_mappers(
 def mesh_context_mappers(
     config_provider: ConfigProvider[DiscoveryConfig],
 ) -> dict[str, Callable[..., Any]]:
+    """Gives the mesh tool the raw provider it needs to resolve each project id itself."""
+
     async def provide_config_provider() -> ConfigProvider[DiscoveryConfig]:
         return config_provider
 
@@ -936,6 +939,8 @@ def register_discovery_tools(
 ) -> None:
     mappers = discovery_context_mappers(discovery_config_provider)
     mesh_mappers = mesh_context_mappers(discovery_config_provider)
+    # Kept separate: discovery tools share one resolved project's context, while
+    # the mesh tool needs the raw provider to resolve each project id itself.
     definitions = [tool.adapt_with_mappers(**mappers) for tool in DISCOVERY_TOOLS] + [
         tool.adapt_with_mappers(**mesh_mappers) for tool in MESH_TOOLS
     ]

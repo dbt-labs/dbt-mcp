@@ -56,7 +56,7 @@ from pydantic import BaseModel
 
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import (
-    MULTI_PROJECT_ONLY_TOOL_NAMES,
+    REQUIRES_MULTI_PROJECT_META_KEY,
     TOOL_TO_TOOLSET,
     Toolset,
     proxied_tools,
@@ -227,13 +227,16 @@ async def _read_resource_hash(dbt_mcp: Any, uri: str) -> str | None:
 
 
 def _tool_contracts_from(
-    tools: list[Any], *, only: frozenset[str] | None = None
+    tools: list[Any], *, require_multi_project_meta: bool = False
 ) -> list[ToolContract]:
     """Build ToolContracts for enumerated tools in an included toolset,
-    optionally restricted to the names in ``only``."""
+    optionally restricted to tools declaring the multi-project-only meta flag."""
     contracts: list[ToolContract] = []
     for tool in tools:
-        if only is not None and tool.name not in only:
+        tool_meta = getattr(tool, "meta", None) or {}
+        if require_multi_project_meta and not tool_meta.get(
+            REQUIRES_MULTI_PROJECT_META_KEY
+        ):
             continue
         try:
             tool_name = ToolName(tool.name)
@@ -273,12 +276,11 @@ async def generate_snapshot() -> ContractSnapshot:
     async with _snapshot_server() as dbt_mcp:
         tool_contracts = _tool_contracts_from(await dbt_mcp.list_tools())
 
-        if MULTI_PROJECT_ONLY_TOOL_NAMES:
-            async with _snapshot_server(projects=[1, 2]) as multi_project_dbt_mcp:
-                tool_contracts += _tool_contracts_from(
-                    await multi_project_dbt_mcp.list_tools(),
-                    only=MULTI_PROJECT_ONLY_TOOL_NAMES,
-                )
+        async with _snapshot_server(projects=[1, 2]) as multi_project_dbt_mcp:
+            tool_contracts += _tool_contracts_from(
+                await multi_project_dbt_mcp.list_tools(),
+                require_multi_project_meta=True,
+            )
 
         included_names = {tool.name for tool in tool_contracts}
         expected = expected_tool_names()

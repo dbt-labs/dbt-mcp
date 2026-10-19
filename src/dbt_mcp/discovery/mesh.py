@@ -12,20 +12,17 @@ _RELATION_QUOTE_TABLE = str.maketrans("", "", "\"`[]'")
 class MeshModel(BaseModel):
     model_name: str
     unique_id: str
-    #: Middle segment of `unique_id` (`model.<package>.<name>`); equals
-    #: `dbt_project_name`, since a node reaches `MeshModel` only after its
-    #: package is confirmed to match the queried producer.
+    # Middle segment of `unique_id` (`model.<package>.<name>`); equals
+    # `dbt_project_name`, since a node reaches `MeshModel` only after its
+    # package is confirmed to match the queried producer.
     package_name: str
     version: str | None = None
     latest_version: str | None = None
-    #: Raw passthrough from the platform's last run -- no staleness
-    #: interpretation applied here.
     last_run_status: str | None = None
     last_run_generated_at: str | None = None
     project_id: int
     relation_name: str | None = None
     dbt_project_name: str
-    #: The ready-to-use `{{ ref(...) }}` string.
     ref: str
 
 
@@ -66,8 +63,7 @@ class MeshModelSearchResult(BaseModel):
     type: str = "mesh_model_search_result"
     models: list[MeshModel]
     coverage: MeshCoverage
-    #: One producer project name per entry, deduped -- the `dependencies.yml`
-    #: list.
+    # deduped `dependencies.yml` list
     dependencies: list[str] = []
     lookup: MeshLookup | None = None
     omitted_model_count: int = 0

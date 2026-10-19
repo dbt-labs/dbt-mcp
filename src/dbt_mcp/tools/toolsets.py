@@ -43,9 +43,10 @@ proxied_tools: set[
     ]
 )
 
-# Tools needing an explicit, bounded set of project IDs. Hidden under the
-# single-project default rather than left to fail at call time.
-MULTI_PROJECT_ONLY_TOOL_NAMES = frozenset({ToolName.SEARCH_PUBLIC_MESH_MODELS.value})
+# Meta key a tool sets to True (via `meta={REQUIRES_MULTI_PROJECT_META_KEY: True}`)
+# for proper registration / snapshot contract generation
+REQUIRES_MULTI_PROJECT_META_KEY = "requiresMultiProject"
+
 
 toolsets = {
     Toolset.SQL: {

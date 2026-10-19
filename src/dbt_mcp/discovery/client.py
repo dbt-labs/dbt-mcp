@@ -485,32 +485,32 @@ class PaginatedResourceFetcher:
         page, _ = await self._fetch_page(query, variables, limit=limit, after=after)
         return page
 
-    async def fetch_paginated_with_extra(
+    async def fetch_paginated_with_sibling_field(
         self,
         query: str,
         variables: dict[str, Any],
         *,
         limit: int = 50,
         after: str | None = None,
-        extra_path: tuple[str, ...],
+        sibling_path: tuple[str, ...],
     ) -> tuple[ResultPage[list[dict]], Any | None]:
-        """Like `fetch_paginated`, but also hands back one extra field from the
+        """Like `fetch_paginated`, but also hands back one sibling field from the
         same response -- for data that lives alongside the paginated edges (e.g.
         `environment.dbtProjectName` next to `environment.applied.models`) and
-        would otherwise cost a second round trip to fetch. `extra_path` is
+        would otherwise cost a second round trip to fetch. `sibling_path` is
         walked defensively: a missing key or null intermediate yields None
         rather than raising, since its absence is a data condition for the
         caller to handle, not a malformed response."""
         page, result = await self._fetch_page(
             query, variables, limit=limit, after=after
         )
-        extra: Any = result
-        for key in extra_path:
-            if not isinstance(extra, dict):
-                extra = None
+        sibling: Any = result
+        for key in sibling_path:
+            if not isinstance(sibling, dict):
+                sibling = None
                 break
-            extra = extra.get(key)
-        return page, extra
+            sibling = sibling.get(key)
+        return page, sibling
 
 
 class ModelFilter(TypedDict, total=False):
@@ -931,7 +931,7 @@ class PublicMeshModelsFetcher:
         # mesh search fan-out.
         model_filter: ModelFilter = {"access": ModelAccess.PUBLIC}
         model_filter.update(relation_filter)
-        page, project_name = await self._paginator.fetch_paginated_with_extra(
+        page, project_name = await self._paginator.fetch_paginated_with_sibling_field(
             GraphQLQueries.GET_PUBLIC_MESH_MODELS,
             variables={
                 "modelsFilter": model_filter,
@@ -939,7 +939,7 @@ class PublicMeshModelsFetcher:
             },
             limit=MESH_SCAN_PAGE_SIZE,
             after=None,
-            extra_path=MESH_PROJECT_NAME_PATH,
+            sibling_path=MESH_PROJECT_NAME_PATH,
         )
         return (
             cast(list[MeshModelNode], page.result),
@@ -956,7 +956,10 @@ class PublicMeshModelsFetcher:
         project_name: str | None = None
         after: str | None = None
         for _ in range(MESH_SCAN_MAX_PAGES):
-            page, page_project_name = await self._paginator.fetch_paginated_with_extra(
+            (
+                page,
+                page_project_name,
+            ) = await self._paginator.fetch_paginated_with_sibling_field(
                 GraphQLQueries.GET_PUBLIC_MESH_MODELS,
                 variables={
                     "modelsFilter": model_filter,
@@ -964,7 +967,7 @@ class PublicMeshModelsFetcher:
                 },
                 limit=MESH_SCAN_PAGE_SIZE,
                 after=after,
-                extra_path=MESH_PROJECT_NAME_PATH,
+                sibling_path=MESH_PROJECT_NAME_PATH,
             )
             collected.extend(cast(list[MeshModelNode], page.result))
             # Every page carries the same project name; a transient null on a
