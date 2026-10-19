@@ -522,7 +522,7 @@ class ModelFilter(TypedDict, total=False):
     """
 
     modelingLayer: Literal["marts"] | None
-    # Matches a model's *alias*, not its dbt `name`.
+    # Matches a model's *alias*, not its dbt `name` if `alias` is set.
     identifier: str
     database: str
     schema: str
@@ -836,8 +836,6 @@ MESH_SCAN_PAGE_SIZE = 100
 MESH_SCAN_MAX_PAGES = 20
 
 # `environment.dbtProjectName` is a sibling of `environment.applied` in
-# GET_PUBLIC_MESH_MODELS, so it rides along with every node page instead of
-# costing its own round trip.
 MESH_PROJECT_NAME_PATH: tuple[str, ...] = ("data", "environment", "dbtProjectName")
 
 
@@ -948,9 +946,8 @@ class PublicMeshModelsFetcher:
         )
 
     async def _scan_all_nodes(self) -> tuple[list[MeshModelNode], bool, str | None]:
-        """Sweep every public model node, most-queried first, so that the
-        tool's `limit` truncates the least-used matches rather than an
-        arbitrary slice."""
+        """Sweep every public model node, most-queried first within this
+        project."""
         model_filter: ModelFilter = {"access": ModelAccess.PUBLIC}
         collected: list[MeshModelNode] = []
         project_name: str | None = None
