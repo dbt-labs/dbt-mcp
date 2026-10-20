@@ -143,7 +143,11 @@ def _render_ref(
     escaped otherwise, since dbt's `versions:` config accepts any string."""
     if version is None or version == latest_version:
         return f"{{{{ ref('{dbt_project_name}', '{model_name}') }}}}"
-    if version.isdigit():
+    if (
+        version.isascii()
+        and version.isdigit()
+        and (version == "0" or not version.startswith("0"))
+    ):
         rendered_version = version
     else:
         escaped = version.replace("\\", "\\\\").replace('"', '\\"')
