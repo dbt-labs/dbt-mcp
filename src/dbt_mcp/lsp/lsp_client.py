@@ -109,9 +109,9 @@ class LSPClient(LSPClientProtocol):
         # try as given, then fallback to upper
         candidate_column_names = list(dict.fromkeys([column_name, column_name.upper()]))
         result: dict[str, Any] = {}
-        for candidate_column_name in candidate_column_names:
-            column_selector = f"+column:{model_id}.{candidate_column_name}+"
-            async with asyncio.timeout(timeout or self.timeout):
+        async with asyncio.timeout(timeout or self.timeout):
+            for candidate_column_name in candidate_column_names:
+                column_selector = f"+column:{model_id}.{candidate_column_name}+"
                 result = await self.lsp_connection.send_request(
                     "workspace/executeCommand",
                     {
@@ -119,14 +119,14 @@ class LSPClient(LSPClientProtocol):
                         "arguments": [model_selector, column_selector],
                     },
                 )
-            if not result:
-                return {"error": "No result from LSP"}
+                if not result:
+                    return {"error": "No result from LSP"}
 
-            if "error" in result and result["error"] is not None:
-                return {"error": result["error"]}
+                if "error" in result and result["error"] is not None:
+                    return {"error": result["error"]}
 
-            if result.get("nodes"):
-                return {"nodes": result["nodes"]}
+                if result.get("nodes"):
+                    return {"nodes": result["nodes"]}
 
         if "nodes" in result and result["nodes"] is not None:
             return {"nodes": result["nodes"]}
