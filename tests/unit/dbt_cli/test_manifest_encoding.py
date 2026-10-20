@@ -18,7 +18,7 @@ def mock_process():
     return MockProcess()
 
 
-def test_manifest_uses_utf8_encoding(
+async def test_manifest_uses_utf8_encoding(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
 ):
     """Regression test for #594: open() without encoding defaults to CP-1252 on Windows."""
@@ -39,7 +39,7 @@ def test_manifest_uses_utf8_encoding(
     )
 
     with patch("builtins.open", mock_open(read_data='{"nodes": {}}')) as mock_file:
-        tools["get_lineage_dev"](unique_id="model.a", types=None, depth=5)
+        await tools["get_lineage_dev"](unique_id="model.a", types=None, depth=5)
 
     mock_file.assert_called_once_with(
         "/test/project/target/manifest.json", encoding="utf-8"

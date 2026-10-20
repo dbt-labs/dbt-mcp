@@ -1,3 +1,4 @@
+import asyncio
 import json
 import subprocess
 from typing import Any
@@ -20,6 +21,9 @@ from dbt_mcp.tools.toolsets import Toolset
 def create_dbt_codegen_tool_definitions(
     config: DbtCodegenConfig,
 ) -> list[ToolDefinition]:
+    # Runs the dbt child process and blocks until it exits. The tools below
+    # await it in a worker thread so the event loop keeps serving other
+    # requests while dbt runs.
     def _run_codegen_operation(
         macro_name: str,
         args: dict[str, Any] | None = None,
@@ -82,7 +86,7 @@ def create_dbt_codegen_tool_definitions(
         except Exception as e:
             return str(e)
 
-    def generate_source(
+    async def generate_source(
         schema_name: str = Field(
             description=get_prompt("dbt_codegen/args/schema_name")
         ),
@@ -108,9 +112,9 @@ def create_dbt_codegen_tool_definitions(
         args["generate_columns"] = generate_columns
         args["include_descriptions"] = include_descriptions
 
-        return _run_codegen_operation("generate_source", args)
+        return await asyncio.to_thread(_run_codegen_operation, "generate_source", args)
 
-    def generate_model_yaml(
+    async def generate_model_yaml(
         model_names: list[str] = Field(
             description=get_prompt("dbt_codegen/args/model_names")
         ),
@@ -128,9 +132,11 @@ def create_dbt_codegen_tool_definitions(
             "include_data_types": include_data_types,
         }
 
-        return _run_codegen_operation("generate_model_yaml", args)
+        return await asyncio.to_thread(
+            _run_codegen_operation, "generate_model_yaml", args
+        )
 
-    def generate_staging_model(
+    async def generate_staging_model(
         source_name: str = Field(
             description=get_prompt("dbt_codegen/args/source_name")
         ),
@@ -155,7 +161,9 @@ def create_dbt_codegen_tool_definitions(
         if materialized:
             args["materialized"] = materialized
 
-        return _run_codegen_operation("generate_base_model", args)
+        return await asyncio.to_thread(
+            _run_codegen_operation, "generate_base_model", args
+        )
 
     return [
         ToolDefinition(

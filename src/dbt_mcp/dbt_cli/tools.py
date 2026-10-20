@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import re
@@ -52,6 +53,9 @@ _VALID_RESOURCE_TYPES = frozenset(
 
 
 def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition]:
+    # Runs the dbt child process and blocks until it exits. The tools below
+    # await it in a worker thread so the event loop keeps serving other
+    # requests while dbt runs.
     def _run_dbt_command(
         command: list[str],
         node_selection: str | None = None,
@@ -160,7 +164,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
                 else ""
             )
 
-    def build(
+    async def build(
         node_selection: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/node_selection")
         ),
@@ -177,7 +181,8 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             default=None, description=get_prompt("dbt_cli/args/sample")
         ),
     ) -> str:
-        return _run_dbt_command(
+        return await asyncio.to_thread(
+            _run_dbt_command,
             ["build"],
             node_selection,
             is_selectable=True,
@@ -187,7 +192,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             yml_selector=yml_selector,
         )
 
-    def compile(
+    async def compile(
         node_selection: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/node_selection")
         ),
@@ -195,14 +200,18 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             default=None, description=get_prompt("dbt_cli/args/yml_selector")
         ),
     ) -> str:
-        return _run_dbt_command(
-            ["compile"], node_selection, is_selectable=True, yml_selector=yml_selector
+        return await asyncio.to_thread(
+            _run_dbt_command,
+            ["compile"],
+            node_selection,
+            is_selectable=True,
+            yml_selector=yml_selector,
         )
 
-    def docs() -> str:
-        return _run_dbt_command(["docs", "generate"])
+    async def docs() -> str:
+        return await asyncio.to_thread(_run_dbt_command, ["docs", "generate"])
 
-    def ls(
+    async def ls(
         node_selection: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/node_selection")
         ),
@@ -214,7 +223,8 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             description=get_prompt("dbt_cli/args/resource_type"),
         ),
     ) -> str:
-        return _run_dbt_command(
+        return await asyncio.to_thread(
+            _run_dbt_command,
             ["list"],
             node_selection,
             resource_type=resource_type,
@@ -222,10 +232,10 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             yml_selector=yml_selector,
         )
 
-    def parse() -> str:
-        return _run_dbt_command(["parse"])
+    async def parse() -> str:
+        return await asyncio.to_thread(_run_dbt_command, ["parse"])
 
-    def run(
+    async def run(
         node_selection: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/node_selection")
         ),
@@ -242,7 +252,8 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             default=None, description=get_prompt("dbt_cli/args/sample")
         ),
     ) -> str:
-        return _run_dbt_command(
+        return await asyncio.to_thread(
+            _run_dbt_command,
             ["run"],
             node_selection,
             is_selectable=True,
@@ -252,7 +263,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             yml_selector=yml_selector,
         )
 
-    def test(
+    async def test(
         node_selection: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/node_selection")
         ),
@@ -263,7 +274,8 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             default=None, description=get_prompt("dbt_cli/args/vars")
         ),
     ) -> str:
-        return _run_dbt_command(
+        return await asyncio.to_thread(
+            _run_dbt_command,
             ["test"],
             node_selection,
             is_selectable=True,
@@ -271,7 +283,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             yml_selector=yml_selector,
         )
 
-    def show(
+    async def show(
         sql_query: str = Field(description=get_prompt("dbt_cli/args/sql_query")),
         limit: int = Field(default=5, description=get_prompt("dbt_cli/args/limit")),
     ) -> str:
@@ -291,9 +303,9 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         if cli_limit is not None:
             args.extend(["--limit", str(cli_limit)])
         args.extend(["--output", "json"])
-        return _run_dbt_command(args)
+        return await asyncio.to_thread(_run_dbt_command, args)
 
-    def clone(
+    async def clone(
         node_selection: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/node_selection")
         ),
@@ -311,7 +323,8 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             default=None, description=get_prompt("dbt_cli/args/state_path")
         ),
     ) -> str:
-        return _run_dbt_command(
+        return await asyncio.to_thread(
+            _run_dbt_command,
             ["clone"],
             node_selection,
             is_selectable=True,
@@ -331,12 +344,12 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             manifest_data = json.load(f)
         return Manifest(**manifest_data)
 
-    def get_lineage_dev(
+    async def get_lineage_dev(
         unique_id: str = UNIQUE_ID_REQUIRED_FIELD,
         types: list[LineageResourceType] | None = TYPES_FIELD,
         depth: int = DEPTH_FIELD,
     ) -> dict[str, Any]:
-        manifest = _get_manifest()
+        manifest = await asyncio.to_thread(_get_manifest)
         model_lineage = ModelLineage.from_manifest(
             manifest,
             unique_id=unique_id,
@@ -345,7 +358,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         )
         return model_lineage.model_dump()
 
-    def get_node_details_dev(
+    async def get_node_details_dev(
         node_id: str = Field(
             description=get_prompt("dbt_cli/args/node_id"),
         ),
@@ -392,7 +405,8 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             "created_at",
             "unrendered_config",
         ]
-        output = _run_dbt_command(
+        output = await asyncio.to_thread(
+            _run_dbt_command,
             ["list", "--output", "json", "--output-keys", *output_keys],
             node_selection=node_id,
             is_selectable=True,
