@@ -123,6 +123,37 @@ def mock_process():
                 "json",
             ],
         ),
+        # "limit" in a comment or as a bare column is not a LIMIT clause
+        (
+            "SELECT * FROM my_model -- push it to the limit",
+            5,
+            [
+                "--no-use-colors",
+                "show",
+                "--inline",
+                "SELECT * FROM my_model -- push it to the limit",
+                "--favor-state",
+                "--limit",
+                "5",
+                "--output",
+                "json",
+            ],
+        ),
+        (
+            "SELECT limit FROM settings",
+            5,
+            [
+                "--no-use-colors",
+                "show",
+                "--inline",
+                "SELECT limit FROM settings",
+                "--favor-state",
+                "--limit",
+                "5",
+                "--output",
+                "json",
+            ],
+        ),
         # No limits at all - should not include --limit flag
         (
             "SELECT * FROM my_model",
