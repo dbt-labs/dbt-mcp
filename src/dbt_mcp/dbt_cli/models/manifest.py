@@ -41,7 +41,6 @@ _METHOD_BY_RESOURCE_TYPE: dict[str, str] = {
     "metric": "metric",
     "saved_query": "saved_query",
     "semantic_model": "semantic_model",
-    "unit_test": "unit_test",
 }
 
 
@@ -105,9 +104,11 @@ class Manifest(BaseModel):
         node, the selector is the full dotted fqn (`'.'.join(fqn)`), which is
         the most precise selector that method accepts.
 
-        Sources, exposures, metrics, semantic models, saved queries, and unit
-        tests use their method selectors. The value is package-qualified when
-        the same name exists in more than one package.
+        Sources, exposures, metrics, semantic models, and saved queries use
+        their method selectors. Unit tests have no Core method selector; they
+        use a name or FQN selector intersected with `test_type:unit`. The
+        value is package-qualified when the same name exists in more than one
+        package.
         """
         resource_type = unique_id.split(".", 1)[0]
         if resource_type == "source":
@@ -115,6 +116,15 @@ class Manifest(BaseModel):
             if source is None:
                 return None
             return _source_selector(source, peers=self.sources.values())
+        if resource_type == "unit_test":
+            named = self._method_node(unique_id=unique_id, resource_type=resource_type)
+            if named is None:
+                return None
+            return _unit_test_selector(
+                name=named.name,
+                package_name=named.package_name,
+                peer_names=self._method_peer_names(resource_type),
+            )
         if resource_type in _METHOD_BY_RESOURCE_TYPE:
             named = self._method_node(unique_id=unique_id, resource_type=resource_type)
             if named is None:
@@ -253,6 +263,24 @@ def _method_selector(
     if package_name and _name_is_shared(name, peer_names):
         value = f"{package_name}.{name}"
     return f"{method}:{value}"
+
+
+def _unit_test_selector(
+    *,
+    name: str,
+    package_name: str,
+    peer_names: Iterable[str],
+) -> str:
+    """Return a Core selector for a unit test unique_id.
+
+    `unit_test:` is not a dbt Core selection method. Select by name (or
+    package-qualified FQN when the name is shared) and intersect with
+    `test_type:unit`.
+    """
+    value = name
+    if package_name and _name_is_shared(name, peer_names):
+        value = f"{package_name}.{name}"
+    return f"{value},test_type:unit"
 
 
 def _source_selector(source: Source, *, peers: Iterable[Source]) -> str | None:

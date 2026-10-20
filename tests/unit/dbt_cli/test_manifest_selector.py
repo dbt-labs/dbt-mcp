@@ -51,7 +51,28 @@ def test_selector_for_method_resources() -> None:
     )
     assert (
         manifest.selector_for_unique_id("unit_test.my_project.test_orders")
-        == "unit_test:test_orders"
+        == "test_orders,test_type:unit"
+    )
+
+
+def test_selector_qualifies_unit_test_when_name_is_shared() -> None:
+    manifest = Manifest.model_validate(
+        {
+            "unit_tests": {
+                "unit_test.my_project.test_orders": {
+                    "name": "test_orders",
+                    "package_name": "my_project",
+                },
+                "unit_test.other_pkg.test_orders": {
+                    "name": "test_orders",
+                    "package_name": "other_pkg",
+                },
+            }
+        }
+    )
+    assert (
+        manifest.selector_for_unique_id("unit_test.my_project.test_orders")
+        == "my_project.test_orders,test_type:unit"
     )
 
 

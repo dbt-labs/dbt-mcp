@@ -29,6 +29,8 @@ from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
 
+_TEST_PARENT_RESOURCE_TYPES = frozenset({"model", "seed", "source", "snapshot"})
+
 _VALID_RESOURCE_TYPES = frozenset(
     {
         "all",
@@ -47,6 +49,63 @@ _VALID_RESOURCE_TYPES = frozenset(
         "unit_test",
     }
 )
+
+
+def _parse_dbt_list_records(output: str) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for line in output.strip().split("\n"):
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(record, dict):
+            records.append(record)
+    return records
+
+
+def _select_primary_list_node(
+    records: list[dict[str, Any]], node_id: str
+) -> dict[str, Any] | None:
+    """Pick the requested node from `dbt list` JSON records.
+
+    A resolved FQN selector can match more than one resource (for example a
+    model and an exposure that share `my_project.orders`). Prefer the record
+    whose unique_id equals the requested id so an unrelated first row is not
+    treated as the primary result.
+    """
+    for record in records:
+        if record.get("unique_id") == node_id:
+            return record
+    return records[0] if records else None
+
+
+def _test_is_attached(record: dict[str, Any], unique_id: str) -> bool:
+    if record.get("resource_type") != "test":
+        return False
+    if record.get("attached_node") == unique_id:
+        return True
+    depends_on = record.get("depends_on")
+    if isinstance(depends_on, dict):
+        nodes = depends_on.get("nodes")
+        if isinstance(nodes, list) and unique_id in nodes:
+            return True
+    return False
+
+
+def _attached_test_ids(
+    records: list[dict[str, Any]], *, unique_id: object
+) -> list[str]:
+    if not isinstance(unique_id, str) or not unique_id:
+        return []
+    test_ids: list[str] = []
+    for record in records:
+        if not _test_is_attached(record, unique_id):
+            continue
+        fqn = record.get("fqn", [])
+        test_ids.append(".".join(fqn) if fqn else record.get("unique_id", ""))
+    return test_ids
 
 
 def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition]:
@@ -395,6 +454,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             "tags",
             "config",
             "depends_on",
+            "attached_node",
             "patch_path",
             "schema",
             "database",
@@ -426,31 +486,15 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             is_selectable=True,
         )
 
-        node_result: dict[str, Any] | None = None
-        test_ids: list[str] = []
-
-        for line in output.strip().split("\n"):
-            if not line.strip():
-                continue
-            try:
-                node = json.loads(line)
-                resource_type = node.get("resource_type")
-                if node_result is None:
-                    # First node is the primary result
-                    node_result = node
-                elif resource_type == "test":
-                    # Collect additional tests (associated with the primary node)
-                    fqn = node.get("fqn", [])
-                    test_ids.append(".".join(fqn) if fqn else node.get("unique_id", ""))
-            except json.JSONDecodeError:
-                continue
-
+        records = _parse_dbt_list_records(output)
+        node_result = _select_primary_list_node(records, node_id)
         if node_result is None:
             raise ValueError(f"No node found for selector: {node_id}")
 
-        # Add test unique_ids for models, seeds, sources, and snapshots
-        if node_result.get("resource_type") in ("model", "seed", "source", "snapshot"):
-            node_result["tests"] = test_ids
+        if node_result.get("resource_type") in _TEST_PARENT_RESOURCE_TYPES:
+            node_result["tests"] = _attached_test_ids(
+                records, unique_id=node_result.get("unique_id")
+            )
 
         return node_result
 
