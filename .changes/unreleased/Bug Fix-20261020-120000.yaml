@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Apply the show tool row limit when "limit" appears only as part of a longer name, such as a credit_limit column
+time: 2026-10-20T12:00:00.000000+00:00

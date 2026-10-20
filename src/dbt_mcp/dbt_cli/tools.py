@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 from collections.abc import Iterable
 from typing import Any
@@ -278,7 +279,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         # This is quite crude, but it should be okay for now
         # until we have a dbt Fusion integration.
         cli_limit = None
-        if "limit" in sql_query.lower():
+        if re.search(r"\blimit\b", sql_query, re.IGNORECASE):
             # When --limit=-1, dbt won't apply a separate limit.
             cli_limit = -1
         elif limit:

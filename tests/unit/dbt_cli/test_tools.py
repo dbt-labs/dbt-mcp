@@ -76,6 +76,53 @@ def mock_process():
                 "json",
             ],
         ),
+        # "limit" inside an identifier is not a LIMIT clause
+        (
+            "select credit_limit from customers",
+            5,
+            [
+                "--no-use-colors",
+                "show",
+                "--inline",
+                "select credit_limit from customers",
+                "--favor-state",
+                "--limit",
+                "5",
+                "--output",
+                "json",
+            ],
+        ),
+        (
+            "SELECT * FROM rate_limits WHERE status = 'unlimited'",
+            5,
+            [
+                "--no-use-colors",
+                "show",
+                "--inline",
+                "SELECT * FROM rate_limits WHERE status = 'unlimited'",
+                "--favor-state",
+                "--limit",
+                "5",
+                "--output",
+                "json",
+            ],
+        ),
+        # LIMIT clause on its own line - should set --limit=-1
+        (
+            "SELECT * FROM my_model\nLIMIT 10",
+            5,
+            [
+                "--no-use-colors",
+                "show",
+                "--inline",
+                "SELECT * FROM my_model\nLIMIT 10",
+                "--favor-state",
+                "--limit",
+                "-1",
+                "--output",
+                "json",
+            ],
+        ),
         # No limits at all - should not include --limit flag
         (
             "SELECT * FROM my_model",
