@@ -21,9 +21,6 @@ from dbt_mcp.tools.toolsets import Toolset
 def create_dbt_codegen_tool_definitions(
     config: DbtCodegenConfig,
 ) -> list[ToolDefinition]:
-    # Runs the dbt child process and blocks until it exits. The tools below
-    # await it in a worker thread so the event loop keeps serving other
-    # requests while dbt runs.
     def _run_codegen_operation(
         macro_name: str,
         args: dict[str, Any] | None = None,

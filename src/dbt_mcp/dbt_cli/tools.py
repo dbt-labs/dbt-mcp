@@ -53,9 +53,6 @@ _VALID_RESOURCE_TYPES = frozenset(
 
 
 def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition]:
-    # Runs the dbt child process and blocks until it exits. The tools below
-    # await it in a worker thread so the event loop keeps serving other
-    # requests while dbt runs.
     def _run_dbt_command(
         command: list[str],
         node_selection: str | None = None,
