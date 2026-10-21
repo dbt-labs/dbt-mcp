@@ -14,6 +14,7 @@ from dbt_mcp.errors.common import MissingHostError
 from dbt_mcp.mcp.server import DbtMCP, app_lifespan
 from dbt_mcp.oauth.token_provider import StaticTokenProvider
 from dbt_mcp.tools.injection import adapt_with_mappers
+from dbt_mcp.tools.toolsets import REQUIRES_MULTI_PROJECT_META_KEY
 from dbt_mcp.tracking.tracking import UsageTracker
 
 
@@ -98,6 +99,39 @@ async def test_credential_refresh_changes_binding_without_replacing_registry():
 async def test_calls_must_match_the_advertised_project_selector(projects, arguments):
     with pytest.raises(ToolError, match="project_id"):
         await make_server(projects).call_tool("get_all_models", arguments)
+
+
+@pytest.mark.parametrize(
+    # `None` is the single-project default (no DBT_PROJECT_IDS configured, or
+    # OAuth single-project selection). A configured project list makes the
+    # tool available regardless of how many IDs it holds -- a static-token
+    # config with exactly one project ID is still multi-project *mode* by
+    # this tool's own definition.
+    "projects,available",
+    [(None, False), ([10], True), ([10, 20], True)],
+)
+async def test_mesh_search_requires_configured_projects(projects, available):
+    server = make_server(projects)
+
+    async def search_public_mesh_models(project_ids: list[int]) -> str:
+        return "ok"
+
+    server.tool_server.add_tool(
+        search_public_mesh_models,
+        meta={REQUIRES_MULTI_PROJECT_META_KEY: True},
+    )
+
+    names = {t.name for t in await server.list_tools()}
+    assert ("search_public_mesh_models" in names) is available
+
+    if available:
+        result = await server.call_tool(
+            "search_public_mesh_models", {"project_ids": [10]}
+        )
+        assert result[0][0].text == "ok"
+    else:
+        with pytest.raises(ValueError, match="unavailable"):
+            await server.call_tool("search_public_mesh_models", {"project_ids": [10]})
 
 
 async def test_local_tools_are_available_with_configured_environment():

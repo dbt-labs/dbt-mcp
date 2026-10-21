@@ -1,0 +1,33 @@
+query PublicMeshModels(
+  $environmentId: BigInt!
+  $modelsFilter: ModelAppliedFilter
+  $after: String
+  $first: Int
+  $sort: AppliedModelSort
+) {
+  environment(id: $environmentId) {
+    dbtProjectName
+    applied {
+      models(filter: $modelsFilter, after: $after, first: $first, sort: $sort) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        edges {
+          node {
+            name
+            uniqueId
+            description
+            relationName
+            version
+            latestVersion
+            executionInfo {
+              lastRunStatus
+              lastRunGeneratedAt
+            }
+          }
+        }
+      }
+    }
+  }
+}

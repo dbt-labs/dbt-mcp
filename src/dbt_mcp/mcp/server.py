@@ -29,7 +29,12 @@ from dbt_mcp.semantic_layer.client import DefaultSemanticLayerClientProvider
 from dbt_mcp.semantic_layer.tools import register_sl_tools
 from dbt_mcp.tools.injection import HIDE, adapt_with_mappers
 from dbt_mcp.tools.validation import configure_argument_validation
-from dbt_mcp.tools.toolsets import Toolset, toolsets, proxied_tools
+from dbt_mcp.tools.toolsets import (
+    REQUIRES_MULTI_PROJECT_META_KEY,
+    Toolset,
+    proxied_tools,
+    toolsets,
+)
 from dbt_mcp.tracking.tracking import (
     REDACT_ARGS,
     DefaultUsageTracker,
@@ -176,6 +181,11 @@ class DbtMCP(FastMCP):
 
     @staticmethod
     def _tool_available(tool: RegisteredTool, projects: list[int] | None) -> bool:
+        if tool.meta and tool.meta.get(REQUIRES_MULTI_PROJECT_META_KEY):
+            # Multi-project mode is DBT_PROJECT_IDS being configured at all,
+            # not how many ids it holds. OAuth single-project selection leaves
+            # `projects` None (see fastapi_app.py's selected_project_ids).
+            return projects is not None
         if projects is None:
             return True
         return tool.name in PROJECT_TOOL_NAMES
