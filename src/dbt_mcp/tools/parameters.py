@@ -23,3 +23,11 @@ class LineageDirection(StrEnum):
     UPSTREAM = "upstream"
     DOWNSTREAM = "downstream"
     BOTH = "both"
+
+
+class ModelAccess(StrEnum):
+    """dbt Mesh access levels for a model."""
+
+    PRIVATE = "private"
+    PROTECTED = "protected"
+    PUBLIC = "public"

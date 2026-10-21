@@ -48,6 +48,7 @@ class ToolName(Enum):
     GET_SNAPSHOT_DETAILS = "get_snapshot_details"
     GET_TEST_DETAILS = "get_test_details"
     SEARCH = "search"  # The search tool is not generally available yet
+    SEARCH_PUBLIC_MESH_MODELS = "search_public_mesh_models"
 
     # SQL tools
     TEXT_TO_SQL = "text_to_sql"
