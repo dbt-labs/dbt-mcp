@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Callable
 import logging
 from dataclasses import dataclass
@@ -16,11 +17,23 @@ from dbt_mcp.discovery.client import (
     ExposuresFetcher,
     LineageFetcher,
     MacrosFetcher,
+    MeshCandidates,
     ModelPerformanceFetcher,
     ModelsFetcher,
     PaginatedResourceFetcher,
+    PublicMeshModelsFetcher,
     ResourceDetailsFetcher,
     SourcesFetcher,
+    build_models_paginator,
+)
+from dbt_mcp.discovery.mesh import (
+    MeshCoverage,
+    MeshModel,
+    MeshModelSearchResult,
+    MeshRelationFilter,
+    count_relation_matches,
+    resolve_lookup,
+    search_mesh_models,
 )
 from dbt_mcp.discovery.param_descriptions import (
     GET_MODEL_CHILDREN_ARG_MAPPING,
@@ -28,14 +41,21 @@ from dbt_mcp.discovery.param_descriptions import (
     MACRO_INCLUDE_DEFAULT_DBT_PACKAGES,
     MACRO_PACKAGE_NAMES,
     MACRO_RETURN_PACKAGE_NAMES_ONLY,
+    MESH_LIMIT_DESCRIPTION,
+    MESH_PROJECT_IDS_DESCRIPTION,
+    MESH_RELATION_DESCRIPTION,
+    MESH_SEARCH_QUERY_DESCRIPTION,
     MODEL_PERF_INCLUDE_TESTS,
     MODEL_PERF_NUM_RUNS,
     RESOURCE_TYPE_DESCRIPTION,
     SOURCE_NAMES_FILTER,
     SOURCE_UNIQUE_IDS_FILTER,
 )
+from dbt_mcp.errors import ConfigurationError
+from dbt_mcp.pagination import AFTER_FIELD, LIMIT_FIELD, ResultPage
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.targets import (
+    AccountTarget,
     EnvironmentRole,
     Permission,
     ProjectTarget,
@@ -51,12 +71,13 @@ from dbt_mcp.tools.fields import (
     UNIQUE_ID_FIELD,
     UNIQUE_ID_REQUIRED_FIELD,
 )
-from dbt_mcp.tools.parameters import LineageDirection, LineageResourceType
+from dbt_mcp.tools.parameters import (
+    LineageDirection,
+    LineageResourceType,
+)
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.toolsets import Toolset
-
-from dbt_mcp.pagination import AFTER_FIELD, LIMIT_FIELD, ResultPage
+from dbt_mcp.tools.toolsets import REQUIRES_MULTI_PROJECT_META_KEY, Toolset
 
 logger = logging.getLogger(__name__)
 
@@ -77,11 +98,7 @@ class DiscoveryToolContext:
     ):
         self.models_fetcher = ModelsFetcher(
             config=config,
-            paginator=PaginatedResourceFetcher(
-                config=config,
-                edges_path=("data", "environment", "applied", "models", "edges"),
-                page_info_path=("data", "environment", "applied", "models", "pageInfo"),
-            ),
+            paginator=build_models_paginator(config),
         )
         self.exposures_fetcher = ExposuresFetcher(
             paginator=PaginatedResourceFetcher(
@@ -764,6 +781,125 @@ DISCOVERY_TOOLS = [
 ]
 
 
+# Caps simultaneous project scans so a large project_ids list can't burst
+# many HTTP clients at the metadata API. Untuned; any bound closes the risk.
+MESH_PROJECT_FAN_OUT_CONCURRENCY = 5
+
+
+@dbt_mcp_tool(
+    requirements=(AccountTarget(requires=Permission.METADATA_READ),),
+    description=get_prompt("discovery/search_public_mesh_models"),
+    title="Search Public Mesh Models",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+    structured_output=True,
+    meta={REQUIRES_MULTI_PROJECT_META_KEY: True},
+)
+async def search_public_mesh_models(
+    # Raw provider, not a bound fetcher: each project_id needs its own config.
+    config_provider: ConfigProvider[DiscoveryConfig],
+    project_ids: Annotated[
+        list[int], Field(description=MESH_PROJECT_IDS_DESCRIPTION, min_length=1)
+    ],
+    query: Annotated[
+        str | None, Field(description=MESH_SEARCH_QUERY_DESCRIPTION)
+    ] = None,
+    relation: Annotated[
+        MeshRelationFilter | None, Field(description=MESH_RELATION_DESCRIPTION)
+    ] = None,
+    limit: Annotated[int, Field(description=MESH_LIMIT_DESCRIPTION, ge=1, le=100)] = 50,
+) -> MeshModelSearchResult:
+    if not isinstance(config_provider, ProjectConfigProvider):
+        # Without per-project_id resolution the fan-out would silently scan
+        # the same default project under every supplied id.
+        raise ConfigurationError(
+            "search_public_mesh_models requires a project-aware configuration provider"
+        )
+    relation_filter = relation.to_model_filter() if relation is not None else None
+    # A duplicate id would double-count the project in coverage and emit
+    # duplicate models. dict.fromkeys preserves first-seen order.
+    deduped_project_ids = list(dict.fromkeys(project_ids))
+    semaphore = asyncio.Semaphore(MESH_PROJECT_FAN_OUT_CONCURRENCY)
+
+    async def _fetch_one_project(project_id: int) -> MeshCandidates:
+        async with semaphore:
+            config = await config_provider.get_config(project_id=project_id)
+            fetcher = PublicMeshModelsFetcher(
+                config=config, paginator=build_models_paginator(config)
+            )
+            return await fetcher.fetch_candidates(relation_filter)
+
+    # return_exceptions so one inaccessible producer project -- unauthorized
+    # project_id, no prod environment, a GraphQL/HTTP error, or a failed
+    # platform identity lookup -- lands in coverage.failed instead of
+    # aborting the whole multi-project search.
+    results = await asyncio.gather(
+        *(_fetch_one_project(pid) for pid in deduped_project_ids),
+        return_exceptions=True,
+    )
+
+    models: list[MeshModel] = []
+    searched: list[str] = []
+    failed: dict[str, str] = {}
+    incomplete: list[str] = []
+    # None on the relation path: a point query has no "how much was examined".
+    models_scanned: int | None = 0 if relation_filter is None else None
+    relation_hits = 0
+    for project_id, result in zip(deduped_project_ids, results, strict=True):
+        project_key = str(project_id)
+        if isinstance(result, BaseException):
+            failed[project_key] = str(result) or "unknown error"
+            logger.warning(
+                f"Mesh scan of project {project_key} failed", exc_info=result
+            )
+            continue
+        searched.append(project_key)
+        if models_scanned is not None:
+            models_scanned += len(result.nodes)
+        if result.incomplete:
+            incomplete.append(project_key)
+        models.extend(
+            search_mesh_models(
+                result.nodes,
+                project_id=project_id,
+                query=query,
+                platform_project_name=result.platform_project_name,
+            )
+        )
+        if relation_filter is not None:
+            relation_hits += count_relation_matches(
+                result.nodes,
+                platform_project_name=result.platform_project_name,
+            )
+
+    coverage = MeshCoverage(
+        searched=searched,
+        failed=failed,
+        incomplete=incomplete,
+        models_scanned=models_scanned,
+    )
+    # Deduped before truncation so a project whose only matches land past the
+    # limit still appears in the dependencies.yml suggestion.
+    dependencies = list(dict.fromkeys(model.dbt_project_name for model in models))
+    return MeshModelSearchResult(
+        models=models[:limit],
+        coverage=coverage,
+        dependencies=dependencies,
+        lookup=resolve_lookup(
+            relation,
+            relation_hits=relation_hits,
+            coverage=coverage,
+        ),
+        omitted_model_count=max(0, len(models) - limit),
+    )
+
+
+MESH_TOOLS = [
+    search_public_mesh_models,
+]
+
+
 def discovery_context_mappers(
     config_provider: ConfigProvider[DiscoveryConfig],
 ) -> dict[str, Callable[..., Any]]:
@@ -778,6 +914,17 @@ def discovery_context_mappers(
     return {"context": build_context}
 
 
+def mesh_context_mappers(
+    config_provider: ConfigProvider[DiscoveryConfig],
+) -> dict[str, Callable[..., Any]]:
+    """Gives the mesh tool the raw provider it needs to resolve each project id itself."""
+
+    async def provide_config_provider() -> ConfigProvider[DiscoveryConfig]:
+        return config_provider
+
+    return {"config_provider": provide_config_provider}
+
+
 def register_discovery_tools(
     dbt_mcp: FastMCP,
     discovery_config_provider: ConfigProvider[DiscoveryConfig],
@@ -788,7 +935,12 @@ def register_discovery_tools(
     disabled_toolsets: set[Toolset],
 ) -> None:
     mappers = discovery_context_mappers(discovery_config_provider)
-    definitions = [tool.adapt_with_mappers(**mappers) for tool in DISCOVERY_TOOLS]
+    mesh_mappers = mesh_context_mappers(discovery_config_provider)
+    # Kept separate: discovery tools share one resolved project's context, while
+    # the mesh tool needs the raw provider to resolve each project id itself.
+    definitions = [tool.adapt_with_mappers(**mappers) for tool in DISCOVERY_TOOLS] + [
+        tool.adapt_with_mappers(**mesh_mappers) for tool in MESH_TOOLS
+    ]
 
     register_tools(
         dbt_mcp,

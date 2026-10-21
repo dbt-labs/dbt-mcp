@@ -63,6 +63,7 @@ To learn more about the dbt Discovery API, click [here](https://docs.getdbt.com/
 - `get_source_details`: *(deprecated — use `get_node_details` instead)*
 - `get_test_details`: *(deprecated — use `get_node_details` instead)*
 - `search`: [Alpha] Searches for resources across the dbt project (not generally available).
+- `search_public_mesh_models`: Finds public dbt Mesh models across projects and confirms producer identity so you can build a verified cross-project ref (multi-project configurations only).
 
 ### dbt CLI
 
