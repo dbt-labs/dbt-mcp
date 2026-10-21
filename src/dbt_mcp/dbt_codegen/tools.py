@@ -20,7 +20,15 @@ from dbt_mcp.tools.toolsets import Toolset
 
 def create_dbt_codegen_tool_definitions(
     config: DbtCodegenConfig,
+    dbt_lock: asyncio.Lock | None = None,
 ) -> list[ToolDefinition]:
+    """Build the dbt-codegen tool definitions.
+
+    Every tool awaits its dbt run under ``dbt_lock``, which the server shares with
+    the dbt CLI tool set, so dbt runs on the project one command at a time.
+    """
+    lock = asyncio.Lock() if dbt_lock is None else dbt_lock
+
     def _run_codegen_operation(
         macro_name: str,
         args: dict[str, Any] | None = None,
@@ -109,7 +117,10 @@ def create_dbt_codegen_tool_definitions(
         args["generate_columns"] = generate_columns
         args["include_descriptions"] = include_descriptions
 
-        return await asyncio.to_thread(_run_codegen_operation, "generate_source", args)
+        async with lock:
+            return await asyncio.to_thread(
+                _run_codegen_operation, "generate_source", args
+            )
 
     async def generate_model_yaml(
         model_names: list[str] = Field(
@@ -129,9 +140,10 @@ def create_dbt_codegen_tool_definitions(
             "include_data_types": include_data_types,
         }
 
-        return await asyncio.to_thread(
-            _run_codegen_operation, "generate_model_yaml", args
-        )
+        async with lock:
+            return await asyncio.to_thread(
+                _run_codegen_operation, "generate_model_yaml", args
+            )
 
     async def generate_staging_model(
         source_name: str = Field(
@@ -158,9 +170,10 @@ def create_dbt_codegen_tool_definitions(
         if materialized:
             args["materialized"] = materialized
 
-        return await asyncio.to_thread(
-            _run_codegen_operation, "generate_base_model", args
-        )
+        async with lock:
+            return await asyncio.to_thread(
+                _run_codegen_operation, "generate_base_model", args
+            )
 
     return [
         ToolDefinition(
@@ -207,10 +220,11 @@ def register_dbt_codegen_tools(
     enabled_tools: set[ToolName] | None,
     enabled_toolsets: set[Toolset],
     disabled_toolsets: set[Toolset],
+    dbt_lock: asyncio.Lock | None = None,
 ) -> None:
     register_tools(
         dbt_mcp,
-        tool_definitions=create_dbt_codegen_tool_definitions(config),
+        tool_definitions=create_dbt_codegen_tool_definitions(config, dbt_lock),
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,

@@ -3,6 +3,7 @@ import contextlib
 import inspect
 import json
 import subprocess
+import threading
 import time
 from dataclasses import replace
 from pathlib import Path
@@ -1040,4 +1041,62 @@ async def test_dbt_command_runs_off_the_event_loop(
             await heartbeat_task
 
     assert result[0][0].text == "command output"
+    assert ticks >= 5
+
+
+async def test_concurrent_dbt_commands_run_one_at_a_time(
+    monkeypatch: MonkeyPatch, mock_fastmcp
+):
+    """dbt writes target/ without locking, so two tool calls must never run dbt
+    on the project at once, while the event loop keeps serving other coroutines
+    through the run and the wait."""
+    running = 0
+    peak = 0
+    counter_lock = threading.Lock()
+
+    class MockOverlappingProcess:
+        returncode = 0
+
+        def communicate(self, timeout=None):
+            nonlocal running, peak
+            with counter_lock:
+                running += 1
+                peak = max(peak, running)
+            time.sleep(0.2)
+            with counter_lock:
+                running -= 1
+            return "command output", ""
+
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: MockOverlappingProcess())
+
+    fastmcp, _ = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    ticks = 0
+
+    async def heartbeat() -> None:
+        nonlocal ticks
+        while True:
+            await asyncio.sleep(0.01)
+            ticks += 1
+
+    heartbeat_task = asyncio.create_task(heartbeat())
+    try:
+        results = await asyncio.gather(
+            fastmcp.call_tool("list", {}), fastmcp.call_tool("parse", {})
+        )
+    finally:
+        heartbeat_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await heartbeat_task
+
+    assert [result[0][0].text for result in results] == ["command output"] * 2
+    assert peak == 1
     assert ticks >= 5

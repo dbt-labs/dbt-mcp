@@ -2,13 +2,15 @@ import asyncio
 import contextlib
 import json
 import subprocess
+import threading
 import time
 
 import pytest
 from pytest import MonkeyPatch
 
+from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.dbt_codegen.tools import register_dbt_codegen_tools
-from tests.mocks.config import mock_dbt_codegen_config
+from tests.mocks.config import mock_dbt_cli_config, mock_dbt_codegen_config
 
 
 @pytest.fixture
@@ -644,3 +646,66 @@ async def test_codegen_operation_runs_off_the_event_loop(
 
     assert result[0][0].text == "command output"
     assert ticks >= 5
+
+
+async def test_codegen_and_cli_commands_share_the_dbt_lock(
+    monkeypatch: MonkeyPatch, mock_fastmcp
+):
+    """A codegen run-operation and a dbt CLI command registered with the same
+    lock never run dbt on the project at once."""
+    running = 0
+    peak = 0
+    counter_lock = threading.Lock()
+
+    class MockOverlappingProcess:
+        returncode = 0
+
+        def communicate(self, timeout=None):
+            nonlocal running, peak
+            with counter_lock:
+                running += 1
+                peak = max(peak, running)
+            time.sleep(0.2)
+            with counter_lock:
+                running -= 1
+            return "command output", ""
+
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: MockOverlappingProcess())
+
+    fastmcp, _ = mock_fastmcp
+    dbt_lock = asyncio.Lock()
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+        dbt_lock=dbt_lock,
+    )
+    register_dbt_codegen_tools(
+        fastmcp,
+        mock_dbt_codegen_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+        dbt_lock=dbt_lock,
+    )
+
+    results = await asyncio.gather(
+        fastmcp.call_tool("list", {}),
+        fastmcp.call_tool(
+            "generate_source",
+            {
+                "schema_name": "raw_data",
+                "database_name": None,
+                "table_names": None,
+                "generate_columns": False,
+                "include_descriptions": False,
+            },
+        ),
+    )
+
+    assert [result[0][0].text for result in results] == ["command output"] * 2
+    assert peak == 1
