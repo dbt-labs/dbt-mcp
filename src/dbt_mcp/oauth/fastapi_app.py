@@ -197,7 +197,7 @@ def create_app(
                         token_provider=StaticTokenProvider(access_token)
                     ),
                     account_id=selected_projects_request.account_id,
-                    prod_environment_id=None,
+                    environment_id=None,
                 )
             )
         )

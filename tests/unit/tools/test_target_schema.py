@@ -1,0 +1,78 @@
+from unittest.mock import AsyncMock, MagicMock
+from inspect import signature
+
+import pytest
+
+from dbt_mcp.config.config_providers.base import DiscoveryConfig, StaticConfigProvider
+from dbt_mcp.discovery.tools import (
+    DISCOVERY_TOOLS,
+    DiscoveryToolContext,
+    get_all_models,
+)
+from dbt_mcp.semantic_layer.tools import (
+    SEMANTIC_LAYER_TOOLS,
+    SemanticLayerToolContext,
+    list_metrics,
+)
+from dbt_mcp.semantic_layer.types import ListMetricsResponse
+from dbt_mcp.tools.targets import EnvironmentRole, ProjectTarget
+
+
+def test_canonical_service_schemas_explicitly_declare_target_parameters() -> None:
+    def context(project_id: int) -> DiscoveryToolContext:
+        return MagicMock()
+
+    def sl_context(project_id: int) -> SemanticLayerToolContext:
+        return MagicMock()
+
+    for tool in DISCOVERY_TOOLS + SEMANTIC_LAYER_TOOLS:
+        assert "project_id" in signature(tool.fn).parameters
+        declarations = tool.targets
+        assert set(declarations) == {"project_id"}
+        assert isinstance(declarations["project_id"], ProjectTarget)
+        assert declarations["project_id"].environment == EnvironmentRole.PRODUCTION
+        schema = tool.adapt_with_mappers(
+            context=context if tool in DISCOVERY_TOOLS else sl_context
+        ).fastmcp_tool.parameters
+        assert "project_id" in schema["required"]
+        assert schema["properties"]["project_id"]["type"] == "integer"
+        assert schema["properties"]["project_id"]["description"] == "Project ID."
+
+
+async def test_semantic_layer_uses_the_bound_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = MagicMock(metrics_related_max=10, max_response_chars=16000)
+    context = SemanticLayerToolContext(StaticConfigProvider(config), MagicMock())
+    fetch = AsyncMock(return_value=ListMetricsResponse(metrics=[]))
+    monkeypatch.setattr(context.semantic_layer_fetcher, "list_metrics", fetch)
+    await list_metrics.fn(context=context, project_id=99)
+    assert fetch.call_args.kwargs["config"] is config
+
+
+async def test_discovery_uses_the_bound_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = DiscoveryConfig(
+        url="https://example.com", headers_provider=MagicMock(), environment_id=12
+    )
+    context = DiscoveryToolContext(config)
+    fetch = AsyncMock(
+        return_value={
+            "data": {
+                "environment": {
+                    "applied": {
+                        "models": {
+                            "edges": [{"node": {"name": "orders"}}],
+                            "pageInfo": {"hasNextPage": False},
+                        }
+                    }
+                }
+            }
+        }
+    )
+    monkeypatch.setattr("dbt_mcp.discovery.client.execute_query", fetch)
+    result = await get_all_models.fn(context=context, project_id=99)
+    assert result.result == [{"name": "orders"}]
+    assert fetch.call_args.kwargs["config"] is config
+    assert fetch.call_args.args[1]["environmentId"] == 12

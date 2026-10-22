@@ -17,10 +17,15 @@ dbt-mcp is an MCP (Model Context Protocol) server that exposes dbt functionality
 ## Tool Architecture
 
 Tools follow a consistent pattern:
-1. `@dbt_mcp_tool` decorator defines the tool with metadata
+1. `@dbt_mcp_tool` defines metadata and requires an explicit access declaration: target argument annotations, top-level `requirements=(AccountTarget(requires=…),)` or a host policy enum. Use `requirements=(AccessPolicy.LOCAL,)` for local execution and `requirements=()` for public tools. Hosts implement enforcement; shared declarations contain semantic permissions and preserve host policies without interpreting them.
 2. `ToolName` enum in `tools/tool_names.py` — every tool needs an entry
 3. Toolset mapping in `tools/toolsets.py` — maps tools to categories
-4. Context injection via `adapt_context()` — tools receive typed context objects, but MCP only sees user-facing params
+4. Context injection builds the framework callable; the declared input contract and host bindings determine the model schema
+   - Declare `Annotated[..., ProjectTarget(...)]` and `EnvironmentTarget(...)` on the canonical tool arguments. Keep a required `Field(...)` default for selectors; context adapters pass these arguments through, but bodies read resolved context/config and leave selectors unused. The model sees the declared non-nullable type or no parameter when bound. Adaptation preserves the canonical metadata. `JobTarget`/`RunTarget` describe ordinary IDs used by the body whose owning project/environment the host resolves. Job/run tools also declare an explicit account requirement for listing eligibility; hosts check owners only for supplied IDs and leave requiredness to input validation.
+   - Discovery and semantic-layer tools declare `ProjectTarget(requires=..., environment=EnvironmentRole.PRODUCTION)`. The host resolves production alongside the project before authorization; no environment-ID argument is needed. Job listing uses a project target without an environment role. Tool bodies consume the configuration supplied by their context mapper.
+   - `adapt_with_mappers(context=build_context, project_id=resolved_project)` injects parameters by name. Mapper inputs form the framework signature, shared inputs must agree, and each mapper runs once per invocation. Canonical input types/defaults define the model contract independently of mapper omission support. Target annotations remain on caller-visible inputs. All injection is explicit by parameter name; type-based and positional mapper APIs have been removed.
+   - Context mappers explicitly declare the selectors and ordinary arguments they need. Hosts resolve and authorize those inputs, then build the final context. Framework context can supply request authorization while adapters choose the visible selector inputs. Ordinary mapper inputs also reach the body unchanged. `project_id=HIDE` removes a model input without supplying a value; dependent mappers must allow omission. Zero-argument value mappers hide and inject known values; compose them after context adaptation so context builders receive the selected values. FastMCP generates and validates the resulting callable with extra inputs forbidden. Discovery contexts construct fetchers with resolved config.
+   - Discovery and semantic-layer tools have one canonical implementation and one registration entry point. Project-aware providers resolve either the configured environment or an explicit project. The local server uses one registry and projects schemas per credential selection: a unique project/configured environment hides the selector; multiple projects expose a required integer selector. Invocation rejects supplied bound selectors. Optional job filters use nullable `JobTarget` arguments alongside an explicit top-level `AccountTarget` requirement; hosts skip absent optional IDs; shared access policies contain only local execution. `list_jobs` lists all project environments unless `AdminApiConfig.environment_id` selects a specific environment, including staging; there is no account-wide fallback or production lookup.
 5. `register_tools()` in `tools/register.py` — precedence-based enablement (individual > toolset > default)
 
 ### MCP Apps (tools with interactive UI)
@@ -57,6 +62,13 @@ Tools can have associated UIs via the `meta` field:
 - Prefer Pydantic models or dataclasses over dicts
 - Use `*` in param lists when adjacent params share a type
 - Avoid code in `__init__.py`
+
+## Dependencies
+
+- Declare every third-party package your code imports directly. Packages imported by `src/dbt_mcp` or `src/remote_mcp` go in `dependencies`; packages imported only by tests, evals or scripts go in the `dev` group. Never rely on a package that is only installed because another dependency requires it: a change to what that dependency requires then removes or downgrades it, and the first sign is an `ImportError` at runtime.
+- Declare a new import's package in the same change as the import, with `uv add`. Use the version in `uv.lock` as the lower bound.
+- Using a private module or attribute of a third-party package (a name that starts with `_`, such as `pydantic._internal` or `mcp.shared._httpx_utils`) requires an exact pin of that package in `pyproject.toml` (`==`), with a comment naming the private API used and what to re-check when bumping the version, like the `mcp` pin. Prefer a public API where one exists.
+- `deptry` enforces the declaration rules above (not the pin rule). It runs as part of `task check` (and so in CI) in two scans, set in `.pre-commit-config.yaml`: the shipped code (`src/dbt_mcp`, `src/remote_mcp`) must declare every package it imports and may not import a dev dependency, and the dev-only code (`src/client`, `tests`, `scripts`, `evals`) must declare what it imports but may use dev dependencies. Shared configuration is under `[tool.deptry]` in `pyproject.toml`.
 
 ## Changelog
 

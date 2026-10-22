@@ -105,25 +105,33 @@ class LSPClient(LSPClientProtocol):
         logger.info(f"Requesting column lineage for {model_id}.{column_name}")
 
         model_selector = f"@{model_id}"
-        column_selector = f"+column:{model_id}.{column_name.upper()}+"
+        # LSP catalog casing is adapter-dependent
+        # try as given, then fallback to upper
+        candidate_column_names = list(dict.fromkeys([column_name, column_name.upper()]))
+        result: dict[str, Any] = {}
         async with asyncio.timeout(timeout or self.timeout):
-            result = await self.lsp_connection.send_request(
-                "workspace/executeCommand",
-                {
-                    "command": "dbt.listNodes",
-                    "arguments": [model_selector, column_selector],
-                },
-            )
-            if not result:
-                return {"error": "No result from LSP"}
+            for candidate_column_name in candidate_column_names:
+                column_selector = f"+column:{model_id}.{candidate_column_name}+"
+                result = await self.lsp_connection.send_request(
+                    "workspace/executeCommand",
+                    {
+                        "command": "dbt.listNodes",
+                        "arguments": [model_selector, column_selector],
+                    },
+                )
+                if not result:
+                    return {"error": "No result from LSP"}
 
-            if "error" in result and result["error"] is not None:
-                return {"error": result["error"]}
+                if "error" in result and result["error"] is not None:
+                    return {"error": result["error"]}
 
-            if "nodes" in result and result["nodes"] is not None:
-                return {"nodes": result["nodes"]}
+                if result.get("nodes"):
+                    return {"nodes": result["nodes"]}
 
-            return result
+        if "nodes" in result and result["nodes"] is not None:
+            return {"nodes": result["nodes"]}
+
+        return result
 
     async def get_model_lineage(
         self, model_selector: str, timeout: float | None = None

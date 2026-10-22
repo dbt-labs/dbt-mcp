@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 import re
@@ -24,7 +23,7 @@ from dbt_mcp.dbt_admin.run_artifacts.schemas.job_run import (
     RunStepSchema,
 )
 from dbt_mcp.config.config_providers import AdminApiConfig
-from dbt_mcp.errors import ArtifactRetrievalError, NotFoundError
+from dbt_mcp.errors import InvalidParameterError, ArtifactRetrievalError, NotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +140,8 @@ class JobRunFetcher:
                     results=results,
                 )
             return None
+        except InvalidParameterError:
+            raise
         except Exception as e:
             # src_artifact.parse() never raises (it falls back to LenientSources internally),
             # but guard against unexpected AttributeError on missing keys or JSON errors.
@@ -168,11 +169,7 @@ class ErrorFetcher(JobRunFetcher):
                 error_result = self._create_error_result("No failed step found")
                 return {"failed_steps": [error_result.model_dump()]}
 
-            # asyncio.gather to process steps in parallel
-            step_results = await asyncio.gather(
-                *[self._get_step_errors(step) for step in failed_steps],
-                return_exceptions=True,
-            )
+            step_results = [await self._get_step_errors(step) for step in failed_steps]
 
             processed_steps: list[OutputStepSchema] = []
             for step_result in step_results:
@@ -187,6 +184,8 @@ class ErrorFetcher(JobRunFetcher):
             logger.error(f"Schema validation failed for run {self.run_id}: {e}")
             error_result = self._create_error_result(f"Validation failed: {e!s}")
             return {"failed_steps": [error_result.model_dump()]}
+        except InvalidParameterError:
+            raise
         except Exception as e:
             logger.error(f"Error analyzing run {self.run_id}: {e}")
             error_result = self._create_error_result(str(e))
@@ -231,6 +230,8 @@ class ErrorFetcher(JobRunFetcher):
                 errors, failed_step, rr_artifact.get_target(parsed)
             )
 
+        except InvalidParameterError:
+            raise
         except Exception as e:
             logger.warning(f"run_results.json parsing failed: {e}")
             return self._handle_artifact_error(failed_step)
@@ -347,6 +348,8 @@ class WarningFetcher(JobRunFetcher):
         except ValidationError as e:
             logger.error(f"Schema validation failed for run {self.run_id}: {e}")
             return self._empty_response(f"Validation failed: {e!s}")
+        except InvalidParameterError:
+            raise
         except Exception as e:
             logger.error(f"Error analyzing warnings for run {self.run_id}: {e}")
             return self._empty_response(str(e))
@@ -365,11 +368,9 @@ class WarningFetcher(JobRunFetcher):
         self, successful_steps: list[RunStepSchema]
     ) -> tuple[list[OutputStepSchema], list[OutputResultSchema]]:
         """Collect warnings from all successful steps."""
-        # asyncio.gather to process steps in parallel
-        step_results = await asyncio.gather(
-            *[self._get_step_warnings(step) for step in successful_steps],
-            return_exceptions=True,
-        )
+        step_results = [
+            await self._get_step_warnings(step) for step in successful_steps
+        ]
 
         warning_steps: list[OutputStepSchema] = []
         all_log_warnings: list[OutputResultSchema] = []
@@ -454,6 +455,8 @@ class WarningFetcher(JobRunFetcher):
                     results=warnings,
                 )
             return None
+        except InvalidParameterError:
+            raise
         except Exception as e:
             logger.warning(f"run_results.json parsing failed: {e}")
             return None

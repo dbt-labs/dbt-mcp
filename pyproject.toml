@@ -4,8 +4,7 @@ description = "A MCP (Model Context Protocol) server for interacting with dbt re
 authors = [{ name = "dbt Labs" }]
 readme = "README.md"
 license = { file = "LICENSE" }
-# until pyarrow releases wheels for 3.14 https://github.com/apache/arrow/issues/47438
-requires-python = ">=3.12,<3.14"
+requires-python = ">=3.12,<3.15"
 dynamic = ["version"]
 keywords = [
   "dbt",
@@ -46,6 +45,14 @@ dependencies = [
   "starlette~=1.6.0",
   "dbt-artifacts-parser>=0.13.2",
   "jq>=1.12.0",
+  "cachetools>=5,<8",
+  # Imported directly by src/, so declared rather than relied on transitively.
+  "anyio>=4.14.2",
+  "adbc-driver-flightsql>=1.8.0",
+  "adbc-driver-manager>=1.8.0",
+  "pyarrow>=23.0.1",
+  "pydantic>=2.12.5",
+  "pydantic-core>=2.41.5",
 ]
 [tool.uv]
 exclude-newer = "7 days"
@@ -53,6 +60,7 @@ exclude-newer-package = { dbt-protos = false, dbt-sl-sdk = false, dbtlabs-vortex
 
 [dependency-groups]
 dev = [
+  "cryptography>=50.0.0",
   "ruff>=0.11.2",
   "mypy>=1.12.1",
   "pre-commit>=4.2.0",
@@ -62,6 +70,7 @@ dev = [
   "pyarrow-stubs>=19.1",
   "types-pyyaml>=6.0.12.20250516",
   "types-authlib>=1.6.4.20250920",
+  "deptry>=0.25.1",
 ]
 
 [project.urls]
@@ -83,6 +92,9 @@ include = ["src/dbt_mcp/**/*", "README.md", "LICENSE"]
 [tool.hatch.version]
 source = "vcs"
 fallback-version = "0.0.0"
+
+[tool.deptry]
+known_first_party = ["dbt_mcp", "remote_mcp", "client"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

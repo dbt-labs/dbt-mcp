@@ -43,6 +43,11 @@ proxied_tools: set[
     ]
 )
 
+# Meta key a tool sets to True (via `meta={REQUIRES_MULTI_PROJECT_META_KEY: True}`)
+# for proper registration / snapshot contract generation
+REQUIRES_MULTI_PROJECT_META_KEY = "requiresMultiProject"
+
+
 toolsets = {
     Toolset.SQL: {
         ToolName.TEXT_TO_SQL,
@@ -79,6 +84,7 @@ toolsets = {
         ToolName.GET_SNAPSHOT_DETAILS,
         ToolName.GET_TEST_DETAILS,
         ToolName.SEARCH,
+        ToolName.SEARCH_PUBLIC_MESH_MODELS,
     },
     Toolset.DBT_CLI: {
         ToolName.BUILD,

@@ -1,21 +1,39 @@
+import asyncio
+from collections.abc import Callable
 import logging
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Any
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
 
-from dbt_mcp.config.config_providers import ConfigProvider, DiscoveryConfig
+from dbt_mcp.config.config_providers import (
+    ConfigProvider,
+    DiscoveryConfig,
+    ProjectConfigProvider,
+)
 from dbt_mcp.discovery.client import (
     AppliedResourceType,
     ExposuresFetcher,
     LineageFetcher,
     MacrosFetcher,
+    MeshCandidates,
     ModelPerformanceFetcher,
     ModelsFetcher,
     PaginatedResourceFetcher,
+    PublicMeshModelsFetcher,
     ResourceDetailsFetcher,
     SourcesFetcher,
+    build_models_paginator,
+)
+from dbt_mcp.discovery.mesh import (
+    MeshCoverage,
+    MeshModel,
+    MeshModelSearchResult,
+    MeshRelationFilter,
+    count_relation_matches,
+    resolve_lookup,
+    search_mesh_models,
 )
 from dbt_mcp.discovery.param_descriptions import (
     GET_MODEL_CHILDREN_ARG_MAPPING,
@@ -23,13 +41,25 @@ from dbt_mcp.discovery.param_descriptions import (
     MACRO_INCLUDE_DEFAULT_DBT_PACKAGES,
     MACRO_PACKAGE_NAMES,
     MACRO_RETURN_PACKAGE_NAMES_ONLY,
+    MESH_LIMIT_DESCRIPTION,
+    MESH_PROJECT_IDS_DESCRIPTION,
+    MESH_RELATION_DESCRIPTION,
+    MESH_SEARCH_QUERY_DESCRIPTION,
     MODEL_PERF_INCLUDE_TESTS,
     MODEL_PERF_NUM_RUNS,
     RESOURCE_TYPE_DESCRIPTION,
     SOURCE_NAMES_FILTER,
     SOURCE_UNIQUE_IDS_FILTER,
 )
+from dbt_mcp.errors import ConfigurationError
+from dbt_mcp.pagination import AFTER_FIELD, LIMIT_FIELD, ResultPage
 from dbt_mcp.prompts.prompts import get_prompt
+from dbt_mcp.tools.targets import (
+    AccountTarget,
+    EnvironmentRole,
+    Permission,
+    ProjectTarget,
+)
 from dbt_mcp.tools.definitions import dbt_mcp_tool
 from dbt_mcp.tools.deprecation import deprecated_description, deprecation_meta
 from dbt_mcp.tools.fields import (
@@ -41,12 +71,13 @@ from dbt_mcp.tools.fields import (
     UNIQUE_ID_FIELD,
     UNIQUE_ID_REQUIRED_FIELD,
 )
-from dbt_mcp.tools.parameters import LineageDirection, LineageResourceType
+from dbt_mcp.tools.parameters import (
+    LineageDirection,
+    LineageResourceType,
+)
 from dbt_mcp.tools.register import register_tools
 from dbt_mcp.tools.tool_names import ToolName
-from dbt_mcp.tools.toolsets import Toolset
-
-from dbt_mcp.pagination import AFTER_FIELD, LIMIT_FIELD, ResultPage
+from dbt_mcp.tools.toolsets import REQUIRES_MULTI_PROJECT_META_KEY, Toolset
 
 logger = logging.getLogger(__name__)
 
@@ -63,17 +94,15 @@ class DiscoveryToolContext:
 
     def __init__(
         self,
-        config_provider: ConfigProvider[DiscoveryConfig],
+        config: DiscoveryConfig,
     ):
-        self.config_provider = config_provider
         self.models_fetcher = ModelsFetcher(
-            paginator=PaginatedResourceFetcher(
-                edges_path=("data", "environment", "applied", "models", "edges"),
-                page_info_path=("data", "environment", "applied", "models", "pageInfo"),
-            ),
+            config=config,
+            paginator=build_models_paginator(config),
         )
         self.exposures_fetcher = ExposuresFetcher(
             paginator=PaginatedResourceFetcher(
+                config=config,
                 edges_path=("data", "environment", "definition", "exposures", "edges"),
                 page_info_path=(
                     "data",
@@ -86,6 +115,7 @@ class DiscoveryToolContext:
         )
         self.sources_fetcher = SourcesFetcher(
             paginator=PaginatedResourceFetcher(
+                config=config,
                 edges_path=("data", "environment", "applied", "sources", "edges"),
                 page_info_path=(
                     "data",
@@ -98,6 +128,7 @@ class DiscoveryToolContext:
         )
         self.macros_fetcher = MacrosFetcher(
             paginator=PaginatedResourceFetcher(
+                config=config,
                 edges_path=("data", "environment", "applied", "resources", "edges"),
                 page_info_path=(
                     "data",
@@ -109,10 +140,13 @@ class DiscoveryToolContext:
             ),
         )
         self.resource_details_fetcher = ResourceDetailsFetcher(
-            models_fetcher=self.models_fetcher
+            config=config, models_fetcher=self.models_fetcher
         )
-        self.lineage_fetcher = LineageFetcher()
+        self.lineage_fetcher = LineageFetcher(
+            config=config,
+        )
         self.model_performance_fetcher = ModelPerformanceFetcher(
+            config=config,
             models_fetcher=self.models_fetcher,
         )
 
@@ -128,10 +162,17 @@ async def get_mart_models(
     context: DiscoveryToolContext,
     limit: Annotated[int, LIMIT_FIELD] = 50,
     after: Annotated[str | None, AFTER_FIELD] = None,
+    *,
+    project_id: Annotated[
+        int,
+        ProjectTarget(
+            requires=Permission.METADATA_READ,
+            environment=EnvironmentRole.PRODUCTION,
+        ),
+    ] = Field(description="Project ID."),
 ) -> ResultPage[list[dict]]:
     mart_models = await context.models_fetcher.fetch_models(
         model_filter={"modelingLayer": "marts"},
-        config=await context.config_provider.get_config(),
         limit=limit,
         after=after,
     )
@@ -152,11 +193,16 @@ async def get_all_models(
     context: DiscoveryToolContext,
     limit: Annotated[int, LIMIT_FIELD] = 50,
     after: Annotated[str | None, AFTER_FIELD] = None,
+    *,
+    project_id: Annotated[
+        int,
+        ProjectTarget(
+            requires=Permission.METADATA_READ,
+            environment=EnvironmentRole.PRODUCTION,
+        ),
+    ] = Field(description="Project ID."),
 ) -> ResultPage[list[dict]]:
-    config = await context.config_provider.get_config()
-    return await context.models_fetcher.fetch_models(
-        config=config, limit=limit, after=after
-    )
+    return await context.models_fetcher.fetch_models(limit=limit, after=after)
 
 
 @dbt_mcp_tool(
@@ -173,13 +219,19 @@ async def get_node_details(
     ],
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    project_id: Annotated[
+        int,
+        ProjectTarget(
+            requires=Permission.METADATA_READ,
+            environment=EnvironmentRole.PRODUCTION,
+        ),
+    ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=resource_type,
         unique_id=unique_id,
         name=name,
-        config=config,
     )
 
 
@@ -195,13 +247,19 @@ async def get_model_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    project_id: Annotated[
+        int,
+        ProjectTarget(
+            requires=Permission.METADATA_READ,
+            environment=EnvironmentRole.PRODUCTION,
+        ),
+    ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.MODEL,
         unique_id=unique_id,
         name=name,
-        config=config,
     )
 
 
@@ -219,10 +277,17 @@ async def get_model_parents(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    project_id: Annotated[
+        int,
+        ProjectTarget(
+            requires=Permission.METADATA_READ,
+            environment=EnvironmentRole.PRODUCTION,
+        ),
+    ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     return await context.models_fetcher.fetch_model_parents(
-        model_name=name, unique_id=unique_id, config=config
+        model_name=name, unique_id=unique_id
     )
 
 
@@ -240,11 +305,16 @@ async def get_model_children(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    project_id: Annotated[
+        int,
+        ProjectTarget(
+            requires=Permission.METADATA_READ,
+            environment=EnvironmentRole.PRODUCTION,
+        ),
+    ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
-    return await context.models_fetcher.fetch_model_children(
-        name, unique_id, config=config
-    )
+    return await context.models_fetcher.fetch_model_children(name, unique_id)
 
 
 @dbt_mcp_tool(
@@ -258,11 +328,16 @@ async def get_model_health(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    project_id: Annotated[
+        int,
+        ProjectTarget(
+            requires=Permission.METADATA_READ,
+            environment=EnvironmentRole.PRODUCTION,
+        ),
+    ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
-    return await context.models_fetcher.fetch_model_health(
-        name, unique_id, config=config
-    )
+    return await context.models_fetcher.fetch_model_health(name, unique_id)
 
 
 @dbt_mcp_tool(
@@ -286,11 +361,17 @@ async def get_model_performance(
         default=False,
         description=MODEL_PERF_INCLUDE_TESTS,
     ),
+    *,
+    project_id: Annotated[
+        int,
+        ProjectTarget(
+            requires=Permission.METADATA_READ,
+            environment=EnvironmentRole.PRODUCTION,
+        ),
+    ] = Field(description="Project ID."),
 ) -> list[dict]:
     """Get model execution performance metrics from historical runs."""
-    config = await context.config_provider.get_config()
     return await context.model_performance_fetcher.fetch_performance(
-        config=config,
         name=name,
         unique_id=unique_id,
         num_runs=num_runs,
@@ -325,9 +406,7 @@ def build_lineage_graph(
 ) -> LineageGraph:
     """Map the lineage fetcher's list-of-dicts output into a LineageGraph.
 
-    Shared by the single- and multi-project get_lineage tools so both emit the
-    same structured shape. Edges are kept only when both endpoints are present
-    in the returned node set.
+    Edges are kept only when both endpoints are present in the returned node set.
     """
     omitted_node_count = max(0, len(nodes) - limit)
     returned_nodes = nodes[:limit]
@@ -369,14 +448,20 @@ async def get_lineage(
     depth: int = LINEAGE_DEPTH_FIELD,
     direction: LineageDirection = DIRECTION_FIELD,
     limit: int = LINEAGE_LIMIT_FIELD,
+    *,
+    project_id: Annotated[
+        int,
+        ProjectTarget(
+            requires=Permission.METADATA_READ,
+            environment=EnvironmentRole.PRODUCTION,
+        ),
+    ] = Field(description="Project ID."),
 ) -> LineageGraph:
-    config = await context.config_provider.get_config()
     nodes = await context.lineage_fetcher.fetch_lineage(
         unique_id=unique_id,
         types=types,
         depth=depth,
         direction=direction,
-        config=config,
     )
     return build_lineage_graph(
         root_id=unique_id,
@@ -396,11 +481,16 @@ async def get_exposures(
     context: DiscoveryToolContext,
     limit: Annotated[int, LIMIT_FIELD] = 50,
     after: Annotated[str | None, AFTER_FIELD] = None,
+    *,
+    project_id: Annotated[
+        int,
+        ProjectTarget(
+            requires=Permission.METADATA_READ,
+            environment=EnvironmentRole.PRODUCTION,
+        ),
+    ] = Field(description="Project ID."),
 ) -> ResultPage[list[dict]]:
-    config = await context.config_provider.get_config()
-    return await context.exposures_fetcher.fetch_exposures(
-        config=config, limit=limit, after=after
-    )
+    return await context.exposures_fetcher.fetch_exposures(limit=limit, after=after)
 
 
 @dbt_mcp_tool(
@@ -415,13 +505,19 @@ async def get_exposure_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    project_id: Annotated[
+        int,
+        ProjectTarget(
+            requires=Permission.METADATA_READ,
+            environment=EnvironmentRole.PRODUCTION,
+        ),
+    ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.EXPOSURE,
         unique_id=unique_id,
         name=name,
-        config=config,
     )
 
 
@@ -442,10 +538,17 @@ async def get_all_sources(
     ] = None,
     limit: Annotated[int, LIMIT_FIELD] = 50,
     after: Annotated[str | None, AFTER_FIELD] = None,
+    *,
+    project_id: Annotated[
+        int,
+        ProjectTarget(
+            requires=Permission.METADATA_READ,
+            environment=EnvironmentRole.PRODUCTION,
+        ),
+    ] = Field(description="Project ID."),
 ) -> ResultPage[list[dict]]:
-    config = await context.config_provider.get_config()
     return await context.sources_fetcher.fetch_sources(
-        source_names, unique_ids, config=config, limit=limit, after=after
+        source_names, unique_ids, limit=limit, after=after
     )
 
 
@@ -461,13 +564,19 @@ async def get_source_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    project_id: Annotated[
+        int,
+        ProjectTarget(
+            requires=Permission.METADATA_READ,
+            environment=EnvironmentRole.PRODUCTION,
+        ),
+    ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SOURCE,
         unique_id=unique_id,
         name=name,
-        config=config,
     )
 
 
@@ -491,13 +600,19 @@ async def get_all_macros(
     ] = False,
     limit: Annotated[int, LIMIT_FIELD] = 50,
     after: Annotated[str | None, AFTER_FIELD] = None,
+    *,
+    project_id: Annotated[
+        int,
+        ProjectTarget(
+            requires=Permission.METADATA_READ,
+            environment=EnvironmentRole.PRODUCTION,
+        ),
+    ] = Field(description="Project ID."),
 ) -> ResultPage[list[dict] | list[str]]:
-    config = await context.config_provider.get_config()
     return await context.macros_fetcher.fetch_macros(
         package_names=package_names,
         return_package_names_only=return_package_names_only,
         include_default_dbt_packages=include_default_dbt_packages,
-        config=config,
         limit=limit,
         after=after,
     )
@@ -515,13 +630,19 @@ async def get_macro_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    project_id: Annotated[
+        int,
+        ProjectTarget(
+            requires=Permission.METADATA_READ,
+            environment=EnvironmentRole.PRODUCTION,
+        ),
+    ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.MACRO,
         unique_id=unique_id,
         name=name,
-        config=config,
     )
 
 
@@ -537,13 +658,19 @@ async def get_seed_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    project_id: Annotated[
+        int,
+        ProjectTarget(
+            requires=Permission.METADATA_READ,
+            environment=EnvironmentRole.PRODUCTION,
+        ),
+    ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SEED,
         unique_id=unique_id,
         name=name,
-        config=config,
     )
 
 
@@ -559,13 +686,19 @@ async def get_semantic_model_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    project_id: Annotated[
+        int,
+        ProjectTarget(
+            requires=Permission.METADATA_READ,
+            environment=EnvironmentRole.PRODUCTION,
+        ),
+    ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SEMANTIC_MODEL,
         unique_id=unique_id,
         name=name,
-        config=config,
     )
 
 
@@ -581,13 +714,19 @@ async def get_snapshot_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    project_id: Annotated[
+        int,
+        ProjectTarget(
+            requires=Permission.METADATA_READ,
+            environment=EnvironmentRole.PRODUCTION,
+        ),
+    ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.SNAPSHOT,
         unique_id=unique_id,
         name=name,
-        config=config,
     )
 
 
@@ -603,13 +742,19 @@ async def get_test_details(
     context: DiscoveryToolContext,
     name: str | None = NAME_FIELD,
     unique_id: str | None = UNIQUE_ID_FIELD,
+    *,
+    project_id: Annotated[
+        int,
+        ProjectTarget(
+            requires=Permission.METADATA_READ,
+            environment=EnvironmentRole.PRODUCTION,
+        ),
+    ] = Field(description="Project ID."),
 ) -> list[dict]:
-    config = await context.config_provider.get_config()
     return await context.resource_details_fetcher.fetch_details(
         resource_type=AppliedResourceType.TEST,
         unique_id=unique_id,
         name=name,
-        config=config,
     )
 
 
@@ -636,6 +781,150 @@ DISCOVERY_TOOLS = [
 ]
 
 
+# Caps simultaneous project scans so a large project_ids list can't burst
+# many HTTP clients at the metadata API. Untuned; any bound closes the risk.
+MESH_PROJECT_FAN_OUT_CONCURRENCY = 5
+
+
+@dbt_mcp_tool(
+    requirements=(AccountTarget(requires=Permission.METADATA_READ),),
+    description=get_prompt("discovery/search_public_mesh_models"),
+    title="Search Public Mesh Models",
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+    structured_output=True,
+    meta={REQUIRES_MULTI_PROJECT_META_KEY: True},
+)
+async def search_public_mesh_models(
+    # Raw provider, not a bound fetcher: each project_id needs its own config.
+    config_provider: ConfigProvider[DiscoveryConfig],
+    project_ids: Annotated[
+        list[int], Field(description=MESH_PROJECT_IDS_DESCRIPTION, min_length=1)
+    ],
+    query: Annotated[
+        str | None, Field(description=MESH_SEARCH_QUERY_DESCRIPTION)
+    ] = None,
+    relation: Annotated[
+        MeshRelationFilter | None, Field(description=MESH_RELATION_DESCRIPTION)
+    ] = None,
+    limit: Annotated[int, Field(description=MESH_LIMIT_DESCRIPTION, ge=1, le=100)] = 50,
+) -> MeshModelSearchResult:
+    if not isinstance(config_provider, ProjectConfigProvider):
+        # Without per-project_id resolution the fan-out would silently scan
+        # the same default project under every supplied id.
+        raise ConfigurationError(
+            "search_public_mesh_models requires a project-aware configuration provider"
+        )
+    relation_filter = relation.to_model_filter() if relation is not None else None
+    # A duplicate id would double-count the project in coverage and emit
+    # duplicate models. dict.fromkeys preserves first-seen order.
+    deduped_project_ids = list(dict.fromkeys(project_ids))
+    semaphore = asyncio.Semaphore(MESH_PROJECT_FAN_OUT_CONCURRENCY)
+
+    async def _fetch_one_project(project_id: int) -> MeshCandidates:
+        async with semaphore:
+            config = await config_provider.get_config(project_id=project_id)
+            fetcher = PublicMeshModelsFetcher(
+                config=config, paginator=build_models_paginator(config)
+            )
+            return await fetcher.fetch_candidates(relation_filter)
+
+    # return_exceptions so one inaccessible producer project -- unauthorized
+    # project_id, no prod environment, a GraphQL/HTTP error, or a failed
+    # platform identity lookup -- lands in coverage.failed instead of
+    # aborting the whole multi-project search.
+    results = await asyncio.gather(
+        *(_fetch_one_project(pid) for pid in deduped_project_ids),
+        return_exceptions=True,
+    )
+
+    models: list[MeshModel] = []
+    searched: list[str] = []
+    failed: dict[str, str] = {}
+    incomplete: list[str] = []
+    # None on the relation path: a point query has no "how much was examined".
+    models_scanned: int | None = 0 if relation_filter is None else None
+    relation_hits = 0
+    for project_id, result in zip(deduped_project_ids, results, strict=True):
+        project_key = str(project_id)
+        if isinstance(result, BaseException):
+            failed[project_key] = str(result) or "unknown error"
+            logger.warning(
+                f"Mesh scan of project {project_key} failed", exc_info=result
+            )
+            continue
+        searched.append(project_key)
+        if models_scanned is not None:
+            models_scanned += len(result.nodes)
+        if result.incomplete:
+            incomplete.append(project_key)
+        models.extend(
+            search_mesh_models(
+                result.nodes,
+                project_id=project_id,
+                query=query,
+                platform_project_name=result.platform_project_name,
+            )
+        )
+        if relation_filter is not None:
+            relation_hits += count_relation_matches(
+                result.nodes,
+                platform_project_name=result.platform_project_name,
+            )
+
+    coverage = MeshCoverage(
+        searched=searched,
+        failed=failed,
+        incomplete=incomplete,
+        models_scanned=models_scanned,
+    )
+    # Deduped before truncation so a project whose only matches land past the
+    # limit still appears in the dependencies.yml suggestion.
+    dependencies = list(dict.fromkeys(model.dbt_project_name for model in models))
+    return MeshModelSearchResult(
+        models=models[:limit],
+        coverage=coverage,
+        dependencies=dependencies,
+        lookup=resolve_lookup(
+            relation,
+            relation_hits=relation_hits,
+            coverage=coverage,
+        ),
+        omitted_model_count=max(0, len(models) - limit),
+    )
+
+
+MESH_TOOLS = [
+    search_public_mesh_models,
+]
+
+
+def discovery_context_mappers(
+    config_provider: ConfigProvider[DiscoveryConfig],
+) -> dict[str, Callable[..., Any]]:
+    async def build_context(project_id: int | None = None) -> DiscoveryToolContext:
+        config = await (
+            config_provider.get_config(project_id=project_id)
+            if isinstance(config_provider, ProjectConfigProvider)
+            else config_provider.get_config()
+        )
+        return DiscoveryToolContext(config=config)
+
+    return {"context": build_context}
+
+
+def mesh_context_mappers(
+    config_provider: ConfigProvider[DiscoveryConfig],
+) -> dict[str, Callable[..., Any]]:
+    """Gives the mesh tool the raw provider it needs to resolve each project id itself."""
+
+    async def provide_config_provider() -> ConfigProvider[DiscoveryConfig]:
+        return config_provider
+
+    return {"config_provider": provide_config_provider}
+
+
 def register_discovery_tools(
     dbt_mcp: FastMCP,
     discovery_config_provider: ConfigProvider[DiscoveryConfig],
@@ -645,12 +934,17 @@ def register_discovery_tools(
     enabled_toolsets: set[Toolset],
     disabled_toolsets: set[Toolset],
 ) -> None:
-    def bind_context() -> DiscoveryToolContext:
-        return DiscoveryToolContext(config_provider=discovery_config_provider)
+    mappers = discovery_context_mappers(discovery_config_provider)
+    mesh_mappers = mesh_context_mappers(discovery_config_provider)
+    # Kept separate: discovery tools share one resolved project's context, while
+    # the mesh tool needs the raw provider to resolve each project id itself.
+    definitions = [tool.adapt_with_mappers(**mappers) for tool in DISCOVERY_TOOLS] + [
+        tool.adapt_with_mappers(**mesh_mappers) for tool in MESH_TOOLS
+    ]
 
     register_tools(
         dbt_mcp,
-        tool_definitions=[tool.adapt_context(bind_context) for tool in DISCOVERY_TOOLS],
+        tool_definitions=definitions,
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,

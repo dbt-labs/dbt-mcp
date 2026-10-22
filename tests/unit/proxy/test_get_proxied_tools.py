@@ -15,7 +15,9 @@ from dbt_mcp.errors.common import MissingHostError
 from dbt_mcp.oauth.token_provider import StaticTokenProvider
 from dbt_mcp.proxy.tools import (
     format_remote_tool_error,
+    ProxiedToolsManager,
     get_proxied_tools,
+    get_remote_tool_fn_metadata,
     register_proxied_tools,
 )
 from dbt_mcp.tools.tool_names import ToolName
@@ -41,6 +43,7 @@ async def test_register_proxied_tools_skips_get_config_when_all_proxied_toolsets
     await register_proxied_tools(
         dbt_mcp=MagicMock(),
         config_provider=mock_config_provider,
+        manager=MagicMock(spec=ProxiedToolsManager),
         disabled_tools=set(),
         enabled_tools=set(),  # empty allowlist — no tools enabled regardless of future additions
         enabled_toolsets=set(),
@@ -81,9 +84,26 @@ async def test_get_proxied_tools_filters_to_configured_tools():
     assert result == [proxied_tool]
 
 
-async def test_register_proxied_tool_is_listed_and_callable(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_get_remote_tool_fn_metadata_builds_arg_model_from_input_schema():
+    """Regression for #921: this path previously depended on a private pydantic
+    helper (`eval_type_backport`) that was removed in pydantic 2.14."""
+    tool = Tool(
+        name="execute_sql",
+        inputSchema={
+            "type": "object",
+            "properties": {"sql": {"type": "string"}, "limit": {"type": "integer"}},
+        },
+    )
+
+    metadata = get_remote_tool_fn_metadata(tool)
+
+    assert metadata.arg_model.__name__ == "execute_sqlArguments"
+    assert set(metadata.arg_model.model_fields) == {"sql", "limit"}
+    parsed = metadata.arg_model.model_validate({"sql": "select 1"})
+    assert parsed.model_dump_one_level() == {"sql": "select 1", "limit": None}
+
+
+async def test_register_proxied_tool_is_listed_and_callable() -> None:
     remote_tool = Tool(
         name="execute_sql",
         description="Execute a SQL query",
@@ -98,9 +118,8 @@ async def test_register_proxied_tool_is_listed_and_callable(
     session.call_tool.return_value = CallToolResult(
         content=[TextContent(type="text", text="query complete")]
     )
-    manager = MagicMock()
-    manager.return_value.get_remote_mcp_session = AsyncMock(return_value=session)
-    monkeypatch.setattr("dbt_mcp.proxy.tools.ProxiedToolsManager", manager)
+    manager = MagicMock(spec=ProxiedToolsManager)
+    manager.get_remote_mcp_session = AsyncMock(return_value=session)
     config_provider = AsyncMock()
     config_provider.get_config.return_value = make_config()
     server = FastMCP("test")
@@ -108,6 +127,7 @@ async def test_register_proxied_tool_is_listed_and_callable(
     await register_proxied_tools(
         dbt_mcp=server,
         config_provider=config_provider,
+        manager=manager,
         disabled_tools=set(),
         enabled_tools={ToolName.EXECUTE_SQL},
         enabled_toolsets=set(),

@@ -1,8 +1,9 @@
 import asyncio
 import textwrap
 from collections import defaultdict, deque
+from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, ClassVar, Literal, TypedDict
+from typing import Any, ClassVar, Literal, TypedDict, cast
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
@@ -13,9 +14,13 @@ from dbt_mcp.discovery.graphql import load_query
 from dbt_mcp.errors import DiscoveryToolCallError, InvalidParameterError, ToolCallError
 from dbt_mcp.errors.common import NotFoundError
 from dbt_mcp.gql.errors import raise_gql_error
-from dbt_mcp.tools.parameters import LineageDirection, LineageResourceType
-
+from dbt_mcp.http_limits import response_limit_hook
 from dbt_mcp.pagination import Pagination, ResultPage, validate_page_size
+from dbt_mcp.tools.parameters import (
+    LineageDirection,
+    LineageResourceType,
+    ModelAccess,
+)
 
 DEFAULT_PAGE_SIZE = 50
 
@@ -356,17 +361,36 @@ class GraphQLQueries:
     # Lineage query
     GET_FULL_LINEAGE = load_query("get_full_lineage.gql")
 
+    # Mesh model search query
+    GET_PUBLIC_MESH_MODELS = load_query("get_public_mesh_models.gql")
+
 
 async def execute_query(
     query: str,
     variables: dict,
     *,
     config: DiscoveryConfig,
+    response_type: str = "discovery",
 ) -> dict:
     url = config.url
     headers = config.headers_provider.get_headers()
 
-    async with httpx.AsyncClient(timeout=PLATFORM_API_TIMEOUT) as client:
+    async with (
+        config.http_config.admission(),
+        httpx.AsyncClient(
+            headers={"Accept-Encoding": "gzip, deflate"},
+            timeout=PLATFORM_API_TIMEOUT,
+            event_hooks={
+                "response": [
+                    response_limit_hook(
+                        config.http_config.response_limits,
+                        response_type=response_type,
+                        observer=config.http_config.observer,
+                    )
+                ]
+            },
+        ) as client,
+    ):
         response = await client.post(
             url=url,
             json={"query": query, "variables": variables},
@@ -386,10 +410,12 @@ class PageInfo(BaseModel):
 class PaginatedResourceFetcher:
     def __init__(
         self,
+        config: DiscoveryConfig,
         *,
         edges_path: tuple[str, ...],
         page_info_path: tuple[str, ...],
     ):
+        self._config = config
         self._edges_path = edges_path
         self._page_info_path = page_info_path
 
@@ -414,23 +440,22 @@ class PaginatedResourceFetcher:
             parsed_edges.append(node)
         return parsed_edges
 
-    async def fetch_paginated(
+    async def _fetch_page(
         self,
         query: str,
         variables: dict[str, Any],
         *,
-        config: DiscoveryConfig,
-        limit: int = 50,
-        after: str | None = None,
-    ) -> ResultPage[list[dict]]:
+        limit: int,
+        after: str | None,
+    ) -> tuple[ResultPage[list[dict]], dict]:
         validate_page_size(limit)
         request_variables = variables | {
-            "environmentId": config.environment_id,
+            "environmentId": self._config.environment_id,
             "first": limit,
         }
         if after is not None:
             request_variables["after"] = after
-        result = await execute_query(query, request_variables, config=config)
+        result = await execute_query(query, request_variables, config=self._config)
         nodes = self._parse_edges(result)
         if len(nodes) > limit:
             raise DiscoveryToolCallError(
@@ -440,19 +465,71 @@ class PaginatedResourceFetcher:
         has_more = bool(page_info.has_next_page)
         if has_more and (not page_info.end_cursor or page_info.end_cursor == after):
             raise DiscoveryToolCallError("Discovery pagination did not advance.")
-        return ResultPage(
+        page = ResultPage(
             result=nodes,
             pagination=Pagination(
                 has_more=has_more,
                 next_cursor=page_info.end_cursor if has_more else None,
             ),
         )
+        return page, result
+
+    async def fetch_paginated(
+        self,
+        query: str,
+        variables: dict[str, Any],
+        *,
+        limit: int = 50,
+        after: str | None = None,
+    ) -> ResultPage[list[dict]]:
+        page, _ = await self._fetch_page(query, variables, limit=limit, after=after)
+        return page
+
+    async def fetch_paginated_with_sibling_field(
+        self,
+        query: str,
+        variables: dict[str, Any],
+        *,
+        limit: int = 50,
+        after: str | None = None,
+        sibling_path: tuple[str, ...],
+    ) -> tuple[ResultPage[list[dict]], Any | None]:
+        """Like `fetch_paginated`, but also hands back one sibling field from the
+        same response -- for data that lives alongside the paginated edges (e.g.
+        `environment.dbtProjectName` next to `environment.applied.models`) and
+        would otherwise cost a second round trip to fetch. `sibling_path` is
+        walked defensively: a missing key or null intermediate yields None
+        rather than raising, since its absence is a data condition for the
+        caller to handle, not a malformed response."""
+        page, result = await self._fetch_page(
+            query, variables, limit=limit, after=after
+        )
+        sibling: Any = result
+        for key in sibling_path:
+            if not isinstance(sibling, dict):
+                sibling = None
+                break
+            sibling = sibling.get(key)
+        return page, sibling
 
 
 class ModelFilter(TypedDict, total=False):
+    """`ModelAppliedFilter` input, shared by every `applied.models` query.
+
+    Mesh search goes through `applied.models` rather than
+    `applied.resources` because only this filter type exposes `access` and
+    `identifier`; `AppliedResourcesFilter` has neither.
+    """
+
     modelingLayer: Literal["marts"] | None
+    # Matches a model's *alias*, not its dbt `name` if `alias` is set.
     identifier: str
+    database: str
+    schema: str
     uniqueIds: list[str]
+    # The API's `AccessLevel` enum rejects uppercase, so ModelAccess is a
+    # lowercase StrEnum passed straight through as a filter variable.
+    access: ModelAccess
 
 
 class SourceFilter(TypedDict, total=False):
@@ -466,11 +543,42 @@ class MacroFilter(TypedDict, total=False):
     uniqueIds: list[str] | None
 
 
+class MeshNodeExecutionInfo(TypedDict, total=False):
+    lastRunStatus: str | None
+    lastRunGeneratedAt: str | None
+
+
+class MeshModelNode(TypedDict, total=False):
+    """Fields of a `ModelAppliedStateNode` that GET_PUBLIC_MESH_MODELS
+    selects. The Discovery API has no schema the type checker can see."""
+
+    name: str
+    uniqueId: str
+    description: str | None
+    relationName: str | None
+    version: str | int | float | None
+    latestVersion: str | int | float | None
+    executionInfo: MeshNodeExecutionInfo | None
+
+
+def build_models_paginator(config: DiscoveryConfig) -> PaginatedResourceFetcher:
+    """The `applied.models` paginator shape shared by `ModelsFetcher` and
+    `PublicMeshModelsFetcher` -- each project scanned by mesh search needs
+    its own instance bound to that project's own config."""
+    return PaginatedResourceFetcher(
+        config=config,
+        edges_path=("data", "environment", "applied", "models", "edges"),
+        page_info_path=("data", "environment", "applied", "models", "pageInfo"),
+    )
+
+
 class ModelsFetcher:
     def __init__(
         self,
+        config: DiscoveryConfig,
         paginator: PaginatedResourceFetcher,
     ):
+        self._config = config
         self._paginator = paginator
 
     def _get_model_filters(
@@ -489,7 +597,6 @@ class ModelsFetcher:
         self,
         model_filter: ModelFilter | None = None,
         *,
-        config: DiscoveryConfig,
         limit: int = 50,
         after: str | None = None,
     ) -> ResultPage[list[dict]]:
@@ -499,13 +606,13 @@ class ModelsFetcher:
                 "modelsFilter": model_filter or {},
                 "sort": {"field": "queryUsageCount", "direction": "desc"},
             },
-            config=config,
             limit=limit,
             after=after,
         )
 
     async def resolve_unique_ids_by_name(
-        self, name: str, *, config: DiscoveryConfig
+        self,
+        name: str,
     ) -> list[str]:
         """Resolve a model name to unique_id(s) via the Discovery API's
         `identifier` filter.
@@ -526,7 +633,6 @@ class ModelsFetcher:
         """
         page = await self.fetch_models(
             model_filter=self._get_model_filters(model_name=name),
-            config=config,
             limit=100,
         )
         if page.pagination.has_more:
@@ -544,17 +650,15 @@ class ModelsFetcher:
         self,
         model_name: str | None = None,
         unique_id: str | None = None,
-        *,
-        config: DiscoveryConfig,
     ) -> list[dict]:
         model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
-            "environmentId": config.environment_id,
+            "environmentId": self._config.environment_id,
             "modelsFilter": model_filters,
             "first": 1,
         }
         result = await execute_query(
-            GraphQLQueries.GET_MODEL_PARENTS, variables, config=config
+            GraphQLQueries.GET_MODEL_PARENTS, variables, config=self._config
         )
         raise_gql_error(result)
         edges = result["data"]["environment"]["applied"]["models"]["edges"]
@@ -566,19 +670,17 @@ class ModelsFetcher:
         self,
         model_name: str | None = None,
         unique_id: str | None = None,
-        *,
-        config: DiscoveryConfig,
     ) -> list[dict]:
         model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
-            "environmentId": config.environment_id,
+            "environmentId": self._config.environment_id,
             "modelsFilter": model_filters,
             "first": 1,
         }
         result = await execute_query(
             GraphQLQueries.GET_MODEL_CHILDREN,
             variables,
-            config=config,
+            config=self._config,
         )
         raise_gql_error(result)
         edges = result["data"]["environment"]["applied"]["models"]["edges"]
@@ -590,17 +692,15 @@ class ModelsFetcher:
         self,
         model_name: str | None = None,
         unique_id: str | None = None,
-        *,
-        config: DiscoveryConfig,
     ) -> list[dict]:
         model_filters = self._get_model_filters(model_name, unique_id)
         variables = {
-            "environmentId": config.environment_id,
+            "environmentId": self._config.environment_id,
             "modelsFilter": model_filters,
             "first": 1,
         }
         result = await execute_query(
-            GraphQLQueries.GET_MODEL_HEALTH, variables, config=config
+            GraphQLQueries.GET_MODEL_HEALTH, variables, config=self._config
         )
         raise_gql_error(result)
         edges = result["data"]["environment"]["applied"]["models"]["edges"]
@@ -617,12 +717,11 @@ class ExposuresFetcher:
         self._paginator = paginator
 
     async def fetch_exposures(
-        self, *, config: DiscoveryConfig, limit: int = 50, after: str | None = None
+        self, *, limit: int = 50, after: str | None = None
     ) -> ResultPage[list[dict]]:
         return await self._paginator.fetch_paginated(
             GraphQLQueries.GET_EXPOSURES,
             variables={},
-            config=config,
             limit=limit,
             after=after,
         )
@@ -640,7 +739,6 @@ class SourcesFetcher:
         source_names: list[str] | None = None,
         unique_ids: list[str] | None = None,
         *,
-        config: DiscoveryConfig,
         limit: int = 50,
         after: str | None = None,
     ) -> ResultPage[list[dict]]:
@@ -653,7 +751,6 @@ class SourcesFetcher:
         return await self._paginator.fetch_paginated(
             GraphQLQueries.GET_SOURCES,
             variables={"sourcesFilter": source_filter},
-            config=config,
             limit=limit,
             after=after,
         )
@@ -672,7 +769,6 @@ class MacrosFetcher:
         return_package_names_only: bool = False,
         include_default_dbt_packages: bool = False,
         *,
-        config: DiscoveryConfig,
         limit: int = 50,
         after: str | None = None,
     ) -> ResultPage[list[dict] | list[str]]:
@@ -685,7 +781,6 @@ class MacrosFetcher:
                 packages before drilling down.
             include_default_dbt_packages: If True, includes the default dbt macros that
                 are maintained by dbt Labs.
-            config: Discovery API connection and environment.
 
         Returns:
             List of macros with name, uniqueId, description, and packageName,
@@ -696,7 +791,6 @@ class MacrosFetcher:
         page = await self._paginator.fetch_paginated(
             GraphQLQueries.GET_MACROS,
             variables={"filter": macro_filter},
-            config=config,
             limit=limit,
             after=after,
         )
@@ -736,6 +830,153 @@ class MacrosFetcher:
         return package_name.lower() in DBT_BUILTIN_PACKAGES
 
 
+# Bounds a scan at 2_000 public nodes. A safety net against an unbounded
+# loop, not an operational limit -- the scan filters to public server-side.
+MESH_SCAN_PAGE_SIZE = 100
+MESH_SCAN_MAX_PAGES = 20
+
+# `environment.dbtProjectName` is a sibling of `environment.applied` in
+MESH_PROJECT_NAME_PATH: tuple[str, ...] = ("data", "environment", "dbtProjectName")
+
+
+@dataclass(frozen=True, slots=True)
+class MeshCandidates:
+    """One environment's candidate model nodes plus its confirmed identity.
+
+    `platform_project_name` is never empty: `PublicMeshModelsFetcher._require_project_name`
+    raises rather than returning one, so a `MeshCandidates` only ever exists
+    for a project whose identity is confirmed.
+
+    `incomplete` means pages remained unread, so a negative must be treated
+    as unproven: on the scan path the page budget ran out; on the point-query
+    path more rows exist at that one relation than fit in a page, which a
+    near-unique relation match makes a safety net rather than a real signal.
+    """
+
+    nodes: list[MeshModelNode]
+    incomplete: bool
+    platform_project_name: str
+
+
+class PublicMeshModelsFetcher:
+    """Scans an environment's public model nodes with Mesh-relevant fields.
+
+    Unlike the other fetchers here, this one does not hand continuation back
+    to the caller: the search fans out across N projects to answer a
+    whole-environment question, so a cursor would have to be per-project and
+    every partial answer would be unsound. It sweeps internally against a
+    page budget and reports whether the sweep completed.
+    """
+
+    def __init__(
+        self,
+        config: DiscoveryConfig,
+        paginator: PaginatedResourceFetcher,
+    ):
+        self._config = config
+        self._paginator = paginator
+
+    async def fetch_candidates(
+        self, relation_filter: ModelFilter | None = None
+    ) -> MeshCandidates:
+        """With `relation_filter`, one filtered request whose rows *are*
+        the matches; without it, the bounded public-only sweep. Either way,
+        the environment's own project name rides along in the same response
+        as the node page(s), so there is no separate identity lookup.
+
+        If that project name is missing, this raises rather than degrading:
+        without a confirmed identity nothing in the node scan can be
+        attributed to this producer, so the caller treats the whole project
+        as failed instead of returning unverifiable nodes.
+        """
+        if relation_filter is not None:
+            nodes, incomplete, raw_project_name = await self._fetch_relation_match(
+                relation_filter
+            )
+        else:
+            nodes, incomplete, raw_project_name = await self._scan_all_nodes()
+        return MeshCandidates(
+            nodes=nodes,
+            incomplete=incomplete,
+            platform_project_name=self._require_project_name(raw_project_name),
+        )
+
+    def _require_project_name(self, raw_project_name: str | None) -> str:
+        """Raises when the platform can't confirm this environment's own
+        project identity -- a GraphQL/network error (surfaced earlier, while
+        parsing the node page), or a well-formed response with no
+        `dbtProjectName` set. Mesh search cannot trust any node's ownership
+        without this answer, so the caller (`_fetch_one_project` in
+        tools.py) treats the whole project as failed rather than returning
+        unverifiable nodes.
+        """
+        if not raw_project_name:
+            raise DiscoveryToolCallError(
+                "The platform did not return a project name for this environment"
+            )
+        return raw_project_name
+
+    async def _fetch_relation_match(
+        self, relation_filter: ModelFilter
+    ) -> tuple[list[MeshModelNode], bool, str | None]:
+        """One page is enough -- `(database, schema, identifier)` is
+        effectively unique within a project. `incomplete` stays wired to
+        `has_more` rather than hardcoded False so that if the assumption ever
+        fails, the uncertainty is reported instead of rows being dropped.
+        """
+        # Built fresh rather than mutating `relation_filter` in place: the
+        # same dict is shared across concurrent per-project fetches in the
+        # mesh search fan-out.
+        model_filter: ModelFilter = {"access": ModelAccess.PUBLIC}
+        model_filter.update(relation_filter)
+        page, project_name = await self._paginator.fetch_paginated_with_sibling_field(
+            GraphQLQueries.GET_PUBLIC_MESH_MODELS,
+            variables={
+                "modelsFilter": model_filter,
+                "sort": {"field": "queryUsageCount", "direction": "desc"},
+            },
+            limit=MESH_SCAN_PAGE_SIZE,
+            after=None,
+            sibling_path=MESH_PROJECT_NAME_PATH,
+        )
+        return (
+            cast(list[MeshModelNode], page.result),
+            page.pagination.has_more,
+            project_name,
+        )
+
+    async def _scan_all_nodes(self) -> tuple[list[MeshModelNode], bool, str | None]:
+        """Sweep every public model node, most-queried first within this
+        project."""
+        model_filter: ModelFilter = {"access": ModelAccess.PUBLIC}
+        collected: list[MeshModelNode] = []
+        project_name: str | None = None
+        after: str | None = None
+        for _ in range(MESH_SCAN_MAX_PAGES):
+            (
+                page,
+                page_project_name,
+            ) = await self._paginator.fetch_paginated_with_sibling_field(
+                GraphQLQueries.GET_PUBLIC_MESH_MODELS,
+                variables={
+                    "modelsFilter": model_filter,
+                    "sort": {"field": "queryUsageCount", "direction": "desc"},
+                },
+                limit=MESH_SCAN_PAGE_SIZE,
+                after=after,
+                sibling_path=MESH_PROJECT_NAME_PATH,
+            )
+            collected.extend(cast(list[MeshModelNode], page.result))
+            # Every page carries the same project name; a transient null on a
+            # later page must not erase an already-confirmed identity.
+            if project_name is None:
+                project_name = page_project_name
+            if not page.pagination.has_more:
+                return collected, False, project_name
+            after = page.pagination.next_cursor
+        return collected, True, project_name
+
+
 class AppliedResourceType(StrEnum):
     MODEL = "model"
     SOURCE = "source"
@@ -748,7 +989,8 @@ class AppliedResourceType(StrEnum):
 
 
 class ResourceDetailsFetcher:
-    def __init__(self, models_fetcher: ModelsFetcher):
+    def __init__(self, config: DiscoveryConfig, models_fetcher: ModelsFetcher):
+        self._config = config
         self._models_fetcher = models_fetcher
 
     GET_PACKAGES_QUERY = load_query("get_packages.gql")
@@ -786,7 +1028,6 @@ class ResourceDetailsFetcher:
     async def fetch_details(
         self,
         resource_type: AppliedResourceType,
-        config: DiscoveryConfig,
         name: str | None = None,
         unique_id: str | None = None,
     ) -> list[dict]:
@@ -794,7 +1035,7 @@ class ResourceDetailsFetcher:
         normalized_name = stripped_name.lower() if stripped_name else None
         # Do not lowercase unique_id — the Discovery API uniqueIds filter is case-sensitive
         stripped_unique_id = unique_id.strip() if unique_id else None
-        environment_id = config.environment_id
+        environment_id = self._config.environment_id
         if not stripped_name and not stripped_unique_id:
             raise InvalidParameterError("Either name or unique_id must be provided")
         if (
@@ -812,7 +1053,7 @@ class ResourceDetailsFetcher:
                 # ModelsFetcher.resolve_unique_ids_by_name), so we can resolve
                 # directly instead of enumerating packages and guessing unique_ids.
                 unique_ids = await self._models_fetcher.resolve_unique_ids_by_name(
-                    stripped_name, config=config
+                    stripped_name,
                 )
                 if not unique_ids:
                     return []
@@ -824,7 +1065,7 @@ class ResourceDetailsFetcher:
                             "resource": "macro",
                             "environmentId": environment_id,
                         },
-                        config=config,
+                        config=self._config,
                     ),
                     execute_query(
                         self.GET_PACKAGES_QUERY,
@@ -832,7 +1073,7 @@ class ResourceDetailsFetcher:
                             "resource": "model",
                             "environmentId": environment_id,
                         },
-                        config=config,
+                        config=self._config,
                     ),
                 )
                 raise_gql_error(packages_result[0])
@@ -867,7 +1108,7 @@ class ResourceDetailsFetcher:
             },
             "first": len(unique_ids),
         }
-        get_details_result = await execute_query(query, variables, config=config)
+        get_details_result = await execute_query(query, variables, config=self._config)
         raise_gql_error(get_details_result)
         edges = get_details_result["data"]["environment"]["applied"]["resources"][
             "edges"
@@ -880,14 +1121,15 @@ class ResourceDetailsFetcher:
 class LineageFetcher:
     """Fetcher for lineage data. Returns nodes connected to the target."""
 
+    def __init__(self, config: DiscoveryConfig):
+        self._config = config
+
     async def fetch_lineage(
         self,
         unique_id: str,
         depth: int,
         types: list[LineageResourceType] | None = None,
         direction: LineageDirection = LineageDirection.BOTH,
-        *,
-        config: DiscoveryConfig,
     ) -> list[dict]:
         """Fetch lineage graph filtered to nodes connected to unique_id.
 
@@ -896,7 +1138,6 @@ class LineageFetcher:
             depth: how many levels to traverse (0 = infinite, 1 = immediate neighbors only, higher = deeper)
             types: List of resource types to include. If None, includes all types.
             direction: Which direction(s) to traverse relative to unique_id.
-            config: Discovery API connection and environment.
 
         Returns:
             List of nodes connected to unique_id, filtered to `direction`.
@@ -907,13 +1148,16 @@ class LineageFetcher:
             t.value for t in (types if types is not None else LineageResourceType)
         ]
         variables = {
-            "environmentId": config.environment_id,
+            "environmentId": self._config.environment_id,
             "types": type_filter,
             # uniqueId removed - not used by GraphQL
         }
 
         result = await execute_query(
-            GraphQLQueries.GET_FULL_LINEAGE, variables, config=config
+            GraphQLQueries.GET_FULL_LINEAGE,
+            variables,
+            config=self._config,
+            response_type="discovery.lineage",
         )
         raise_gql_error(result)
 
@@ -1022,13 +1266,14 @@ class ModelPerformanceFetcher:
 
     def __init__(
         self,
+        config: DiscoveryConfig,
         models_fetcher: ModelsFetcher,
     ):
+        self._config = config
         self._models_fetcher = models_fetcher
 
     async def fetch_performance(
         self,
-        config: DiscoveryConfig,
         name: str | None = None,
         unique_id: str | None = None,
         num_runs: int = 1,
@@ -1049,7 +1294,7 @@ class ModelPerformanceFetcher:
             InvalidParameterError: If neither name nor unique_id provided
             ToolCallError: If model not found or API error
         """
-        environment_id = config.environment_id
+        environment_id = self._config.environment_id
         # Strip whitespace up front -- mirrors ResourceDetailsFetcher.fetch_details,
         # which this method used to delegate through for name resolution.
         stripped_name = name.strip() if name else None
@@ -1062,7 +1307,7 @@ class ModelPerformanceFetcher:
         if not resolved_unique_id:
             assert stripped_name is not None, "Name must be provided"
             unique_ids = await self._models_fetcher.resolve_unique_ids_by_name(
-                stripped_name, config=config
+                stripped_name,
             )
             if not unique_ids:
                 raise NotFoundError(f"Model not found: {stripped_name}")
@@ -1086,7 +1331,7 @@ class ModelPerformanceFetcher:
         result = await execute_query(
             self.GET_MODEL_PERFORMANCE_QUERY,
             variables,
-            config=config,
+            config=self._config,
         )
         raise_gql_error(result)
 

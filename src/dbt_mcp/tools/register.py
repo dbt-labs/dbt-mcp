@@ -5,6 +5,7 @@ from enum import Enum
 from mcp.server.fastmcp import FastMCP
 
 from dbt_mcp.tools.definitions import GenericToolDefinition
+from dbt_mcp.tools.validation import configure_argument_validation
 from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import TOOL_TO_TOOLSET, Toolset
 
@@ -125,3 +126,6 @@ def generic_register_tools[NameEnum: Enum](
             structured_output=tool_definition.structured_output,
             meta=tool_definition.meta,
         )
+        registered = dbt_mcp._tool_manager.get_tool(tool_name.value)
+        if registered is not None:
+            configure_argument_validation(registered)

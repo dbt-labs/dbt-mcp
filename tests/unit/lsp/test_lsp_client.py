@@ -50,10 +50,61 @@ async def test_get_column_lineage_success(lsp_client, mock_lsp_connection):
             "command": "dbt.listNodes",
             "arguments": [
                 "@model.my_project.my_model",
-                "+column:model.my_project.my_model.CUSTOMER_ID+",
+                "+column:model.my_project.my_model.customer_id+",
             ],
         },
     )
+
+
+@pytest.mark.asyncio
+async def test_get_column_lineage_falls_back_to_uppercase(
+    lsp_client, mock_lsp_connection
+):
+    """If the as-given casing matches nothing, retry with it uppercased."""
+    mock_lsp_connection.send_request.side_effect = [
+        {"error": None, "nodes": []},
+        {
+            "error": None,
+            "nodes": [
+                {"unique_id": "model.insurance_dbt.stg_policyholders.POLICYHOLDER_ID"}
+            ],
+        },
+    ]
+
+    result = await lsp_client.get_column_lineage(
+        model_id="model.insurance_dbt.stg_policyholders",
+        column_name="policyholder_id",
+    )
+
+    assert result == {
+        "nodes": [
+            {"unique_id": "model.insurance_dbt.stg_policyholders.POLICYHOLDER_ID"}
+        ]
+    }
+    # call_args_list (not assert_any_call) so the order is actually checked:
+    # the as-given selector must be tried before the uppercase fallback.
+    selectors_tried = [
+        call.args[1]["arguments"][1]
+        for call in mock_lsp_connection.send_request.call_args_list
+    ]
+    assert selectors_tried == [
+        "+column:model.insurance_dbt.stg_policyholders.policyholder_id+",
+        "+column:model.insurance_dbt.stg_policyholders.POLICYHOLDER_ID+",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_get_column_lineage_no_candidate_matches(lsp_client, mock_lsp_connection):
+    """If neither casing matches, the empty result is returned (not an error)."""
+    mock_lsp_connection.send_request.return_value = {"error": None, "nodes": []}
+
+    result = await lsp_client.get_column_lineage(
+        model_id="model.my_project.my_model",
+        column_name="missing_column",
+    )
+
+    assert result == {"nodes": []}
+    assert mock_lsp_connection.send_request.call_count == 2
 
 
 @pytest.mark.asyncio

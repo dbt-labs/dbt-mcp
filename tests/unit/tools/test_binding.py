@@ -1,0 +1,165 @@
+import pytest
+from mcp.server.fastmcp import Context
+from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.fastmcp.tools.base import Tool
+from pydantic import Field
+
+from dbt_mcp.tools.definitions import ToolDefinition
+from dbt_mcp.tools.injection import AdaptError
+
+
+async def selected_project(project_id: int, query: str) -> str:
+    return f"{project_id}:{query}"
+
+
+def selected_project_id() -> int:
+    return 42
+
+
+def definition() -> ToolDefinition:
+    return ToolDefinition(
+        fn=selected_project,
+        name="get_all_models",
+        title="Models",
+        description="Models",
+        requirements=(),
+    )
+
+
+async def test_binding_hides_and_injects_an_argument_without_mutating_definition() -> (
+    None
+):
+    tool = definition()
+    bound = tool.adapt_with_mappers(project_id=selected_project_id)
+    assert await bound.fn(query="orders") == "42:orders"
+    assert bound.fastmcp_tool.parameters["required"] == ["query"]
+    assert "project_id" not in bound.fastmcp_tool.parameters["properties"]
+    assert "project_id" in tool.fastmcp_tool.parameters["properties"]
+
+    def other_project_id() -> int:
+        return 10
+
+    assert (
+        await tool.adapt_with_mappers(project_id=other_project_id).fn(query="orders")
+        == "10:orders"
+    )
+
+
+async def test_binding_rejects_conflicting_direct_arguments() -> None:
+    with pytest.raises(TypeError, match="project_id"):
+        await (
+            definition()
+            .adapt_with_mappers(project_id=selected_project_id)
+            .fn(project_id=10, query="orders")
+        )
+
+
+def test_binding_rejects_unknown_arguments_at_registration() -> None:
+    with pytest.raises(AdaptError, match="environment_id"):
+        definition().adapt_with_mappers(environment_id=selected_project_id)
+
+
+async def test_request_binding_uses_one_contract_for_schema_and_invocation() -> None:
+    tool = definition()
+    bound = tool.adapt_with_mappers(project_id=selected_project_id)
+    assert set(bound.fastmcp_tool.parameters["properties"]) == {"query"}
+    assert await bound.fastmcp_tool.run({"query": "orders"}) == "42:orders"
+    with pytest.raises(ToolError, match="project_id.*|Extra inputs"):
+        await bound.fastmcp_tool.run({"project_id": 42, "query": "orders"})
+    assert "project_id" in tool.fastmcp_tool.parameters["properties"]
+
+
+async def test_unbound_input_remains_a_required_integer() -> None:
+    bound = definition()
+    schema = bound.fastmcp_tool.parameters
+    assert schema["properties"]["project_id"]["type"] == "integer"
+    assert "project_id" in schema["required"]
+    assert (
+        await bound.fastmcp_tool.run({"project_id": 99, "query": "orders"})
+        == "99:orders"
+    )
+
+
+async def test_selectable_input_preserves_declared_field_constraints():
+    async def positive_project(
+        project_id: int = Field(gt=0, description="Project"),
+    ) -> int:
+        return project_id
+
+    tool = ToolDefinition(
+        fn=positive_project, title="test", description="test", requirements=()
+    ).fastmcp_tool
+    with pytest.raises(ToolError, match="greater than 0"):
+        await tool.run({"project_id": -1})
+    assert await tool.run({"project_id": 42}) == 42
+    assert tool.parameters["properties"]["project_id"]["description"] == "Project"
+
+
+async def test_request_binding_validates_ordinary_inputs() -> None:
+    bound = definition().adapt_with_mappers(project_id=selected_project_id)
+    with pytest.raises(ToolError, match="query"):
+        await bound.fastmcp_tool.run({})
+    with pytest.raises(ToolError, match="typo"):
+        await bound.fastmcp_tool.run({"query": "orders", "typo": 1})
+
+
+async def test_framework_context_is_not_a_model_input() -> None:
+    def resolved_project(c: Context, project_id: int | None = None) -> int:
+        return project_id or 42
+
+    adapted = definition().adapt_with_mappers(project_id=resolved_project)
+    assert set(adapted.fastmcp_tool.parameters["properties"]) == {
+        "project_id",
+        "query",
+    }
+    assert set(adapted.fastmcp_tool.parameters["required"]) == {
+        "project_id",
+        "query",
+    }
+    bound = adapted.adapt_with_mappers(project_id=selected_project_id)
+    assert await bound.fastmcp_tool.run({"query": "orders"}) == "42:orders"
+
+
+@pytest.mark.parametrize("extra", [{"typo": 1}, {"project_id": 42}])
+async def test_fastmcp_rejects_extra_inputs_before_context_mapping(extra):
+    mapped = []
+
+    def project() -> int:
+        mapped.append(42)
+        return 42
+
+    tool = definition().adapt_with_mappers(project_id=project)
+    with pytest.raises(ToolError, match="Extra inputs are not permitted"):
+        await tool.fastmcp_tool.run({"query": "orders", **extra})
+    assert mapped == []
+    assert tool.fastmcp_tool.parameters["additionalProperties"] is False
+
+
+async def test_fastmcp_validates_the_declared_selector_before_mapping():
+    mapped = []
+
+    def project(project_id: int | None = None) -> int:
+        mapped.append(project_id)
+        return project_id or 42
+
+    tool = definition().adapt_with_mappers(project_id=project)
+    with pytest.raises(ToolError, match="project_id"):
+        await tool.fastmcp_tool.run({"query": "orders"})
+    with pytest.raises(ToolError, match="project_id"):
+        await tool.fastmcp_tool.run({"project_id": None, "query": "orders"})
+    assert mapped == []
+
+
+async def test_adapted_callable_declares_its_contract_directly_to_fastmcp():
+    def project(project_id: int | None = None) -> int:
+        return project_id or 42
+
+    adapted = definition().adapt_with_mappers(project_id=project)
+    tool = Tool.from_function(adapted.fn)
+    assert tool.parameters["properties"]["project_id"]["type"] == "integer"
+    assert "project_id" in tool.parameters["required"]
+    with pytest.raises(ToolError, match="project_id"):
+        await tool.run({"query": "orders"})
+    with pytest.raises(ToolError, match="project_id"):
+        await tool.run({"project_id": None, "query": "orders"})
+    assert await tool.run({"project_id": 43, "query": "orders"}) == "43:orders"

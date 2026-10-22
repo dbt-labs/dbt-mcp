@@ -12,18 +12,15 @@ get_model_performance = get_model_performance_tool.fn
 
 
 @pytest.fixture
-def mock_discovery_tool_context(unit_discovery_config):
+def mock_discovery_tool_context():
     """Mock DiscoveryToolContext for testing."""
     context = Mock(spec=DiscoveryToolContext)
     context.model_performance_fetcher = AsyncMock()
-    provider = Mock()
-    provider.get_config = AsyncMock(return_value=unit_discovery_config)
-    context.config_provider = provider
     return context
 
 
 async def test_get_model_performance_passes_correct_parameters(
-    mock_discovery_tool_context, unit_discovery_config
+    mock_discovery_tool_context,
 ):
     """Test that the tool passes correct parameters to the fetcher."""
     mock_discovery_tool_context.model_performance_fetcher.fetch_performance.return_value = [
@@ -40,7 +37,6 @@ async def test_get_model_performance_passes_correct_parameters(
 
     # Verify fetcher was called with correct parameters
     mock_discovery_tool_context.model_performance_fetcher.fetch_performance.assert_called_once_with(
-        config=unit_discovery_config,
         name="stg_orders",
         unique_id="model.analytics.stg_orders",
         num_runs=10,
@@ -48,9 +44,7 @@ async def test_get_model_performance_passes_correct_parameters(
     )
 
 
-async def test_get_model_performance_with_tests_included(
-    mock_discovery_tool_context, unit_discovery_config
-):
+async def test_get_model_performance_with_tests_included(mock_discovery_tool_context):
     """Test that include_tests parameter is properly passed to the fetcher."""
     mock_discovery_tool_context.model_performance_fetcher.fetch_performance.return_value = [
         {
@@ -79,7 +73,6 @@ async def test_get_model_performance_with_tests_included(
 
     # Verify fetcher was called with include_tests=True
     mock_discovery_tool_context.model_performance_fetcher.fetch_performance.assert_called_once_with(
-        config=unit_discovery_config,
         name=None,
         unique_id="model.analytics.stg_orders",
         num_runs=1,

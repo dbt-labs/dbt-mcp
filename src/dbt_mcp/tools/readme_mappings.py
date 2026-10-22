@@ -46,6 +46,7 @@ HUMAN_DESCRIPTIONS: dict[ToolName, str] = {
     ToolName.GET_SNAPSHOT_DETAILS: "Gets details for a specific snapshot.",
     ToolName.GET_TEST_DETAILS: "Gets details for a specific test.",
     ToolName.SEARCH: "[Alpha] Searches for resources across the dbt project (not generally available).",
+    ToolName.SEARCH_PUBLIC_MESH_MODELS: "Finds public dbt Mesh models across projects and confirms producer identity so you can build a verified cross-project ref (multi-project configurations only).",
     # SQL tools
     ToolName.TEXT_TO_SQL: "Generates SQL from natural language using project context.",
     ToolName.EXECUTE_SQL: "Executes SQL on dbt Platform infrastructure with Semantic Layer support.",

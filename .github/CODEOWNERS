@@ -1,6 +1,6 @@
-*   @dbt-labs/ai @jasnonaz @b-per @jairus-m
+*   @dbt-labs/ai @jasnonaz @b-per @jairus-m @plypaul @theyostalservice
 
-/src/dbt_mcp/semantic_layer/   @dbt-labs/ai @dbt-labs/semantic-layer @jasnonaz @b-per @jairus-m
-/src/dbt_mcp/prompts/semantic_layer/   @dbt-labs/ai @dbt-labs/semantic-layer @jasnonaz @b-per @jairus-m
-CHANGELOG.md   @dbt-labs/ai @dbt-labs/semantic-layer @jasnonaz @b-per @jairus-m
-/.changes   @dbt-labs/ai @dbt-labs/semantic-layer @jasnonaz @b-per @jairus-m
+/src/dbt_mcp/semantic_layer/   @dbt-labs/ai @dbt-labs/semantic-layer @jasnonaz @b-per @jairus-m @plypaul @theyostalservice
+/src/dbt_mcp/prompts/semantic_layer/   @dbt-labs/ai @dbt-labs/semantic-layer @jasnonaz @b-per @jairus-m @plypaul @theyostalservice
+CHANGELOG.md   @dbt-labs/ai @dbt-labs/semantic-layer @jasnonaz @b-per @jairus-m @plypaul @theyostalservice
+/.changes   @dbt-labs/ai @dbt-labs/semantic-layer @jasnonaz @b-per @jairus-m @plypaul @theyostalservice

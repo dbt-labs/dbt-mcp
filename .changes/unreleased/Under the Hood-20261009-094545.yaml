@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: Run deptry in the pre-commit checks to fail on undeclared direct dependencies
+time: 2026-10-09T09:45:45.596784-05:00

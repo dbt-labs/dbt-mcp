@@ -8,5 +8,5 @@ from dbt_mcp.mcp.server import create_dbt_mcp
 @pytest.mark.asyncio
 async def test_tracking():
     config = load_config()
-    await (await create_dbt_mcp(config)).call_tool("list_metrics", {"foo": "bar"})
+    await (await create_dbt_mcp(config)).call_tool("list_metrics", {"page_size": 5})
     shutdown()
