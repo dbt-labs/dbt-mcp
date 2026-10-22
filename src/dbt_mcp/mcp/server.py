@@ -354,6 +354,7 @@ async def register_dbt_mcp_tools(dbt_mcp: FastMCP, config: Config) -> None:
         disabled_toolsets=disabled_toolsets,
     )
 
+    dbt_lock = asyncio.Lock()
     if config.dbt_cli_config:
         logger.info("Registering dbt cli tools")
         register_dbt_cli_tools(
@@ -363,6 +364,7 @@ async def register_dbt_mcp_tools(dbt_mcp: FastMCP, config: Config) -> None:
             enabled_tools=enabled_tools,
             enabled_toolsets=enabled_toolsets,
             disabled_toolsets=disabled_toolsets,
+            dbt_lock=dbt_lock,
         )
 
     if config.dbt_codegen_config:
@@ -374,6 +376,7 @@ async def register_dbt_mcp_tools(dbt_mcp: FastMCP, config: Config) -> None:
             enabled_tools=enabled_tools,
             enabled_toolsets=enabled_toolsets,
             disabled_toolsets=disabled_toolsets,
+            dbt_lock=dbt_lock,
         )
 
     logger.info("Registering dbt admin API tools")

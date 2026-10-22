@@ -1,6 +1,10 @@
+import asyncio
+import contextlib
 import inspect
 import json
 import subprocess
+import threading
+import time
 from dataclasses import replace
 from pathlib import Path
 
@@ -170,7 +174,7 @@ def mock_process():
         ),
     ],
 )
-def test_show_command_limit_logic(
+async def test_show_command_limit_logic(
     monkeypatch: MonkeyPatch,
     mock_process,
     mock_fastmcp,
@@ -200,7 +204,7 @@ def test_show_command_limit_logic(
     show_tool = tools["show"]
 
     # Call show tool with test parameters
-    show_tool(sql_query=sql_query, limit=limit_param)
+    await show_tool(sql_query=sql_query, limit=limit_param)
 
     # Verify the command was called with expected arguments
     assert mock_calls
@@ -208,7 +212,7 @@ def test_show_command_limit_logic(
     assert args_list == expected_args
 
 
-def test_run_command_adds_quiet_flag_to_verbose_commands(
+async def test_run_command_adds_quiet_flag_to_verbose_commands(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
 ):
     # Mock Popen
@@ -233,7 +237,7 @@ def test_run_command_adds_quiet_flag_to_verbose_commands(
     run_tool = tools["run"]
 
     # Execute
-    run_tool()
+    await run_tool()
 
     # Verify
     assert mock_calls
@@ -241,7 +245,7 @@ def test_run_command_adds_quiet_flag_to_verbose_commands(
     assert "--quiet" in args_list
 
 
-def test_run_command_correctly_formatted(
+async def test_run_command_correctly_formatted(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
 ):
     # Mock Popen
@@ -267,7 +271,7 @@ def test_run_command_correctly_formatted(
     run_tool = tools["run"]
 
     # Run the command with a selection
-    run_tool(node_selection="my_model")
+    await run_tool(node_selection="my_model")
 
     # Verify the command is correctly formatted
     assert mock_calls
@@ -282,7 +286,7 @@ def test_run_command_correctly_formatted(
     ]
 
 
-def test_show_command_correctly_formatted(
+async def test_show_command_correctly_formatted(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
 ):
     # Mock Popen
@@ -307,7 +311,7 @@ def test_show_command_correctly_formatted(
     show_tool = tools["show"]
 
     # Execute
-    show_tool(sql_query="SELECT * FROM my_model")
+    await show_tool(sql_query="SELECT * FROM my_model")
 
     # Verify
     assert mock_calls
@@ -320,7 +324,7 @@ def test_show_command_correctly_formatted(
     assert args_list[5] == "--favor-state"
 
 
-def test_list_command_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
+async def test_list_command_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
     # Mock Popen
     class MockProcessWithTimeout:
         def communicate(self, timeout=None):
@@ -344,18 +348,18 @@ def test_list_command_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
     list_tool = tools["ls"]
 
     # Test timeout case
-    result = list_tool(resource_type=["model", "snapshot"])
+    result = await list_tool(resource_type=["model", "snapshot"])
     assert "Timeout: dbt command took too long to complete" in result
     assert "Try using a specific selector to narrow down the results" in result
 
     # Test with selection - should still timeout
-    result = list_tool(node_selection="my_model", resource_type=["model"])
+    result = await list_tool(node_selection="my_model", resource_type=["model"])
     assert "Timeout: dbt command took too long to complete" in result
     assert "Try using a specific selector to narrow down the results" in result
 
 
 @pytest.mark.parametrize("command_name", ["run", "build", "clone"])
-def test_full_refresh_flag_added_to_command(
+async def test_full_refresh_flag_added_to_command(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, command_name
 ):
     mock_calls = []
@@ -377,7 +381,7 @@ def test_full_refresh_flag_added_to_command(
     )
     tool = tools[command_name]
 
-    tool(is_full_refresh=True)
+    await tool(is_full_refresh=True)
 
     assert mock_calls
     args_list = mock_calls[0]
@@ -385,7 +389,7 @@ def test_full_refresh_flag_added_to_command(
 
 
 @pytest.mark.parametrize("command_name", ["build", "run", "test"])
-def test_vars_flag_added_to_command(
+async def test_vars_flag_added_to_command(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, command_name
 ):
     mock_calls = []
@@ -407,7 +411,7 @@ def test_vars_flag_added_to_command(
     )
     tool = tools[command_name]
 
-    tool(vars="environment: production")
+    await tool(vars="environment: production")
 
     assert mock_calls
     args_list = mock_calls[0]
@@ -416,7 +420,7 @@ def test_vars_flag_added_to_command(
 
 
 @pytest.mark.parametrize("command_name", ["run", "build"])
-def test_sample_flag_added_to_command(
+async def test_sample_flag_added_to_command(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, command_name
 ):
     mock_calls = []
@@ -438,7 +442,7 @@ def test_sample_flag_added_to_command(
     )
     tool = tools[command_name]
 
-    tool(sample="3 days")
+    await tool(sample="3 days")
 
     assert mock_calls
     args_list = mock_calls[0]
@@ -446,7 +450,7 @@ def test_sample_flag_added_to_command(
     assert "3 days" in args_list
 
 
-def test_sample_not_added_when_none(
+async def test_sample_not_added_when_none(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
 ):
     mock_calls = []
@@ -468,14 +472,16 @@ def test_sample_not_added_when_none(
     )
     build_tool = tools["build"]
 
-    build_tool()
+    await build_tool()
 
     assert mock_calls
     args_list = mock_calls[0]
     assert "--sample" not in args_list
 
 
-def test_vars_not_added_when_none(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp):
+async def test_vars_not_added_when_none(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
+):
     mock_calls = []
 
     def mock_popen(args, **kwargs):
@@ -495,14 +501,14 @@ def test_vars_not_added_when_none(monkeypatch: MonkeyPatch, mock_process, mock_f
     )
     build_tool = tools["build"]
 
-    build_tool()  # Non-explicit
+    await build_tool()  # Non-explicit
 
     assert mock_calls
     args_list = mock_calls[0]
     assert "--vars" not in args_list
 
 
-def test_compile_supports_selection(
+async def test_compile_supports_selection(
     monkeypatch: MonkeyPatch,
     mock_process,
     mock_fastmcp,
@@ -528,7 +534,7 @@ def test_compile_supports_selection(
 
     assert "node_selection" in inspect.signature(compile_tool).parameters
 
-    compile_tool(node_selection="my_model")
+    await compile_tool(node_selection="my_model")
     assert "--select" in mock_calls[0]
     assert "my_model" in mock_calls[0]
 
@@ -536,7 +542,7 @@ def test_compile_supports_selection(
 @pytest.mark.parametrize(
     "command_name", ["build", "run", "test", "compile", "ls", "clone"]
 )
-def test_yml_selector_flag_added_to_command(
+async def test_yml_selector_flag_added_to_command(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, command_name
 ):
     mock_calls = []
@@ -560,7 +566,7 @@ def test_yml_selector_flag_added_to_command(
 
     assert "yml_selector" in inspect.signature(tool).parameters
 
-    tool(yml_selector="nightly")
+    await tool(yml_selector="nightly")
 
     assert mock_calls
     args_list = mock_calls[0]
@@ -569,7 +575,7 @@ def test_yml_selector_flag_added_to_command(
     assert "--select" not in args_list
 
 
-def test_yml_selector_not_added_when_none(
+async def test_yml_selector_not_added_when_none(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
 ):
     mock_calls = []
@@ -591,14 +597,14 @@ def test_yml_selector_not_added_when_none(
     )
     build_tool = tools["build"]
 
-    build_tool()
+    await build_tool()
 
     assert mock_calls
     args_list = mock_calls[0]
     assert "--selector" not in args_list
 
 
-def test_success_returns_ok_even_with_stderr_noise(
+async def test_success_returns_ok_even_with_stderr_noise(
     monkeypatch: MonkeyPatch, mock_fastmcp
 ):
     """A successful command (returncode=0) returns 'OK' even when stderr has
@@ -625,10 +631,10 @@ def test_success_returns_ok_even_with_stderr_noise(
         disabled_toolsets=set(),
     )
 
-    assert tools["build"]() == "OK"
+    assert await tools["build"]() == "OK"
 
 
-def test_failure_surfaces_stderr_when_stdout_is_empty(
+async def test_failure_surfaces_stderr_when_stdout_is_empty(
     monkeypatch: MonkeyPatch, mock_fastmcp
 ):
     """A failed command (returncode!=0) surfaces stderr — some dbt errors
@@ -655,13 +661,13 @@ def test_failure_surfaces_stderr_when_stdout_is_empty(
         disabled_toolsets=set(),
     )
 
-    result = tools["build"]()
+    result = await tools["build"]()
 
     assert "Database Error" in result
     assert result != "OK"
 
 
-def test_failure_with_no_output_surfaces_exit_code(
+async def test_failure_with_no_output_surfaces_exit_code(
     monkeypatch: MonkeyPatch, mock_fastmcp
 ):
     """A failed command with empty stdout AND stderr must NOT return 'OK' —
@@ -688,14 +694,16 @@ def test_failure_with_no_output_surfaces_exit_code(
         disabled_toolsets=set(),
     )
 
-    result = tools["build"]()
+    result = await tools["build"]()
 
     assert result != "OK"
     assert "137" in result
     assert "exit code" in result.lower()
 
 
-def test_failure_combines_stdout_and_stderr(monkeypatch: MonkeyPatch, mock_fastmcp):
+async def test_failure_combines_stdout_and_stderr(
+    monkeypatch: MonkeyPatch, mock_fastmcp
+):
     """When both streams have content on failure, both are surfaced."""
 
     class MockProcessFailureBothStreams:
@@ -719,7 +727,7 @@ def test_failure_combines_stdout_and_stderr(monkeypatch: MonkeyPatch, mock_fastm
         disabled_toolsets=set(),
     )
 
-    result = tools["build"]()
+    result = await tools["build"]()
 
     assert "--- stdout ---" in result
     assert "Compilation Error" in result
@@ -727,7 +735,7 @@ def test_failure_combines_stdout_and_stderr(monkeypatch: MonkeyPatch, mock_fastm
     assert "Stack trace" in result
 
 
-def test_clone_command_binary_state_path_logic(
+async def test_clone_command_binary_state_path_logic(
     monkeypatch: MonkeyPatch,
     mock_process,
     mock_fastmcp,
@@ -758,7 +766,7 @@ def test_clone_command_binary_state_path_logic(
         disabled_toolsets=set(),
     )
     clone_tool = tools["clone"]
-    clone_tool(state_path="/some/state/path")
+    await clone_tool(state_path="/some/state/path")
 
     assert "--state" in mock_calls[0]
     assert "/some/state/path" in mock_calls[0]
@@ -782,7 +790,7 @@ def test_clone_command_binary_state_path_logic(
     clone_tool = tools["clone"]
 
     with pytest.raises(InvalidParameterError) as excinfo:
-        clone_tool(state_path="/some/state/path")
+        await clone_tool(state_path="/some/state/path")
 
     assert "--state is not supported" in str(excinfo.value)
 
@@ -803,7 +811,7 @@ def test_clone_command_binary_state_path_logic(
         disabled_toolsets=set(),
     )
     clone_tool = tools["clone"]
-    clone_tool(state_path="/some/state/path")
+    await clone_tool(state_path="/some/state/path")
 
     assert "--state" in mock_calls[0]
     assert "/some/state/path" in mock_calls[0]
@@ -819,7 +827,7 @@ def test_clone_command_binary_state_path_logic(
         "-x",
     ],
 )
-def test_node_selection_rejects_flag_injection(
+async def test_node_selection_rejects_flag_injection(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, injection_payload
 ):
     monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: mock_process)
@@ -835,7 +843,7 @@ def test_node_selection_rejects_flag_injection(
     )
 
     with pytest.raises(InvalidParameterError, match="must not start with '-'"):
-        tools["run"](node_selection=injection_payload)
+        await tools["run"](node_selection=injection_payload)
 
 
 @pytest.mark.parametrize(
@@ -853,7 +861,7 @@ def test_node_selection_rejects_flag_injection(
         "@my_model",
     ],
 )
-def test_node_selection_accepts_valid_tokens(
+async def test_node_selection_accepts_valid_tokens(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, valid_selection
 ):
     monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: mock_process)
@@ -868,7 +876,7 @@ def test_node_selection_accepts_valid_tokens(
         disabled_toolsets=set(),
     )
 
-    tools["run"](node_selection=valid_selection)
+    await tools["run"](node_selection=valid_selection)
 
 
 @pytest.mark.parametrize(
@@ -878,7 +886,7 @@ def test_node_selection_accepts_valid_tokens(
         ["--target", "custom"],
     ],
 )
-def test_resource_type_rejects_flag_injection(
+async def test_resource_type_rejects_flag_injection(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, injection_payload
 ):
     monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: mock_process)
@@ -894,7 +902,7 @@ def test_resource_type_rejects_flag_injection(
     )
 
     with pytest.raises(InvalidParameterError, match="invalid values"):
-        tools["ls"](resource_type=injection_payload)
+        await tools["ls"](resource_type=injection_payload)
 
 
 @pytest.mark.parametrize(
@@ -906,7 +914,7 @@ def test_resource_type_rejects_flag_injection(
         ["semantic_model", "metric", "saved_query"],
     ],
 )
-def test_resource_type_accepts_valid_values(
+async def test_resource_type_accepts_valid_values(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, valid_types
 ):
     monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: mock_process)
@@ -921,10 +929,10 @@ def test_resource_type_accepts_valid_values(
         disabled_toolsets=set(),
     )
 
-    tools["ls"](resource_type=valid_types)
+    await tools["ls"](resource_type=valid_types)
 
 
-def test_get_lineage_dev_resolves_manifest_from_relative_project_dir(
+async def test_get_lineage_dev_resolves_manifest_from_relative_project_dir(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, tmp_path: Path
 ):
     """Manifest must be read from <project_dir>/target/manifest.json even when
@@ -954,13 +962,13 @@ def test_get_lineage_dev_resolves_manifest_from_relative_project_dir(
         disabled_toolsets=set(),
     )
 
-    result = tools["get_lineage_dev"](
+    result = await tools["get_lineage_dev"](
         unique_id="model.my_project.some_model", types=None, depth=5
     )
     assert isinstance(result, dict)
 
 
-def test_run_command_uses_project_dir_as_cwd_with_absolute_env(
+async def test_run_command_uses_project_dir_as_cwd_with_absolute_env(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
 ):
     monkeypatch.setenv("DBT_PROJECT_DIR", "./relative/project")
@@ -983,8 +991,112 @@ def test_run_command_uses_project_dir_as_cwd_with_absolute_env(
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
-    tools["compile"]()
+    await tools["compile"]()
 
     assert popen_kwargs["cwd"] == config.project_dir
     assert popen_kwargs["env"]["DBT_PROJECT_DIR"] == config.project_dir
     assert popen_kwargs["env"]["DBT_PROFILES_DIR"] == config.profiles_dir
+
+
+async def test_dbt_command_runs_off_the_event_loop(
+    monkeypatch: MonkeyPatch, mock_fastmcp
+):
+    """Waiting for the dbt child process must not block the event loop: other
+    coroutines keep running while a tool call is in flight. The tool is called
+    through the server's dispatch, the way a client call reaches it."""
+
+    class MockBlockingProcess:
+        returncode = 0
+
+        def communicate(self, timeout=None):
+            time.sleep(0.5)
+            return "command output", ""
+
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: MockBlockingProcess())
+
+    fastmcp, _ = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    ticks = 0
+
+    async def heartbeat() -> None:
+        nonlocal ticks
+        while True:
+            await asyncio.sleep(0.01)
+            ticks += 1
+
+    heartbeat_task = asyncio.create_task(heartbeat())
+    try:
+        result = await fastmcp.call_tool("list", {})
+    finally:
+        heartbeat_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await heartbeat_task
+
+    assert result[0][0].text == "command output"
+    assert ticks >= 5
+
+
+async def test_concurrent_dbt_commands_run_one_at_a_time(
+    monkeypatch: MonkeyPatch, mock_fastmcp
+):
+    """dbt writes target/ without locking, so two tool calls must never run dbt
+    on the project at once, while the event loop keeps serving other coroutines
+    through the run and the wait."""
+    running = 0
+    peak = 0
+    counter_lock = threading.Lock()
+
+    class MockOverlappingProcess:
+        returncode = 0
+
+        def communicate(self, timeout=None):
+            nonlocal running, peak
+            with counter_lock:
+                running += 1
+                peak = max(peak, running)
+            time.sleep(0.2)
+            with counter_lock:
+                running -= 1
+            return "command output", ""
+
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: MockOverlappingProcess())
+
+    fastmcp, _ = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    ticks = 0
+
+    async def heartbeat() -> None:
+        nonlocal ticks
+        while True:
+            await asyncio.sleep(0.01)
+            ticks += 1
+
+    heartbeat_task = asyncio.create_task(heartbeat())
+    try:
+        results = await asyncio.gather(
+            fastmcp.call_tool("list", {}), fastmcp.call_tool("parse", {})
+        )
+    finally:
+        heartbeat_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await heartbeat_task
+
+    assert [result[0][0].text for result in results] == ["command output"] * 2
+    assert peak == 1
+    assert ticks >= 5

@@ -6,9 +6,9 @@ from tests.conftest import MockFastMCP
 from tests.mocks.config import mock_config
 
 
-class TestDbtCliIntegration(unittest.TestCase):
+class TestDbtCliIntegration(unittest.IsolatedAsyncioTestCase):
     @patch("subprocess.Popen")
-    def test_dbt_command_execution(self, mock_popen):
+    async def test_dbt_command_execution(self, mock_popen):
         """
         Tests the full execution path for dbt commands, ensuring they are properly
         executed with the right arguments.
@@ -90,7 +90,7 @@ class TestDbtCliIntegration(unittest.TestCase):
             mock_popen.reset_mock()
 
             # Call the function
-            result = mock_fastmcp.tools[command_name](*args)
+            result = await mock_fastmcp.tools[command_name](*args)
 
             # Verify the command was called correctly
             mock_popen.assert_called_once()

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import re
@@ -51,7 +52,17 @@ _VALID_RESOURCE_TYPES = frozenset(
 )
 
 
-def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition]:
+def create_dbt_cli_tool_definitions(
+    config: DbtCliConfig, dbt_lock: asyncio.Lock | None = None
+) -> list[ToolDefinition]:
+    """Build the dbt CLI tool definitions.
+
+    dbt writes target/ without locking, so dbt runs on the project one command at
+    a time: every tool awaits its dbt run under ``dbt_lock``, which the server
+    shares with every other tool set that runs dbt on the project.
+    """
+    lock = asyncio.Lock() if dbt_lock is None else dbt_lock
+
     def _run_dbt_command(
         command: list[str],
         node_selection: str | None = None,
@@ -160,7 +171,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
                 else ""
             )
 
-    def build(
+    async def build(
         node_selection: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/node_selection")
         ),
@@ -177,17 +188,19 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             default=None, description=get_prompt("dbt_cli/args/sample")
         ),
     ) -> str:
-        return _run_dbt_command(
-            ["build"],
-            node_selection,
-            is_selectable=True,
-            is_full_refresh=is_full_refresh,
-            vars=vars,
-            sample=sample,
-            yml_selector=yml_selector,
-        )
+        async with lock:
+            return await asyncio.to_thread(
+                _run_dbt_command,
+                ["build"],
+                node_selection,
+                is_selectable=True,
+                is_full_refresh=is_full_refresh,
+                vars=vars,
+                sample=sample,
+                yml_selector=yml_selector,
+            )
 
-    def compile(
+    async def compile(
         node_selection: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/node_selection")
         ),
@@ -195,14 +208,20 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             default=None, description=get_prompt("dbt_cli/args/yml_selector")
         ),
     ) -> str:
-        return _run_dbt_command(
-            ["compile"], node_selection, is_selectable=True, yml_selector=yml_selector
-        )
+        async with lock:
+            return await asyncio.to_thread(
+                _run_dbt_command,
+                ["compile"],
+                node_selection,
+                is_selectable=True,
+                yml_selector=yml_selector,
+            )
 
-    def docs() -> str:
-        return _run_dbt_command(["docs", "generate"])
+    async def docs() -> str:
+        async with lock:
+            return await asyncio.to_thread(_run_dbt_command, ["docs", "generate"])
 
-    def ls(
+    async def ls(
         node_selection: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/node_selection")
         ),
@@ -214,18 +233,21 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             description=get_prompt("dbt_cli/args/resource_type"),
         ),
     ) -> str:
-        return _run_dbt_command(
-            ["list"],
-            node_selection,
-            resource_type=resource_type,
-            is_selectable=True,
-            yml_selector=yml_selector,
-        )
+        async with lock:
+            return await asyncio.to_thread(
+                _run_dbt_command,
+                ["list"],
+                node_selection,
+                resource_type=resource_type,
+                is_selectable=True,
+                yml_selector=yml_selector,
+            )
 
-    def parse() -> str:
-        return _run_dbt_command(["parse"])
+    async def parse() -> str:
+        async with lock:
+            return await asyncio.to_thread(_run_dbt_command, ["parse"])
 
-    def run(
+    async def run(
         node_selection: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/node_selection")
         ),
@@ -242,17 +264,19 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             default=None, description=get_prompt("dbt_cli/args/sample")
         ),
     ) -> str:
-        return _run_dbt_command(
-            ["run"],
-            node_selection,
-            is_selectable=True,
-            is_full_refresh=is_full_refresh,
-            vars=vars,
-            sample=sample,
-            yml_selector=yml_selector,
-        )
+        async with lock:
+            return await asyncio.to_thread(
+                _run_dbt_command,
+                ["run"],
+                node_selection,
+                is_selectable=True,
+                is_full_refresh=is_full_refresh,
+                vars=vars,
+                sample=sample,
+                yml_selector=yml_selector,
+            )
 
-    def test(
+    async def test(
         node_selection: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/node_selection")
         ),
@@ -263,15 +287,17 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             default=None, description=get_prompt("dbt_cli/args/vars")
         ),
     ) -> str:
-        return _run_dbt_command(
-            ["test"],
-            node_selection,
-            is_selectable=True,
-            vars=vars,
-            yml_selector=yml_selector,
-        )
+        async with lock:
+            return await asyncio.to_thread(
+                _run_dbt_command,
+                ["test"],
+                node_selection,
+                is_selectable=True,
+                vars=vars,
+                yml_selector=yml_selector,
+            )
 
-    def show(
+    async def show(
         sql_query: str = Field(description=get_prompt("dbt_cli/args/sql_query")),
         limit: int = Field(default=5, description=get_prompt("dbt_cli/args/limit")),
     ) -> str:
@@ -291,9 +317,10 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         if cli_limit is not None:
             args.extend(["--limit", str(cli_limit)])
         args.extend(["--output", "json"])
-        return _run_dbt_command(args)
+        async with lock:
+            return await asyncio.to_thread(_run_dbt_command, args)
 
-    def clone(
+    async def clone(
         node_selection: str | None = Field(
             default=None, description=get_prompt("dbt_cli/args/node_selection")
         ),
@@ -311,18 +338,24 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             default=None, description=get_prompt("dbt_cli/args/state_path")
         ),
     ) -> str:
-        return _run_dbt_command(
-            ["clone"],
-            node_selection,
-            is_selectable=True,
-            is_full_refresh=is_full_refresh,
-            vars=vars,
-            yml_selector=yml_selector,
-            state_path=state_path,
-        )
+        async with lock:
+            return await asyncio.to_thread(
+                _run_dbt_command,
+                ["clone"],
+                node_selection,
+                is_selectable=True,
+                is_full_refresh=is_full_refresh,
+                vars=vars,
+                yml_selector=yml_selector,
+                state_path=state_path,
+            )
 
     def _get_manifest() -> Manifest:
-        """Helper function to load the dbt manifest.json file."""
+        """Parse the project and load target/manifest.json.
+
+        Runs under the dbt lock, so no other dbt command rewrites the manifest
+        between the parse and the read.
+        """
         _run_dbt_command(["parse"])  # Ensure manifest is generated
         manifest_path = os.path.join(
             config.project_dir or ".", "target", "manifest.json"
@@ -331,12 +364,13 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             manifest_data = json.load(f)
         return Manifest(**manifest_data)
 
-    def get_lineage_dev(
+    async def get_lineage_dev(
         unique_id: str = UNIQUE_ID_REQUIRED_FIELD,
         types: list[LineageResourceType] | None = TYPES_FIELD,
         depth: int = DEPTH_FIELD,
     ) -> dict[str, Any]:
-        manifest = _get_manifest()
+        async with lock:
+            manifest = await asyncio.to_thread(_get_manifest)
         model_lineage = ModelLineage.from_manifest(
             manifest,
             unique_id=unique_id,
@@ -345,7 +379,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         )
         return model_lineage.model_dump()
 
-    def get_node_details_dev(
+    async def get_node_details_dev(
         node_id: str = Field(
             description=get_prompt("dbt_cli/args/node_id"),
         ),
@@ -392,11 +426,13 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             "created_at",
             "unrendered_config",
         ]
-        output = _run_dbt_command(
-            ["list", "--output", "json", "--output-keys", *output_keys],
-            node_selection=node_id,
-            is_selectable=True,
-        )
+        async with lock:
+            output = await asyncio.to_thread(
+                _run_dbt_command,
+                ["list", "--output", "json", "--output-keys", *output_keys],
+                node_selection=node_id,
+                is_selectable=True,
+            )
 
         node_result: dict[str, Any] | None = None
         test_ids: list[str] = []
@@ -573,10 +609,11 @@ def register_dbt_cli_tools(
     enabled_tools: set[ToolName] | None,
     enabled_toolsets: set[Toolset],
     disabled_toolsets: set[Toolset],
+    dbt_lock: asyncio.Lock | None = None,
 ) -> None:
     register_tools(
         dbt_mcp,
-        tool_definitions=create_dbt_cli_tool_definitions(config),
+        tool_definitions=create_dbt_cli_tool_definitions(config, dbt_lock),
         disabled_tools=disabled_tools,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,
