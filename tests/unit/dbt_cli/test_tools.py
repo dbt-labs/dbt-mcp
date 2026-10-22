@@ -321,8 +321,7 @@ def test_show_command_correctly_formatted(
 
 
 def test_list_command_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
-    # Mock Popen. communicate() only raises while the child is still running;
-    # once kill() has been called it returns like a normal reaped process.
+    # Mock Popen
     class MockProcessWithTimeout:
         def __init__(self):
             self.killed = False
@@ -368,8 +367,6 @@ def test_list_command_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
     assert "Timeout: dbt command took too long to complete" in result
     assert "Try using a specific selector to narrow down the results" in result
 
-    # The timed-out dbt process must be killed and reaped rather than left
-    # running in the background after the tool has returned.
     assert len(processes) == 2
     for process in processes:
         assert process.killed

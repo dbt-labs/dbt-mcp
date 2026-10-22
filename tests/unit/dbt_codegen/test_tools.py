@@ -408,8 +408,6 @@ def test_codegen_failure_with_no_output_surfaces_exit_code(
 def test_codegen_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
     """Test timeout handling for long-running operations."""
 
-    # communicate() only raises while the child is still running; once kill()
-    # has been called it returns like a normal reaped process.
     class MockProcessWithTimeout:
         def __init__(self):
             self.killed = False
@@ -457,8 +455,6 @@ def test_codegen_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
     assert "Timeout: dbt-codegen operation took longer than" in result
     assert "10 seconds" in result
 
-    # The timed-out dbt process must be killed and reaped rather than left
-    # running in the background after the tool has returned.
     assert len(processes) == 1
     assert processes[0].killed
     assert processes[0].communicate_calls == [
