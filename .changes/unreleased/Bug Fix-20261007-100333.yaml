@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Kill the dbt subprocess when a dbt CLI or dbt-codegen tool call times out, instead of leaving it running in the background.
+time: 2026-10-07T10:03:33.125108-04:00
