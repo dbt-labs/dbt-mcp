@@ -7,12 +7,12 @@ from typing import Any
 import logging
 
 from mcp.server.fastmcp import FastMCP
-from pydantic import Field
+from pydantic import Field, ValidationError
 
 from dbt_mcp.config.config import DbtCliConfig
 from dbt_mcp.dbt_cli.binary_type import BinaryType, get_color_disable_flag
 from dbt_mcp.dbt_cli.models.lineage_types import ModelLineage
-from dbt_mcp.dbt_cli.models.manifest import Manifest
+from dbt_mcp.dbt_cli.models.manifest import Manifest, looks_like_unique_id
 from dbt_mcp.dbt_cli.subprocess_env import get_dbt_subprocess_env
 from dbt_mcp.errors.common import InvalidParameterError
 from dbt_mcp.prompts.prompts import get_prompt
@@ -30,6 +30,8 @@ from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
+
+_TEST_PARENT_RESOURCE_TYPES = frozenset({"model", "seed", "source", "snapshot"})
 
 _VALID_RESOURCE_TYPES = frozenset(
     {
@@ -49,6 +51,63 @@ _VALID_RESOURCE_TYPES = frozenset(
         "unit_test",
     }
 )
+
+
+def _parse_dbt_list_records(output: str) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for line in output.strip().split("\n"):
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(record, dict):
+            records.append(record)
+    return records
+
+
+def _select_primary_list_node(
+    records: list[dict[str, Any]], node_id: str
+) -> dict[str, Any] | None:
+    """Pick the requested node from `dbt list` JSON records.
+
+    A resolved FQN selector can match more than one resource (for example a
+    model and an exposure that share `my_project.orders`). Prefer the record
+    whose unique_id equals the requested id so an unrelated first row is not
+    treated as the primary result.
+    """
+    for record in records:
+        if record.get("unique_id") == node_id:
+            return record
+    return records[0] if records else None
+
+
+def _test_is_attached(record: dict[str, Any], unique_id: str) -> bool:
+    if record.get("resource_type") != "test":
+        return False
+    if record.get("attached_node") == unique_id:
+        return True
+    depends_on = record.get("depends_on")
+    if isinstance(depends_on, dict):
+        nodes = depends_on.get("nodes")
+        if isinstance(nodes, list) and unique_id in nodes:
+            return True
+    return False
+
+
+def _attached_test_ids(
+    records: list[dict[str, Any]], *, unique_id: object
+) -> list[str]:
+    if not isinstance(unique_id, str) or not unique_id:
+        return []
+    test_ids: list[str] = []
+    for record in records:
+        if not _test_is_attached(record, unique_id):
+            continue
+        fqn = record.get("fqn", [])
+        test_ids.append(".".join(fqn) if fqn else record.get("unique_id", ""))
+    return test_ids
 
 
 def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition]:
@@ -333,6 +392,36 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             manifest_data = json.load(f)
         return Manifest(**manifest_data)
 
+    def _resolve_node_selector(node_id: str) -> str:
+        """Translate a unique_id into a selector `dbt list --select` accepts.
+
+        Names and method selectors are returned unchanged. A unique_id is
+        resolved through the same manifest `get_lineage_dev` loads. If that
+        manifest is missing or does not contain the id, node_id is passed
+        through.
+        """
+        if not looks_like_unique_id(node_id):
+            return node_id
+        try:
+            manifest = _get_manifest()
+        except (
+            OSError,
+            UnicodeError,
+            json.JSONDecodeError,
+            ValidationError,
+            TypeError,
+        ):
+            logger.debug(
+                "Could not load manifest to resolve unique_id %s",
+                node_id,
+                exc_info=True,
+            )
+            return node_id
+        resolved = manifest.selector_for_unique_id(node_id)
+        if resolved is None:
+            return node_id
+        return resolved
+
     def get_lineage_dev(
         unique_id: str = UNIQUE_ID_REQUIRED_FIELD,
         types: list[LineageResourceType] | None = TYPES_FIELD,
@@ -369,6 +458,7 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
             "tags",
             "config",
             "depends_on",
+            "attached_node",
             "patch_path",
             "schema",
             "database",
@@ -396,35 +486,19 @@ def create_dbt_cli_tool_definitions(config: DbtCliConfig) -> list[ToolDefinition
         ]
         output = _run_dbt_command(
             ["list", "--output", "json", "--output-keys", *output_keys],
-            node_selection=node_id,
+            node_selection=_resolve_node_selector(node_id),
             is_selectable=True,
         )
 
-        node_result: dict[str, Any] | None = None
-        test_ids: list[str] = []
-
-        for line in output.strip().split("\n"):
-            if not line.strip():
-                continue
-            try:
-                node = json.loads(line)
-                resource_type = node.get("resource_type")
-                if node_result is None:
-                    # First node is the primary result
-                    node_result = node
-                elif resource_type == "test":
-                    # Collect additional tests (associated with the primary node)
-                    fqn = node.get("fqn", [])
-                    test_ids.append(".".join(fqn) if fqn else node.get("unique_id", ""))
-            except json.JSONDecodeError:
-                continue
-
+        records = _parse_dbt_list_records(output)
+        node_result = _select_primary_list_node(records, node_id)
         if node_result is None:
             raise ValueError(f"No node found for selector: {node_id}")
 
-        # Add test unique_ids for models, seeds, sources, and snapshots
-        if node_result.get("resource_type") in ("model", "seed", "source", "snapshot"):
-            node_result["tests"] = test_ids
+        if node_result.get("resource_type") in _TEST_PARENT_RESOURCE_TYPES:
+            node_result["tests"] = _attached_test_ids(
+                records, unique_id=node_result.get("unique_id")
+            )
 
         return node_result
 
