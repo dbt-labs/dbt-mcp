@@ -19,7 +19,7 @@ def mock_process():
     return MockProcess()
 
 
-def test_manifest_loads_non_ascii_utf8(
+async def test_manifest_loads_non_ascii_utf8(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp, tmp_path
 ):
     """Regression test for #594: manifest with non-ASCII UTF-8 chars should load without error."""
@@ -62,6 +62,6 @@ def test_manifest_loads_non_ascii_utf8(
         disabled_toolsets=set(),
     )
 
-    tools["get_lineage_dev"](
+    await tools["get_lineage_dev"](
         unique_id="model.my_project.customers", types=None, depth=5
     )

@@ -1,11 +1,16 @@
+import asyncio
+import contextlib
 import json
 import subprocess
+import threading
+import time
 
 import pytest
 from pytest import MonkeyPatch
 
+from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.dbt_codegen.tools import register_dbt_codegen_tools
-from tests.mocks.config import mock_dbt_codegen_config
+from tests.mocks.config import mock_dbt_cli_config, mock_dbt_codegen_config
 
 
 @pytest.fixture
@@ -21,7 +26,7 @@ def mock_process():
     return MockProcess
 
 
-def test_generate_source_basic_schema(
+async def test_generate_source_basic_schema(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
 ):
     """Test generate_source with just schema_name parameter."""
@@ -47,7 +52,7 @@ def test_generate_source_basic_schema(
     generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call with just schema_name (provide all required args explicitly)
-    generate_source_tool(
+    await generate_source_tool(
         schema_name="raw_data",
         database_name=None,
         table_names=None,
@@ -73,7 +78,7 @@ def test_generate_source_basic_schema(
     assert args_json["schema_name"] == "raw_data"
 
 
-def test_generate_source_with_all_parameters(
+async def test_generate_source_with_all_parameters(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
 ):
     """Test generate_source with all parameters."""
@@ -97,7 +102,7 @@ def test_generate_source_with_all_parameters(
     generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call with all parameters
-    generate_source_tool(
+    await generate_source_tool(
         schema_name="raw_data",
         database_name="analytics",
         table_names=["users", "orders"],
@@ -118,7 +123,9 @@ def test_generate_source_with_all_parameters(
     assert args_json["include_descriptions"] is True
 
 
-def test_generate_model_yaml(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp):
+async def test_generate_model_yaml(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
+):
     """Test generate_model_yaml function."""
     mock_calls = []
 
@@ -140,7 +147,7 @@ def test_generate_model_yaml(monkeypatch: MonkeyPatch, mock_process, mock_fastmc
     generate_model_yaml_tool = fastmcp.tools["generate_model_yaml"]
 
     # Call the tool
-    generate_model_yaml_tool(
+    await generate_model_yaml_tool(
         model_names=["stg_users", "stg_orders"],
         upstream_descriptions=True,
         include_data_types=False,
@@ -158,7 +165,9 @@ def test_generate_model_yaml(monkeypatch: MonkeyPatch, mock_process, mock_fastmc
     assert args_json["include_data_types"] is False
 
 
-def test_generate_staging_model(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp):
+async def test_generate_staging_model(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
+):
     """Test generate_staging_model function."""
     mock_calls = []
 
@@ -180,7 +189,7 @@ def test_generate_staging_model(monkeypatch: MonkeyPatch, mock_process, mock_fas
     generate_staging_model_tool = fastmcp.tools["generate_staging_model"]
 
     # Call the tool
-    generate_staging_model_tool(
+    await generate_staging_model_tool(
         source_name="raw_data",
         table_name="users",
         leading_commas=True,
@@ -203,7 +212,9 @@ def test_generate_staging_model(monkeypatch: MonkeyPatch, mock_process, mock_fas
     assert args_json["materialized"] == "view"
 
 
-def test_codegen_error_handling_missing_package(monkeypatch: MonkeyPatch, mock_fastmcp):
+async def test_codegen_error_handling_missing_package(
+    monkeypatch: MonkeyPatch, mock_fastmcp
+):
     """Test error handling when dbt-codegen package is not installed."""
     mock_calls = []
 
@@ -232,7 +243,7 @@ def test_codegen_error_handling_missing_package(monkeypatch: MonkeyPatch, mock_f
     generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call should return error message about missing package
-    result = generate_source_tool(
+    result = await generate_source_tool(
         schema_name="test_schema",
         database_name=None,
         table_names=None,
@@ -244,7 +255,9 @@ def test_codegen_error_handling_missing_package(monkeypatch: MonkeyPatch, mock_f
     assert "Run 'dbt deps'" in result
 
 
-def test_codegen_error_handling_general_error(monkeypatch: MonkeyPatch, mock_fastmcp):
+async def test_codegen_error_handling_general_error(
+    monkeypatch: MonkeyPatch, mock_fastmcp
+):
     """Test general error handling."""
     mock_calls = []
 
@@ -273,7 +286,7 @@ def test_codegen_error_handling_general_error(monkeypatch: MonkeyPatch, mock_fas
     generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call should return the error
-    result = generate_source_tool(
+    result = await generate_source_tool(
         schema_name="test_schema",
         database_name=None,
         table_names=None,
@@ -285,7 +298,9 @@ def test_codegen_error_handling_general_error(monkeypatch: MonkeyPatch, mock_fas
     assert "Some other error occurred" in result
 
 
-def test_codegen_success_drops_stderr_noise(monkeypatch: MonkeyPatch, mock_fastmcp):
+async def test_codegen_success_drops_stderr_noise(
+    monkeypatch: MonkeyPatch, mock_fastmcp
+):
     """A successful codegen run returns just stdout, ignoring stderr noise
     (e.g. urllib3 deprecation warnings under externalbrowser auth)."""
 
@@ -314,7 +329,7 @@ def test_codegen_success_drops_stderr_noise(monkeypatch: MonkeyPatch, mock_fastm
     )
     generate_source_tool = fastmcp.tools["generate_source"]
 
-    result = generate_source_tool(
+    result = await generate_source_tool(
         schema_name="test_schema",
         database_name=None,
         table_names=None,
@@ -327,7 +342,7 @@ def test_codegen_success_drops_stderr_noise(monkeypatch: MonkeyPatch, mock_fastm
     assert "urllib3" not in result
 
 
-def test_codegen_failure_surfaces_stderr(monkeypatch: MonkeyPatch, mock_fastmcp):
+async def test_codegen_failure_surfaces_stderr(monkeypatch: MonkeyPatch, mock_fastmcp):
     """A failed codegen run surfaces stderr in the error message even when
     stdout is empty — some dbt errors only appear on stderr."""
 
@@ -353,7 +368,7 @@ def test_codegen_failure_surfaces_stderr(monkeypatch: MonkeyPatch, mock_fastmcp)
     )
     generate_source_tool = fastmcp.tools["generate_source"]
 
-    result = generate_source_tool(
+    result = await generate_source_tool(
         schema_name="test_schema",
         database_name=None,
         table_names=None,
@@ -365,7 +380,7 @@ def test_codegen_failure_surfaces_stderr(monkeypatch: MonkeyPatch, mock_fastmcp)
     assert "Database Error" in result
 
 
-def test_codegen_failure_with_no_output_surfaces_exit_code(
+async def test_codegen_failure_with_no_output_surfaces_exit_code(
     monkeypatch: MonkeyPatch, mock_fastmcp
 ):
     """A failed codegen run with no output on either stream must still surface
@@ -393,7 +408,7 @@ def test_codegen_failure_with_no_output_surfaces_exit_code(
     )
     generate_source_tool = fastmcp.tools["generate_source"]
 
-    result = generate_source_tool(
+    result = await generate_source_tool(
         schema_name="test_schema",
         database_name=None,
         table_names=None,
@@ -405,7 +420,7 @@ def test_codegen_failure_with_no_output_surfaces_exit_code(
     assert "exit code 2" in result
 
 
-def test_codegen_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
+async def test_codegen_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
     """Test timeout handling for long-running operations."""
 
     class MockProcessWithTimeout:
@@ -445,7 +460,7 @@ def test_codegen_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
     generate_source_tool = fastmcp.tools["generate_source"]
 
     # Test timeout case
-    result = generate_source_tool(
+    result = await generate_source_tool(
         schema_name="large_schema",
         database_name=None,
         table_names=None,
@@ -463,7 +478,9 @@ def test_codegen_timeout_handling(monkeypatch: MonkeyPatch, mock_fastmcp):
     ]
 
 
-def test_quiet_flag_placement(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp):
+async def test_quiet_flag_placement(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
+):
     """Test that --quiet flag is placed correctly in the command."""
     mock_calls = []
 
@@ -485,7 +502,7 @@ def test_quiet_flag_placement(monkeypatch: MonkeyPatch, mock_process, mock_fastm
     generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call the tool
-    generate_source_tool(
+    await generate_source_tool(
         schema_name="test",
         database_name=None,
         table_names=None,
@@ -504,7 +521,9 @@ def test_quiet_flag_placement(monkeypatch: MonkeyPatch, mock_process, mock_fastm
     assert quiet_index == run_op_index + 1
 
 
-def test_absolute_path_handling(monkeypatch: MonkeyPatch, mock_process, mock_fastmcp):
+async def test_absolute_path_handling(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
+):
     """Test that absolute paths are handled correctly."""
     mock_calls = []
     captured_kwargs = {}
@@ -528,7 +547,7 @@ def test_absolute_path_handling(monkeypatch: MonkeyPatch, mock_process, mock_fas
     generate_source_tool = fastmcp.tools["generate_source"]
 
     # Call the tool (mock config has /test/project which is absolute)
-    generate_source_tool(
+    await generate_source_tool(
         schema_name="test",
         database_name=None,
         table_names=None,
@@ -564,7 +583,7 @@ def test_all_tools_registered(mock_fastmcp):
         assert tool_name in tools, f"Tool {tool_name} not registered"
 
 
-def test_codegen_uses_project_dir_as_cwd_with_absolute_env(
+async def test_codegen_uses_project_dir_as_cwd_with_absolute_env(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
 ):
     monkeypatch.setenv("DBT_PROJECT_DIR", "./relative/project")
@@ -585,7 +604,7 @@ def test_codegen_uses_project_dir_as_cwd_with_absolute_env(
         enabled_toolsets=set(),
         disabled_toolsets=set(),
     )
-    fastmcp.tools["generate_source"](
+    await fastmcp.tools["generate_source"](
         schema_name="raw_data",
         database_name=None,
         table_names=None,
@@ -595,3 +614,121 @@ def test_codegen_uses_project_dir_as_cwd_with_absolute_env(
 
     assert popen_kwargs["cwd"] == mock_dbt_codegen_config.project_dir
     assert popen_kwargs["env"]["DBT_PROJECT_DIR"] == mock_dbt_codegen_config.project_dir
+
+
+async def test_codegen_operation_runs_off_the_event_loop(
+    monkeypatch: MonkeyPatch, mock_fastmcp
+):
+    """Waiting for the dbt child process must not block the event loop: other
+    coroutines keep running while a tool call is in flight. The tool is called
+    through the server's dispatch, the way a client call reaches it."""
+
+    class MockBlockingProcess:
+        returncode = 0
+
+        def communicate(self, timeout=None):
+            time.sleep(0.5)
+            return "command output", None
+
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: MockBlockingProcess())
+
+    fastmcp, _ = mock_fastmcp
+    register_dbt_codegen_tools(
+        fastmcp,
+        mock_dbt_codegen_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    ticks = 0
+
+    async def heartbeat() -> None:
+        nonlocal ticks
+        while True:
+            await asyncio.sleep(0.01)
+            ticks += 1
+
+    heartbeat_task = asyncio.create_task(heartbeat())
+    try:
+        result = await fastmcp.call_tool(
+            "generate_source",
+            {
+                "schema_name": "raw_data",
+                "database_name": None,
+                "table_names": None,
+                "generate_columns": False,
+                "include_descriptions": False,
+            },
+        )
+    finally:
+        heartbeat_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await heartbeat_task
+
+    assert result[0][0].text == "command output"
+    assert ticks >= 5
+
+
+async def test_codegen_and_cli_commands_share_the_dbt_lock(
+    monkeypatch: MonkeyPatch, mock_fastmcp
+):
+    """A codegen run-operation and a dbt CLI command registered with the same
+    lock never run dbt on the project at once."""
+    running = 0
+    peak = 0
+    counter_lock = threading.Lock()
+
+    class MockOverlappingProcess:
+        returncode = 0
+
+        def communicate(self, timeout=None):
+            nonlocal running, peak
+            with counter_lock:
+                running += 1
+                peak = max(peak, running)
+            time.sleep(0.2)
+            with counter_lock:
+                running -= 1
+            return "command output", ""
+
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: MockOverlappingProcess())
+
+    fastmcp, _ = mock_fastmcp
+    dbt_lock = asyncio.Lock()
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+        dbt_lock=dbt_lock,
+    )
+    register_dbt_codegen_tools(
+        fastmcp,
+        mock_dbt_codegen_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+        dbt_lock=dbt_lock,
+    )
+
+    results = await asyncio.gather(
+        fastmcp.call_tool("list", {}),
+        fastmcp.call_tool(
+            "generate_source",
+            {
+                "schema_name": "raw_data",
+                "database_name": None,
+                "table_names": None,
+                "generate_columns": False,
+                "include_descriptions": False,
+            },
+        ),
+    )
+
+    assert [result[0][0].text for result in results] == ["command output"] * 2
+    assert peak == 1
