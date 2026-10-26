@@ -165,6 +165,8 @@ def create_dbt_cli_tool_definitions(
                 return "\n".join(parts)
             return f"Command failed with exit code {process.returncode} (no output)"
         except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate()
             return "Timeout: dbt command took too long to complete." + (
                 " Try using a specific selector to narrow down the results."
                 if is_selectable

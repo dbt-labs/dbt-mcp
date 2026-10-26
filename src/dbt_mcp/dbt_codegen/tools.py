@@ -88,6 +88,8 @@ def create_dbt_codegen_tool_definitions(
             return stdout or "OK"
 
         except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate()
             return f"Timeout: dbt-codegen operation took longer than {config.dbt_cli_timeout} seconds."
         except Exception as e:
             return str(e)
