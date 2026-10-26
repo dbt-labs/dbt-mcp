@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Read the manifest for get_lineage_dev from DBT_TARGET_PATH when it is set, instead of always from <project_dir>/target, where it can be missing or stale.
+time: 2026-10-26T10:00:00.000000+01:00
