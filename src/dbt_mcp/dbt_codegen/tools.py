@@ -24,8 +24,9 @@ def create_dbt_codegen_tool_definitions(
 ) -> list[ToolDefinition]:
     """Build the dbt-codegen tool definitions.
 
-    Every tool awaits its dbt run under ``dbt_lock``, which the server shares with
-    the dbt CLI tool set, so dbt runs on the project one command at a time.
+    dbt writes target/ without locking, so tools run their dbt commands under the
+    shared ``dbt_lock``. The lock spans the await, not the child process: one left
+    running by a timeout or a cancellation outlives it.
     """
     lock = asyncio.Lock() if dbt_lock is None else dbt_lock
 

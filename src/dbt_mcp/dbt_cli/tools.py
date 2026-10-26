@@ -57,9 +57,9 @@ def create_dbt_cli_tool_definitions(
 ) -> list[ToolDefinition]:
     """Build the dbt CLI tool definitions.
 
-    dbt writes target/ without locking, so dbt runs on the project one command at
-    a time: every tool awaits its dbt run under ``dbt_lock``, which the server
-    shares with every other tool set that runs dbt on the project.
+    dbt writes target/ without locking, so tools run their dbt commands under the
+    shared ``dbt_lock``. The lock spans the await, not the child process: one left
+    running by a timeout or a cancellation outlives it.
     """
     lock = asyncio.Lock() if dbt_lock is None else dbt_lock
 
