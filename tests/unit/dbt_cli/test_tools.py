@@ -979,6 +979,49 @@ def test_get_lineage_dev_resolves_manifest_from_relative_project_dir(
     assert isinstance(result, dict)
 
 
+@pytest.mark.parametrize("absolute", [True, False])
+def test_get_lineage_dev_reads_manifest_from_dbt_target_path(
+    monkeypatch: MonkeyPatch,
+    mock_process,
+    mock_fastmcp,
+    tmp_path: Path,
+    absolute: bool,
+):
+    """With DBT_TARGET_PATH set, `dbt parse` writes the manifest there, so lineage
+    must read it there too and not from a stale <project_dir>/target/manifest.json."""
+    project_dir = tmp_path / "my_project"
+    (project_dir / "target").mkdir(parents=True)
+    # A stale manifest in the default location must not be the one that is read.
+    (project_dir / "target" / "manifest.json").write_text("not json")
+    target_dir = tmp_path / "elsewhere" if absolute else project_dir / "target-mcp"
+    target_dir.mkdir(parents=True)
+    (target_dir / "manifest.json").write_text(json.dumps({}))
+
+    monkeypatch.setenv("DBT_TARGET_PATH", str(target_dir) if absolute else "target-mcp")
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: mock_process)
+
+    config = DbtCliConfig(
+        project_dir=str(project_dir),
+        dbt_path="/path/to/dbt",
+        dbt_cli_timeout=10,
+        binary_type=BinaryType.DBT_CORE,
+    )
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    result = tools["get_lineage_dev"](
+        unique_id="model.my_project.some_model", types=None, depth=5
+    )
+    assert isinstance(result, dict)
+
+
 def test_run_command_uses_project_dir_as_cwd_with_absolute_env(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
 ):
