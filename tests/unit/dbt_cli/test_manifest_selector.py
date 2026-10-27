@@ -144,6 +144,42 @@ def test_selector_uses_fqn_when_model_name_matches_an_exposure() -> None:
     )
 
 
+def test_selector_ignores_method_resources_placed_in_nodes() -> None:
+    """Those resource types live under their own manifest keys, not nodes."""
+    manifest = Manifest.model_validate(
+        {
+            "nodes": {
+                "metric.my_project.revenue": {
+                    "name": "revenue",
+                    "resource_type": "metric",
+                    "package_name": "my_project",
+                },
+                "semantic_model.my_project.orders": {
+                    "name": "orders",
+                    "resource_type": "semantic_model",
+                    "package_name": "my_project",
+                },
+                "saved_query.my_project.orders_query": {
+                    "name": "orders_query",
+                    "resource_type": "saved_query",
+                    "package_name": "my_project",
+                },
+                "unit_test.my_project.test_orders": {
+                    "name": "test_orders",
+                    "resource_type": "unit_test",
+                    "package_name": "my_project",
+                },
+            }
+        }
+    )
+    assert manifest.selector_for_unique_id("metric.my_project.revenue") is None
+    assert manifest.selector_for_unique_id("semantic_model.my_project.orders") is None
+    assert (
+        manifest.selector_for_unique_id("saved_query.my_project.orders_query") is None
+    )
+    assert manifest.selector_for_unique_id("unit_test.my_project.test_orders") is None
+
+
 def test_selector_returns_none_when_unique_id_is_absent() -> None:
     manifest = Manifest()
     assert manifest.selector_for_unique_id("model.my_project.missing") is None

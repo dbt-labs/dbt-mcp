@@ -153,37 +153,21 @@ class Manifest(BaseModel):
             if exposure is None or not exposure.name:
                 return None
             return NamedNode(name=exposure.name, package_name=exposure.package_name)
-        collection = _method_collection(self, resource_type)
-        named = collection.get(unique_id)
-        if named is not None and named.name:
-            return named
-        node = self.nodes.get(unique_id)
-        if node is None or not node.name:
+        named = _method_collection(self, resource_type).get(unique_id)
+        if named is None or not named.name:
             return None
-        return NamedNode(name=node.name, package_name=node.package_name)
+        return named
 
     def _method_peer_names(self, resource_type: str) -> list[str]:
-        names: list[str] = []
-        seen: set[str] = set()
-
-        def add(*, unique_id: str, name: str) -> None:
-            if not name or unique_id in seen:
-                return
-            seen.add(unique_id)
-            names.append(name)
-
         if resource_type == "exposure":
-            for unique_id, exposure in self.exposures.items():
-                add(unique_id=unique_id, name=exposure.name)
-            return names
-
-        for unique_id, named in _method_collection(self, resource_type).items():
-            add(unique_id=unique_id, name=named.name)
-        for unique_id, node in self.nodes.items():
-            node_type = node.resource_type or unique_id.split(".", 1)[0]
-            if node_type == resource_type:
-                add(unique_id=unique_id, name=node.name)
-        return names
+            return [
+                exposure.name for exposure in self.exposures.values() if exposure.name
+            ]
+        return [
+            named.name
+            for named in _method_collection(self, resource_type).values()
+            if named.name
+        ]
 
     def _fqn_leaf_names(self) -> list[str]:
         """Leaf names the default FQN selector would consider.
