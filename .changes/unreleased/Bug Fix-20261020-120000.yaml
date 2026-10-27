@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Apply the show tool row limit unless the SQL has a LIMIT clause, instead of whenever "limit" appears anywhere in it, such as in a credit_limit column or a comment
-time: 2026-10-20T12:00:00.000000+00:00
