@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Run dbt CLI and dbt-codegen commands off the event loop, so the server keeps answering other requests, health checks included, while a dbt command runs.
-time: 2026-10-20T17:55:12.296791+03:00

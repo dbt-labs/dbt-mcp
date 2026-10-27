@@ -1,3 +1,0 @@
-kind: Under the Hood
-body: Use the uv version pinned in .tool-versions for CI and release builds.
-time: 2026-10-13T14:00:38.535568-05:00
