@@ -99,7 +99,6 @@ async def test_injected_admission_and_byte_budget_cover_acquisition(service):
         "discovery",
         "semantic_layer",
         "product_docs.index",
-        "product_docs.full_index",
         "product_docs.page",
     ],
 )
@@ -149,8 +148,6 @@ async def test_response_size_observer_is_injected_into_each_client(service):
             docs = ProductDocsClient(http_config=config.http_config)
             if service == "product_docs.index":
                 await docs.get_index()
-            elif service == "product_docs.full_index":
-                await docs.get_full_text_index()
             else:
                 await docs.get_page("https://docs.getdbt.com/docs")
     assert observations == [ResponseSize(service, len(payload), len(payload), True)]
