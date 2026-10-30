@@ -680,7 +680,7 @@ class TestGetDbtVersion:
         mock_result.stdout = "Core:\n  - installed: 1.8.4\n  - latest:    1.9.0\n"
         mock_result.stderr = ""
         with patch("subprocess.run", return_value=mock_result):
-            version = self._real("/usr/bin/dbt", BinaryType.DBT_CORE)
+            version = self._real(["/usr/bin/dbt"], BinaryType.DBT_CORE)
         assert version == "1.8.4"
 
     def test_dbt_cloud_cli(self):
@@ -688,7 +688,7 @@ class TestGetDbtVersion:
         mock_result.stdout = "dbt Cloud CLI - 0.38.23 (fcd1b61abc)\n"
         mock_result.stderr = ""
         with patch("subprocess.run", return_value=mock_result):
-            version = self._real("/usr/bin/dbt", BinaryType.DBT_CLOUD_CLI)
+            version = self._real(["/usr/bin/dbt"], BinaryType.DBT_CLOUD_CLI)
         assert version == "0.38.23"
 
     def test_fusion_fallback(self):
@@ -696,12 +696,12 @@ class TestGetDbtVersion:
         mock_result.stdout = "dbt-fusion 1.9.0\n"
         mock_result.stderr = ""
         with patch("subprocess.run", return_value=mock_result):
-            version = self._real("/usr/bin/dbt", BinaryType.FUSION)
+            version = self._real(["/usr/bin/dbt"], BinaryType.FUSION)
         assert version == "1.9.0"
 
     def test_subprocess_failure_returns_none(self):
         with patch("subprocess.run", side_effect=OSError("not found")):
-            version = self._real("/no/dbt", BinaryType.DBT_CORE)
+            version = self._real(["/no/dbt"], BinaryType.DBT_CORE)
         assert version is None
 
     def test_empty_output_returns_none(self):
@@ -709,7 +709,7 @@ class TestGetDbtVersion:
         mock_result.stdout = ""
         mock_result.stderr = ""
         with patch("subprocess.run", return_value=mock_result):
-            version = self._real("/usr/bin/dbt", BinaryType.DBT_CORE)
+            version = self._real(["/usr/bin/dbt"], BinaryType.DBT_CORE)
         assert version is None
 
 
