@@ -49,14 +49,14 @@ mock_proxied_tool_config = ProxiedToolConfig(
 
 mock_dbt_cli_config = DbtCliConfig(
     project_dir="/test/project",
-    dbt_path="/path/to/dbt",
+    dbt_command=["/path/to/dbt"],
     dbt_cli_timeout=10,
     binary_type=BinaryType.DBT_CORE,
 )
 
 mock_dbt_codegen_config = DbtCodegenConfig(
     project_dir="/test/project",
-    dbt_path="/path/to/dbt",
+    dbt_command=["/path/to/dbt"],
     dbt_cli_timeout=10,
     binary_type=BinaryType.DBT_CORE,
 )
