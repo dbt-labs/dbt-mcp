@@ -1,3 +1,0 @@
-kind: Enhancement or New Feature
-body: Make list_jobs project_id optional, restore account-wide listing when no project or environment is configured, and let an explicit project override the environment filter.
-time: 2026-10-30T12:34:37.434195-05:00
