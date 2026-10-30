@@ -154,7 +154,6 @@ async def get_job_details(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/trigger_job_run"),
-    requirements=(AccountTarget(requires=Permission.RUNS_WRITE),),
     title="Trigger Job Run",
     read_only_hint=False,
     destructive_hint=False,
@@ -260,7 +259,6 @@ async def get_job_run_details(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/cancel_job_run"),
-    requirements=(AccountTarget(requires=Permission.RUNS_WRITE),),
     title="Cancel Job Run",
     read_only_hint=False,
     destructive_hint=False,
@@ -281,7 +279,6 @@ async def cancel_job_run(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/retry_job_run"),
-    requirements=(AccountTarget(requires=Permission.RUNS_WRITE),),
     title="Retry Job Run",
     read_only_hint=False,
     destructive_hint=False,
