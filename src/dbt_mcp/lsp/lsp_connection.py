@@ -310,8 +310,8 @@ class SocketLSPConnection(LSPConnectionProviderProtocol):
         The server capabilities are stored in the connection state.
 
         Args:
-            root_uri: The root URI of the workspace (optional)
-            timeout: Timeout in seconds for the initialize request (default: 10)
+            timeout: Timeout in seconds for the initialize request. If not specified, uses
+                    default_request_timeout from the connection configuration (defaults to 60s).
         """
         if self.state.initialized:
             raise RuntimeError("LSP server is already initialized")
