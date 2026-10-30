@@ -1,6 +1,6 @@
-List jobs in the selected project.
+List jobs in a project, a configured environment, or across the account.
 
-Jobs configure scheduled or triggered dbt runs. When a project selector is exposed, use `project_id` to select the project; otherwise the current context already selects it. An explicitly selected environment narrows the results to that environment, including staging. Otherwise, jobs from all environments in the project are included. Use `limit` and `offset` to page through large result sets.
+Jobs configure scheduled or triggered dbt runs. When `project_id` is exposed, it is optional: provide it to list jobs across all environments in that project, overriding the configured environment filter. When omitted, use the configured environment (including staging), then the configured project if there is no environment. If neither is configured, list jobs across the account. A bound project selector is hidden and the configured context supplies the default. Use `limit` and `offset` to page through large result sets.
 
 The `result` field contains a list of job objects with details like:
 - Job ID, name, and description

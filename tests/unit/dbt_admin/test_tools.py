@@ -13,7 +13,6 @@ from tests.unit.dbt_admin.test_artifact_limits import Chunks
 from dbt_mcp.dbt_admin.tools import (
     ADMIN_TOOLS,
     AdminToolContext,
-    JobsToolContext,
     JobRunStatus,
     cancel_job_run,
     get_job_details,
@@ -154,7 +153,7 @@ def mock_admin_client():
 @pytest.fixture
 async def admin_context(mock_admin_client):
     """Create AdminToolContext with mocked client."""
-    context = JobsToolContext(await mock_config.admin_api_config_provider.get_config())
+    context = AdminToolContext(mock_config.admin_api_config_provider)
     # Replace the client with our mock
     context.admin_client = mock_admin_client
     return context
@@ -547,7 +546,7 @@ async def test_tools_handle_exceptions():
     mock_admin_client = Mock()
     mock_admin_client.list_jobs.side_effect = Exception("API Error")
 
-    context = JobsToolContext(await mock_config.admin_api_config_provider.get_config())
+    context = AdminToolContext(mock_config.admin_api_config_provider)
     context.admin_client = mock_admin_client
 
     with pytest.raises(Exception) as exc_info:
@@ -731,7 +730,7 @@ def test_admin_tools_list_contains_all_tools():
 
 
 async def test_admin_tools_list_jobs_params(admin_context):
-    def bind_context() -> JobsToolContext:
+    def bind_context() -> AdminToolContext:
         return admin_context
 
     tool = list_jobs.adapt_with_mappers(context=bind_context).fastmcp_tool
@@ -752,7 +751,7 @@ async def test_list_jobs_project_scope_and_pagination(
 ) -> None:
     config = await admin_context.admin_api_config_provider.get_config()
     config = replace(config, environment_id=environment_id, project_id=project_id)
-    context = JobsToolContext(config)
+    context = AdminToolContext(StaticConfigProvider(config))
     context.admin_client = admin_context.admin_client
 
     await list_jobs.fn(context, limit=10, offset=20)
@@ -767,7 +766,7 @@ async def test_list_jobs_project_scope_and_pagination(
 
 
 async def test_list_jobs_mcp_text_and_structured_output_share_pagination(admin_context):
-    def bind_context() -> JobsToolContext:
+    def bind_context() -> AdminToolContext:
         return admin_context
 
     admin_context.admin_client.list_jobs.return_value = ResultPage(
