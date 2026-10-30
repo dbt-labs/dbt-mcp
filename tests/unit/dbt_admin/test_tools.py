@@ -1,6 +1,7 @@
 import json
 from typing import cast
 from dataclasses import replace
+from inspect import Parameter, signature
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
@@ -27,6 +28,9 @@ from dbt_mcp.dbt_admin.tools import (
     trigger_job_run,
 )
 from dbt_mcp.errors import InvalidParameterError
+from dbt_mcp.tools.definitions import GenericToolDefinition
+from dbt_mcp.tools.targets import JobTarget, Permission, RunTarget
+from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.resource_limits import ArtifactConfig
 from dbt_mcp.config.config_providers import StaticConfigProvider
 from dbt_mcp.mcp.server import register_dbt_mcp_tools
@@ -36,6 +40,22 @@ from dbt_mcp.pagination import Pagination, ResultPage
 
 NUM_ADMIN_TOOLS = 11
 INLINE_CONTENT_LIMIT = ArtifactConfig().inline_bytes
+
+
+@pytest.mark.parametrize(
+    "tool,selector,target",
+    [
+        (trigger_job_run, "job_id", JobTarget(requires=Permission.RUNS_WRITE)),
+        (cancel_job_run, "run_id", RunTarget(requires=Permission.RUNS_WRITE)),
+        (retry_job_run, "run_id", RunTarget(requires=Permission.RUNS_WRITE)),
+    ],
+)
+def test_run_write_access_requires_only_the_owner_target(
+    tool: GenericToolDefinition[ToolName], selector: str, target: JobTarget | RunTarget
+) -> None:
+    assert tool.targets == {selector: target}
+    assert signature(tool.fn).parameters[selector].default is Parameter.empty
+    assert not tool.requirements
 
 
 def install_artifact_transport(context, content, monkeypatch):
