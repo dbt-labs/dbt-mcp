@@ -44,7 +44,7 @@ async def list_lsp_tools(
     """Register dbt Fusion tools with the MCP server.
 
     Args:
-        config: LSP configuration containing LSP settings
+        lspClientProvider: Provider of the LSP client the tools use
 
     Returns:
         List of tool definitions for LSP tools
@@ -91,7 +91,7 @@ async def get_column_lineage(
     """Get column lineage for a specific model column.
 
     Args:
-        lsp_client: The LSP client instance
+        lsp_client_provider: Provider of the LSP client instance
         model_id: The dbt model identifier
         column_name: The column name to trace lineage for
 

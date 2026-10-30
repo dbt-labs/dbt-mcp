@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Annotated, Any
 
 from mcp.server.fastmcp import FastMCP
@@ -8,7 +8,6 @@ from pydantic import Field
 from dbt_mcp.config.config_providers import (
     AdminApiConfig,
     ConfigProvider,
-    StaticConfigProvider,
 )
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.dbt_admin.artifacts import InlineArtifactLimitError
@@ -39,7 +38,6 @@ from dbt_mcp.tools.targets import (
     AccountTarget,
     JobTarget,
     Permission,
-    ProjectTarget,
     RunTarget,
 )
 from dbt_mcp.tools.definitions import dbt_mcp_tool
@@ -68,21 +66,6 @@ class AdminToolContext:
         self.admin_client = DbtAdminAPIClient(admin_api_config_provider)
 
 
-class JobsToolContext(AdminToolContext):
-    """A jobs listing has a resolved project or an explicit environment filter."""
-
-    def __init__(self, config: AdminApiConfig):
-        if config.environment_id is not None:
-            self.filters = {"environment_id": config.environment_id}
-        elif config.project_id is not None:
-            self.filters = {"project_id": config.project_id}
-        else:
-            raise InvalidParameterError(
-                "Select a project or environment before listing jobs"
-            )
-        super().__init__(StaticConfigProvider(config))
-
-
 @dbt_mcp_tool(
     requirements=(AccountTarget(requires=Permission.PROJECTS_READ),),
     description=get_prompt("admin_api/list_projects"),
@@ -107,26 +90,35 @@ async def list_projects(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/list_jobs"),
+    requirements=(AccountTarget(requires=Permission.JOBS_READ),),
     title="List Jobs",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
 )
 async def list_jobs(
-    context: JobsToolContext,
+    context: AdminToolContext,
     limit: Annotated[int, LIMIT_FIELD] = 50,
     offset: Annotated[int, OFFSET_FIELD] = 0,
     *,
-    project_id: Annotated[int, ProjectTarget(requires=Permission.JOBS_READ)] = Field(
-        description=JOBS_PROJECT_ID_FILTER, gt=0
-    ),
+    project_id: Annotated[
+        int | None, Field(description=JOBS_PROJECT_ID_FILTER, gt=0)
+    ] = None,
 ) -> ResultPage[list[dict[str, Any]]]:
-    """List project jobs, narrowed to the environment selected in the context."""
+    """List by explicit project, configured environment/project, or account."""
     validate_page_size(limit)
     validate_offset(offset)
     admin_api_config = await context.admin_api_config_provider.get_config()
-    params = context.filters | {"limit": limit, "offset": offset}
-    return await context.admin_client.list_jobs(admin_api_config.account_id, **params)
+    filters = {}
+    if project_id is not None:
+        filters["project_id"] = project_id
+    elif admin_api_config.environment_id is not None:
+        filters["environment_id"] = admin_api_config.environment_id
+    elif admin_api_config.project_id is not None:
+        filters["project_id"] = admin_api_config.project_id
+    return await context.admin_client.list_jobs(
+        admin_api_config.account_id, **filters, limit=limit, offset=offset
+    )
 
 
 @dbt_mcp_tool(
@@ -154,7 +146,6 @@ async def get_job_details(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/trigger_job_run"),
-    requirements=(AccountTarget(requires=Permission.RUNS_WRITE),),
     title="Trigger Job Run",
     read_only_hint=False,
     destructive_hint=False,
@@ -260,7 +251,6 @@ async def get_job_run_details(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/cancel_job_run"),
-    requirements=(AccountTarget(requires=Permission.RUNS_WRITE),),
     title="Cancel Job Run",
     read_only_hint=False,
     destructive_hint=False,
@@ -281,7 +271,6 @@ async def cancel_job_run(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/retry_job_run"),
-    requirements=(AccountTarget(requires=Permission.RUNS_WRITE),),
     title="Retry Job Run",
     read_only_hint=False,
     destructive_hint=False,
@@ -457,17 +446,8 @@ def register_admin_api_tools(
     def bind_context() -> AdminToolContext:
         return AdminToolContext(admin_api_config_provider=admin_config_provider)
 
-    async def bind_jobs_context(project_id: int | None = None) -> JobsToolContext:
-        config = await admin_config_provider.get_config()
-        if project_id is not None:
-            config = replace(config, project_id=project_id)
-        return JobsToolContext(config)
-
     definitions = [
-        list_jobs.adapt_with_mappers(context=bind_jobs_context)
-        if tool is list_jobs
-        else tool.adapt_with_mappers(context=bind_context)
-        for tool in ADMIN_TOOLS
+        tool.adapt_with_mappers(context=bind_context) for tool in ADMIN_TOOLS
     ]
     register_tools(
         dbt_mcp,

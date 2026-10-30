@@ -101,7 +101,7 @@ def generic_register_tools[NameEnum: Enum](
     Args:
         dbt_mcp: The FastMCP server instance
         tool_definitions: List of tool definitions to register
-        exclude_tools: Tools to exclude (backward compatibility - converted to disabled_tools)
+        disabled_tools: Set of explicitly disabled tools
         enabled_tools: Set of explicitly enabled tools (precedence 1)
         enabled_toolsets: Set of enabled toolsets (precedence 3)
         disabled_toolsets: Set of disabled toolsets (precedence 4)
