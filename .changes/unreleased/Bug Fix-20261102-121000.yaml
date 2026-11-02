@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Describe job/run access with owner targets and shared listing policies instead of unconditional account-wide requirements. Authorization hosts must handle JOBS_LISTING and RUNS_LISTING.
-time: 2026-11-02T12:10:00.415072-06:00
