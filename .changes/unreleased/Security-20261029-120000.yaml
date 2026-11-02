@@ -1,3 +1,0 @@
-kind: Security
-body: Bump certifi to 2026.10.19 to stop trusting emSign root certificates removed from the Mozilla CA store.
-time: 2026-10-29T12:00:00.000000+00:00
