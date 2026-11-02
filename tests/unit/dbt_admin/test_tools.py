@@ -27,6 +27,7 @@ from dbt_mcp.dbt_admin.tools import (
     trigger_job_run,
 )
 from dbt_mcp.errors import InvalidParameterError
+from dbt_mcp.tools.access import AccessPolicy
 from dbt_mcp.tools.definitions import GenericToolDefinition
 from dbt_mcp.tools.targets import JobTarget, Permission, RunTarget
 from dbt_mcp.tools.tool_names import ToolName
@@ -44,17 +45,36 @@ INLINE_CONTENT_LIMIT = ArtifactConfig().inline_bytes
 @pytest.mark.parametrize(
     "tool,selector,target",
     [
+        (get_job_details, "job_id", JobTarget(requires=Permission.JOBS_READ)),
+        (get_job_run_details, "run_id", RunTarget(requires=Permission.RUNS_READ)),
+        (list_job_run_artifacts, "run_id", RunTarget(requires=Permission.RUNS_READ)),
+        (get_job_run_artifacts, "run_id", RunTarget(requires=Permission.RUNS_READ)),
+        (get_job_run_error, "run_id", RunTarget(requires=Permission.RUNS_READ)),
         (trigger_job_run, "job_id", JobTarget(requires=Permission.RUNS_WRITE)),
         (cancel_job_run, "run_id", RunTarget(requires=Permission.RUNS_WRITE)),
         (retry_job_run, "run_id", RunTarget(requires=Permission.RUNS_WRITE)),
     ],
 )
-def test_run_write_access_requires_only_the_owner_target(
+def test_resource_access_requires_only_the_owner_target(
     tool: GenericToolDefinition[ToolName], selector: str, target: JobTarget | RunTarget
 ) -> None:
     assert tool.targets == {selector: target}
     assert signature(tool.fn).parameters[selector].default is Parameter.empty
     assert not tool.requirements
+
+
+@pytest.mark.parametrize(
+    "tool,policy_name",
+    [(list_jobs, "jobs_listing"), (list_jobs_runs, "runs_listing")],
+)
+def test_listings_declare_their_scope_policy(
+    tool: GenericToolDefinition[ToolName], policy_name: str
+) -> None:
+    assert tool.requirements is not None
+    assert len(tool.requirements) == 1
+    policy = tool.requirements[0]
+    assert isinstance(policy, AccessPolicy)
+    assert policy.value == policy_name
 
 
 def install_artifact_transport(context, content, monkeypatch):
