@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: Removed unused full-text product-docs helpers and their dedicated index_limits configuration. Product-docs MCP tools continue to search llms.txt and retrieve individual pages.
+time: 2026-10-30T14:24:14.549407-05:00

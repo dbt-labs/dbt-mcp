@@ -44,8 +44,8 @@ Hosts inject immutable budgets and admission factories through configuration:
   inline/output, worker-memory, filter-length, and execution budgets plus its own
   admission factory. That context remains held until download, evaluation, child
   reaping, and temporary-file cleanup finish.
-- `ProductDocsClient` accepts `http_config` and `ProductDocsConfig` for its
-  full-text index and cache budgets.
+- `ProductDocsClient` accepts `http_config` for downloads and `ProductDocsConfig`
+  for its cache budgets.
 
 Reuse host-owned admission factories across client configurations to share
 capacity across requests. The library has no service-specific gate instances,
@@ -68,7 +68,7 @@ than full response sizes. Header-only rejections report zero bytes read.
 Invalid arguments and oversized inline or filtered artifacts include corrective guidance.
 Response decoding faults, upstream page-contract violations, and acquisition
 limits are server errors; capacity errors indicate temporary overload.
-Product-document downloads use optional HTTP/index budgets; their cache retains
+Product-document downloads use optional HTTP budgets; their cache retains
 its byte and entry budgets. Responses too large to cache are returned without caching. Cached page
 URLs count toward the cache's byte budget alongside their content. Local CLI,
 codegen, and dev-lineage tools retain their existing behavior. Query execution
