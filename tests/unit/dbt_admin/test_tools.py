@@ -1,6 +1,7 @@
 import json
 from typing import cast
 from dataclasses import replace
+from inspect import Parameter, signature
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
@@ -12,7 +13,6 @@ from tests.unit.dbt_admin.test_artifact_limits import Chunks
 from dbt_mcp.dbt_admin.tools import (
     ADMIN_TOOLS,
     AdminToolContext,
-    JobsToolContext,
     JobRunStatus,
     cancel_job_run,
     get_job_details,
@@ -27,6 +27,10 @@ from dbt_mcp.dbt_admin.tools import (
     trigger_job_run,
 )
 from dbt_mcp.errors import InvalidParameterError
+from dbt_mcp.tools.access import AccessPolicy
+from dbt_mcp.tools.definitions import GenericToolDefinition
+from dbt_mcp.tools.targets import JobTarget, Permission, RunTarget
+from dbt_mcp.tools.tool_names import ToolName
 from dbt_mcp.resource_limits import ArtifactConfig
 from dbt_mcp.config.config_providers import StaticConfigProvider
 from dbt_mcp.mcp.server import register_dbt_mcp_tools
@@ -36,6 +40,41 @@ from dbt_mcp.pagination import Pagination, ResultPage
 
 NUM_ADMIN_TOOLS = 11
 INLINE_CONTENT_LIMIT = ArtifactConfig().inline_bytes
+
+
+@pytest.mark.parametrize(
+    "tool,selector,target",
+    [
+        (get_job_details, "job_id", JobTarget(requires=Permission.JOBS_READ)),
+        (get_job_run_details, "run_id", RunTarget(requires=Permission.RUNS_READ)),
+        (list_job_run_artifacts, "run_id", RunTarget(requires=Permission.RUNS_READ)),
+        (get_job_run_artifacts, "run_id", RunTarget(requires=Permission.RUNS_READ)),
+        (get_job_run_error, "run_id", RunTarget(requires=Permission.RUNS_READ)),
+        (trigger_job_run, "job_id", JobTarget(requires=Permission.RUNS_WRITE)),
+        (cancel_job_run, "run_id", RunTarget(requires=Permission.RUNS_WRITE)),
+        (retry_job_run, "run_id", RunTarget(requires=Permission.RUNS_WRITE)),
+    ],
+)
+def test_resource_access_requires_only_the_owner_target(
+    tool: GenericToolDefinition[ToolName], selector: str, target: JobTarget | RunTarget
+) -> None:
+    assert tool.targets == {selector: target}
+    assert signature(tool.fn).parameters[selector].default is Parameter.empty
+    assert not tool.requirements
+
+
+@pytest.mark.parametrize(
+    "tool,policy_name",
+    [(list_jobs, "jobs_listing"), (list_jobs_runs, "runs_listing")],
+)
+def test_listings_declare_their_scope_policy(
+    tool: GenericToolDefinition[ToolName], policy_name: str
+) -> None:
+    assert tool.requirements is not None
+    assert len(tool.requirements) == 1
+    policy = tool.requirements[0]
+    assert isinstance(policy, AccessPolicy)
+    assert policy.value == policy_name
 
 
 def install_artifact_transport(context, content, monkeypatch):
@@ -134,7 +173,7 @@ def mock_admin_client():
 @pytest.fixture
 async def admin_context(mock_admin_client):
     """Create AdminToolContext with mocked client."""
-    context = JobsToolContext(await mock_config.admin_api_config_provider.get_config())
+    context = AdminToolContext(mock_config.admin_api_config_provider)
     # Replace the client with our mock
     context.admin_client = mock_admin_client
     return context
@@ -527,7 +566,7 @@ async def test_tools_handle_exceptions():
     mock_admin_client = Mock()
     mock_admin_client.list_jobs.side_effect = Exception("API Error")
 
-    context = JobsToolContext(await mock_config.admin_api_config_provider.get_config())
+    context = AdminToolContext(mock_config.admin_api_config_provider)
     context.admin_client = mock_admin_client
 
     with pytest.raises(Exception) as exc_info:
@@ -711,7 +750,7 @@ def test_admin_tools_list_contains_all_tools():
 
 
 async def test_admin_tools_list_jobs_params(admin_context):
-    def bind_context() -> JobsToolContext:
+    def bind_context() -> AdminToolContext:
         return admin_context
 
     tool = list_jobs.adapt_with_mappers(context=bind_context).fastmcp_tool
@@ -732,7 +771,7 @@ async def test_list_jobs_project_scope_and_pagination(
 ) -> None:
     config = await admin_context.admin_api_config_provider.get_config()
     config = replace(config, environment_id=environment_id, project_id=project_id)
-    context = JobsToolContext(config)
+    context = AdminToolContext(StaticConfigProvider(config))
     context.admin_client = admin_context.admin_client
 
     await list_jobs.fn(context, limit=10, offset=20)
@@ -747,7 +786,7 @@ async def test_list_jobs_project_scope_and_pagination(
 
 
 async def test_list_jobs_mcp_text_and_structured_output_share_pagination(admin_context):
-    def bind_context() -> JobsToolContext:
+    def bind_context() -> AdminToolContext:
         return admin_context
 
     admin_context.admin_client.list_jobs.return_value = ResultPage(

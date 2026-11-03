@@ -11,7 +11,6 @@ from dbt_mcp.product_docs.client import (
     extract_relevant_sections,
     filter_version_blocks,
     normalize_doc_url,
-    parse_llms_full_txt,
     parse_llms_txt,
     split_markdown_sections,
 )
@@ -47,41 +46,6 @@ SAMPLE_LLMS_TXT = """\
 ## Reference
 
 - [Incremental strategy configs](https://docs.getdbt.com/reference/resource-configs/incremental-strategy.md): Configure incremental strategies for your models.
-"""
-
-SAMPLE_LLMS_FULL_TXT = """\
-# dbt Developer Hub
-
-> End user documentation, guides and technical reference for dbt
-
----
-
-### Incremental models
-
-[About incremental models](https://docs.getdbt.com/docs/build/incremental-models-overview.md)
-
-Incremental models in dbt is a materialization strategy designed to efficiently
-update your data warehouse tables. The merge strategy uses MERGE statements.
-Incremental incremental incremental for keyword frequency testing.
-
----
-
-### About the Fusion engine
-
-[About Fusion](https://docs.getdbt.com/docs/fusion/about-fusion.md)
-
-The dbt Fusion engine is the next-generation engine for dbt, written from
-the ground up in Rust. It catches incorrect SQL immediately and enables
-state-aware orchestration.
-
----
-
-### Deploy jobs
-
-[Deploy jobs](https://docs.getdbt.com/docs/deploy/deploy-jobs.md)
-
-Create and schedule deploy jobs in dbt Cloud for production runs.
-Use CI checks to validate changes before merging.
 """
 
 
@@ -460,73 +424,6 @@ class TestGetProductDocPages:
         assert page.error is not None
         assert page.url.startswith("https://docs.getdbt.com/")
         assert not page.url.endswith(".md")
-
-
-class TestParseLlmsFullTxt:
-    def test_parses_pages(self):
-        pages = parse_llms_full_txt(SAMPLE_LLMS_FULL_TXT)
-        assert len(pages) >= 2
-
-    def test_extracts_urls(self):
-        pages = parse_llms_full_txt(SAMPLE_LLMS_FULL_TXT)
-        urls = [p["url"] for p in pages]
-        assert any("about-fusion" in u for u in urls)
-        assert any("incremental-models" in u for u in urls)
-
-    def test_extracts_titles(self):
-        pages = parse_llms_full_txt(SAMPLE_LLMS_FULL_TXT)
-        titles = [p["title"] for p in pages]
-        assert any("Fusion" in t for t in titles)
-
-    def test_content_is_lowercase(self):
-        pages = parse_llms_full_txt(SAMPLE_LLMS_FULL_TXT)
-        for page in pages:
-            assert page["content_lower"] == page["content_lower"].lower()
-
-    def test_empty_input(self):
-        pages = parse_llms_full_txt("")
-        assert pages == []
-
-
-class TestSearchFullText:
-    @pytest.mark.asyncio
-    async def test_finds_keyword_in_body(self):
-        from dbt_mcp.product_docs.client import ProductDocsClient
-
-        client = ProductDocsClient()
-        client._cache["full_text"] = parse_llms_full_txt(SAMPLE_LLMS_FULL_TXT)
-        results = await client.search_full_text(["rust"])
-        urls = [r["url"] for r in results]
-        assert any("fusion" in u for u in urls)
-
-    @pytest.mark.asyncio
-    async def test_no_results_for_missing_keyword(self):
-        from dbt_mcp.product_docs.client import ProductDocsClient
-
-        client = ProductDocsClient()
-        client._cache["full_text"] = parse_llms_full_txt(SAMPLE_LLMS_FULL_TXT)
-        results = await client.search_full_text(["zzzznonexistent"])
-        assert results == []
-
-    @pytest.mark.asyncio
-    async def test_or_logic_across_keywords(self):
-        from dbt_mcp.product_docs.client import ProductDocsClient
-
-        client = ProductDocsClient()
-        client._cache["full_text"] = parse_llms_full_txt(SAMPLE_LLMS_FULL_TXT)
-        results = await client.search_full_text(["rust", "deploy"])
-        urls = [r["url"] for r in results]
-        assert any("fusion" in u for u in urls)
-        assert any("deploy" in u for u in urls)
-
-    @pytest.mark.asyncio
-    async def test_ranks_by_keyword_frequency(self):
-        from dbt_mcp.product_docs.client import ProductDocsClient
-
-        client = ProductDocsClient()
-        client._cache["full_text"] = parse_llms_full_txt(SAMPLE_LLMS_FULL_TXT)
-        results = await client.search_full_text(["incremental"])
-        assert results[0]["url"].endswith("incremental-models-overview")
 
 
 class TestFilterVersionBlocks:

@@ -1,8 +1,7 @@
 """Client for fetching, caching, and searching docs.getdbt.com content.
 
 Provides ``ProductDocsClient``, which handles HTTP requests, in-memory
-caching, and keyword search/ranking over the llms.txt index and
-llms-full.txt full-text corpus.
+caching, and keyword search/ranking over the llms.txt index.
 
 Caches live for the lifetime of the MCP server process; restart the
 server to refresh.
@@ -21,7 +20,6 @@ import httpx
 logger = logging.getLogger(__name__)
 
 LLMS_TXT_URL = "https://docs.getdbt.com/llms.txt"
-LLMS_FULL_TXT_URL = "https://docs.getdbt.com/llms-full.txt"
 DOCS_BASE_URL = "https://docs.getdbt.com"
 
 # Cap page content length in tool responses to avoid Cursor IDE freezing.
@@ -251,40 +249,6 @@ def normalize_doc_url(path: str) -> str:
         raise ValueError(f"URL must be on docs.getdbt.com, got: {url}")
 
     return url
-
-
-def parse_llms_full_txt(text: str) -> list[dict[str, str]]:
-    """Parse ``llms-full.txt`` into a list of page entries with full content."""
-    pages: list[dict[str, str]] = []
-    url_pattern = re.compile(r"https://docs\.getdbt\.com/[^\s\]\)]+")
-
-    chunks = re.split(r"\n---\n", text)
-
-    for chunk in chunks:
-        lines = chunk.strip().splitlines()
-        if not lines:
-            continue
-
-        title = ""
-        url = ""
-        for line in lines[:10]:
-            stripped = line.strip()
-            if stripped.startswith("### ") and not title:
-                title = stripped.removeprefix("### ").strip()
-            if not url:
-                url_match = url_pattern.search(stripped)
-                if url_match:
-                    url = url_match.group(0)
-            if title and url:
-                break
-
-        if not url:
-            continue
-
-        content_lower = chunk.lower()
-        pages.append({"url": url, "title": title, "content_lower": content_lower})
-
-    return pages
 
 
 def parse_llms_txt(text: str) -> list[dict[str, str]]:
@@ -531,34 +495,6 @@ class ProductDocsClient:
             return index
         return self._cache["index"]
 
-    async def get_full_text_index(self) -> list[dict[str, str]]:
-        """Return the cached llms-full.txt page index, fetching on first call."""
-        if "full_text" not in self._cache:
-            logger.info("Fetching llms-full.txt from %s", LLMS_FULL_TXT_URL)
-            async with (
-                self._http_config.admission(),
-                httpx.AsyncClient(
-                    headers={"Accept-Encoding": "gzip, deflate"},
-                    timeout=120.0,
-                    follow_redirects=True,
-                    event_hooks={
-                        "response": [
-                            response_limit_hook(
-                                self._limits.index_limits,
-                                response_type="product_docs.full_index",
-                                observer=self._http_config.observer,
-                            )
-                        ]
-                    },
-                ) as client,
-            ):
-                response = await client.get(LLMS_FULL_TXT_URL)
-                response.raise_for_status()
-            index = parse_llms_full_txt(response.text)
-            self._cache_value("full_text", index)
-            return index
-        return self._cache["full_text"]
-
     async def get_page(self, url: str) -> str:
         """Fetch a page with caching.
 
@@ -635,35 +571,3 @@ class ProductDocsClient:
             results.append(result)
 
         return results
-
-    async def search_full_text(
-        self, keywords: list[str], max_results: int = 10
-    ) -> list[dict[str, str]]:
-        """Search llms-full.txt page content for keyword matches (OR logic)."""
-        pages = await self.get_full_text_index()
-        scored: list[tuple[int, dict[str, str]]] = []
-
-        keywords_lower = [kw.lower() for kw in keywords]
-
-        for page in pages:
-            content = page["content_lower"]
-            hit_count = 0
-            keywords_matched = 0
-            for kw in keywords_lower:
-                count = content.count(kw)
-                if count > 0:
-                    keywords_matched += 1
-                    hit_count += count
-
-            if keywords_matched == 0:
-                continue
-
-            score = hit_count + (keywords_matched * 50)
-            scored.append((score, page))
-
-        scored.sort(key=lambda x: x[0], reverse=True)
-
-        return [
-            {"url": display_url(entry["url"]), "title": entry["title"]}
-            for _, entry in scored[:max_results]
-        ]
