@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Keep the show tool row limit when LIMIT appears only inside a subquery, CTE, comment, string literal or quoted identifier
+time: 2026-11-03T12:00:00.000000+00:00

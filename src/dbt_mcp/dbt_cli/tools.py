@@ -32,6 +32,57 @@ from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
 
+_LIMIT_CLAUSE = re.compile(r"\blimit\s+\d+", re.IGNORECASE)
+
+
+def _has_top_level_limit(sql: str) -> bool:
+    """Return True if the outer query has its own `LIMIT <n>`.
+
+    Comments, quoted strings and quoted identifiers are blanked out first, and
+    a LIMIT only counts when it sits outside every parenthesis, so a LIMIT in a
+    subquery or CTE does not remove the default row cap of the outer query.
+    """
+    masked = []
+    depths = []
+    depth = 0
+    i = 0
+    n = len(sql)
+    while i < n:
+        ch = sql[i]
+        if sql.startswith("--", i):
+            end = sql.find("\n", i)
+            end = n if end == -1 else end
+        elif sql.startswith("/*", i):
+            end = sql.find("*/", i + 2)
+            end = n if end == -1 else end + 2
+        elif ch in "'\"`":
+            end = i + 1
+            while end < n:
+                if sql[end] == ch:
+                    # A doubled quote is an escaped quote inside the literal.
+                    if end + 1 < n and sql[end + 1] == ch:
+                        end += 2
+                        continue
+                    end += 1
+                    break
+                end += 1
+        else:
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth = max(depth - 1, 0)
+            masked.append(ch)
+            depths.append(depth)
+            i += 1
+            continue
+        # Replace the comment or quoted span with a single space.
+        masked.append(" ")
+        depths.append(depth)
+        i = end
+    text = "".join(masked)
+    return any(depths[m.start()] == 0 for m in _LIMIT_CLAUSE.finditer(text))
+
+
 _VALID_RESOURCE_TYPES = frozenset(
     {
         "all",
@@ -307,7 +358,7 @@ def create_dbt_cli_tool_definitions(
         # This is quite crude, but it should be okay for now
         # until we have a dbt Fusion integration.
         cli_limit = None
-        if re.search(r"\blimit\s+\d+", sql_query, re.IGNORECASE):
+        if _has_top_level_limit(sql_query):
             # When --limit=-1, dbt won't apply a separate limit.
             cli_limit = -1
         elif limit:
