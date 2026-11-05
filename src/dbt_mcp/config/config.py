@@ -59,7 +59,7 @@ TOOLSET_TO_ENABLE_ATTR = {
 @dataclass
 class DbtCliConfig:
     project_dir: str
-    dbt_path: str
+    dbt_command: list[str]
     dbt_cli_timeout: int
     binary_type: BinaryType
     profiles_dir: str | None = None
@@ -68,7 +68,7 @@ class DbtCliConfig:
 @dataclass
 class DbtCodegenConfig:
     project_dir: str
-    dbt_path: str
+    dbt_command: list[str]
     dbt_cli_timeout: int
     binary_type: BinaryType
     profiles_dir: str | None = None
@@ -111,7 +111,7 @@ class Config:
 
 def _make_dbt_version_provider(
     *,
-    dbt_path: str | None,
+    dbt_command: list[str] | None,
     binary_type: BinaryType | None,
 ) -> Callable[[], str | None]:
     """Return a callable that resolves the dbt version on first invocation
@@ -122,7 +122,11 @@ def _make_dbt_version_provider(
     ``dbt --version`` -- which can take several seconds on installs with
     many adapters.
     """
-    if not dbt_path or binary_type is None or binary_type == BinaryType.DBT_CLOUD_CLI:
+    if (
+        not dbt_command
+        or binary_type is None
+        or binary_type == BinaryType.DBT_CLOUD_CLI
+    ):
         return lambda: None
 
     lock = threading.Lock()
@@ -131,7 +135,7 @@ def _make_dbt_version_provider(
     def provider() -> str | None:
         with lock:
             if "value" not in cache:
-                cache["value"] = get_dbt_version(dbt_path, binary_type)
+                cache["value"] = get_dbt_version(dbt_command, binary_type)
             return cache["value"]
 
     return provider
@@ -187,26 +191,27 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
     )
 
     # Detect binary type once (needed for CLI, codegen, and version detection)
+    dbt_command = settings.dbt_command_args
     binary_type: BinaryType | None = None
-    if settings.dbt_project_dir and settings.dbt_path:
-        binary_type = detect_binary_type(settings.dbt_path)
+    if settings.dbt_project_dir and dbt_command:
+        binary_type = detect_binary_type(dbt_command)
 
     # CLI/codegen/LSP — still conditional (need concrete paths at registration time)
     dbt_cli_config = None
-    if settings.dbt_project_dir and settings.dbt_path and binary_type is not None:
+    if settings.dbt_project_dir and dbt_command and binary_type is not None:
         dbt_cli_config = DbtCliConfig(
             project_dir=settings.dbt_project_dir,
-            dbt_path=settings.dbt_path,
+            dbt_command=dbt_command,
             dbt_cli_timeout=settings.dbt_cli_timeout,
             binary_type=binary_type,
             profiles_dir=settings.dbt_profiles_dir,
         )
 
     dbt_codegen_config = None
-    if settings.dbt_project_dir and settings.dbt_path and binary_type is not None:
+    if settings.dbt_project_dir and dbt_command and binary_type is not None:
         dbt_codegen_config = DbtCodegenConfig(
             project_dir=settings.dbt_project_dir,
-            dbt_path=settings.dbt_path,
+            dbt_command=dbt_command,
             dbt_cli_timeout=settings.dbt_cli_timeout,
             binary_type=binary_type,
             profiles_dir=settings.dbt_profiles_dir,
@@ -239,7 +244,7 @@ def load_config(enable_proxied_tools: bool = True) -> Config:
     # version. The provider defers the actual `dbt --version` subprocess
     # until the first product_docs tool call so startup is never blocked.
     dbt_version_provider = _make_dbt_version_provider(
-        dbt_path=settings.dbt_path if settings.dbt_project_dir else None,
+        dbt_command=dbt_command if settings.dbt_project_dir else None,
         binary_type=binary_type,
     )
 

@@ -47,7 +47,7 @@ async def test_manifest_loads_non_ascii_utf8(
 
     config = DbtCliConfig(
         project_dir=str(tmp_path),
-        dbt_path="/path/to/dbt",
+        dbt_command=["/path/to/dbt"],
         dbt_cli_timeout=10,
         binary_type=BinaryType.DBT_CORE,
     )

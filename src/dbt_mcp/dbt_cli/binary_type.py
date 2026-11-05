@@ -1,4 +1,5 @@
 import re
+import shlex
 import subprocess
 from enum import Enum
 
@@ -13,12 +14,13 @@ class BinaryType(Enum):
     DBT_CLOUD_CLI = "dbt_cloud_cli"
 
 
-def detect_binary_type(file_path: str) -> BinaryType:
+def detect_binary_type(dbt_command: list[str]) -> BinaryType:
     """
     Detect the type of dbt binary (dbt Core, Fusion, or dbt Cloud CLI) by running --help.
 
     Args:
-        file_path: Path to the dbt executable
+        dbt_command: The command used to run dbt, e.g. ["dbt"] or
+            ["python", "-m", "dbt.cli.main"]
 
     Returns:
         BinaryType: The detected binary type
@@ -28,7 +30,7 @@ def detect_binary_type(file_path: str) -> BinaryType:
     """
     try:
         result = subprocess.run(
-            [file_path, "--help"],
+            [*dbt_command, "--help"],
             check=False,
             capture_output=True,
             text=True,
@@ -36,7 +38,9 @@ def detect_binary_type(file_path: str) -> BinaryType:
         )
         help_output = result.stdout
     except Exception as e:
-        raise BinaryExecutionError(f"Cannot execute binary {file_path}: {e}")
+        raise BinaryExecutionError(
+            f"Cannot execute binary {shlex.join(dbt_command)}: {e}"
+        )
 
     if not help_output:
         # Default to dbt Core if no output
@@ -60,7 +64,7 @@ def detect_binary_type(file_path: str) -> BinaryType:
     return BinaryType.DBT_CORE
 
 
-def get_dbt_version(dbt_path: str, binary_type: BinaryType) -> str | None:
+def get_dbt_version(dbt_command: list[str], binary_type: BinaryType) -> str | None:
     """Return the installed dbt version string (e.g. ``'1.8.4'``), or ``None`` if unparseable.
 
     Runs ``dbt --version`` and parses the output according to the binary type:
@@ -73,7 +77,7 @@ def get_dbt_version(dbt_path: str, binary_type: BinaryType) -> str | None:
     """
     try:
         result = subprocess.run(
-            [dbt_path, "--version"],
+            [*dbt_command, "--version"],
             check=False,
             capture_output=True,
             text=True,
