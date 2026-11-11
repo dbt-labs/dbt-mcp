@@ -417,3 +417,69 @@ class TestMinimumInterval:
             await asyncio.wait_for(provider._background_refresh_worker(), timeout=2)
         assert m.call_count == 3
         assert all(d > 50 for d in sleeps[1:])
+
+
+class TestReviewFollowUp:
+    @pytest.mark.asyncio
+    async def test_worker_exits_without_backoff_when_inline_latched(self):
+        strategy = MockRefreshStrategy(wait_seconds=0)
+        provider = _provider(expires_at=int(time.time()) - 100, strategy=strategy)
+        with patch(REFRESH_PATH, side_effect=OAuthError(error="invalid_grant")) as m:
+            with pytest.raises(ValueError):
+                provider.get_token()
+            await asyncio.wait_for(provider._background_refresh_worker(), timeout=2)
+        assert m.call_count == 1
+        assert strategy.error_wait_calls == 0
+
+    def _file_provider(self, tmp_path, *, persisted_rt: str):
+        from dbt_mcp.oauth.context_manager import DbtPlatformContextManager
+        from dbt_mcp.oauth.dbt_platform import DbtPlatformContext
+        from dbt_mcp.oauth.token import DecodedAccessToken
+
+        manager = DbtPlatformContextManager(tmp_path / "mcp.yml")
+        manager.write_context_to_file(
+            DbtPlatformContext(
+                decoded_access_token=DecodedAccessToken(
+                    access_token_response=_response(
+                        expires_at=int(time.time()) + 200, refresh_token=persisted_rt
+                    ),
+                    decoded_claims={"sub": "1"},
+                ),
+                account_id=7,
+                host_prefix="abc",
+                selected_project_ids=[1],
+            )
+        )
+        provider = OAuthTokenProvider(
+            access_token_response=_response(expires_at=int(time.time()) + 200),
+            dbt_platform_url="https://cloud.getdbt.com",
+            context_manager=manager,
+            refresh_strategy=MockRefreshStrategy(wait_seconds=0),
+            min_refresh_interval_seconds=0,
+        )
+        return manager, provider
+
+    def test_terminal_latch_invalidates_cached_access_token(self, tmp_path):
+        from dbt_mcp.config.credentials import _is_context_complete
+
+        manager, provider = self._file_provider(tmp_path, persisted_rt="rt0")
+        assert _is_context_complete(manager.read_context())
+        with patch(REFRESH_PATH, side_effect=OAuthError(error="invalid_grant")):
+            with pytest.raises(OAuthError):
+                provider._refresh_token()
+        ctx = manager.read_context()
+        assert ctx is not None
+        # Startup must not treat the rejected credentials as reusable.
+        assert not _is_context_complete(ctx)
+        # Account and project selection survive for the next login.
+        assert ctx.account_id == 7
+        assert ctx.selected_project_ids == [1]
+
+    def test_latch_leaves_other_instances_newer_token_alone(self, tmp_path):
+        manager, provider = self._file_provider(tmp_path, persisted_rt="rt-other")
+        with patch(REFRESH_PATH, side_effect=OAuthError(error="invalid_grant")):
+            with pytest.raises(ConnectionError):
+                provider._refresh_token()
+        ctx = manager.read_context()
+        assert ctx is not None and ctx.decoded_access_token is not None
+        assert provider._terminal_error is None

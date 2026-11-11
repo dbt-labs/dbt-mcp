@@ -51,6 +51,26 @@ class DbtPlatformContextManager:
         self.write_context_to_file(next_dbt_platform_context)
         return next_dbt_platform_context
 
+    def invalidate_access_token(self, *, rejected_refresh_token: str) -> bool:
+        """Drop the cached access token when its refresh token was rejected.
+
+        Startup treats a cached token with enough lifetime left as usable and
+        skips login, so without this a restart can reload credentials the
+        server already rejected. Account and project selection are kept for the
+        next login. Nothing changes if the file holds a different refresh token
+        (another instance refreshed) or cannot be read. Returns True if the
+        file was changed.
+        """
+        context = self.read_context()
+        if context is None or context.decoded_access_token is None:
+            return False
+        persisted = context.decoded_access_token.access_token_response.refresh_token
+        if persisted != rejected_refresh_token:
+            return False
+        context.decoded_access_token = None
+        self.write_context_to_file(context)
+        return True
+
     def _ensure_config_location_exists(self) -> None:
         """Ensure the config file location and its parent directories exist."""
         self.config_location.parent.mkdir(parents=True, exist_ok=True)

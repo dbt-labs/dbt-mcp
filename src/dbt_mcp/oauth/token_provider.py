@@ -28,7 +28,9 @@ MAX_CONSECUTIVE_REFRESH_FAILURES = 5
 # unbounded stream of refresh requests.
 MIN_REFRESH_INTERVAL_SECONDS = 60
 
-REAUTHENTICATE_MESSAGE = "Please re-authenticate by restarting the MCP server."
+REAUTHENTICATE_MESSAGE = (
+    "Please re-authenticate by restarting the MCP server, which will start a new login."
+)
 
 # Re-export for backward compatibility.
 TOKEN_EXPIRY_BUFFER_SECONDS = INLINE_REFRESH_BUFFER_SECONDS
@@ -141,6 +143,15 @@ class OAuthTokenProvider:
             return True
         return False
 
+    def _invalidate_persisted_credentials(self) -> None:
+        """Make the next startup log in again instead of reusing rejected tokens."""
+        try:
+            self.context_manager.invalidate_access_token(
+                rejected_refresh_token=self._refresh_token_value
+            )
+        except Exception as e:
+            logger.warning("Failed to invalidate rejected OAuth credentials: %s", e)
+
     def _refresh_token(
         self,
         *,
@@ -188,6 +199,7 @@ class OAuthTokenProvider:
                             "retrying with the persisted one"
                         ) from e
                     self._terminal_error = e
+                    self._invalidate_persisted_credentials()
                 raise
             if not dbt_platform_context.decoded_access_token:
                 raise ValueError("No decoded access token found in context")
@@ -258,7 +270,9 @@ class OAuthTokenProvider:
                     continue
                 raise ValueError("Refreshed access token is already due for refresh")
             except Exception as e:
-                if is_terminal_refresh_error(e):
+                # An inline refresh may have latched the rejection already, in
+                # which case it reaches here wrapped and looks transient.
+                if self._terminal_error is not None or is_terminal_refresh_error(e):
                     logger.error(
                         "OAuth refresh token was rejected by the server; "
                         "stopping background refresh. %s",
