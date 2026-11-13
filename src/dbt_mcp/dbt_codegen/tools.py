@@ -53,7 +53,7 @@ def create_dbt_codegen_tool_definitions(
 
             # Add appropriate color disable flag based on binary type
             color_flag = get_color_disable_flag(config.binary_type)
-            args_list = [config.dbt_path, color_flag, *full_command]
+            args_list = [*config.dbt_command, color_flag, *full_command]
 
             process = subprocess.Popen(
                 args=args_list,
