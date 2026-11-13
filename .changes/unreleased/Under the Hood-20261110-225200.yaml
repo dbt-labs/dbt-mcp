@@ -1,0 +1,3 @@
+kind: Under the Hood
+body: Add release PR changelog parity check to prevent silently dropping unreleased entries merged after release PR creation
+time: 2026-11-10T22:52:00.000000+05:30

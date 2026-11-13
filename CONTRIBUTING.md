@@ -273,5 +273,5 @@ Only people in the `CODEOWNERS` file should trigger a new release with these ste
 | 1.2.0       | -                | major | rc.1               | 2.0.0-rc.1        |
 | 1.2.0       | 2.0.0-rc.1       | major | -                  | 2.0.0             |
 
-3. Get this PR approved & merged in (if the resulting release name is not the one expected in the PR, just close the PR and try again step 1)
+3. Get this PR approved & merged in (if the resulting release name is not the one expected in the PR, just close the PR and try again step 1). If new changelog entries were merged into `main` after the release PR was generated, the release changelog parity check will fail to prevent orphaned entries from being silently omitted; simply close the PR and re-trigger step 1 to batch them into the release.
 4. This will trigger the `Release dbt-mcp` Action. On the `Summary` page of this Action a member of the `CODEOWNERS` file will have to manually approve the release. The rest of the release process is automated.

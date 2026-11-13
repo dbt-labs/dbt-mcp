@@ -52,3 +52,27 @@ jobs:
         with:
           version: latest
           args: next auto
+
+  check-release-changelog:
+    name: Check release PR changelog parity
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    if: >-
+      startsWith(github.head_ref, 'release/') &&
+      github.event.pull_request.user.login == 'github-actions[bot]'
+    steps:
+      - name: checkout code
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: setup python
+        uses: ./.github/actions/setup-python
+        id: setup-python
+      - name: Verify release changelog parity with main
+        env:
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch origin main:main
+          python scripts/check_release_changelog.py --pr-head "$PR_HEAD"
+
