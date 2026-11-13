@@ -33,7 +33,7 @@ from dbt_mcp.dbt_admin.param_descriptions import (
 )
 from dbt_mcp.dbt_admin.run_artifacts.parser import ErrorFetcher, WarningFetcher
 from dbt_mcp.prompts.prompts import get_prompt
-from dbt_mcp.errors import InvalidParameterError
+from dbt_mcp.errors import InvalidParameterError, ResponseLimitError
 from dbt_mcp.tools.access import AccessPolicy
 from dbt_mcp.tools.targets import (
     AccountTarget,
@@ -55,6 +55,12 @@ from dbt_mcp.pagination import (
 )
 
 logger = logging.getLogger(__name__)
+
+RUN_STEPS_OMITTED = (
+    "Run steps were omitted because the response with every step's logs "
+    "exceeds the size limit. Use get_job_run_artifact with run_results.json "
+    "for per-node results."
+)
 
 
 @dataclass
@@ -243,9 +249,16 @@ async def get_job_run_details(
 ) -> dict[str, Any]:
     """Get details for a specific job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
-    return await context.admin_client.get_job_run_details(
-        admin_api_config.account_id, run_id
-    )
+    try:
+        return await context.admin_client.get_job_run_details(
+            admin_api_config.account_id, run_id
+        )
+    except ResponseLimitError:
+        run = await context.admin_client.get_job_run(
+            admin_api_config.account_id, run_id
+        )
+        run.pop("run_steps", None)
+        return run | {"run_steps_omitted": RUN_STEPS_OMITTED}
 
 
 @dbt_mcp_tool(

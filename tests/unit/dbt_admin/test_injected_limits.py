@@ -1,3 +1,4 @@
+import json
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from unittest.mock import patch
@@ -6,6 +7,7 @@ import httpx
 import pytest
 
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
+from dbt_mcp.dbt_admin.tools import AdminToolContext, get_job_run_details
 from dbt_mcp.config.config_providers import AdminApiConfig
 from dbt_mcp.discovery.client import execute_query
 from dbt_mcp.product_docs.client import ProductDocsClient
@@ -87,6 +89,44 @@ async def test_injected_admission_and_byte_budget_cover_acquisition(service):
                     "https://docs.getdbt.com/docs"
                 )
     assert events == ["enter", "request", "exit"]
+
+
+@pytest.mark.parametrize(
+    "budgets", [ResponseLimits(wire_bytes=512), ResponseLimits(decoded_bytes=512)]
+)
+async def test_run_details_tool_omits_steps_whose_logs_exceed_the_budget(budgets):
+    def respond(request):
+        if "include_related" in request.url.params:
+            run = {"id": 100, "run_steps": [{"index": 1, "logs": "x" * 1024}]}
+        else:
+            run = {"id": 100, "status": 20, "run_steps": []}
+        body = json.dumps({"data": run}).encode()
+        return httpx.Response(
+            200,
+            headers={"content-length": str(len(body))},
+            stream=httpx.ByteStream(body),
+        )
+
+    config = AdminApiConfig(
+        url="https://cloud.getdbt.com",
+        account_id=12345,
+        headers_provider=MockHeadersProvider({}),
+        http_config=HttpConfig(response_limits=budgets),
+    )
+    context = AdminToolContext(MockAdminApiConfigProvider(config))
+    client_class = httpx.AsyncClient
+    with patch(
+        "httpx.AsyncClient",
+        side_effect=lambda **kwargs: client_class(
+            transport=httpx.MockTransport(respond), **kwargs
+        ),
+    ):
+        result = await get_job_run_details.fn(context, run_id=100)
+
+    assert result["id"] == 100
+    assert result["status"] == 20
+    assert "run_steps" not in result
+    assert "size limit" in result["run_steps_omitted"]
 
 
 @pytest.mark.parametrize(
