@@ -15,6 +15,7 @@ from dbt_mcp.dbt_cli.binary_type import BinaryType, get_color_disable_flag
 from dbt_mcp.dbt_cli.models.lineage_types import ModelLineage
 from dbt_mcp.dbt_cli.models.manifest import Manifest
 from dbt_mcp.dbt_cli.subprocess_env import get_dbt_subprocess_env
+from dbt_mcp.errors.cli import BinaryExecutionError, CLIToolCallError
 from dbt_mcp.errors.common import InvalidParameterError
 from dbt_mcp.prompts.prompts import get_prompt
 from dbt_mcp.tools.access import AccessPolicy
@@ -73,6 +74,8 @@ def create_dbt_cli_tool_definitions(
         sample: str | None = None,
         yml_selector: str | None = None,
         state_path: str | None = None,
+        *,
+        check: bool = False,
     ) -> str:
         try:
             # Commands that should always be quiet to reduce output verbosity
@@ -161,17 +164,25 @@ def create_dbt_cli_tool_definitions(
                 parts.append(f"--- stdout ---\n{stdout.rstrip()}")
             if stderr:
                 parts.append(f"--- stderr ---\n{stderr.rstrip()}")
-            if parts:
-                return "\n".join(parts)
-            return f"Command failed with exit code {process.returncode} (no output)"
+            output = (
+                "\n".join(parts)
+                if parts
+                else f"Command failed with exit code {process.returncode} (no output)"
+            )
+            if check:
+                raise BinaryExecutionError(output)
+            return output
         except subprocess.TimeoutExpired:
             process.kill()
             process.communicate()
-            return "Timeout: dbt command took too long to complete." + (
+            timeout_msg = "Timeout: dbt command took too long to complete." + (
                 " Try using a specific selector to narrow down the results."
                 if is_selectable
                 else ""
             )
+            if check:
+                raise CLIToolCallError(timeout_msg)
+            return timeout_msg
 
     async def build(
         node_selection: str | None = Field(
@@ -358,7 +369,7 @@ def create_dbt_cli_tool_definitions(
         Runs under the dbt lock, so no other dbt command rewrites the manifest
         between the parse and the read.
         """
-        _run_dbt_command(["parse"])  # Ensure manifest is generated
+        _run_dbt_command(["parse"], check=True)  # Ensure manifest is generated
         manifest_path = os.path.join(
             config.project_dir or ".", "target", "manifest.json"
         )
@@ -434,6 +445,7 @@ def create_dbt_cli_tool_definitions(
                 ["list", "--output", "json", "--output-keys", *output_keys],
                 node_selection=node_id,
                 is_selectable=True,
+                check=True,
             )
 
         node_result: dict[str, Any] | None = None
@@ -450,8 +462,10 @@ def create_dbt_cli_tool_definitions(
                     node_result = node
                 elif resource_type == "test":
                     # Collect additional tests (associated with the primary node)
-                    fqn = node.get("fqn", [])
-                    test_ids.append(".".join(fqn) if fqn else node.get("unique_id", ""))
+                    if test_id := (
+                        node.get("unique_id") or ".".join(node.get("fqn", []))
+                    ):
+                        test_ids.append(test_id)
             except json.JSONDecodeError:
                 continue
 
