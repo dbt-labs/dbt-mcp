@@ -36,33 +36,6 @@ from autogen.agentchat.group import (
 from autogen.agentchat.group.patterns import DefaultPattern
 
 
-# ---------------------------------------------------------------------------
-# Tool-based handoff helper (Priority 3)
-# ---------------------------------------------------------------------------
-# This function can be registered as a tool on the analyst agent.
-# When the analyst calls it, the framework uses the ReplyResult target
-# to route directly to the executor, regardless of any LLM condition.
-# The routing decision is co-located with the logic producing it.
-
-def recommend_action(
-    action: Annotated[str, "The dbt action to recommend, e.g. 'test --select orders'"],
-    reason: Annotated[str, "Why this action is needed"],
-    context_variables: ContextVariables,
-) -> ReplyResult:
-    """Record an action recommendation and hand off to the executor agent."""
-    context_variables["pending_action"] = action
-    context_variables["action_reason"] = reason
-    return ReplyResult(
-        message=(
-            f"Analysis complete. Recommended action: dbt {action}\n"
-            f"Reason: {reason}\n"
-            "Handing off to executor."
-        ),
-        target=AgentTarget(executor_agent),  # defined below
-        context_variables=context_variables,
-    )
-
-
 async def main() -> None:
     host = os.environ.get("DBT_HOST", "cloud.getdbt.com")
     token = os.environ["DBT_TOKEN"]
@@ -88,6 +61,39 @@ async def main() -> None:
 
         # All dbt-mcp tools available in this toolkit.
         toolkit = await create_toolkit(session=session)
+
+        # ------------------------------------------------------------------
+        # Tool-based handoff helper (Priority 3)
+        # ------------------------------------------------------------------
+        # This function is registered as a tool on the analyst agent below.
+        # When the analyst calls it, the framework uses the ReplyResult target
+        # to route directly to the executor, regardless of any LLM condition.
+        # The routing decision is co-located with the logic producing it.
+        #
+        # It is nested inside main() so that it closes over executor_agent,
+        # which is created a few lines further down. The name is resolved when
+        # the analyst actually invokes the tool, by which point executor_agent
+        # is bound.
+        # ------------------------------------------------------------------
+        def recommend_action(
+            action: Annotated[
+                str, "The dbt action to recommend, e.g. 'test --select orders'"
+            ],
+            reason: Annotated[str, "Why this action is needed"],
+            context_variables: ContextVariables,
+        ) -> ReplyResult:
+            """Record an action recommendation and hand off to the executor agent."""
+            context_variables["pending_action"] = action
+            context_variables["action_reason"] = reason
+            return ReplyResult(
+                message=(
+                    f"Analysis complete. Recommended action: dbt {action}\n"
+                    f"Reason: {reason}\n"
+                    "Handing off to executor."
+                ),
+                target=AgentTarget(executor_agent),
+                context_variables=context_variables,
+            )
 
         # ------------------------------------------------------------------
         # Agent 1: Analyst
