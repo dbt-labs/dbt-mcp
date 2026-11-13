@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Stop OAuth background token refresh after the server rejects the refresh token, and bound transient refresh retries with capped exponential backoff
+time: 2026-11-09T17:00:00.000000-05:00
