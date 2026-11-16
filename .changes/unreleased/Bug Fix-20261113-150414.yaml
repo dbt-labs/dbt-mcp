@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Return job run details without steps when the response with step logs exceeds the configured size limit
-time: 2026-11-13T15:04:14.471773Z
