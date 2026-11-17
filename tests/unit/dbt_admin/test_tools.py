@@ -8,6 +8,7 @@ import httpx
 import pytest
 
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
+from dbt_mcp.dbt_admin.artifacts import InlineArtifactLimitError
 from tests.unit.dbt_admin.test_artifact_limits import Chunks
 
 from dbt_mcp.dbt_admin.tools import (
@@ -726,6 +727,43 @@ async def test_get_job_run_error_tool(mock_error_fetcher_class, admin_context):
 
     mock_error_fetcher_class.assert_called_once()
     mock_error_fetcher_instance.analyze_run_errors.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "warning_only,include_warnings,step_status",
+    [
+        (False, False, 20),
+        (True, False, 10),
+        (False, True, 10),
+    ],
+)
+async def test_get_job_run_error_oversized_artifact_has_valid_recovery(
+    admin_context: AdminToolContext,
+    mock_admin_client: Mock,
+    *,
+    warning_only: bool,
+    include_warnings: bool,
+    step_status: int,
+) -> None:
+    mock_admin_client.get_job_run_details.return_value = {
+        "is_cancelled": False,
+        "run_steps": [{"index": 3, "name": "dbt build", "status": step_status}],
+    }
+    mock_admin_client.get_job_run_artifact.side_effect = InlineArtifactLimitError(
+        "Artifact exceeds the inline size limit; use jq_filter."
+    )
+
+    with pytest.raises(InvalidParameterError) as caught:
+        await get_job_run_error.fn(
+            admin_context,
+            run_id=100,
+            warning_only=warning_only,
+            include_warnings=include_warnings,
+        )
+
+    assert "get_job_run_artifacts" in str(caught.value)
+    assert "jq_filter" in str(caught.value)
+    assert "100" in str(caught.value)
 
 
 def test_admin_tools_list_contains_all_tools():

@@ -363,8 +363,6 @@ async def get_job_run_artifacts(
         "'.metadata'; to list nodes use '.nodes | keys'; to find failures use "
         "'.results[] | select(.status == \"error\")'."
     )
-    if artifact_path.endswith("run_results.json"):
-        hint += " For run failures specifically, use get_job_run_error tool."
     return hint
 
 
@@ -387,21 +385,6 @@ async def get_job_run_error(
 ) -> dict[str, Any]:
     """Get focused error/warning information for a job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
-
-    if warning_only:
-        run_details = await context.admin_client.get_job_run_details(
-            admin_api_config.account_id, run_id, include_logs=True
-        )
-        if len(run_details.get("run_steps", [])) > 20:
-            raise InvalidParameterError(
-                "Run has more than 20 steps; inspect a specific step with get_job_run_artifacts."
-            )
-        warning_fetcher = WarningFetcher(
-            run_id, run_details, context.admin_client, admin_api_config
-        )
-        result = await warning_fetcher.analyze_run_warnings()
-        return result
-
     run_details = await context.admin_client.get_job_run_details(
         admin_api_config.account_id, run_id, include_logs=True
     )
@@ -409,21 +392,37 @@ async def get_job_run_error(
         raise InvalidParameterError(
             "Run has more than 20 steps; inspect a specific step with get_job_run_artifacts."
         )
-    error_fetcher = ErrorFetcher(
-        run_id, run_details, context.admin_client, admin_api_config
-    )
-    error_result = await error_fetcher.analyze_run_errors()
 
-    if include_warnings:
-        warning_fetcher = WarningFetcher(
+    try:
+        if warning_only:
+            warning_fetcher = WarningFetcher(
+                run_id, run_details, context.admin_client, admin_api_config
+            )
+            result = await warning_fetcher.analyze_run_warnings()
+            return result
+
+        error_fetcher = ErrorFetcher(
             run_id, run_details, context.admin_client, admin_api_config
         )
-        warning_result = await warning_fetcher.analyze_run_warnings()
+        error_result = await error_fetcher.analyze_run_errors()
 
-        result = {**error_result, "warnings": warning_result}
-        return result
+        if include_warnings:
+            warning_fetcher = WarningFetcher(
+                run_id, run_details, context.admin_client, admin_api_config
+            )
+            warning_result = await warning_fetcher.analyze_run_warnings()
 
-    return error_result
+            result = {**error_result, "warnings": warning_result}
+            return result
+
+        return error_result
+    except InlineArtifactLimitError as error:
+        raise InlineArtifactLimitError(
+            f"An artifact for run {run_id} exceeds the inline size limit. "
+            f"Use get_job_run_artifacts with run_id={run_id}, the required "
+            "artifact_path and step, "
+            "and a jq_filter to select a smaller result."
+        ) from error
 
 
 ADMIN_TOOLS = [
