@@ -134,7 +134,20 @@ async def test_run_details_tool_omits_steps_whose_logs_exceed_the_budget(budgets
     assert "get_job_run_artifacts with run_id=100" in result["run_steps_omitted"]
 
 
-async def test_run_error_tool_names_the_recovery_calls_when_step_logs_exceed_the_budget():
+@pytest.mark.parametrize(
+    ("options", "selected"),
+    [
+        ({}, '.status == "error" or .status == "fail")'),
+        (
+            {"include_warnings": True},
+            '.status == "error" or .status == "fail" or .status == "warn")',
+        ),
+        ({"warning_only": True}, 'select(.status == "warn")'),
+    ],
+)
+async def test_run_error_tool_names_the_recovery_calls_when_step_logs_exceed_the_budget(
+    options, selected
+):
     def respond(request):
         run = {"id": 100, "run_steps": [{"index": 1, "logs": "x" * 1024}]}
         body = json.dumps({"data": run}).encode()
@@ -161,10 +174,11 @@ async def test_run_error_tool_names_the_recovery_calls_when_step_logs_exceed_the
         ),
         pytest.raises(ResponseLimitError) as error,
     ):
-        await get_job_run_error.fn(context, run_id=100)
+        await get_job_run_error.fn(context, run_id=100, **options)
 
     assert "get_job_run_details with run_id=100" in str(error.value)
     assert "get_job_run_artifacts with run_id=100" in str(error.value)
+    assert selected in str(error.value)
 
 
 @pytest.mark.parametrize(
