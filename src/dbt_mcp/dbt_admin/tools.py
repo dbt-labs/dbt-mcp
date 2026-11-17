@@ -57,11 +57,12 @@ from dbt_mcp.pagination import (
 logger = logging.getLogger(__name__)
 
 
-def _failed_nodes_hint(run_id: int) -> str:
+def _run_results_hint(run_id: int, statuses: tuple[str, ...]) -> str:
+    selected = " or ".join(f'.status == "{status}"' for status in statuses)
     return (
         f"call {ToolName.GET_JOB_RUN_ARTIFACTS.value} with run_id={run_id}, "
         "artifact_path='run_results.json', and jq_filter='.results[] | "
-        'select(.status == "error" or .status == "fail") | '
+        f"select({selected}) | "
         "{unique_id, status, message}'. Without step it reads the last step. "
         "When has_docs_generated is true, the last step is docs generation, so "
         "pass step to read an earlier one. Step numbers start at 1 and count "
@@ -268,7 +269,7 @@ async def get_job_run_details(
         return run | {
             "run_steps_omitted": "Run steps were omitted because their combined "
             "logs exceed the response size limit. For per-node failures, "
-            + _failed_nodes_hint(run_id)
+            + _run_results_hint(run_id, ("error", "fail"))
         }
 
 
@@ -401,10 +402,17 @@ async def get_job_run_error(
             admin_api_config.account_id, run_id, include_logs=True
         )
     except ResponseLimitError as error:
+        statuses = (
+            ("warn",)
+            if warning_only
+            else ("error", "fail", "warn")
+            if include_warnings
+            else ("error", "fail")
+        )
         raise ResponseLimitError(
             f"Run {run_id}'s step logs exceed the response size limit. Call "
             f"{ToolName.GET_JOB_RUN_DETAILS.value} with run_id={run_id} for "
-            f"has_docs_generated, then {_failed_nodes_hint(run_id)}"
+            f"has_docs_generated, then {_run_results_hint(run_id, statuses)}"
         ) from error
     if len(run_details.get("run_steps", [])) > 20:
         raise InvalidParameterError(
