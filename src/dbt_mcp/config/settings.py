@@ -1,4 +1,6 @@
 import logging
+import os
+import shlex
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -68,6 +70,7 @@ class DbtMcpSettings(BaseSettings):
     # dbt CLI settings
     dbt_project_dir: str | None = Field(None, alias="DBT_PROJECT_DIR")
     dbt_path: str = Field("dbt", alias="DBT_PATH")
+    dbt_command: str | None = Field(None, alias="DBT_COMMAND")
     dbt_cli_timeout: int = Field(DEFAULT_DBT_CLI_TIMEOUT, alias="DBT_CLI_TIMEOUT")
     dbt_warn_error_options: str | None = Field(None, alias="DBT_WARN_ERROR_OPTIONS")
     dbt_profiles_dir: str | None = Field(None, alias="DBT_PROFILES_DIR")
@@ -133,6 +136,7 @@ class DbtMcpSettings(BaseSettings):
             #  auto-disable settings
             f"DbtMcpSettings(dbt_host={self.dbt_host}, "
             f"dbt_path={self.dbt_path}, "
+            f"dbt_command={self.dbt_command}, "
             f"dbt_project_dir={self.dbt_project_dir}, "
             # disable settings
             f"disable_dbt_cli={self.disable_dbt_cli}, "
@@ -263,6 +267,29 @@ class DbtMcpSettings(BaseSettings):
             )
         return v
 
+    @field_validator("dbt_command", mode="after")
+    @classmethod
+    def validate_dbt_command(cls, v: str | None) -> str | None:
+        """Treat a blank DBT_COMMAND as unset, and fail early if it can't be split."""
+        if v is None or not v.strip():
+            return None
+        try:
+            split_command(v, windows=os.name == "nt")
+        except ValueError as e:
+            raise ValueError(f"DBT_COMMAND could not be parsed: {e}") from e
+        return v
+
+    @property
+    def dbt_command_args(self) -> list[str]:
+        """The command used to run dbt, as a list of arguments.
+
+        DBT_COMMAND can hold an interpreter and its arguments, for example
+        `python -m dbt.cli.main`. When it is not set, DBT_PATH is used.
+        """
+        if self.dbt_command:
+            return split_command(self.dbt_command, windows=os.name == "nt")
+        return [self.dbt_path]
+
     @field_validator("dbt_path", mode="after")
     @classmethod
     def validate_file_exists(cls, v: str | None, info: ValidationInfo) -> str | None:
@@ -342,6 +369,13 @@ class DbtMcpSettings(BaseSettings):
                     "The prefix will be stripped to avoid URL duplication. "
                     f"Consider setting DBT_HOST='{result.base_host}' and keeping {prefix_env_var}='{prefix}'."
                 )
+
+        # DBT_COMMAND takes precedence over DBT_PATH for CLI commands
+        if self.dbt_command and "dbt_path" in self.model_fields_set:
+            logger.warning(
+                "Both DBT_COMMAND and DBT_PATH are set. DBT_COMMAND is used to run "
+                "dbt CLI commands, and DBT_PATH is only used for LSP detection."
+            )
 
         # CLI features
         cli_errors = validate_dbt_cli_settings(self)
@@ -508,6 +542,24 @@ def validate_dbt_platform_settings(settings: DbtMcpSettings) -> list[str]:
     return errors
 
 
+def split_command(command: str, *, windows: bool) -> list[str]:
+    """Split a command string into arguments, like a shell would.
+
+    On Windows, shlex's posix mode would treat the backslashes in paths as
+    escape characters, so non-posix mode is used there and the quotes it
+    keeps around arguments are removed.
+    """
+    if not windows:
+        return shlex.split(command)
+    return [_strip_quotes(part) for part in shlex.split(command, posix=False)]
+
+
+def _strip_quotes(part: str) -> str:
+    if len(part) >= 2 and part[0] == part[-1] and part[0] in "\"'":
+        return part[1:-1]
+    return part
+
+
 def validate_dbt_cli_settings(settings: DbtMcpSettings) -> list[str]:
     errors: list[str] = []
     if not settings.disable_dbt_cli:
@@ -515,7 +567,11 @@ def validate_dbt_cli_settings(settings: DbtMcpSettings) -> list[str]:
             errors.append(
                 "DBT_PROJECT_DIR environment variable is required when dbt CLI tools are enabled."
             )
-        if not settings.dbt_path:
+        if settings.dbt_command:
+            executable = settings.dbt_command_args[0]
+            if not (Path(executable).exists() or shutil.which(executable)):
+                errors.append(f"DBT_COMMAND executable can't be found: {executable}")
+        elif not settings.dbt_path:
             errors.append(
                 "DBT_PATH environment variable is required when dbt CLI tools are enabled."
             )

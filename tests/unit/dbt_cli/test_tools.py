@@ -212,6 +212,41 @@ async def test_show_command_limit_logic(
     assert args_list == expected_args
 
 
+async def test_run_command_uses_full_dbt_command(
+    monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
+):
+    mock_calls = []
+
+    def mock_popen(args, **kwargs):
+        mock_calls.append(args)
+        return mock_process
+
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    fastmcp, tools = mock_fastmcp
+    config = replace(
+        mock_dbt_cli_config,
+        dbt_command=["/venv/bin/python", "-m", "dbt.cli.main"],
+    )
+    register_dbt_cli_tools(
+        fastmcp,
+        config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+    await tools["run"]()
+
+    assert mock_calls[0][:4] == [
+        "/venv/bin/python",
+        "-m",
+        "dbt.cli.main",
+        "--no-use-colors",
+    ]
+    assert "run" in mock_calls[0]
+
+
 async def test_run_command_adds_quiet_flag_to_verbose_commands(
     monkeypatch: MonkeyPatch, mock_process, mock_fastmcp
 ):
@@ -772,7 +807,7 @@ async def test_clone_command_binary_state_path_logic(
     # Case 1: DBT_CORE (--state should be added)
     core_cli_config = DbtCliConfig(
         project_dir="/test/project",
-        dbt_path="/path/to/dbt",
+        dbt_command=["/path/to/dbt"],
         dbt_cli_timeout=10,
         binary_type=BinaryType.DBT_CORE,
     )
@@ -794,7 +829,7 @@ async def test_clone_command_binary_state_path_logic(
     mock_calls.clear()
     cloud_cli_config = DbtCliConfig(
         project_dir="/test/project",
-        dbt_path="/path/to/dbt",
+        dbt_command=["/path/to/dbt"],
         dbt_cli_timeout=10,
         binary_type=BinaryType.DBT_CLOUD_CLI,
     )
@@ -817,7 +852,7 @@ async def test_clone_command_binary_state_path_logic(
     mock_calls.clear()
     fusion_cli_config = DbtCliConfig(
         project_dir="/test/project",
-        dbt_path="/path/to/dbt",
+        dbt_command=["/path/to/dbt"],
         dbt_cli_timeout=10,
         binary_type=BinaryType.FUSION,
     )
@@ -966,7 +1001,7 @@ async def test_get_lineage_dev_resolves_manifest_from_relative_project_dir(
 
     relative_config = DbtCliConfig(
         project_dir=project_name,
-        dbt_path="/path/to/dbt",
+        dbt_command=["/path/to/dbt"],
         dbt_cli_timeout=10,
         binary_type=BinaryType.DBT_CORE,
     )

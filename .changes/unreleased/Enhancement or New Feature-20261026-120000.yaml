@@ -1,0 +1,3 @@
+kind: Enhancement or New Feature
+body: Add DBT_COMMAND to run dbt through a full command such as `python -m dbt.cli.main`, for setups where dbt is not a standalone executable. DBT_PATH is used when it is not set
+time: 2026-10-26T12:00:00.000000+00:00
