@@ -1,0 +1,15 @@
+[project]
+name = "monty-code-mode"
+version = "0.1.0"
+description = "Run LLM-written Python in a Monty sandbox that can only call dbt MCP tools"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = ["mcp>=1.28.1,<2", "pydantic-monty>=1.0.0"]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["../../src"]
+include = ["remote_mcp*"]
