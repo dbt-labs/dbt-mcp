@@ -32,6 +32,115 @@ from dbt_mcp.tools.toolsets import Toolset
 
 logger = logging.getLogger(__name__)
 
+_LIMIT_CLAUSE = re.compile(r"\blimit\s+\d+", re.IGNORECASE)
+# A dollar-quote delimiter: $$ or $tag$ (PostgreSQL, DuckDB, Snowflake).
+_DOLLAR_QUOTE = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$")
+
+
+def _is_identifier_char(ch: str) -> bool:
+    return ch != "" and (ch.isalnum() or ch in "_$")
+
+
+def _has_top_level_limit(sql: str) -> bool:
+    """Return True if the outer query has its own `LIMIT <n>`.
+
+    Comments, quoted strings and quoted identifiers are blanked out first, and
+    a LIMIT only counts when it sits outside every parenthesis, so a LIMIT in a
+    subquery or CTE does not remove the default row cap of the outer query.
+    Parentheses that wrap the whole query do not make it a subquery.
+    """
+    masked = []
+    depths = []
+    depth = 0
+    i = 0
+    n = len(sql)
+    while i < n:
+        ch = sql[i]
+        prev = sql[i - 1] if i > 0 else ""
+        dollar = (
+            _DOLLAR_QUOTE.match(sql, i)
+            if ch == "$" and not _is_identifier_char(prev)
+            else None
+        )
+        if sql.startswith("--", i):
+            end = sql.find("\n", i)
+            end = n if end == -1 else end
+        elif sql.startswith("/*", i):
+            # Block comments can nest (PostgreSQL, DuckDB).
+            nesting = 1
+            end = i + 2
+            while end < n and nesting:
+                if sql.startswith("/*", end):
+                    nesting += 1
+                    end += 2
+                elif sql.startswith("*/", end):
+                    nesting -= 1
+                    end += 2
+                else:
+                    end += 1
+        elif dollar:
+            close = sql.find(dollar.group(), dollar.end())
+            end = n if close == -1 else close + len(dollar.group())
+        elif ch in "'\"`":
+            # In a PostgreSQL E'...' string a backslash escapes the next character.
+            backslash_escapes = (
+                ch == "'"
+                and prev in ("e", "E")
+                and not _is_identifier_char(sql[i - 2 : i - 1])
+            )
+            end = i + 1
+            while end < n:
+                if backslash_escapes and sql[end] == "\\":
+                    end += 2
+                    continue
+                if sql[end] == ch:
+                    # A doubled quote is an escaped quote inside the literal.
+                    if end + 1 < n and sql[end + 1] == ch:
+                        end += 2
+                        continue
+                    end += 1
+                    break
+                end += 1
+        else:
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth = max(depth - 1, 0)
+            masked.append(ch)
+            depths.append(depth)
+            i += 1
+            continue
+        # Replace the comment or quoted span with a single space.
+        masked.append(" ")
+        depths.append(depth)
+        i = min(end, n)
+    text = "".join(masked)
+
+    # Count the parentheses that wrap the whole query, as in
+    # `(SELECT * FROM orders LIMIT 10)`: the LIMIT inside is still the query's own.
+    outer = 0
+    first = 0
+    last = len(text.rstrip().rstrip(";").rstrip()) - 1
+    while True:
+        while first < last and text[first].isspace():
+            first += 1
+        while last > first and text[last].isspace():
+            last -= 1
+        if (
+            first < last
+            and text[first] == "("
+            and text[last] == ")"
+            and min(depths[first:last]) > outer
+        ):
+            outer += 1
+            first += 1
+            last -= 1
+        else:
+            break
+
+    return any(depths[m.start()] == outer for m in _LIMIT_CLAUSE.finditer(text))
+
+
 _VALID_RESOURCE_TYPES = frozenset(
     {
         "all",
@@ -307,7 +416,7 @@ def create_dbt_cli_tool_definitions(
         # This is quite crude, but it should be okay for now
         # until we have a dbt Fusion integration.
         cli_limit = None
-        if re.search(r"\blimit\s+\d+", sql_query, re.IGNORECASE):
+        if _has_top_level_limit(sql_query):
             # When --limit=-1, dbt won't apply a separate limit.
             cli_limit = -1
         elif limit:
