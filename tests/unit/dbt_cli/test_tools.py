@@ -7,10 +7,12 @@ import threading
 import time
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import pytest
 from pytest import MonkeyPatch
 
+from dbt_mcp.errors.cli import BinaryExecutionError, CLIToolCallError
 from dbt_mcp.errors.common import InvalidParameterError
 from dbt_mcp.dbt_cli.tools import register_dbt_cli_tools
 from dbt_mcp.config.config import DbtCliConfig
@@ -1119,3 +1121,223 @@ async def test_concurrent_dbt_commands_run_one_at_a_time(
     assert [result[0][0].text for result in results] == ["command output"] * 2
     assert peak == 1
     assert ticks >= 5
+
+
+async def test_get_node_details_dev_success(
+    monkeypatch: MonkeyPatch,
+    mock_fastmcp: tuple[Any, dict[str, Any]],
+) -> None:
+    model_data = {
+        "unique_id": "model.jaffle_shop.customers",
+        "name": "customers",
+        "resource_type": "model",
+    }
+    test_data = {
+        "unique_id": "test.jaffle_shop.unique_customers_id.abc12345",
+        "name": "unique_customers_id",
+        "resource_type": "test",
+        "fqn": ["jaffle_shop", "unique_customers_id"],
+    }
+    stdout = f"{json.dumps(model_data)}\n{json.dumps(test_data)}\n"
+
+    class MockSuccessProcess:
+        returncode = 0
+
+        def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+            return stdout, ""
+
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: MockSuccessProcess())
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    result = await tools["get_node_details_dev"](node_id="customers")
+    assert result["unique_id"] == "model.jaffle_shop.customers"
+    assert result["name"] == "customers"
+    assert result["tests"] == ["test.jaffle_shop.unique_customers_id.abc12345"]
+
+
+async def test_get_node_details_dev_no_node_found(
+    monkeypatch: MonkeyPatch,
+    mock_fastmcp: tuple[Any, dict[str, Any]],
+) -> None:
+    class MockEmptyProcess:
+        returncode = 0
+
+        def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+            return "", ""
+
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: MockEmptyProcess())
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    with pytest.raises(
+        ValueError, match="No node found for selector: nonexistent_model"
+    ):
+        await tools["get_node_details_dev"](node_id="nonexistent_model")
+
+
+async def test_get_node_details_dev_surfaces_compilation_error(
+    monkeypatch: MonkeyPatch,
+    mock_fastmcp: tuple[Any, dict[str, Any]],
+) -> None:
+    error_msg = "Compilation Error in model customers: syntax error near 'SELCT'"
+
+    class MockFailProcess:
+        returncode = 1
+
+        def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+            return "", error_msg
+
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: MockFailProcess())
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    with pytest.raises(BinaryExecutionError, match="syntax error near 'SELCT'"):
+        await tools["get_node_details_dev"](node_id="customers")
+
+
+async def test_get_node_details_dev_surfaces_timeout(
+    monkeypatch: MonkeyPatch,
+    mock_fastmcp: tuple[Any, dict[str, Any]],
+) -> None:
+    class MockTimeoutProcess:
+        def __init__(self) -> None:
+            self.calls = 0
+            self.killed = False
+
+        def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+            self.calls += 1
+            if self.calls == 1:
+                raise subprocess.TimeoutExpired(cmd=["dbt", "list"], timeout=10)
+            return "", ""
+
+        def kill(self) -> None:
+            self.killed = True
+
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: MockTimeoutProcess())
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        mock_dbt_cli_config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    with pytest.raises(
+        CLIToolCallError, match="Timeout: dbt command took too long to complete"
+    ):
+        await tools["get_node_details_dev"](node_id="customers")
+
+
+async def test_get_manifest_surfaces_parse_error(
+    monkeypatch: MonkeyPatch,
+    mock_fastmcp: tuple[Any, dict[str, Any]],
+    tmp_path: Path,
+) -> None:
+    manifest_dir = tmp_path / "target"
+    manifest_dir.mkdir(parents=True)
+    # Write a stale manifest file to ensure it is NOT read when dbt parse fails
+    (manifest_dir / "manifest.json").write_text(json.dumps({"stale": True}))
+
+    class MockParseFailProcess:
+        returncode = 1
+
+        def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+            return "", "Compilation Error: macro broken_macro not found"
+
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: MockParseFailProcess())
+
+    config = DbtCliConfig(
+        project_dir=str(tmp_path),
+        dbt_path="/path/to/dbt",
+        dbt_cli_timeout=10,
+        binary_type=BinaryType.DBT_CORE,
+    )
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    with pytest.raises(BinaryExecutionError, match="macro broken_macro not found"):
+        await tools["get_lineage_dev"](
+            unique_id="model.my_project.some_model", types=None, depth=1
+        )
+
+
+async def test_get_manifest_surfaces_timeout(
+    monkeypatch: MonkeyPatch,
+    mock_fastmcp: tuple[Any, dict[str, Any]],
+    tmp_path: Path,
+) -> None:
+    class MockTimeoutProcess:
+        def __init__(self) -> None:
+            self.calls = 0
+            self.killed = False
+
+        def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+            self.calls += 1
+            if self.calls == 1:
+                raise subprocess.TimeoutExpired(cmd=["dbt", "parse"], timeout=10)
+            return "", ""
+
+        def kill(self) -> None:
+            self.killed = True
+
+    monkeypatch.setattr("subprocess.Popen", lambda *a, **kw: MockTimeoutProcess())
+
+    config = DbtCliConfig(
+        project_dir=str(tmp_path),
+        dbt_path="/path/to/dbt",
+        dbt_cli_timeout=10,
+        binary_type=BinaryType.DBT_CORE,
+    )
+
+    fastmcp, tools = mock_fastmcp
+    register_dbt_cli_tools(
+        fastmcp,
+        config,
+        disabled_tools=set(),
+        enabled_tools=None,
+        enabled_toolsets=set(),
+        disabled_toolsets=set(),
+    )
+
+    with pytest.raises(
+        CLIToolCallError, match="Timeout: dbt command took too long to complete"
+    ):
+        await tools["get_lineage_dev"](
+            unique_id="model.my_project.some_model", types=None, depth=1
+        )
