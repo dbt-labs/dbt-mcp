@@ -387,7 +387,7 @@ requires-dist = [
     { name = "adbc-driver-manager", specifier = ">=1.8.0" },
     { name = "anyio", specifier = ">=4.14.2" },
     { name = "authlib", specifier = ">=1.6.7,<1.10.0" },
-    { name = "cachetools", specifier = ">=5,<8" },
+    { name = "cachetools", specifier = ">=5,<9" },
     { name = "dbt-artifacts-parser", specifier = ">=0.13.2" },
     { name = "dbt-protos", specifier = "~=1.0.431" },
     { name = "dbt-sl-sdk", extras = ["sync"], specifier = "~=0.13.3" },
