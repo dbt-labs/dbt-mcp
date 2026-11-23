@@ -1,0 +1,3 @@
+kind: Bug Fix
+body: Surface dbt compilation errors and timeouts in get_node_details_dev and _get_manifest instead of masking them (#970)
+time: 2026-11-11T17:10:00.000000+00:00
