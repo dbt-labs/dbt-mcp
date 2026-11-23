@@ -1,3 +1,0 @@
-kind: Bug Fix
-body: Name the real get_job_run_artifacts call, with arguments and a jq filter for the requested node statuses, when get_job_run_details omits run steps or get_job_run_error exceeds the response size limit
-time: 2026-11-16T22:33:30.412269Z
