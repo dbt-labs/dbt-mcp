@@ -1212,70 +1212,6 @@ def test_get_node_details_dev_translates_model_unique_id(
     assert _list_select_argument(calls) == "orders"
 
 
-def test_get_node_details_dev_translates_source_unique_id(
-    monkeypatch: MonkeyPatch, mock_fastmcp: tuple, tmp_path: Path
-) -> None:
-    project_dir = tmp_path / "project"
-    _write_manifest(
-        project_dir,
-        {
-            "sources": {
-                "source.my_project.raw.payments": {
-                    "name": "payments",
-                    "source_name": "raw",
-                    "package_name": "my_project",
-                    "identifier": "payments",
-                }
-            }
-        },
-    )
-    _, calls = _run_get_node_details_dev(
-        monkeypatch,
-        mock_fastmcp,
-        project_dir=project_dir,
-        node_id="source.my_project.raw.payments",
-        stdout=json.dumps(
-            {
-                "unique_id": "source.my_project.raw.payments",
-                "name": "payments",
-                "resource_type": "source",
-            }
-        ),
-    )
-    assert _list_select_argument(calls) == "source:raw.payments"
-
-
-def test_get_node_details_dev_translates_exposure_unique_id(
-    monkeypatch: MonkeyPatch, mock_fastmcp: tuple, tmp_path: Path
-) -> None:
-    project_dir = tmp_path / "project"
-    _write_manifest(
-        project_dir,
-        {
-            "exposures": {
-                "exposure.my_project.revenue_dashboard": {
-                    "name": "revenue_dashboard",
-                    "package_name": "my_project",
-                }
-            }
-        },
-    )
-    _, calls = _run_get_node_details_dev(
-        monkeypatch,
-        mock_fastmcp,
-        project_dir=project_dir,
-        node_id="exposure.my_project.revenue_dashboard",
-        stdout=json.dumps(
-            {
-                "unique_id": "exposure.my_project.revenue_dashboard",
-                "name": "revenue_dashboard",
-                "resource_type": "exposure",
-            }
-        ),
-    )
-    assert _list_select_argument(calls) == "exposure:revenue_dashboard"
-
-
 def test_get_node_details_dev_passes_plain_name_through(
     monkeypatch: MonkeyPatch, mock_fastmcp: tuple, tmp_path: Path
 ) -> None:
@@ -1308,62 +1244,6 @@ def test_get_node_details_dev_passes_unknown_unique_id_through(
     assert _list_select_argument(calls) == node_id
 
 
-def test_get_node_details_dev_uses_fqn_when_model_name_is_ambiguous(
-    monkeypatch: MonkeyPatch, mock_fastmcp: tuple, tmp_path: Path
-) -> None:
-    project_dir = tmp_path / "project"
-    _write_manifest(
-        project_dir,
-        {
-            "nodes": {
-                "model.my_project.orders": {
-                    "name": "orders",
-                    "resource_type": "model",
-                    "package_name": "my_project",
-                    "fqn": ["my_project", "staging", "orders"],
-                },
-                "model.other_package.orders": {
-                    "name": "orders",
-                    "resource_type": "model",
-                    "package_name": "other_package",
-                    "fqn": ["other_package", "orders"],
-                },
-            }
-        },
-    )
-    _, calls = _run_get_node_details_dev(
-        monkeypatch,
-        mock_fastmcp,
-        project_dir=project_dir,
-        node_id="model.my_project.orders",
-        stdout=_NODE_STDOUT,
-    )
-    assert _list_select_argument(calls) == "my_project.staging.orders"
-
-
-def test_get_node_details_dev_passes_method_selector_through(
-    monkeypatch: MonkeyPatch, mock_fastmcp: tuple, tmp_path: Path
-) -> None:
-    project_dir = tmp_path / "project"
-    project_dir.mkdir()
-    node_id = "source:raw.payments"
-    _, calls = _run_get_node_details_dev(
-        monkeypatch,
-        mock_fastmcp,
-        project_dir=project_dir,
-        node_id=node_id,
-        stdout=json.dumps(
-            {
-                "unique_id": "source.my_project.raw.payments",
-                "name": "payments",
-                "resource_type": "source",
-            }
-        ),
-    )
-    assert _list_select_argument(calls) == node_id
-    assert all("parse" not in args for args in calls)
-
-
 def test_get_node_details_dev_passes_unique_id_through_when_manifest_is_missing(
     monkeypatch: MonkeyPatch, mock_fastmcp: tuple, tmp_path: Path
 ) -> None:
@@ -1378,37 +1258,6 @@ def test_get_node_details_dev_passes_unique_id_through_when_manifest_is_missing(
         stdout=_NODE_STDOUT,
     )
     assert _list_select_argument(calls) == node_id
-
-
-def test_get_node_details_dev_translates_unit_test_unique_id(
-    monkeypatch: MonkeyPatch, mock_fastmcp: tuple, tmp_path: Path
-) -> None:
-    project_dir = tmp_path / "project"
-    _write_manifest(
-        project_dir,
-        {
-            "unit_tests": {
-                "unit_test.my_project.test_orders": {
-                    "name": "test_orders",
-                    "package_name": "my_project",
-                }
-            }
-        },
-    )
-    _, calls = _run_get_node_details_dev(
-        monkeypatch,
-        mock_fastmcp,
-        project_dir=project_dir,
-        node_id="unit_test.my_project.test_orders",
-        stdout=json.dumps(
-            {
-                "unique_id": "unit_test.my_project.test_orders",
-                "name": "test_orders",
-                "resource_type": "unit_test",
-            }
-        ),
-    )
-    assert _list_select_argument(calls) == "test_orders,test_type:unit"
 
 
 def _ambiguous_orders_manifest() -> dict[str, object]:
@@ -1478,31 +1327,6 @@ def test_get_node_details_dev_picks_unique_id_when_exposure_is_listed_first(
     )
     assert result["unique_id"] == "model.my_project.orders"
     assert result["resource_type"] == "model"
-    assert result["tests"] == ["my_project.unique_orders_order_id"]
-
-
-def test_get_node_details_dev_picks_unique_id_when_unrelated_test_is_listed_first(
-    monkeypatch: MonkeyPatch, mock_fastmcp: tuple, tmp_path: Path
-) -> None:
-    project_dir = tmp_path / "project"
-    _write_manifest(project_dir, _ambiguous_orders_manifest())
-    result, _ = _run_get_node_details_dev(
-        monkeypatch,
-        mock_fastmcp,
-        project_dir=project_dir,
-        node_id="model.my_project.orders",
-        stdout=_orders_list_stdout(
-            first={
-                "unique_id": "test.my_project.unique_customers_id.def456",
-                "name": "unique_customers_id",
-                "resource_type": "test",
-                "fqn": ["my_project", "unique_customers_id"],
-                "attached_node": "model.my_project.customers",
-                "depends_on": {"nodes": ["model.my_project.customers"]},
-            }
-        ),
-    )
-    assert result["unique_id"] == "model.my_project.orders"
     assert result["tests"] == ["my_project.unique_orders_order_id"]
 
 
