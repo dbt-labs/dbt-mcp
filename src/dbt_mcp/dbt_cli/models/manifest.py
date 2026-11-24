@@ -80,12 +80,14 @@ class NamedNode(BaseModel):
 
     name: str = ""
     package_name: str = ""
+    fqn: list[str] = Field(default_factory=list)
 
 
 class Manifest(BaseModel):
     parent_map: dict[str, list[str]] = Field(default_factory=dict)
     child_map: dict[str, list[str]] = Field(default_factory=dict)
     nodes: dict[str, Node] = Field(default_factory=dict)
+    functions: dict[str, Node] = Field(default_factory=dict)
     sources: dict[str, Source] = Field(default_factory=dict)
     exposures: dict[str, Exposure] = Field(default_factory=dict)
     metrics: dict[str, NamedNode] = Field(default_factory=dict)
@@ -105,10 +107,9 @@ class Manifest(BaseModel):
         the most precise selector that method accepts.
 
         Sources, exposures, metrics, semantic models, and saved queries use
-        their method selectors. Unit tests have no Core method selector; they
-        use a name or FQN selector intersected with `test_type:unit`. The
-        value is package-qualified when the same name exists in more than one
-        package.
+        their method selectors, package-qualified when the same name exists in
+        more than one package. Unit tests have no Core method selector; they
+        use a name or fqn selector intersected with `test_type:unit`.
         """
         resource_type = unique_id.split(".", 1)[0]
         if resource_type == "source":
@@ -122,7 +123,7 @@ class Manifest(BaseModel):
                 return None
             return _unit_test_selector(
                 name=named.name,
-                package_name=named.package_name,
+                fqn=named.fqn,
                 peer_names=self._method_peer_names(resource_type),
             )
         if resource_type in _METHOD_BY_RESOURCE_TYPE:
@@ -136,7 +137,12 @@ class Manifest(BaseModel):
                 peer_names=self._method_peer_names(resource_type),
             )
         if resource_type in _FQN_RESOURCE_TYPES:
-            node = self.nodes.get(unique_id)
+            # The manifest schema admits function nodes both in `nodes` and in
+            # the top-level `functions` collection. unique_ids are global, so
+            # reading both is safe whichever one the engine populates.
+            node = self.functions.get(unique_id)
+            if node is None:
+                node = self.nodes.get(unique_id)
             if node is None:
                 return None
             return _fqn_selector(
@@ -186,6 +192,8 @@ class Manifest(BaseModel):
 
         for unique_id, node in self.nodes.items():
             add(unique_id=unique_id, name=node.name)
+        for unique_id, function in self.functions.items():
+            add(unique_id=unique_id, name=function.name)
         for unique_id, exposure in self.exposures.items():
             add(unique_id=unique_id, name=exposure.name)
         for unique_id, metric in self.metrics.items():
@@ -252,18 +260,22 @@ def _method_selector(
 def _unit_test_selector(
     *,
     name: str,
-    package_name: str,
+    fqn: list[str],
     peer_names: Iterable[str],
 ) -> str:
     """Return a Core selector for a unit test unique_id.
 
-    `unit_test:` is not a dbt Core selection method. Select by name (or
-    package-qualified FQN when the name is shared) and intersect with
-    `test_type:unit`.
+    `unit_test:` is not a dbt Core selection method. Select by name (or the
+    full fqn when the name is shared) and intersect with `test_type:unit`.
+
+    A unit test's fqn is `[package, *directories, model_name, test_name]`, so
+    `package.name` is never a prefix of it and selects nothing. Without an fqn
+    the bare name is still the better fallback: it over-matches across
+    packages rather than matching nothing.
     """
     value = name
-    if package_name and _name_is_shared(name, peer_names):
-        value = f"{package_name}.{name}"
+    if fqn and _name_is_shared(name, peer_names):
+        value = ".".join(fqn)
     return f"{value},test_type:unit"
 
 

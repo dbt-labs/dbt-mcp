@@ -55,15 +55,40 @@ def test_selector_for_method_resources() -> None:
     )
 
 
-def test_selector_qualifies_unit_test_when_name_is_shared() -> None:
+def test_selector_uses_full_fqn_for_unit_test_when_name_is_shared() -> None:
+    # A unit test fqn is [package, *directories, model_name, test_name], so a
+    # `package.name` selector is not a prefix of it and matches nothing.
     manifest = Manifest.model_validate(
         {
             "unit_tests": {
-                "unit_test.my_project.test_orders": {
+                "unit_test.my_project.stg_orders.test_orders": {
+                    "name": "test_orders",
+                    "package_name": "my_project",
+                    "fqn": ["my_project", "staging", "stg_orders", "test_orders"],
+                },
+                "unit_test.other_pkg.stg_orders.test_orders": {
+                    "name": "test_orders",
+                    "package_name": "other_pkg",
+                    "fqn": ["other_pkg", "staging", "stg_orders", "test_orders"],
+                },
+            }
+        }
+    )
+    assert (
+        manifest.selector_for_unique_id("unit_test.my_project.stg_orders.test_orders")
+        == "my_project.staging.stg_orders.test_orders,test_type:unit"
+    )
+
+
+def test_selector_falls_back_to_name_for_unit_test_without_fqn() -> None:
+    manifest = Manifest.model_validate(
+        {
+            "unit_tests": {
+                "unit_test.my_project.stg_orders.test_orders": {
                     "name": "test_orders",
                     "package_name": "my_project",
                 },
-                "unit_test.other_pkg.test_orders": {
+                "unit_test.other_pkg.stg_orders.test_orders": {
                     "name": "test_orders",
                     "package_name": "other_pkg",
                 },
@@ -71,8 +96,75 @@ def test_selector_qualifies_unit_test_when_name_is_shared() -> None:
         }
     )
     assert (
-        manifest.selector_for_unique_id("unit_test.my_project.test_orders")
-        == "my_project.test_orders,test_type:unit"
+        manifest.selector_for_unique_id("unit_test.my_project.stg_orders.test_orders")
+        == "test_orders,test_type:unit"
+    )
+
+
+def test_selector_resolves_function_from_either_collection() -> None:
+    # The manifest schema admits function nodes in `nodes` and in the
+    # top-level `functions` collection.
+    from_functions = Manifest.model_validate(
+        {
+            "functions": {
+                "function.my_project.to_cents": {
+                    "name": "to_cents",
+                    "resource_type": "function",
+                    "package_name": "my_project",
+                    "fqn": ["my_project", "to_cents"],
+                }
+            }
+        }
+    )
+    from_nodes = Manifest.model_validate(
+        {
+            "nodes": {
+                "function.my_project.to_cents": {
+                    "name": "to_cents",
+                    "resource_type": "function",
+                    "package_name": "my_project",
+                    "fqn": ["my_project", "to_cents"],
+                }
+            }
+        }
+    )
+    assert (
+        from_functions.selector_for_unique_id("function.my_project.to_cents")
+        == "to_cents"
+    )
+    assert (
+        from_nodes.selector_for_unique_id("function.my_project.to_cents") == "to_cents"
+    )
+
+
+def test_selector_qualifies_function_sharing_a_name_with_a_model() -> None:
+    manifest = Manifest.model_validate(
+        {
+            "nodes": {
+                "model.my_project.to_cents": {
+                    "name": "to_cents",
+                    "resource_type": "model",
+                    "package_name": "my_project",
+                    "fqn": ["my_project", "marts", "to_cents"],
+                }
+            },
+            "functions": {
+                "function.my_project.to_cents": {
+                    "name": "to_cents",
+                    "resource_type": "function",
+                    "package_name": "my_project",
+                    "fqn": ["my_project", "to_cents"],
+                }
+            },
+        }
+    )
+    assert (
+        manifest.selector_for_unique_id("function.my_project.to_cents")
+        == "my_project.to_cents"
+    )
+    assert (
+        manifest.selector_for_unique_id("model.my_project.to_cents")
+        == "my_project.marts.to_cents"
     )
 
 
