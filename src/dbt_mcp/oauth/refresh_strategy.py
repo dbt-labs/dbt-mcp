@@ -17,9 +17,12 @@ class RefreshStrategy(Protocol):
         """
         ...
 
-    async def wait_after_error(self) -> None:
+    async def wait_after_error(self, attempt: int = 1) -> None:
         """
         Wait an appropriate amount of time after an error before retrying.
+
+        Args:
+            attempt: 1-based count of consecutive failures so far
         """
         ...
 
@@ -31,6 +34,7 @@ class DefaultRefreshStrategy:
         self,
         buffer_seconds: int = BACKGROUND_REFRESH_BUFFER_SECONDS,
         error_retry_delay: float = 5.0,
+        max_error_retry_delay: float = 300.0,
     ):
         """
         Initialize with timing configuration.
@@ -39,10 +43,14 @@ class DefaultRefreshStrategy:
             buffer_seconds: How many seconds before expiry to refresh
                 (default: 5 minutes)
             error_retry_delay: How many seconds to wait before retrying after an error
-                (default: 5 seconds)
+                after the first failure (default: 5 seconds). The delay doubles
+                with each consecutive failure.
+            max_error_retry_delay: Upper bound for the backoff delay
+                (default: 300 seconds)
         """
         self.buffer_seconds = buffer_seconds
         self.error_retry_delay = error_retry_delay
+        self.max_error_retry_delay = max_error_retry_delay
 
     async def wait_until_refresh_needed(self, expires_at: int) -> None:
         """Wait until refresh is needed (buffer seconds before expiry)."""
@@ -53,9 +61,11 @@ class DefaultRefreshStrategy:
         if time_until_refresh > 0:
             await asyncio.sleep(time_until_refresh)
 
-    async def wait_after_error(self) -> None:
-        """Wait the configured error retry delay before retrying."""
-        await asyncio.sleep(self.error_retry_delay)
+    async def wait_after_error(self, attempt: int = 1) -> None:
+        """Wait with exponential backoff, capped at the maximum delay."""
+        exponent = min(max(attempt, 1) - 1, 30)
+        delay = min(self.error_retry_delay * 2**exponent, self.max_error_retry_delay)
+        await asyncio.sleep(max(delay, 0))
 
 
 class MockRefreshStrategy:
@@ -72,6 +82,7 @@ class MockRefreshStrategy:
         self.wait_calls: list[int] = []
         self.wait_durations: list[float] = []
         self.error_wait_calls: int = 0
+        self.error_wait_attempts: list[int] = []
 
     async def wait_until_refresh_needed(self, expires_at: int) -> None:
         """Record the call and simulate waiting for the configured duration."""
@@ -79,9 +90,10 @@ class MockRefreshStrategy:
         self.wait_durations.append(self.wait_seconds)
         await asyncio.sleep(self.wait_seconds)
 
-    async def wait_after_error(self) -> None:
+    async def wait_after_error(self, attempt: int = 1) -> None:
         """Record the error wait call and simulate waiting for configured duration."""
         self.error_wait_calls += 1
+        self.error_wait_attempts.append(attempt)
         await asyncio.sleep(self.wait_seconds)
 
     def reset(self) -> None:
@@ -89,6 +101,7 @@ class MockRefreshStrategy:
         self.wait_calls.clear()
         self.wait_durations.clear()
         self.error_wait_calls = 0
+        self.error_wait_attempts.clear()
 
     @property
     def call_count(self) -> int:

@@ -78,7 +78,6 @@ class ArtifactConfig:
 class ProductDocsConfig:
     cache_bytes: int = 32 * _MiB
     cache_entries: int = 128
-    index_limits: ResponseLimits = ResponseLimits()
 
     def __post_init__(self) -> None:
         if self.cache_bytes < 1 or self.cache_entries < 1:

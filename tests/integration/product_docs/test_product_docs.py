@@ -46,16 +46,6 @@ class TestProductDocsClient:
         assert isinstance(content, str)
         assert len(content) > 0
 
-    @pytest.mark.asyncio
-    async def test_search_full_text(self, client: ProductDocsClient):
-        results = await client.search_full_text(["incremental"], max_results=5)
-
-        assert isinstance(results, list)
-        assert len(results) > 0
-        for entry in results:
-            assert "url" in entry
-            assert "title" in entry
-
 
 class TestProductDocsTools:
     @pytest.mark.asyncio

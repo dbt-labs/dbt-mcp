@@ -410,6 +410,14 @@ class DbtAdminAPIClient:
             ),
         )
 
+    async def get_job_run(self, account_id: int, run_id: int) -> dict[str, Any]:
+        result = await self._make_request(
+            "GET",
+            f"/api/v2/accounts/{account_id}/runs/{run_id}/",
+            response_type="admin.run",
+        )
+        return result.get("data", {})
+
     async def get_job_run_details(
         self, account_id: int, run_id: int, include_logs: bool = False
     ) -> dict[str, Any]:

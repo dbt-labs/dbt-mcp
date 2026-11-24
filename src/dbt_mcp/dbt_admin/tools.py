@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Annotated, Any
 
 from mcp.server.fastmcp import FastMCP
@@ -8,7 +8,6 @@ from pydantic import Field
 from dbt_mcp.config.config_providers import (
     AdminApiConfig,
     ConfigProvider,
-    StaticConfigProvider,
 )
 from dbt_mcp.dbt_admin.client import DbtAdminAPIClient
 from dbt_mcp.dbt_admin.artifacts import InlineArtifactLimitError
@@ -34,12 +33,12 @@ from dbt_mcp.dbt_admin.param_descriptions import (
 )
 from dbt_mcp.dbt_admin.run_artifacts.parser import ErrorFetcher, WarningFetcher
 from dbt_mcp.prompts.prompts import get_prompt
-from dbt_mcp.errors import InvalidParameterError
+from dbt_mcp.errors import InvalidParameterError, ResponseLimitError
+from dbt_mcp.tools.access import AccessPolicy
 from dbt_mcp.tools.targets import (
     AccountTarget,
     JobTarget,
     Permission,
-    ProjectTarget,
     RunTarget,
 )
 from dbt_mcp.tools.definitions import dbt_mcp_tool
@@ -58,6 +57,20 @@ from dbt_mcp.pagination import (
 logger = logging.getLogger(__name__)
 
 
+def _run_results_hint(run_id: int, statuses: tuple[str, ...]) -> str:
+    selected = " or ".join(f'.status == "{status}"' for status in statuses)
+    return (
+        f"call {ToolName.GET_JOB_RUN_ARTIFACTS.value} with run_id={run_id}, "
+        "artifact_path='run_results.json', and jq_filter='.results[] | "
+        f"select({selected}) | "
+        "{unique_id, status, message}'. Without step it reads the last step. "
+        "When has_docs_generated is true, the last step is docs generation, so "
+        "pass step to read an earlier one. Step numbers start at 1 and count "
+        "setup steps such as git clone and dbt deps, which have no "
+        "run_results.json."
+    )
+
+
 @dataclass
 class AdminToolContext:
     admin_client: DbtAdminAPIClient
@@ -66,21 +79,6 @@ class AdminToolContext:
     def __init__(self, admin_api_config_provider: ConfigProvider[AdminApiConfig]):
         self.admin_api_config_provider = admin_api_config_provider
         self.admin_client = DbtAdminAPIClient(admin_api_config_provider)
-
-
-class JobsToolContext(AdminToolContext):
-    """A jobs listing has a resolved project or an explicit environment filter."""
-
-    def __init__(self, config: AdminApiConfig):
-        if config.environment_id is not None:
-            self.filters = {"environment_id": config.environment_id}
-        elif config.project_id is not None:
-            self.filters = {"project_id": config.project_id}
-        else:
-            raise InvalidParameterError(
-                "Select a project or environment before listing jobs"
-            )
-        super().__init__(StaticConfigProvider(config))
 
 
 @dbt_mcp_tool(
@@ -107,31 +105,39 @@ async def list_projects(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/list_jobs"),
+    requirements=(AccessPolicy.JOBS_LISTING,),
     title="List Jobs",
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
 )
 async def list_jobs(
-    context: JobsToolContext,
+    context: AdminToolContext,
     limit: Annotated[int, LIMIT_FIELD] = 50,
     offset: Annotated[int, OFFSET_FIELD] = 0,
     *,
-    project_id: Annotated[int, ProjectTarget(requires=Permission.JOBS_READ)] = Field(
-        description=JOBS_PROJECT_ID_FILTER, gt=0
-    ),
+    project_id: Annotated[
+        int | None, Field(description=JOBS_PROJECT_ID_FILTER, gt=0)
+    ] = None,
 ) -> ResultPage[list[dict[str, Any]]]:
-    """List project jobs, narrowed to the environment selected in the context."""
+    """List by explicit project, configured environment/project, or account."""
     validate_page_size(limit)
     validate_offset(offset)
     admin_api_config = await context.admin_api_config_provider.get_config()
-    params = context.filters | {"limit": limit, "offset": offset}
-    return await context.admin_client.list_jobs(admin_api_config.account_id, **params)
+    filters = {}
+    if project_id is not None:
+        filters["project_id"] = project_id
+    elif admin_api_config.environment_id is not None:
+        filters["environment_id"] = admin_api_config.environment_id
+    elif admin_api_config.project_id is not None:
+        filters["project_id"] = admin_api_config.project_id
+    return await context.admin_client.list_jobs(
+        admin_api_config.account_id, **filters, limit=limit, offset=offset
+    )
 
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/get_job_details"),
-    requirements=(AccountTarget(requires=Permission.JOBS_READ),),
     title="Get Job Details",
     read_only_hint=True,
     destructive_hint=False,
@@ -154,7 +160,6 @@ async def get_job_details(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/trigger_job_run"),
-    requirements=(AccountTarget(requires=Permission.RUNS_WRITE),),
     title="Trigger Job Run",
     read_only_hint=False,
     destructive_hint=False,
@@ -201,7 +206,7 @@ async def trigger_job_run(
 @dbt_mcp_tool(
     description=get_prompt("admin_api/list_jobs_runs"),
     title="List Jobs Runs",
-    requirements=(AccountTarget(requires=Permission.RUNS_READ),),
+    requirements=(AccessPolicy.RUNS_LISTING,),
     read_only_hint=True,
     destructive_hint=False,
     idempotent_hint=True,
@@ -239,7 +244,6 @@ async def list_jobs_runs(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/get_job_run_details"),
-    requirements=(AccountTarget(requires=Permission.RUNS_READ),),
     title="Get Job Run Details",
     read_only_hint=True,
     destructive_hint=False,
@@ -253,14 +257,24 @@ async def get_job_run_details(
 ) -> dict[str, Any]:
     """Get details for a specific job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
-    return await context.admin_client.get_job_run_details(
-        admin_api_config.account_id, run_id
-    )
+    try:
+        return await context.admin_client.get_job_run_details(
+            admin_api_config.account_id, run_id
+        )
+    except ResponseLimitError:
+        run = await context.admin_client.get_job_run(
+            admin_api_config.account_id, run_id
+        )
+        run.pop("run_steps", None)
+        return run | {
+            "run_steps_omitted": "Run steps were omitted because their combined "
+            "logs exceed the response size limit. For per-node failures, "
+            + _run_results_hint(run_id, ("error", "fail"))
+        }
 
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/cancel_job_run"),
-    requirements=(AccountTarget(requires=Permission.RUNS_WRITE),),
     title="Cancel Job Run",
     read_only_hint=False,
     destructive_hint=False,
@@ -281,7 +295,6 @@ async def cancel_job_run(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/retry_job_run"),
-    requirements=(AccountTarget(requires=Permission.RUNS_WRITE),),
     title="Retry Job Run",
     read_only_hint=False,
     destructive_hint=False,
@@ -300,7 +313,6 @@ async def retry_job_run(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/list_job_run_artifacts"),
-    requirements=(AccountTarget(requires=Permission.RUNS_READ),),
     title="List Job Run Artifacts",
     read_only_hint=True,
     destructive_hint=False,
@@ -321,7 +333,6 @@ async def list_job_run_artifacts(
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/get_job_run_artifacts"),
-    requirements=(AccountTarget(requires=Permission.RUNS_READ),),
     title="Get Job Run Artifacts",
     read_only_hint=True,
     destructive_hint=False,
@@ -364,14 +375,11 @@ async def get_job_run_artifacts(
         "'.metadata'; to list nodes use '.nodes | keys'; to find failures use "
         "'.results[] | select(.status == \"error\")'."
     )
-    if artifact_path.endswith("run_results.json"):
-        hint += " For run failures specifically, use get_job_run_error tool."
     return hint
 
 
 @dbt_mcp_tool(
     description=get_prompt("admin_api/get_job_run_error"),
-    requirements=(AccountTarget(requires=Permission.RUNS_READ),),
     title="Get Job Run Error",
     read_only_hint=True,
     destructive_hint=False,
@@ -389,43 +397,58 @@ async def get_job_run_error(
 ) -> dict[str, Any]:
     """Get focused error/warning information for a job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
-
-    if warning_only:
+    try:
         run_details = await context.admin_client.get_job_run_details(
             admin_api_config.account_id, run_id, include_logs=True
         )
-        if len(run_details.get("run_steps", [])) > 20:
-            raise InvalidParameterError(
-                "Run has more than 20 steps; inspect a specific step with get_job_run_artifacts."
-            )
-        warning_fetcher = WarningFetcher(
-            run_id, run_details, context.admin_client, admin_api_config
+    except ResponseLimitError as error:
+        statuses = (
+            ("warn",)
+            if warning_only
+            else ("error", "fail", "warn")
+            if include_warnings
+            else ("error", "fail")
         )
-        result = await warning_fetcher.analyze_run_warnings()
-        return result
-
-    run_details = await context.admin_client.get_job_run_details(
-        admin_api_config.account_id, run_id, include_logs=True
-    )
+        raise ResponseLimitError(
+            f"Run {run_id}'s step logs exceed the response size limit. Call "
+            f"{ToolName.GET_JOB_RUN_DETAILS.value} with run_id={run_id} for "
+            f"has_docs_generated, then {_run_results_hint(run_id, statuses)}"
+        ) from error
     if len(run_details.get("run_steps", [])) > 20:
         raise InvalidParameterError(
             "Run has more than 20 steps; inspect a specific step with get_job_run_artifacts."
         )
-    error_fetcher = ErrorFetcher(
-        run_id, run_details, context.admin_client, admin_api_config
-    )
-    error_result = await error_fetcher.analyze_run_errors()
 
-    if include_warnings:
-        warning_fetcher = WarningFetcher(
+    try:
+        if warning_only:
+            warning_fetcher = WarningFetcher(
+                run_id, run_details, context.admin_client, admin_api_config
+            )
+            result = await warning_fetcher.analyze_run_warnings()
+            return result
+
+        error_fetcher = ErrorFetcher(
             run_id, run_details, context.admin_client, admin_api_config
         )
-        warning_result = await warning_fetcher.analyze_run_warnings()
+        error_result = await error_fetcher.analyze_run_errors()
 
-        result = {**error_result, "warnings": warning_result}
-        return result
+        if include_warnings:
+            warning_fetcher = WarningFetcher(
+                run_id, run_details, context.admin_client, admin_api_config
+            )
+            warning_result = await warning_fetcher.analyze_run_warnings()
 
-    return error_result
+            result = {**error_result, "warnings": warning_result}
+            return result
+
+        return error_result
+    except InlineArtifactLimitError as error:
+        raise InlineArtifactLimitError(
+            f"An artifact for run {run_id} exceeds the inline size limit. "
+            f"Use get_job_run_artifacts with run_id={run_id}, the required "
+            "artifact_path and step, "
+            "and a jq_filter to select a smaller result."
+        ) from error
 
 
 ADMIN_TOOLS = [
@@ -457,17 +480,8 @@ def register_admin_api_tools(
     def bind_context() -> AdminToolContext:
         return AdminToolContext(admin_api_config_provider=admin_config_provider)
 
-    async def bind_jobs_context(project_id: int | None = None) -> JobsToolContext:
-        config = await admin_config_provider.get_config()
-        if project_id is not None:
-            config = replace(config, project_id=project_id)
-        return JobsToolContext(config)
-
     definitions = [
-        list_jobs.adapt_with_mappers(context=bind_jobs_context)
-        if tool is list_jobs
-        else tool.adapt_with_mappers(context=bind_context)
-        for tool in ADMIN_TOOLS
+        tool.adapt_with_mappers(context=bind_context) for tool in ADMIN_TOOLS
     ]
     register_tools(
         dbt_mcp,

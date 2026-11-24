@@ -67,7 +67,7 @@ async def read_artifact(
             except ResponseLimitError as error:
                 if jq_filter is None and "decoded size limit" in str(error):
                     raise InlineArtifactLimitError(
-                        "Artifact exceeds the inline size limit; use jq_filter."
+                        "Artifact exceeds the inline size limit."
                     ) from error
                 raise
             with path.open("rb") as source:

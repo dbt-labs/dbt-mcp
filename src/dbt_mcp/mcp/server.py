@@ -196,6 +196,7 @@ class DbtMCP(FastMCP):
         if tool.name in PROJECT_TOOL_NAMES and "project_id" in tool.parameters.get(
             "properties", {}
         ):
+            required = "project_id" in tool.parameters.get("required", [])
             if projects and len(projects) > 1:
 
                 def selected_project(project_id: int) -> int:
@@ -205,13 +206,23 @@ class DbtMCP(FastMCP):
                         )
                     return project_id
 
+                def optional_project(project_id: int | None = None) -> int | None:
+                    return (
+                        selected_project(project_id) if project_id is not None else None
+                    )
+
                 # The caller contract is unchanged; only selection validation is added.
                 return tool.model_copy(
                     update={
-                        "fn": adapt_with_mappers(tool.fn, project_id=selected_project)
+                        "fn": adapt_with_mappers(
+                            tool.fn,
+                            project_id=selected_project
+                            if required
+                            else optional_project,
+                        )
                     }
                 )
-            if projects:
+            if projects and required:
                 project_id = projects[0]
 
                 def fixed_project() -> int:
@@ -219,6 +230,7 @@ class DbtMCP(FastMCP):
 
                 fn = adapt_with_mappers(tool.fn, project_id=fixed_project)
             else:
+                # Optional filters retain the environment/project default in config.
                 fn = adapt_with_mappers(tool.fn, project_id=HIDE)
             bound = RegisteredTool.from_function(
                 fn,
