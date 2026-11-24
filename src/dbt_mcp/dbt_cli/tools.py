@@ -81,6 +81,15 @@ def _select_primary_list_node(
     for record in records:
         if record.get("unique_id") == node_id:
             return record
+    if records and looks_like_unique_id(node_id):
+        # The caller asked for a specific node and dbt listed something else,
+        # so the resolved selector was wrong or the manifest on disk is stale.
+        logger.debug(
+            "dbt list returned %d record(s) for %s, none with that unique_id; "
+            "falling back to the first",
+            len(records),
+            node_id,
+        )
     return records[0] if records else None
 
 
@@ -97,11 +106,7 @@ def _test_is_attached(record: dict[str, Any], unique_id: str) -> bool:
     return False
 
 
-def _attached_test_ids(
-    records: list[dict[str, Any]], *, unique_id: object
-) -> list[str]:
-    if not isinstance(unique_id, str) or not unique_id:
-        return []
+def _attached_test_ids(records: list[dict[str, Any]], *, unique_id: str) -> list[str]:
     test_ids: list[str] = []
     for record in records:
         if not _test_is_attached(record, unique_id):
@@ -519,26 +524,35 @@ def create_dbt_cli_tool_definitions(
             "unrendered_config",
         ]
 
-        def _list_node_details() -> str:
+        def _list_node_details() -> tuple[str, str]:
             # Resolve and list under one lock hold so a concurrent dbt command
             # cannot rewrite target/ between the parse and the list.
-            return _run_dbt_command(
+            selector = _resolve_node_selector(node_id)
+            return selector, _run_dbt_command(
                 ["list", "--output", "json", "--output-keys", *output_keys],
-                node_selection=_resolve_node_selector(node_id),
+                node_selection=selector,
                 is_selectable=True,
             )
 
         async with lock:
-            output = await asyncio.to_thread(_list_node_details)
+            selector, output = await asyncio.to_thread(_list_node_details)
 
         records = _parse_dbt_list_records(output)
         node_result = _select_primary_list_node(records, node_id)
         if node_result is None:
-            raise ValueError(f"No node found for selector: {node_id}")
+            described = (
+                node_id
+                if selector == node_id
+                else f"{node_id} (resolved to {selector})"
+            )
+            raise ValueError(f"No node found for selector: {described}")
 
+        primary_id = node_result.get("unique_id")
         if node_result.get("resource_type") in _TEST_PARENT_RESOURCE_TYPES:
-            node_result["tests"] = _attached_test_ids(
-                records, unique_id=node_result.get("unique_id")
+            node_result["tests"] = (
+                _attached_test_ids(records, unique_id=primary_id)
+                if isinstance(primary_id, str) and primary_id
+                else []
             )
 
         return node_result
