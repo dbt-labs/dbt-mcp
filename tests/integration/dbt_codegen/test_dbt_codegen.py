@@ -29,7 +29,7 @@ def dbt_codegen_config():
 
     return DbtCodegenConfig(
         project_dir=project_dir,
-        dbt_path=dbt_path,
+        dbt_command=[dbt_path],
         dbt_cli_timeout=int(dbt_cli_timeout),
         binary_type=BinaryType.DBT_CORE,
     )
