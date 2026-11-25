@@ -423,8 +423,11 @@ def create_dbt_cli_tool_definitions(
         between the parse and the read.
         """
         _run_dbt_command(["parse"])  # Ensure manifest is generated
+        # dbt writes the manifest to DBT_TARGET_PATH when it is set, resolving a
+        # relative path against the project dir, so read it from the same place.
+        target_path = os.environ.get("DBT_TARGET_PATH") or "target"
         manifest_path = os.path.join(
-            config.project_dir or ".", "target", "manifest.json"
+            config.project_dir or ".", target_path, "manifest.json"
         )
         with open(manifest_path, encoding="utf-8") as f:
             manifest_data = json.load(f)
