@@ -33,7 +33,7 @@ from dbt_mcp.dbt_admin.param_descriptions import (
 )
 from dbt_mcp.dbt_admin.run_artifacts.parser import ErrorFetcher, WarningFetcher
 from dbt_mcp.prompts.prompts import get_prompt
-from dbt_mcp.errors import InvalidParameterError
+from dbt_mcp.errors import InvalidParameterError, ResponseLimitError
 from dbt_mcp.tools.access import AccessPolicy
 from dbt_mcp.tools.targets import (
     AccountTarget,
@@ -55,6 +55,20 @@ from dbt_mcp.pagination import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _run_results_hint(run_id: int, statuses: tuple[str, ...]) -> str:
+    selected = " or ".join(f'.status == "{status}"' for status in statuses)
+    return (
+        f"call {ToolName.GET_JOB_RUN_ARTIFACTS.value} with run_id={run_id}, "
+        "artifact_path='run_results.json', and jq_filter='.results[] | "
+        f"select({selected}) | "
+        "{unique_id, status, message}'. Without step it reads the last step. "
+        "When has_docs_generated is true, the last step is docs generation, so "
+        "pass step to read an earlier one. Step numbers start at 1 and count "
+        "setup steps such as git clone and dbt deps, which have no "
+        "run_results.json."
+    )
 
 
 @dataclass
@@ -243,9 +257,20 @@ async def get_job_run_details(
 ) -> dict[str, Any]:
     """Get details for a specific job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
-    return await context.admin_client.get_job_run_details(
-        admin_api_config.account_id, run_id
-    )
+    try:
+        return await context.admin_client.get_job_run_details(
+            admin_api_config.account_id, run_id
+        )
+    except ResponseLimitError:
+        run = await context.admin_client.get_job_run(
+            admin_api_config.account_id, run_id
+        )
+        run.pop("run_steps", None)
+        return run | {
+            "run_steps_omitted": "Run steps were omitted because their combined "
+            "logs exceed the response size limit. For per-node failures, "
+            + _run_results_hint(run_id, ("error", "fail"))
+        }
 
 
 @dbt_mcp_tool(
@@ -350,8 +375,6 @@ async def get_job_run_artifacts(
         "'.metadata'; to list nodes use '.nodes | keys'; to find failures use "
         "'.results[] | select(.status == \"error\")'."
     )
-    if artifact_path.endswith("run_results.json"):
-        hint += " For run failures specifically, use get_job_run_error tool."
     return hint
 
 
@@ -374,43 +397,58 @@ async def get_job_run_error(
 ) -> dict[str, Any]:
     """Get focused error/warning information for a job run."""
     admin_api_config = await context.admin_api_config_provider.get_config()
-
-    if warning_only:
+    try:
         run_details = await context.admin_client.get_job_run_details(
             admin_api_config.account_id, run_id, include_logs=True
         )
-        if len(run_details.get("run_steps", [])) > 20:
-            raise InvalidParameterError(
-                "Run has more than 20 steps; inspect a specific step with get_job_run_artifacts."
-            )
-        warning_fetcher = WarningFetcher(
-            run_id, run_details, context.admin_client, admin_api_config
+    except ResponseLimitError as error:
+        statuses = (
+            ("warn",)
+            if warning_only
+            else ("error", "fail", "warn")
+            if include_warnings
+            else ("error", "fail")
         )
-        result = await warning_fetcher.analyze_run_warnings()
-        return result
-
-    run_details = await context.admin_client.get_job_run_details(
-        admin_api_config.account_id, run_id, include_logs=True
-    )
+        raise ResponseLimitError(
+            f"Run {run_id}'s step logs exceed the response size limit. Call "
+            f"{ToolName.GET_JOB_RUN_DETAILS.value} with run_id={run_id} for "
+            f"has_docs_generated, then {_run_results_hint(run_id, statuses)}"
+        ) from error
     if len(run_details.get("run_steps", [])) > 20:
         raise InvalidParameterError(
             "Run has more than 20 steps; inspect a specific step with get_job_run_artifacts."
         )
-    error_fetcher = ErrorFetcher(
-        run_id, run_details, context.admin_client, admin_api_config
-    )
-    error_result = await error_fetcher.analyze_run_errors()
 
-    if include_warnings:
-        warning_fetcher = WarningFetcher(
+    try:
+        if warning_only:
+            warning_fetcher = WarningFetcher(
+                run_id, run_details, context.admin_client, admin_api_config
+            )
+            result = await warning_fetcher.analyze_run_warnings()
+            return result
+
+        error_fetcher = ErrorFetcher(
             run_id, run_details, context.admin_client, admin_api_config
         )
-        warning_result = await warning_fetcher.analyze_run_warnings()
+        error_result = await error_fetcher.analyze_run_errors()
 
-        result = {**error_result, "warnings": warning_result}
-        return result
+        if include_warnings:
+            warning_fetcher = WarningFetcher(
+                run_id, run_details, context.admin_client, admin_api_config
+            )
+            warning_result = await warning_fetcher.analyze_run_warnings()
 
-    return error_result
+            result = {**error_result, "warnings": warning_result}
+            return result
+
+        return error_result
+    except InlineArtifactLimitError as error:
+        raise InlineArtifactLimitError(
+            f"An artifact for run {run_id} exceeds the inline size limit. "
+            f"Use get_job_run_artifacts with run_id={run_id}, the required "
+            "artifact_path and step, "
+            "and a jq_filter to select a smaller result."
+        ) from error
 
 
 ADMIN_TOOLS = [
