@@ -37,10 +37,26 @@ def mock_process():
 @pytest.mark.parametrize(
     "sql_query,limit_param,expected_args",
     [
-        # SQL with explicit LIMIT - should set --limit=-1
+        # The limit argument is always passed; the SQL is not inspected
         (
             "SELECT * FROM my_model LIMIT 10",
-            None,
+            5,
+            [
+                "--no-use-colors",
+                "show",
+                "--inline",
+                "SELECT * FROM my_model LIMIT 10",
+                "--favor-state",
+                "--limit",
+                "5",
+                "--output",
+                "json",
+            ],
+        ),
+        # -1 is the way to keep the SQL's own LIMIT
+        (
+            "SELECT * FROM my_model LIMIT 10",
+            -1,
             [
                 "--no-use-colors",
                 "show",
@@ -53,23 +69,7 @@ def mock_process():
                 "json",
             ],
         ),
-        # SQL with lowercase limit - should set --limit=-1
-        (
-            "select * from my_model limit 5",
-            None,
-            [
-                "--no-use-colors",
-                "show",
-                "--inline",
-                "select * from my_model limit 5",
-                "--favor-state",
-                "--limit",
-                "-1",
-                "--output",
-                "json",
-            ],
-        ),
-        # No SQL LIMIT but with limit parameter - should use provided limit
+        # No SQL LIMIT, limit parameter is passed through
         (
             "SELECT * FROM my_model",
             10,
@@ -85,15 +85,15 @@ def mock_process():
                 "json",
             ],
         ),
-        # "limit" inside an identifier is not a LIMIT clause
+        # LIMIT inside a CTE no longer turns the outer limit off (#965)
         (
-            "select credit_limit from customers",
+            "WITH c AS (SELECT id FROM customers LIMIT 10) SELECT * FROM orders JOIN c ON orders.customer_id = c.id",
             5,
             [
                 "--no-use-colors",
                 "show",
                 "--inline",
-                "select credit_limit from customers",
+                "WITH c AS (SELECT id FROM customers LIMIT 10) SELECT * FROM orders JOIN c ON orders.customer_id = c.id",
                 "--favor-state",
                 "--limit",
                 "5",
@@ -101,14 +101,15 @@ def mock_process():
                 "json",
             ],
         ),
+        # LIMIT inside a subquery no longer turns the outer limit off (#965)
         (
-            "SELECT * FROM rate_limits WHERE status = 'unlimited'",
+            "SELECT * FROM orders WHERE customer_id IN (SELECT id FROM customers LIMIT 10)",
             5,
             [
                 "--no-use-colors",
                 "show",
                 "--inline",
-                "SELECT * FROM rate_limits WHERE status = 'unlimited'",
+                "SELECT * FROM orders WHERE customer_id IN (SELECT id FROM customers LIMIT 10)",
                 "--favor-state",
                 "--limit",
                 "5",
@@ -116,54 +117,7 @@ def mock_process():
                 "json",
             ],
         ),
-        # LIMIT clause on its own line - should set --limit=-1
-        (
-            "SELECT * FROM my_model\nLIMIT 10",
-            5,
-            [
-                "--no-use-colors",
-                "show",
-                "--inline",
-                "SELECT * FROM my_model\nLIMIT 10",
-                "--favor-state",
-                "--limit",
-                "-1",
-                "--output",
-                "json",
-            ],
-        ),
-        # "limit" in a comment or as a bare column is not a LIMIT clause
-        (
-            "SELECT * FROM my_model -- push it to the limit",
-            5,
-            [
-                "--no-use-colors",
-                "show",
-                "--inline",
-                "SELECT * FROM my_model -- push it to the limit",
-                "--favor-state",
-                "--limit",
-                "5",
-                "--output",
-                "json",
-            ],
-        ),
-        (
-            "SELECT limit FROM settings",
-            5,
-            [
-                "--no-use-colors",
-                "show",
-                "--inline",
-                "SELECT limit FROM settings",
-                "--favor-state",
-                "--limit",
-                "5",
-                "--output",
-                "json",
-            ],
-        ),
-        # No limits at all - should not include --limit flag
+        # No limit parameter - should not include --limit flag
         (
             "SELECT * FROM my_model",
             None,

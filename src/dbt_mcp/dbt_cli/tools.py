@@ -1,7 +1,6 @@
 import asyncio
 import json
 import os
-import re
 import subprocess
 from collections.abc import Iterable
 from typing import Any
@@ -368,20 +367,12 @@ def create_dbt_cli_tool_definitions(
         limit: int = Field(default=5, description=get_prompt("dbt_cli/args/limit")),
     ) -> str:
         args = ["show", "--inline", sql_query, "--favor-state"]
-        # This is quite crude, but it should be okay for now
-        # until we have a dbt Fusion integration.
-        cli_limit = None
-        if re.search(r"\blimit\s+\d+", sql_query, re.IGNORECASE):
-            # When --limit=-1, dbt won't apply a separate limit.
-            cli_limit = -1
-        elif limit:
-            # This can be problematic if the LLM provides
-            # a SQL limit and a `limit` argument. However, preferencing the limit
-            # in the SQL query leads to a better experience when the LLM
-            # makes that mistake.
-            cli_limit = limit
-        if cli_limit is not None:
-            args.extend(["--limit", str(cli_limit)])
+        # Pass the limit straight to dbt, the same way `dbt show --limit` does,
+        # instead of guessing from the SQL whether it already has one. If the
+        # query also has its own LIMIT, the warehouse errors and the agent can
+        # retry with limit=-1 (dbt adds no limit) or drop the LIMIT from the SQL.
+        if limit:
+            args.extend(["--limit", str(limit)])
         args.extend(["--output", "json"])
         async with lock:
             return await asyncio.to_thread(_run_dbt_command, args)
